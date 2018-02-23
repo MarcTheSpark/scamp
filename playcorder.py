@@ -1,13 +1,13 @@
 import threading
 import time
 
-from recording_to_xml import save_to_xml_file as save_recording_to_xml
-from recording_to_xml import separate_into_non_overlapping_voices, quantize_recording
-from measures_beats_notes import *
+from .recording_to_xml import save_to_xml_file as save_recording_to_xml
+from .recording_to_xml import separate_into_non_overlapping_voices, quantize_recording
+from .measures_beats_notes import *
 from midiutil.MidiFile import MIDIFile
-import fluidsynth
+from .fluidsynth import Synth
 # from .localfluidsynth import localfluidsynth as fluidsynth  ## if a self-contained fluidsynth is being used
-from playcorder_utilities import get_relative_file_path, round_to_multiple, make_flat_list
+from .playcorder_utilities import get_relative_file_path, round_to_multiple, make_flat_list
 
 
 # TODO: SOMETHING GOES WRONG WHEN THERE ARE LIKE 3 STAVES, and they get disconnected
@@ -21,7 +21,6 @@ for x in _defaultSoundfonts:
         _defaultSoundfonts[x] = get_relative_file_path(_defaultSoundfonts[x][2:])
     elif not _defaultSoundfonts[x].startswith("/"):
         _defaultSoundfonts[x] = get_relative_file_path(_defaultSoundfonts[x])
-print(_defaultSoundfonts)
 f.close()
 
 
@@ -77,7 +76,7 @@ class Playcorder:
 
     def initialize_fluidsynth(self, soundfont_path, additional_soundfont_paths=None):
         # loads the soundfont and gets the synth going
-        self.synth = fluidsynth.Synth()
+        self.synth = Synth()
         self.soundfont_id = self.synth.sfload(soundfont_path)
         if additional_soundfont_paths is not None:
             for additional_soundfont_path in additional_soundfont_paths:
@@ -418,7 +417,7 @@ class PlaycorderInstrument:
 class MidiPlaycorderInstrument(PlaycorderInstrument):
 
     def __init__(self, synth, soundfont_id, bank_and_preset, start_channel, num_channels, host_playcorder=None, name=None):
-        assert isinstance(synth, fluidsynth.Synth)
+        assert isinstance(synth, Synth)
         assert isinstance(host_playcorder, Playcorder)
         PlaycorderInstrument.__init__(self, host_playcorder=host_playcorder, name=name)
 

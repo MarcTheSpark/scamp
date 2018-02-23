@@ -1,11 +1,11 @@
 __author__ = 'mpevans'
 
-from musicXML_exporter import *
-from measures_beats_notes import *
+from .musicXML_exporter import *
+from .measures_beats_notes import *
 from copy import deepcopy
 from interval import IntervalSet
 from itertools import permutations
-from playcorder_utilities import make_flat_list, round_to_multiple, get_standard_indispensability_array, prime_factor
+from .playcorder_utilities import make_flat_list, round_to_multiple, get_standard_indispensability_array, prime_factor
 import re
 
 notation_locations = {
