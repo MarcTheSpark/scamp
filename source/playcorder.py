@@ -5,7 +5,7 @@ from .recording_to_xml import save_to_xml_file as save_recording_to_xml
 from .recording_to_xml import separate_into_non_overlapping_voices, quantize_recording
 from .measures_beats_notes import *
 from midiutil.MidiFile import MIDIFile
-from .fluidsynth import Synth
+from .thirdparty.fluidsynth import Synth
 # from .localfluidsynth import localfluidsynth as fluidsynth  ## if a self-contained fluidsynth is being used
 from .playcorder_utilities import get_relative_file_path, round_to_multiple, make_flat_list
 
@@ -14,13 +14,13 @@ from .playcorder_utilities import get_relative_file_path, round_to_multiple, mak
 # TODO: SPECIFY MAX VOICES PER STAFF
 # TODO: SPECIFY MOST APPROPRIATE CLEF FOR EACH STAFF OF EACH MEASURE
 
-f = open(get_relative_file_path('defaultSoundfonts.txt'), 'r')
+f = open(get_relative_file_path('thirdparty/soundfonts/defaultSoundfonts.txt'), 'r')
 _defaultSoundfonts = {x.split(" ")[0]: x.split(" ")[1] for x in f.read().split("\n")}
 for x in _defaultSoundfonts:
     if _defaultSoundfonts[x].startswith("./"):
-        _defaultSoundfonts[x] = get_relative_file_path(_defaultSoundfonts[x][2:])
+        _defaultSoundfonts[x] = get_relative_file_path("thirdparty/soundfonts/"+_defaultSoundfonts[x][2:])
     elif not _defaultSoundfonts[x].startswith("/"):
-        _defaultSoundfonts[x] = get_relative_file_path(_defaultSoundfonts[x])
+        _defaultSoundfonts[x] = get_relative_file_path("thirdparty/soundfonts/"+_defaultSoundfonts[x])
 f.close()
 
 

@@ -8,7 +8,9 @@ setup(name='Playcorder',
                   'imported to notation programs.',
       author='Marc Evans',
       author_email='marc.p.evans@gmail.com',
+      requires=['midiutil'],
       url='https://github.com/MarcTheSpark/playcorder',
-      py_modules=['playcorder', 'playcorder_utilities', 'musicXML_exporter', 'measures_beats_notes',
-                  'interval', 'fluidsynth'],
- )
+      packages=['playcorder', "playcorder.thirdparty"],
+      package_dir={'playcorder': 'source'},
+      package_data={'playcorder.thirdparty': ['soundfonts/*']},
+      )
