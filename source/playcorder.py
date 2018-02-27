@@ -82,7 +82,7 @@ class Playcorder:
         if additional_soundfont_paths is not None:
             for additional_soundfont_path in additional_soundfont_paths:
                 self.additional_soundfont_ids.append(self.synth.sfload(additional_soundfont_path))
-        self.synth.start(driver=driver);
+        self.synth.start(driver=driver)
 
     def get_instruments_with_substring(self, word, avoid=None, soundfont_index=0):
         instrument_list = self.instrument_list if soundfont_index == 0 \
@@ -230,7 +230,7 @@ class Playcorder:
         """
         part_recordings = [this_part.recording for this_part in self.parts_recorded]
         part_names = [this_part.name for this_part in self.parts_recorded]
-        from marcpy.utilities import save_object
+        from .playcorder_utilities import save_object
         save_object((part_recordings, part_names, file_name), "bob.pk")
         save_recording_to_xml(part_recordings, part_names, file_name, measure_schemes=measure_schemes,
                               time_signature=time_signature, tempo=tempo, divisions=divisions,

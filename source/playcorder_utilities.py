@@ -3,6 +3,7 @@ import sys
 import inspect
 import math
 import itertools
+import pickle
 
 __author__ = 'mpevans'
 
@@ -31,6 +32,17 @@ def resolve_relative_path(file_name, from_root_process=False):
         application_path = os.path.dirname(mod.__file__)
 
     return os.path.join(application_path, file_name)
+
+
+def save_object(obj, filename):
+    with open(filename, 'wb') as output:
+        pickle.dump(copy.deepcopy(obj), output, pickle.HIGHEST_PROTOCOL)
+
+
+def load_object(filename):
+    with open(filename, 'rb') as input_:
+        out = pickle.load(input_)
+    return out
 
 
 # -------------------------------------------- Numerical Utilities -----------------------------------------------
