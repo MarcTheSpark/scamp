@@ -8,20 +8,47 @@ from midiutil.MidiFile import MIDIFile
 from .thirdparty.fluidsynth import Synth
 # from .localfluidsynth import localfluidsynth as fluidsynth  ## if a self-contained fluidsynth is being used
 from .playcorder_utilities import resolve_relative_path, round_to_multiple, make_flat_list
+from collections import OrderedDict
 
 
 # TODO: SOMETHING GOES WRONG WHEN THERE ARE LIKE 3 STAVES, and they get disconnected
 # TODO: SPECIFY MAX VOICES PER STAFF
 # TODO: SPECIFY MOST APPROPRIATE CLEF FOR EACH STAFF OF EACH MEASURE
 
-f = open(resolve_relative_path('thirdparty/soundfonts/defaultSoundfonts.txt'), 'r')
-_defaultSoundfonts = {x.split(" ")[0]: x.split(" ")[1] for x in f.read().split("\n")}
-for x in _defaultSoundfonts:
-    if _defaultSoundfonts[x].startswith("./"):
-        _defaultSoundfonts[x] = resolve_relative_path("thirdparty/soundfonts/"+_defaultSoundfonts[x][2:])
-    elif not _defaultSoundfonts[x].startswith("/"):
-        _defaultSoundfonts[x] = resolve_relative_path("thirdparty/soundfonts/"+_defaultSoundfonts[x])
-f.close()
+
+# load up all of the default soundfonts and their paths
+with open(resolve_relative_path('thirdparty/soundfonts/defaultSoundfonts.txt'), 'r') as f:
+    _defaultSoundfonts = OrderedDict()
+    for line in f.read().split("\n"):
+        name_and_path = line.split(', ')
+        if len(name_and_path) >= 2:
+            _defaultSoundfonts[name_and_path[0]] = name_and_path[1]
+
+
+def register_default_soundfont(name, soundfont_path):
+    """
+    Adds a default named soundfont, so that it can be easily referred to in constructing a Playcorder
+    :param name: the name to refer to the soundfont as
+    :type name: str
+    :param soundfont_path: the absolute path to the soundfont, staring with a slash, or a relative path that
+    gets resolved relative to the thirdparty/soundfonts directory
+    :type soundfont_path: str
+    """
+    _defaultSoundfonts[name] = soundfont_path
+    with open(resolve_relative_path('thirdparty/soundfonts/defaultSoundfonts.txt'), 'w') as defaults_file:
+        defaults_file.writelines([', '.join(x) + '\n' for x in _defaultSoundfonts.items()])
+
+
+def unregister_default_soundfont(name):
+    """
+    Same as above, but removes a default named soundfont
+    :param name: the default soundfont name to remove
+    :type name: str
+    """
+    del _defaultSoundfonts[name]
+
+    with open(resolve_relative_path('thirdparty/soundfonts/defaultSoundfonts.txt'), 'w') as defaults_file:
+        defaults_file.writelines([', '.join(x) + '\n' for x in _defaultSoundfonts.items()])
 
 
 class Playcorder:
@@ -46,6 +73,11 @@ class Playcorder:
         if soundfont_path is not None:
             if soundfont_path in _defaultSoundfonts:
                 soundfont_path = _defaultSoundfonts[soundfont_path]
+                if soundfont_path.startswith("./"):
+                    soundfont_path = resolve_relative_path("thirdparty/soundfonts/" + soundfont_path[2:])
+                elif not soundfont_path.startswith("/"):
+                    soundfont_path = resolve_relative_path("thirdparty/soundfonts/" + soundfont_path)
+
             self.initialize_fluidsynth(soundfont_path, additional_soundfont_paths=additional_soundfont_paths,
                                        driver=driver)
 
@@ -320,7 +352,8 @@ class PlaycorderInstrument:
     def __init__(self, host_playcorder=None, name=None):
         """
         This is the parent class used all kinds of instruments used within a playcorder. The most basic one, below,
-        called a MidiPlaycorderInstrument, uses fluidsynth to playback sounds from a soundfont
+        called a MidiPlaycorderInstrument, uses fluidsynth to playback sounds from a soundfont. Other implementations
+        could playback sounds in a different way.
         :param host_playcorder: The playcorder that this instrument acts within
         :param name: The name of this instrument (used later in labeling parts in output)
         """
@@ -545,7 +578,6 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
             else:
                 segment_progress = (progress / segment_length) ** curves[i]
                 return values[i] * (1 - segment_progress) + values[i+1] * segment_progress
-
 
     def change_note_pitch(self, note_id, new_pitch):
         # Changes the pitch of the note started at channel
