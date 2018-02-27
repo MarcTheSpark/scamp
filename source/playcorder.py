@@ -26,7 +26,7 @@ f.close()
 
 class Playcorder:
 
-    def __init__(self, soundfont_path=None, channels_per_part=50, additional_soundfont_paths=None):
+    def __init__(self, soundfont_path=None, channels_per_part=50, additional_soundfont_paths=None, driver=None):
         """
 
         :param soundfont_path: if we are using midi playback, the soundfont path
@@ -46,7 +46,8 @@ class Playcorder:
         if soundfont_path is not None:
             if soundfont_path in _defaultSoundfonts:
                 soundfont_path = _defaultSoundfonts[soundfont_path]
-            self.initialize_fluidsynth(soundfont_path, additional_soundfont_paths=additional_soundfont_paths)
+            self.initialize_fluidsynth(soundfont_path, additional_soundfont_paths=additional_soundfont_paths,
+                                       driver=driver)
 
         # construct a list of all the instruments available in the soundfont, for reference access
         self.instrument_list = None
@@ -74,14 +75,14 @@ class Playcorder:
         self.recording_start_time = None
         self.time_passed = None
 
-    def initialize_fluidsynth(self, soundfont_path, additional_soundfont_paths=None):
+    def initialize_fluidsynth(self, soundfont_path, additional_soundfont_paths=None, driver=None):
         # loads the soundfont and gets the synth going
         self.synth = Synth()
         self.soundfont_id = self.synth.sfload(soundfont_path)
         if additional_soundfont_paths is not None:
             for additional_soundfont_path in additional_soundfont_paths:
                 self.additional_soundfont_ids.append(self.synth.sfload(additional_soundfont_path))
-        self.synth.start()
+        self.synth.start(driver=driver);
 
     def get_instruments_with_substring(self, word, avoid=None, soundfont_index=0):
         instrument_list = self.instrument_list if soundfont_index == 0 \
