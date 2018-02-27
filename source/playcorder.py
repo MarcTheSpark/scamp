@@ -7,20 +7,20 @@ from .measures_beats_notes import *
 from midiutil.MidiFile import MIDIFile
 from .thirdparty.fluidsynth import Synth
 # from .localfluidsynth import localfluidsynth as fluidsynth  ## if a self-contained fluidsynth is being used
-from .playcorder_utilities import get_relative_file_path, round_to_multiple, make_flat_list
+from .playcorder_utilities import resolve_relative_path, round_to_multiple, make_flat_list
 
 
 # TODO: SOMETHING GOES WRONG WHEN THERE ARE LIKE 3 STAVES, and they get disconnected
 # TODO: SPECIFY MAX VOICES PER STAFF
 # TODO: SPECIFY MOST APPROPRIATE CLEF FOR EACH STAFF OF EACH MEASURE
 
-f = open(get_relative_file_path('thirdparty/soundfonts/defaultSoundfonts.txt'), 'r')
+f = open(resolve_relative_path('thirdparty/soundfonts/defaultSoundfonts.txt'), 'r')
 _defaultSoundfonts = {x.split(" ")[0]: x.split(" ")[1] for x in f.read().split("\n")}
 for x in _defaultSoundfonts:
     if _defaultSoundfonts[x].startswith("./"):
-        _defaultSoundfonts[x] = get_relative_file_path("thirdparty/soundfonts/"+_defaultSoundfonts[x][2:])
+        _defaultSoundfonts[x] = resolve_relative_path("thirdparty/soundfonts/"+_defaultSoundfonts[x][2:])
     elif not _defaultSoundfonts[x].startswith("/"):
-        _defaultSoundfonts[x] = get_relative_file_path("thirdparty/soundfonts/"+_defaultSoundfonts[x])
+        _defaultSoundfonts[x] = resolve_relative_path("thirdparty/soundfonts/"+_defaultSoundfonts[x])
 f.close()
 
 

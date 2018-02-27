@@ -7,11 +7,25 @@ import itertools
 __author__ = 'mpevans'
 
 
-# determines if application is a script file or frozen exe
-def get_relative_file_path(file_name, from_root_process=False):
+def resolve_relative_path(file_name, from_root_process=False):
+    """
+    Resolves the relative path file_name into an absolute path.
+    If this script is running from an executable made by PyInstaller, the returned path is considered
+    relative to the parent of the directory containing that executable (which is the app bundle root).
+    If this is running in any other context, then we inspect the stack to find the module that made
+    this call, and resolve the path relative to the directory in which that module resides.
+    Optionally, if the 'from_root_process' flag is on, we resolve relative to this root module
+    :param file_name: a relative path to be resolved
+    :type file_name: str
+    :param from_root_process: whether or not to resolve based on the location of the root module
+    :type from_root_process: bool
+    :return: absolute
+    """
     if getattr(sys, 'frozen', False):
+        # Python is running from an executable made by PyInstaller (the bootloader adds 'frozen' to sys)
         application_path = os.path.join(os.path.dirname(sys.executable), "..")
     else:
+        # Otherwise, inspect the stack to find the module that made this call (or the root module if desired)
         frm = inspect.stack()[1] if not from_root_process else inspect.stack()[-1]
         mod = inspect.getmodule(frm[0])
         application_path = os.path.dirname(mod.__file__)
@@ -19,7 +33,8 @@ def get_relative_file_path(file_name, from_root_process=False):
     return os.path.join(application_path, file_name)
 
 
-# Numerical Stuff
+# -------------------------------------------- Numerical Utilities -----------------------------------------------
+
 
 def is_x_pow_of_y(x, y):
     a = math.log(x, y)
@@ -67,26 +82,43 @@ def prime_factor(n):
 
     return primes
 
-# --------------------- list stuff ---------------------------
+# ---------------------------------------------- List Utilities --------------------------------------------------
 
 
-def make_flat_list(l, indivisible_type=None):
+def make_flat_list(l, indivisible=None):
+    """
+    Flattens a list, including ones containing multiple levels of nesting. Certain types can be excluded from expansion
+    :param l: a list or similar iterable
+    :param indivisible: a type or tuple of types that should not be expanded out. E.g. a custom named tuple
+    :return: a flattened version of the list
+    """
     # indivisible_type is a type that we don't want to divide,
     new_list = list(l)
+
     i = 0
     while i < len(new_list):
-        if hasattr(new_list[i], "__len__"):
-            if indivisible_type is None or not isinstance(new_list[i], indivisible_type):
-                new_list = new_list[:i] + new_list[i] + new_list[i+1:]
+        if hasattr(new_list[i], "__len__") and not isinstance(new_list[i], str) and \
+                (indivisible is None or not isinstance(new_list[i], indivisible)):
+            # if this list item can be expanded and it's not an indivisible type
+            # then expand it and don't increment i
+            new_list = new_list[:i] + list(new_list[i]) + new_list[i+1:]
         else:
+            # otherwise increment i
             i += 1
     return new_list
 
 
 def rotate(l, n):
+    """
+    rotates a list such that it starts at the nth index and loops back to end at the (n-1)st
+    :param l: the input list
+    :param n: the new start index
+    :return: the rotated list
+    """
     return l[n:] + l[:n]
 
-# ---------------------------------------- Indigestibility ------------------------------------------
+# ------------------------------------ Indigestibility (a la Clarence Barlow) ------------------------------------
+# All of these are needed for the indispensability stuff below
 
 
 def is_prime(a):
@@ -103,7 +135,9 @@ def indigestibility(n):
             total += indigestibility(factor)
         return total
 
-# ---------------------------------------------- Indispensability -----------------------------------------------
+# ------------------------------------- Indispensability (a la Clarence Barlow) -------------------------------------
+# Indispensability is a way of assigning importance weightings to the pulses in a meter.
+# I use this to improve the readability of the notation outputted. Read the code below at your own risk.
 
 
 def _first_order_backward_beat_priorities(length):
@@ -173,7 +207,7 @@ def _get_backward_beat_priorities(*args):
     return overall_beat_priorities
 
 
-def get_indispensability_array(rhythmic_strata, normalize=False):
+def _get_indispensability_array(rhythmic_strata, normalize=False):
     backward_beat_priorities = _get_backward_beat_priorities(*rhythmic_strata)
     length = len(backward_beat_priorities)
     backward_indispensability_array = [length-1-backward_beat_priorities.index(i) for i in range(length)]
@@ -186,7 +220,7 @@ def get_indispensability_array(rhythmic_strata, normalize=False):
         return indispensability_array
 
 
-def decompose_to_twos_and_threes(n):
+def _decompose_to_twos_and_threes(n):
     assert isinstance(n, int)
     out = []
     if n % 2 == 1:
@@ -201,16 +235,16 @@ def decompose_to_twos_and_threes(n):
     return out
 
 
-def standardize_strata(rhythmic_strata):
+def _standardize_strata(rhythmic_strata):
     strata = []
     for stratum in rhythmic_strata:
         assert isinstance(stratum, int) and stratum > 0
         if stratum > 2:
-            strata.append(decompose_to_twos_and_threes(stratum))
+            strata.append(_decompose_to_twos_and_threes(stratum))
         else:
             strata.append(stratum)
     return strata
 
 
 def get_standard_indispensability_array(rhythmic_strata, normalize=False):
-    return get_indispensability_array(standardize_strata(rhythmic_strata), normalize)
+    return _get_indispensability_array(_standardize_strata(rhythmic_strata), normalize)

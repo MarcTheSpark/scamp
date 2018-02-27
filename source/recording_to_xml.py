@@ -386,7 +386,7 @@ def _break_into_ties(recording_in_seconds, beat_schemes):
                 second_half = MPNote(beat_start_time, this_pc_note.start_time + this_pc_note.length - beat_start_time,
                                      this_pc_note.pitch, this_pc_note.volume, this_pc_note.variant, second_half_tie)
                 recording_in_seconds[i] = [first_half, second_half]
-        recording_in_seconds = make_flat_list(recording_in_seconds, indivisible_type=MPNote)
+        recording_in_seconds = make_flat_list(recording_in_seconds, indivisible=MPNote)
 
     return recording_in_seconds
 
