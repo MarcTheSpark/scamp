@@ -1,7 +1,5 @@
-rtmidi_loaded = False
 try:
     import rtmidi
-    rtmidi_loaded = True
 except ImportError:
     rtmidi = None
     print("python-rtmidi was not found; midi output will not be available.")
@@ -39,7 +37,7 @@ class SimpleRtMidiOut:
     """
     def __init__(self, output_device=None, output_name=None):
 
-        if rtmidi_loaded:
+        if rtmidi is not None:
             self.midiout = rtmidi.MidiOut()
             if isinstance(output_device, int):
                 self.midiout.open_port(output_device, name=output_name)
@@ -52,17 +50,17 @@ class SimpleRtMidiOut:
                     self.midiout.open_virtual_port(name=output_name)
 
     def note_on(self, chan, pitch, velocity):
-        if rtmidi_loaded:
+        if rtmidi is not None:
             self.midiout.send_message([0x90 + chan, pitch, velocity])
 
     def note_off(self, chan, pitch):
-        if rtmidi_loaded:
+        if rtmidi is not None:
             self.midiout.send_message([0x80 + chan, pitch, 0])  # note on call of 0 velocity implementation
             self.midiout.send_message([0x90 + chan, pitch, 0])  # note off call implementation
 
     def pitch_bend(self, chan, value):
         assert 0 <= value < 16384
-        if rtmidi_loaded:
+        if rtmidi is not None:
             # midi pitch bend data takes two midi data bytes; a least significant 7-bit number and
             # a most significant 7-bit number. These combine to form an integer from 0 to 16383
             lsb = value % 128
@@ -70,9 +68,9 @@ class SimpleRtMidiOut:
             self.midiout.send_message([0xE0 + chan, lsb, msb])  # note on call of 0 velocity implementation
 
     def expression(self, chan, value):
-        if rtmidi_loaded:
+        if rtmidi is not None:
             self.midiout.send_message([0xB0 + chan, 11, value])
 
     def cc(self, chan, cc_number, value):
-        if rtmidi_loaded:
+        if rtmidi is not None:
             self.midiout.send_message([0xB0 + chan, cc_number, value])

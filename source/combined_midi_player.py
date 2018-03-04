@@ -2,18 +2,14 @@ from .playcorder_utilities import resolve_relative_path
 from .simple_rtmidi_wrapper import SimpleRtMidiOut
 from collections import OrderedDict
 
-fluidsynth_loaded = False
 try:
-    from .thirdparty.fluidsynth import Synth
-    fluidsynth_loaded = True
+    from .thirdparty import fluidsynth
 except ImportError:
-    Synth = None
+    fluidsynth = None
     print("Fluidsynth could not be loaded; synth output will not be available.")
 
-sf2utils_loaded = False
 try:
     from sf2utils.sf2parse import Sf2File
-    sf2utils_loaded = True
 except ImportError:
     Sf2File = None
     print("sf2utils was not found; info about soundfont presets will not be available.")
@@ -64,7 +60,7 @@ class CombinedMidiPlayer:
         self.soundfont_ids = []  # the ids of loaded soundfonts
         self.soundfont_instrument_lists = []
 
-        if soundfonts is not None and fluidsynth_loaded:
+        if soundfonts is not None and fluidsynth is not None:
             soundfont_paths = []
             for soundfont in soundfonts:
                 if soundfont in _defaultSoundfonts:
@@ -77,7 +73,7 @@ class CombinedMidiPlayer:
                 else:
                     soundfont_paths.append(soundfont)
 
-                if sf2utils_loaded:
+                if Sf2File is not None:
                     # if we have sf2utils, load up the preset info from the soundfonts
                     with open(soundfont_paths[-1], "rb") as sf2_file:
                         sf2 = Sf2File(sf2_file)
@@ -96,7 +92,7 @@ class CombinedMidiPlayer:
 
     def initialize_fluidsynth(self, soundfont_paths, driver=None):
         # loads the soundfonts and gets the synth going
-        self.synth = Synth()
+        self.synth = fluidsynth.Synth()
         for soundfont_path in soundfont_paths:
             self.soundfont_ids.append(self.synth.sfload(soundfont_path))
         self.synth.start(driver=driver)
@@ -126,7 +122,7 @@ class CombinedMidiInstrument:
 
         self.rt_simple_out = SimpleRtMidiOut(midi_output_device, midi_output_name)
 
-        if fluidsynth_loaded:
+        if fluidsynth is not None:
             self.set_to_preset(*bank_and_preset)
 
     def set_to_preset(self, bank, preset):
