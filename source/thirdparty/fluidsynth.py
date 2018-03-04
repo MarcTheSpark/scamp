@@ -220,7 +220,7 @@ class Synth:
 
         """
         if driver is not None:
-            assert (driver in ['alsa', 'oss', 'jack', 'portaudio', 'sndmgr', 'coreaudio', 'Direct Sound'])
+            assert (driver in ['alsa', 'oss', 'jack', 'pulseaudio', 'portaudio', 'sndmgr', 'coreaudio', 'Direct Sound'])
             fluid_settings_setstr(self.settings, 'audio.driver'.encode(), driver.encode())
         self.audio_driver = new_fluid_audio_driver(self.settings, self.synth)
 
@@ -266,7 +266,7 @@ class Synth:
         A pitch bend value of 0 is no pitch change from default.
         A value of -4096 is 1 semitone down.
         A value of 4096 is 1 semitone up.
-        Maximum values are -8192 to +8192 (transposing by 1 whole tone).
+        Maximum values are -8192 to +8191 (transposing by 1 whole tone).
         
         """
         return fluid_synth_pitch_bend(self.synth, chan, val + 8192)
