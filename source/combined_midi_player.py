@@ -52,7 +52,7 @@ def unregister_default_soundfont(name):
 
 class CombinedMidiPlayer:
 
-    def __init__(self, soundfonts=None, driver=None, rtmidi_output_device=None):
+    def __init__(self, soundfonts=None, audio_driver=None, rtmidi_output_device=None):
 
         self.used_channels = 0  # how many channels have we already assigned to various instruments
 
@@ -79,7 +79,7 @@ class CombinedMidiPlayer:
                         sf2 = Sf2File(sf2_file)
                         self.soundfont_instrument_lists.append(sf2.presets)
 
-            self.initialize_fluidsynth(soundfont_paths, driver=driver)
+            self.initialize_fluidsynth(soundfont_paths, driver=audio_driver)
 
         self.default_rtmidi_output_device = rtmidi_output_device
 
@@ -120,7 +120,16 @@ class CombinedMidiInstrument:
 
         self.max_pitch_bend = 2
 
-        self.rt_simple_out = SimpleRtMidiOut(midi_output_device, midi_output_name)
+        # since rtmidi can only have 16 output channels, we need to create several output devices if we are using more
+        if num_channels <= 16:
+            self.rt_simple_outs = [SimpleRtMidiOut(midi_output_device, midi_output_name)]
+        else:
+            chan = 0
+            self.rt_simple_outs = []
+            while chan < num_channels:
+                self.rt_simple_outs.append(SimpleRtMidiOut(midi_output_device,
+                                                           midi_output_name + " chans {}-{}".format(chan, chan + 15)))
+                chan += 16
 
         if fluidsynth is not None:
             self.set_to_preset(*bank_and_preset)
@@ -129,24 +138,33 @@ class CombinedMidiInstrument:
         for i in self.channels:
             self.combined_midi_player.synth.program_select(i, self.soundfont_id, bank, preset)
 
+    def get_rt_simple_out_and_channel(self, chan):
+        assert chan < self.num_channels
+        adjusted_chan = chan % 16
+        rt_simple_out = self.rt_simple_outs[(chan - adjusted_chan) // 16]
+        return rt_simple_out, adjusted_chan
+
     def note_on(self, chan, pitch, volume_from_0_to_1):
         """
         NB: for this and following commands, since a single instance of fluidsynth is running for all instruments,
         it we need to use the absolute channel when we call it 9I.. Each rt_midi output, on the other hand is local
         to the instrument, so no such conversion is necessary.
         """
+        rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
         absolute_channel = self.channels[chan]
         velocity = int(volume_from_0_to_1 * 127)
         self.combined_midi_player.synth.noteon(absolute_channel, pitch, velocity)
-        self.rt_simple_out.note_on(chan, pitch, velocity)
+        rt_simple_out.note_on(chan, pitch, velocity)
 
     def note_off(self, chan, pitch):
+        rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
         absolute_channel = self.channels[chan]
         self.combined_midi_player.synth.noteon(absolute_channel, pitch, 0)  # note on call of 0 velocity implementation
         self.combined_midi_player.synth.noteoff(absolute_channel, pitch)  # note off call implementation
-        self.rt_simple_out.note_off(chan, pitch)
+        rt_simple_out.note_off(chan, pitch)
 
     def pitch_bend(self, chan, bend_in_semitones):
+        rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
         absolute_channel = self.channels[chan]
         directional_bend_value = int(bend_in_semitones / self.max_pitch_bend * 8192)
         # we can't have a directional pitch bend popping up to 8192, because we'll go one above the max allowed
@@ -155,7 +173,7 @@ class CombinedMidiInstrument:
         # for some reason, pyFluidSynth takes a value from -8192 to 8191 and then adds 8192 to it
         self.combined_midi_player.synth.pitch_bend(absolute_channel, directional_bend_value)
         # rt_midi wants the normal value having added in 8192
-        self.rt_simple_out.pitch_bend(chan, directional_bend_value + 8192)
+        rt_simple_out.pitch_bend(chan, directional_bend_value + 8192)
 
     def set_max_pitch_bend(self, max_bend_in_semitones):
         """
@@ -170,20 +188,21 @@ class CombinedMidiInstrument:
             print("Max pitch bend must be an integer number of semitones.")
             return
         for chan in range(self.num_channels):
+            rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
             absolute_channel = self.channels[chan]
             self.combined_midi_player.synth.cc(absolute_channel, 101, 0)
-            self.rt_simple_out.cc(chan, 101, 0)
+            rt_simple_out.cc(chan, 101, 0)
             self.combined_midi_player.synth.cc(absolute_channel, 100, 0)
-            self.rt_simple_out.cc(chan, 100, 0)
+            rt_simple_out.cc(chan, 100, 0)
             self.combined_midi_player.synth.cc(absolute_channel, 6, max_bend_in_semitones)
-            self.rt_simple_out.cc(chan, 6, max_bend_in_semitones)
+            rt_simple_out.cc(chan, 6, max_bend_in_semitones)
             self.combined_midi_player.synth.cc(absolute_channel, 100, 127)
-            self.rt_simple_out.cc(chan, 100, 127)
+            rt_simple_out.cc(chan, 100, 127)
             self.max_pitch_bend = max_bend_in_semitones
 
     def expression(self, chan, expression_from_0_to_1):
+        rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
         absolute_channel = self.channels[chan]
         expression_val = int(expression_from_0_to_1 * 127)
         self.combined_midi_player.synth.cc(absolute_channel, 11, expression_val)
-        self.rt_simple_out.expression(chan, expression_val)
-
+        rt_simple_out.expression(chan, expression_val)

@@ -37,6 +37,7 @@ class SimpleRtMidiOut:
     """
     def __init__(self, output_device=None, output_name=None):
 
+        print(output_device, output_name)
         if rtmidi is not None:
             self.midiout = rtmidi.MidiOut()
             if isinstance(output_device, int):
