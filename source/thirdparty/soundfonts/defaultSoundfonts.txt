@@ -1,1 +1,0 @@
-default, GrandPiano.sf2

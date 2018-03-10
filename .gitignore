@@ -1,4 +1,4 @@
 *.pyc
 .idea
 localfluidsynth
-tests
+source/thirdparty/soundfonts/defaultSoundfonts.txt
