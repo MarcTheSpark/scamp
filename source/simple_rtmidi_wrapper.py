@@ -1,3 +1,6 @@
+import atexit
+
+
 try:
     import rtmidi
 except ImportError:
@@ -37,9 +40,12 @@ class SimpleRtMidiOut:
     """
     def __init__(self, output_device=None, output_name=None):
 
-        print(output_device, output_name)
         if rtmidi is not None:
             self.midiout = rtmidi.MidiOut()
+
+            def cleanup():
+                del self.midiout
+            atexit.register(cleanup)
             if isinstance(output_device, int):
                 self.midiout.open_port(output_device, name=output_name)
             else:

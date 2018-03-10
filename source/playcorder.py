@@ -5,10 +5,11 @@ from .recording_to_xml import save_to_xml_file as save_recording_to_xml
 from .recording_to_xml import separate_into_non_overlapping_voices, quantize_recording
 from .measures_beats_notes import *
 from midiutil.MidiFile import MIDIFile
-from .thirdparty.fluidsynth import Synth
-# from .localfluidsynth import localfluidsynth as fluidsynth  ## if a self-contained fluidsynth is being used
-from .playcorder_utilities import resolve_relative_path, round_to_multiple, make_flat_list
-from collections import OrderedDict
+from .playcorder_utilities import round_to_multiple, make_flat_list
+
+from .combined_midi_player import CombinedMidiPlayer
+
+from warnings import warn
 
 
 # TODO: SOMETHING GOES WRONG WHEN THERE ARE LIKE 3 STAVES, and they get disconnected
@@ -16,86 +17,27 @@ from collections import OrderedDict
 # TODO: SPECIFY MOST APPROPRIATE CLEF FOR EACH STAFF OF EACH MEASURE
 
 
-# load up all of the default soundfonts and their paths
-with open(resolve_relative_path('thirdparty/soundfonts/defaultSoundfonts.txt'), 'r') as f:
-    _defaultSoundfonts = OrderedDict()
-    for line in f.read().split("\n"):
-        name_and_path = line.split(', ')
-        if len(name_and_path) >= 2:
-            _defaultSoundfonts[name_and_path[0]] = name_and_path[1]
-
-
-def register_default_soundfont(name, soundfont_path):
-    """
-    Adds a default named soundfont, so that it can be easily referred to in constructing a Playcorder
-    :param name: the name to refer to the soundfont as
-    :type name: str
-    :param soundfont_path: the absolute path to the soundfont, staring with a slash, or a relative path that
-    gets resolved relative to the thirdparty/soundfonts directory
-    :type soundfont_path: str
-    """
-    _defaultSoundfonts[name] = soundfont_path
-    with open(resolve_relative_path('thirdparty/soundfonts/defaultSoundfonts.txt'), 'w') as defaults_file:
-        defaults_file.writelines([', '.join(x) + '\n' for x in _defaultSoundfonts.items()])
-
-
-def unregister_default_soundfont(name):
-    """
-    Same as above, but removes a default named soundfont
-    :param name: the default soundfont name to remove
-    :type name: str
-    """
-    del _defaultSoundfonts[name]
-
-    with open(resolve_relative_path('thirdparty/soundfonts/defaultSoundfonts.txt'), 'w') as defaults_file:
-        defaults_file.writelines([', '.join(x) + '\n' for x in _defaultSoundfonts.items()])
+# TODO: figure out if the pitch bend is not working right in the rt_midi output
+# TODO: Test on mac!
 
 
 class Playcorder:
 
-    def __init__(self, soundfont_path=None, channels_per_part=50, additional_soundfont_paths=None, driver=None):
+    def __init__(self, soundfonts=None, audio_driver=None, midi_output_device=None):
         """
 
-        :param soundfont_path: if we are using midi playback, the soundfont path
-        :param channels_per_part: in fluidsynth midi playback,  each new note is played through a separate "channel".
-        This sets the number of channels used by each instrument before recycling. Essentially a max # of voices.
+        :param soundfonts: the names / paths of the soundfonts this playcorder will use
+        :param audio_driver: the driver used to output audio (if none, defaults to whatever fluidsynth chooses)
+        :param midi_output_device: the default midi_output_device for outgoing midi streams. These can also be
+        specified on a per-instrument basis, but this sets a global default. Defaults to creating virtual devices.
         """
 
         # list of the current instruments used by this playcorder
         self.instruments = []
 
-        # --- MIDI setup, if necessary ---
-        self.channels_per_part = channels_per_part
-        self.used_channels = 0  # how many channels have we already assigned to various instruments
-        self.synth = None
-        self.soundfont_id = None  # the id of a loaded soundfont
-        self.additional_soundfont_ids = []
-        if soundfont_path is not None:
-            if soundfont_path in _defaultSoundfonts:
-                soundfont_path = _defaultSoundfonts[soundfont_path]
-                if soundfont_path.startswith("./"):
-                    soundfont_path = resolve_relative_path("thirdparty/soundfonts/" + soundfont_path[2:])
-                elif not soundfont_path.startswith("/"):
-                    soundfont_path = resolve_relative_path("thirdparty/soundfonts/" + soundfont_path)
-
-            self.initialize_fluidsynth(soundfont_path, additional_soundfont_paths=additional_soundfont_paths,
-                                       driver=driver)
-
-        # construct a list of all the instruments available in the soundfont, for reference access
-        self.instrument_list = None
-        if soundfont_path is not None:
-            from sf2utils.sf2parse import Sf2File
-            with open(soundfont_path, "rb") as sf2_file:
-                sf2 = Sf2File(sf2_file)
-                self.instrument_list = sf2.presets
-
-        self.additional_soundfont_instrument_lists = []
-        if additional_soundfont_paths is not None:
-            for soundfont_path in additional_soundfont_paths:
-                from sf2utils.sf2parse import Sf2File
-                with open(soundfont_path, "rb") as sf2_file:
-                    sf2 = Sf2File(sf2_file)
-                    self.additional_soundfont_instrument_lists.append(sf2.presets)
+        # if we are using just one soundfont no need to put it in a list
+        soundfonts = [soundfonts] if isinstance(soundfonts, str) else soundfonts
+        self.midi_player = CombinedMidiPlayer(soundfonts, audio_driver, midi_output_device)
 
         # --- Recording Setup ---
         # parts_being_recorded is a list of parts being recorded if recording otherwise it's None
@@ -107,64 +49,59 @@ class Playcorder:
         self.recording_start_time = None
         self.time_passed = None
 
-    def initialize_fluidsynth(self, soundfont_path, additional_soundfont_paths=None, driver=None):
-        # loads the soundfont and gets the synth going
-        self.synth = Synth()
-        self.soundfont_id = self.synth.sfload(soundfont_path)
-        if additional_soundfont_paths is not None:
-            for additional_soundfont_path in additional_soundfont_paths:
-                self.additional_soundfont_ids.append(self.synth.sfload(additional_soundfont_path))
-        self.synth.start(driver=driver)
-
     def get_instruments_with_substring(self, word, avoid=None, soundfont_index=0):
-        instrument_list = self.instrument_list if soundfont_index == 0 \
-            else None if soundfont_index > len(self.additional_soundfont_instrument_lists) \
-            else self.additional_soundfont_instrument_lists[soundfont_index-1]
-
-        if instrument_list is None:
-            return None
-        return [inst for i, inst in enumerate(instrument_list) if word.lower() in inst.name.lower() and
-                (avoid is None or avoid.lower() not in inst.name.lower())]
+        return self.midi_player.get_instruments_with_substring(word, avoid=None, soundfont_index=0)
 
     def add_part(self, instrument):
+        """
+        Adds an instance of PlaycorderInstrument to this playcorder. Generally this will be done indirectly
+        by calling add_midi_part, but this functionality is here so that people can build and use their own
+        PlaycorderInstruments that implement the interface and playback sounds in different ways.
+        :type instrument: PlaycorderInstrument
+        """
         assert isinstance(instrument, PlaycorderInstrument)
         if not hasattr(instrument, "name") or instrument.name is None:
             instrument.name = "Track " + str(len(self.instruments) + 1)
         instrument.host_playcorder = self
         self.instruments.append(instrument)
 
-    def add_midi_part(self, preset, name=None, soundfont_index=0):
+    def add_midi_part(self, name=None, preset=(0, 0), soundfont_index=0, num_channels=8,
+                      midi_output_device=None, midi_output_name=None):
         """
         Constructs a MidiPlaycorderInstrument, adds it to the Playcorder, and returns it
+        :param name: name used for this instrument in score output and midi output (unless otherwise specified)
+        :type name: str
         :param preset: if an int, assumes bank #0; can also be a tuple of form (bank, preset)
+        :param soundfont_index: the index of the soundfont to use for fluidsynth playback
+        :type soundfont_index: int
+        :param num_channels: maximum of midi channels available to this midi part. It's wise to use more when doing
+        microtonal playback, since pitch bends are applied per channel.
+        :type num_channels: int
+        :param midi_output_device: the name of the device to use for outgoing midi stream. Defaults to whatever was
+        set as this playcorder's default
+        :param midi_output_name: the name to use when outputting midi streams. Defaults to the name of the instrument.
         :rtype : MidiPlaycorderInstrument
         """
-        if self.synth is None:
-            raise Exception("Fluidsynth not initialized")
 
         if name is None:
             name = "Track " + str(len(self.instruments) + 1)
 
-        assert soundfont_index <= len(self.additional_soundfont_ids)
-        soundfont_id = self.soundfont_id if soundfont_index == 0 else self.additional_soundfont_ids[soundfont_index-1]
+        if not 0 <= soundfont_index < len(self.midi_player.soundfont_ids):
+            raise ValueError("Soundfont index out of bounds.")
 
         if isinstance(preset, int):
-            # if just an int, assume bank 0 and that's the preset
-            instrument = MidiPlaycorderInstrument(self.synth, soundfont_id, (0, preset), self.used_channels,
-                                                  self.channels_per_part, self, name)
-        else:
-            # inst_num is a bank, preset pair
-            instrument = MidiPlaycorderInstrument(self.synth, soundfont_id, preset, self.used_channels,
-                                                  self.channels_per_part, self, name)
+            preset = (0, preset)
 
-        self.used_channels += self.channels_per_part
+        instrument = MidiPlaycorderInstrument(self, self.midi_player, name, preset, soundfont_index, num_channels,
+                                              midi_output_device, midi_output_name)
+
         self.add_part(instrument)
         return instrument
 
     def add_silent_part(self, name=None):
         """
-        Constructs a SilentPlaycorderInstrument, adds it to the Playcorder, and returns it
-        :rtype : SilentPlaycorderInstrument
+        Constructs a basic (and therefore silent) PlaycorderInstrument, adds it to the Playcorder, and returns it
+        :rtype : PlaycorderInstrument
         """
         name = "Track " + str(len(self.instruments) + 1) if name is None else name
         instrument = PlaycorderInstrument(self, name=name)
@@ -180,7 +117,7 @@ class Playcorder:
                 note_start_time = start_time
             else:
                 note_start_time = self.get_time_passed() + start_delay
-            instrument.recording.append(MPNote(start_time=note_start_time,
+            instrument.recording.append(PCNote(start_time=note_start_time,
                                                length=length if written_length is None else written_length,
                                                pitch=pitch, volume=volume, variant=variant_dictionary, tie=None))
 
@@ -192,6 +129,10 @@ class Playcorder:
             else:
                 # not manually logging time; just measure from the start time
                 return time.time()-self.recording_start_time
+        else:
+            # if note recording, just default to returning time.time() so that
+            # relative measurements that use this will still work
+            return time.time()
 
     def start_recording(self, which_parts=None, manual_time=False):
         if manual_time:
@@ -335,7 +276,7 @@ class Playcorder:
                 midi_file.addTempo(current_track, 0, tempo)
 
                 for pc_note in voice:
-                    assert isinstance(pc_note, MPNote)
+                    assert isinstance(pc_note, PCNote)
                     pitch_to_notate = int(round(pc_note.pitch)) if round_pitches else pc_note.pitch
                     midi_file.addNote(current_track, 0, pitch_to_notate, pc_note.start_time,
                                       pc_note.length, int(pc_note.volume*127))
@@ -352,8 +293,8 @@ class PlaycorderInstrument:
     def __init__(self, host_playcorder=None, name=None):
         """
         This is the parent class used all kinds of instruments used within a playcorder. The most basic one, below,
-        called a MidiPlaycorderInstrument, uses fluidsynth to playback sounds from a soundfont. Other implementations
-        could playback sounds in a different way.
+        called a MidiPlaycorderInstrument, uses fluidsynth to playback sounds from a soundfont, and also sends the
+        output to a port via rtmidi. Other implementations could playback sounds in a different way.
         :param host_playcorder: The playcorder that this instrument acts within
         :param name: The name of this instrument (used later in labeling parts in output)
         """
@@ -361,11 +302,10 @@ class PlaycorderInstrument:
         self.host_playcorder = host_playcorder
         self.name = name
         self.notes_started = []   # each entry goes (note_id, pitch, volume, start_time, variant_dictionary)
-        self.render_info = {}
 
-    # ------------------ Methods to be overridden by subclasses ------------------
+    # ------------------ Methods to be implemented by subclasses ------------------
 
-    def _do_play_note(self, pitch, volume, length, start_delay, variant_dictionary):
+    def _do_play_note(self, pitch, volume, length, start_delay, variant_dictionary=None):
         # Does the actual sonic implementation of playing a note
         pass
 
@@ -411,7 +351,7 @@ class PlaycorderInstrument:
     def start_note(self, pitch, volume, variant_dictionary=None):
         note_id = self._do_start_note(pitch, volume, variant_dictionary)
         self.notes_started.append((note_id, pitch, volume, self.host_playcorder.get_time_passed(), variant_dictionary))
-        # returns the note_id as a reference, in case we want to change pitch mid playback
+        # returns the note_id as a reference, in case we want to change pitch mid-playback
         return note_id
 
     def end_note(self, note_id=None):
@@ -450,147 +390,200 @@ class PlaycorderInstrument:
 
 class MidiPlaycorderInstrument(PlaycorderInstrument):
 
-    def __init__(self, synth, soundfont_id, bank_and_preset, start_channel, num_channels, host_playcorder=None, name=None):
-        assert isinstance(synth, Synth)
+    def __init__(self, host_playcorder, midi_player, name, preset, soundfont_index=0, num_channels=8,
+                 midi_output_device=None, midi_output_name=None):
         assert isinstance(host_playcorder, Playcorder)
-        PlaycorderInstrument.__init__(self, host_playcorder=host_playcorder, name=name)
+        assert isinstance(midi_player, CombinedMidiPlayer)
+        super().__init__(host_playcorder, name)
 
-        self.host_playcorder = host_playcorder
-        self.name = name
-
-        self.synth = synth
-        self.sound_font_id = soundfont_id
-
-        self.current_channel = 0
-        self.start_channel = start_channel
+        self.midi_player = midi_player
+        midi_output_name = name if midi_output_name is None else midi_output_name
+        self.midi_instrument = midi_player.add_instrument(num_channels, preset, soundfont_index,
+                                                          midi_output_device, midi_output_name)
         self.num_channels = num_channels
 
-        # set all the channels owned by this instrument to the correct preset
-        # bank_and_preset should be a tuple in the form (bank, preset)
-        self.set_to_preset(*bank_and_preset)
+        # keep track of what notes are currently playing
+        # each entry is an identifying tuple of: (channel, pitch, unique_id)
+        self.active_midi_notes = []
 
-    def set_to_preset(self, bank, preset):
-        for i in range(self.start_channel, self.start_channel + self.num_channels):
-            self.synth.program_select(i, self.sound_font_id, bank, preset)
+    # ---- highest level call to implement playing a note ----
+    # started as a thread from within the parent class method play_note
 
-    def _do_start_note(self, pitch, volume, variant_dictionary=None):
-        # Does the actual sonic implementation of starting a note
-        # in this case the note_id returned will be a tuple consisting of the channel and the midi key pressed
-        channel = self.start_channel + self.current_channel
-        self.current_channel = (self.current_channel + 1) % self.num_channels
-        int_pitch = int(round(pitch))
-        pitch_bend_val = int((pitch - int_pitch)*4096)
-        self.synth.pitch_bend(channel, pitch_bend_val)
-        self.synth.noteon(channel, int_pitch, int(volume*127))
-        return channel, int_pitch
-
-    def _do_end_note(self, note_id):
-        # Does the actual sonic implementation of ending a the note with the given note_id = channel, key pressed
-        channel, int_pitch = note_id
-        self.synth.noteon(channel, int_pitch, 0)
-
-    def _do_play_note(self, pitch, volume, length, start_delay, variant_dictionary):
+    def _do_play_note(self, pitch, volume, length, start_delay, variant_dictionary=None):
         # Does the actual sonic implementation of playing a note
         time.sleep(start_delay)
         note_start_time = time.time()
-        if hasattr(volume, "__len__") or hasattr(pitch, "__len__"):
-            # either volume or pitch or both have an envelope associated, so we start a thread to adjust it
-            if hasattr(pitch, "__len__"):
-                pitch_curve = MidiPlaycorderInstrument.standardize_parameter_curve(pitch)
-                start_pitch = MidiPlaycorderInstrument.get_param_value_at_curve_progress(pitch_curve, 0)
-            else:
-                pitch_curve = None
-                start_pitch = pitch
-            if hasattr(volume, "__len__"):
-                volume_curve = MidiPlaycorderInstrument.standardize_parameter_curve(volume)
-                start_velocity = max(volume_curve[0])
-            else:
-                volume_curve = None
-                start_velocity = volume
+        # convert lists to ParameterCurves
+        volume = ParameterCurve.from_list(volume) if hasattr(volume, "__len__") else volume
+        pitch = ParameterCurve.from_list(pitch) if hasattr(pitch, "__len__") else pitch
+        is_animating_volume = isinstance(volume, ParameterCurve)
+        is_animating_pitch = isinstance(pitch, ParameterCurve)
+        # the starting volume (velocity) of the note needs to be as loud as the note is ever going to get
+        start_volume = volume.max_value() if isinstance(volume, ParameterCurve) else volume
+        # the starting pitch should just be whatever it is
+        start_pitch = pitch.value_at(0) if isinstance(pitch, ParameterCurve) else pitch
 
-            note_id = self._do_start_note(start_pitch, start_velocity, variant_dictionary)
+        note_id = self._do_start_note(start_pitch, start_volume, variant_dictionary,
+                                      pitch_changes=is_animating_pitch)
+
+        if is_animating_volume or is_animating_pitch:
+            if is_animating_volume:
+                volume.normalize_to_duration(length)
+            if is_animating_pitch:
+                pitch.normalize_to_duration(length)
 
             def animate_pitch_and_volume():
                 while note_start_time is not None:
-                    if  pitch_curve is not None:
-                        self.change_note_pitch(
-                            note_id,
-                            MidiPlaycorderInstrument.get_param_value_at_curve_progress(
-                                pitch_curve, min(1, (time.time() - note_start_time) / length)
-                            )
-                        )
-                    if volume_curve is not None:
-                        self.change_note_volume(
-                            note_id,
-                            MidiPlaycorderInstrument.get_param_value_at_curve_progress(
-                                volume_curve, min(1, (time.time() - note_start_time) / length)
-                            )
-                        )
+                    if is_animating_volume:
+                        # note that, since change_note_volume is affecting expression values, we need to send it
+                        # the proportion of the start_volume rather than the absolute volume
+                        self.change_note_volume(note_id, volume.value_at(time.time() - note_start_time) / start_volume)
+                    if is_animating_pitch:
+                        self.change_note_pitch(note_id, pitch.value_at(time.time() - note_start_time))
                     time.sleep(0.04)
-
             threading.Thread(target=animate_pitch_and_volume).start()
-        else:
-            note_id = self._do_start_note(pitch, volume, variant_dictionary)
 
         time.sleep(length)
         note_start_time = None
         self._do_end_note(note_id)
 
-    @staticmethod
-    def standardize_parameter_curve(curve_array):
-        # a param curve can be given as just a set of values like [1, 0.5, 0.3], which will be evenly spread in time
-        # or as [[1, 0.5, 0.3], [0.2, 0.8]], which makes the first segment last 20% of the note length and the last 80%
-        # or as [[1, 0.5, 0.3], [0.2, 0.8], [2, 0.5]], which adds a curvature parameter
-        # this function standardizes it, taking any of the three forms and returning the latter.
-        if hasattr(curve_array[0], "__len__"):
-            # we were given levels and percent timings, and possibly curvature values
-            if len(curve_array) == 2:
-                # given levels and percent timings
-                try:
-                    assert hasattr(curve_array[1], "__len__") and len(curve_array[1]) == len(curve_array[0]) - 1
-                except AssertionError:
-                    raise ValueError("There should be exactly one fewer segment length than value")
-                total_timings = sum(curve_array[1])
-                timings = [float(x) / total_timings for x in curve_array[1]]
-                return [curve_array[0], timings, [1] * len(curve_array[1])]
-            elif len(curve_array) >= 3:
-                try:
-                    assert hasattr(curve_array[1], "__len__") and len(curve_array[1]) == len(curve_array[0]) - 1 and \
-                           len(curve_array[2]) == len(curve_array[1])
-                except AssertionError:
-                    raise ValueError("There should be exactly one fewer segment length and curve type than value")
-                total_timings = sum(curve_array[1])
-                timings = [float(x) / total_timings for x in curve_array[1]]
-                return [curve_array[0], timings, curve_array[2]]
-        else:
-            # just given levels, so we linearly interpolate segments of equal length
-            levels = curve_array
-            timings = [1.0 / (len(levels) - 1)] * (len(levels) - 1)
-            curves = [1.0] * (len(levels) - 1)
-            return [levels, timings, curves]
+    # ---- The constituent parts of the _do_play_note call ----
 
-    @staticmethod
-    def get_param_value_at_curve_progress(standardized_param_curve, progress):
-        values, timings, curves = standardized_param_curve
-        for i, segment_length in enumerate(timings):
-            if progress > segment_length:
-                progress -= segment_length
-            else:
-                segment_progress = (progress / segment_length) ** curves[i]
-                return values[i] * (1 - segment_progress) + values[i+1] * segment_progress
+    def _do_start_note(self, pitch, volume, variant_dictionary=None, pitch_changes=False):
+        # Does the actual sonic implementation of starting a note
+        # in this case the note_id returned will be a tuple consisting of
+        # the channel, the midi key pressed, the start time, and whether or not pitch bend is used
+        int_pitch = int(round(pitch))
+        uses_pitch_bend = (pitch != int_pitch) or pitch_changes
+        channel = self._find_channel_for_note(int_pitch, new_note_uses_bend=uses_pitch_bend)
+        self.midi_instrument.pitch_bend(channel, pitch - int_pitch)
+        self.midi_instrument.note_on(channel, int_pitch, volume)
+        note_id = channel, int_pitch, self.host_playcorder.get_time_passed(), uses_pitch_bend
+        self.active_midi_notes.append(note_id)
+        return note_id
+
+    def _find_channel_for_note(self, int_pitch, new_note_uses_bend=False):
+        # returns the first channel not currently playing this pitch
+        # this could undoubtedly be more efficient, but it's probably not worth the effort
+        available_channels = list(range(self.num_channels))
+        old_notes_that_conflict = []  # we keep track of these to end them in case there is no free channel
+        for active_midi_note in self.active_midi_notes:
+            chan, pitch, start_time, uses_bend = active_midi_note
+            # for each active midi note, check if it's playing this pitch and thus would conflict on the same channel
+            # also, if the new note uses pitch bend, or if the old note we're checking it against does, then they
+            # can't share a channel, since the pitch bend applies to the whole channel.
+            if pitch == int_pitch or new_note_uses_bend or uses_bend:
+                # if so, mark the channel that note is on as unavailable
+                if chan in available_channels:
+                    available_channels.remove(chan)
+                old_notes_that_conflict.append(active_midi_note)
+        if len(available_channels) > 0:
+            # if there's a free channel, return the lowest number available
+            return available_channels[0]
+        else:
+            # if every channel is playing this pitch, we will end the oldest note so we can
+            old_notes_that_conflict.sort(key=lambda note_info: note_info[2])
+            oldest_note = old_notes_that_conflict[0]
+            self._do_end_note(oldest_note)
+            # return the channel of the oldest note
+            return oldest_note[0]
+
+    def _do_end_note(self, note_id):
+        # Does the actual sonic implementation of ending a the note with the given note_id = channel, key pressed
+        if note_id in self.active_midi_notes:
+            self.midi_instrument.note_off(note_id[0], note_id[1])
+            self.active_midi_notes.remove(note_id)
 
     def change_note_pitch(self, note_id, new_pitch):
         # Changes the pitch of the note started at channel
-        channel, int_pitch = note_id
-        pitch_bend_val = int((new_pitch - int_pitch) * 4096)
-        # unfortunately there is a limit of -8192 to 8192 (or 4 half-steps up or down), so we confine it to this range
-        pitch_bend_val = min(max(pitch_bend_val, -8192), 8191)
-        self.synth.pitch_bend(channel, pitch_bend_val)
+        channel, int_pitch, note_start_time, uses_pitch_bend = note_id
+        self.midi_instrument.pitch_bend(channel, new_pitch - int_pitch)
 
     def change_note_volume(self, note_id, new_volume):
-        # Changes the expression of the note with the given id
-        channel, int_pitch = note_id
-        self.synth.cc(channel, 11, int(new_volume * 127))
+        """
+        Changes the volume of the note with the given id
+        For a MidiPlaycorderInstrument, this is mapped to expression, which means that new_volume represents a
+        proportion of the starting volume of the note. The note can't get louder than it started.
+        """
+        channel, int_pitch, note_start_time, uses_pitch_bend = note_id
+        self.midi_instrument.expression(channel, new_volume)
+
+    def set_max_pitch_bend(self, semitones):
+        self.midi_instrument.set_max_pitch_bend(semitones)
+
+
+class ParameterCurve:
+
+    def __init__(self, levels, durations, curvatures):
+        if len(levels) == len(durations):
+            # there really should be one more level than duration, but if there's the same
+            # number, we assume that they intend the last level to stay where it is
+            levels = list(levels) + [levels[-1]]
+        if len(levels) != len(durations) + 1:
+            raise ValueError("Inconsistent number of levels and durations given.")
+        if len(curvatures) > len(levels) - 1:
+            warn("Too many curvature values given to ParameterCurve. Discarding extra.")
+        if len(curvatures) < len(levels) - 1:
+            warn("Too few curvature values given to ParameterCurve. Assuming linear for remainder.")
+
+        self.levels = levels
+        self.durations = durations
+        self.curvatures = curvatures
+
+    @classmethod
+    def from_levels(cls, levels):
+        # just given levels, so we linearly interpolate segments of equal length
+        durations = [1.0 / (len(levels) - 1)] * (len(levels) - 1)
+        curves = [1.0] * (len(levels) - 1)
+        return cls(levels, durations, curves)
+
+    @classmethod
+    def from_levels_and_durations(cls, levels, durations):
+        # given levels and durations, so we assume linear curvature for every segment
+        return cls(levels, durations, [1.0] * (len(levels) - 1))
+
+    @classmethod
+    def from_list(cls, constructor_list):
+        # converts from a list that may contain just levels, may have levels and durations, and may have everything
+        # a input of [1, 0.5, 0.3] is interpreted as evenly spaced levels
+        # an input of [[1, 0.5, 0.3], [0.2, 0.8]] is interpreted as levels and durations
+        # an input of [[1, 0.5, 0.3], [0.2, 0.8], [2, 0.5]]is interpreted as levels, durations, and curvatures
+        if hasattr(constructor_list[0], "__len__"):
+            # we were given levels and durations, and possibly curvature values
+            if len(constructor_list) == 2:
+                # given levels and durations
+                return ParameterCurve.from_levels_and_durations(constructor_list[0], constructor_list[1])
+            elif len(constructor_list) >= 3:
+                # given levels, durations, and curvature values
+                return cls(constructor_list[0], constructor_list[1], constructor_list[2])
+        else:
+            # just given levels
+            return ParameterCurve.from_levels(constructor_list)
+
+    def normalize_to_duration(self, desired_duration):
+        current_duration = sum(self.durations)
+        if current_duration != desired_duration:
+            ratio = desired_duration / current_duration
+            for i, dur in enumerate(self.durations):
+                self.durations[i] = dur * ratio
+
+    def value_at(self, t):
+        if t < 0:
+            return self.levels[-1]
+        for i, segment_length in enumerate(self.durations):
+            if t > segment_length:
+                t -= segment_length
+            else:
+                segment_progress = (t / segment_length) ** self.curvatures[i]
+                return self.levels[i] * (1 - segment_progress) + self.levels[i+1] * segment_progress
+        return self.levels[-1]
+
+    def max_value(self):
+        return max(self.levels)
+
+    def __repr__(self):
+        return "ParameterCurve({}, {}, {})".format(self.levels, self.durations, self.curvatures)
+
 
 # -------------- EXAMPLE --------------
 #
