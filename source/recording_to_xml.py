@@ -127,7 +127,7 @@ def save_to_xml_file(recorded_parts, part_names, file_name, measure_schemes=None
 
                     # each note in each voice
                     for pc_note in voice_in_measure:
-                        assert isinstance(pc_note, MPNote)
+                        assert isinstance(pc_note, PCNote)
                         if isinstance(pc_note.pitch, (list, tuple)):
                             # it's a chord
                             xml_notes = Note.make_chord(
@@ -310,9 +310,9 @@ def quantize_recording(recording_in_seconds, beat_schemes, onset_termination_wei
 
     quantized_recording = []
     for pc_note in recording_in_seconds:
-        quantized_recording.append(MPNote(start_time=pc_note_to_quantize_start_time[pc_note],
-                                   length=pc_note_to_quantize_end_time[pc_note] - pc_note_to_quantize_start_time[pc_note],
-                                   pitch=pc_note.pitch, volume=pc_note.volume, variant=pc_note.variant, tie=pc_note.tie))
+        quantized_recording.append(PCNote(start_time=pc_note_to_quantize_start_time[pc_note],
+                                          length=pc_note_to_quantize_end_time[pc_note] - pc_note_to_quantize_start_time[pc_note],
+                                          pitch=pc_note.pitch, volume=pc_note.volume, variant=pc_note.variant, tie=pc_note.tie))
 
     return quantized_recording, beat_divisors
 
@@ -326,8 +326,8 @@ def _collapse_recording_chords(recording):
         if out[i].start_time == out[i+1].start_time and out[i].length == out[i+1].length \
                 and out[i].volume == out[i+1].volume and out[i].variant == out[i+1].variant:
             chord_pitches = make_flat_list([out[i].pitch, out[i+1].pitch])
-            out = out[:i] + [MPNote(start_time=out[i].start_time, length=out[i].length, pitch=chord_pitches,
-                             volume=out[i].volume, variant=out[i].variant, tie=out[i].tie)] + out[i+2:]
+            out = out[:i] + [PCNote(start_time=out[i].start_time, length=out[i].length, pitch=chord_pitches,
+                                    volume=out[i].volume, variant=out[i].variant, tie=out[i].tie)] + out[i+2:]
         else:
             i += 1
     # Now split it into non-overlapping voices, and then we're good.
@@ -381,12 +381,12 @@ def _break_into_ties(recording_in_seconds, beat_schemes):
                 # split it in two
                 first_half_tie = "continue" if this_pc_note.tie is "stop" or this_pc_note.tie is "continue" else "start"
                 second_half_tie = "continue" if this_pc_note.tie is "start" or this_pc_note.tie is "continue" else "stop"
-                first_half = MPNote(this_pc_note.start_time, beat_start_time - this_pc_note.start_time,
+                first_half = PCNote(this_pc_note.start_time, beat_start_time - this_pc_note.start_time,
                                     this_pc_note.pitch, this_pc_note.volume, this_pc_note.variant, first_half_tie)
-                second_half = MPNote(beat_start_time, this_pc_note.start_time + this_pc_note.length - beat_start_time,
+                second_half = PCNote(beat_start_time, this_pc_note.start_time + this_pc_note.length - beat_start_time,
                                      this_pc_note.pitch, this_pc_note.volume, this_pc_note.variant, second_half_tie)
                 recording_in_seconds[i] = [first_half, second_half]
-        recording_in_seconds = make_flat_list(recording_in_seconds, indivisible=MPNote)
+        recording_in_seconds = make_flat_list(recording_in_seconds, indivisible=PCNote)
 
     return recording_in_seconds
 
@@ -404,7 +404,7 @@ def _add_rests(recording_in_seconds, beat_schemes):
     # add in rests to fill out each beat
     for beat_interval in beat_intervals:
         for rest_range in beat_interval:
-            new_recording.append(MPNote(start_time=rest_range.lower_bound,
+            new_recording.append(PCNote(start_time=rest_range.lower_bound,
                                         length=rest_range.upper_bound-rest_range.lower_bound,
                                         pitch=None, volume=None, variant=None, tie=None))
     new_recording.sort(key=lambda x: x.start_time)
@@ -447,7 +447,7 @@ def _set_tuplets_for_notes_in_voice(voice, beat_schemes, beat_divisors):
             if tuplet_type is not None else beat_scheme.beat_length
         while len(voice) > 0 and voice[0].start_time < beat_scheme.end_time:
             this_note = voice.pop(0)
-            assert isinstance(this_note, MPNote)
+            assert isinstance(this_note, PCNote)
             if tuplet_type is not None:
                 this_note.time_modification = tuplet_type
                 this_note.length_without_tuplet = this_note.length * float(tuplet_type[0]) / tuplet_type[1]
@@ -461,7 +461,7 @@ def _set_tuplets_for_notes_in_voice(voice, beat_schemes, beat_divisors):
     # there may be still a few notes left: these will be trailing rests that have been added since quantization
     # and for which no beat divisor has been calculated. We can safely set their length_without_tuplet to their length
     for remaining_rest in voice:
-        assert isinstance(remaining_rest, MPNote)
+        assert isinstance(remaining_rest, PCNote)
         remaining_rest.length_without_tuplet = remaining_rest.length
 
 
@@ -471,7 +471,7 @@ def _convert_variants_to_notations_in_voice(voice):
 
 
 def _convert_note_variant_to_notations(note):
-    assert isinstance(note, MPNote)
+    assert isinstance(note, PCNote)
     for articulation in note.variant["articulations"]:
         note.articulations.append(ET.Element(articulation))
     for dynamic in note.variant["dynamics"]:
@@ -511,7 +511,7 @@ def _break_notes_into_undotted_constituents(voice, beat_schemes, beat_divisors):
         if is_single_note_length(pc_note.length):
             pc_note.length_without_tuplet = [pc_note.length_without_tuplet]
         else:
-            pc_note.length_without_tuplet = MPNote.length_to_undotted_constituents(pc_note.length_without_tuplet)
+            pc_note.length_without_tuplet = PCNote.length_to_undotted_constituents(pc_note.length_without_tuplet)
 
     # if it can't be represented with a single notehead, we order the constituent noteheads so that larger noteheads
     # sit on more important subdivisions. We use indispensability to judge the importance of subdivisions
@@ -557,7 +557,7 @@ def _get_multiplicative_beat_meter(beat_length, beat_divisor):
 def _separate_note_components_into_different_notes(voice):
     new_voice = []
     for pc_note in voice:
-        assert isinstance(pc_note, MPNote)
+        assert isinstance(pc_note, PCNote)
 
         component_start_time = pc_note.start_time
         # loop through the components of each note
@@ -566,7 +566,7 @@ def _separate_note_components_into_different_notes(voice):
             # MPNote object, we have to reinclude the time modification when setting the length argument
             actual_length = length_component * pc_note.time_modification[1] / pc_note.time_modification[0] \
                 if pc_note.time_modification is not None else length_component
-            component_note = MPNote(component_start_time, actual_length, pc_note.pitch, pc_note.volume, notations=[],
+            component_note = PCNote(component_start_time, actual_length, pc_note.pitch, pc_note.volume, notations=[],
                                     articulations=[], notehead=pc_note.notehead, text_annotations=[],
                                     time_modification=pc_note.time_modification)
             # we still set the length_without_tuplet, though
@@ -639,7 +639,7 @@ def _combine_long_notes_voice_measure(voice_in_measure, beat_start_times):
     i = 0
     while i < len(voice_in_measure):
         start_note = voice_in_measure[i]
-        assert isinstance(start_note, MPNote)
+        assert isinstance(start_note, PCNote)
 
         if (start_note.tie in ["start", "continue"] or start_note.pitch is None) \
                 and start_note.start_time in beat_start_times and start_note.time_modification is None:
@@ -663,14 +663,14 @@ def _combine_long_notes_voice_measure(voice_in_measure, beat_start_times):
                     break
             if combine_up_to is not None:
                 if combining_rests:
-                    combined_rest = MPNote(
+                    combined_rest = PCNote(
                         start_note.start_time, combined_length, None, None
                     )
                     combined_rest.length_without_tuplet = combined_length
                     voice_in_measure[i:combine_up_to + 1] = [combined_rest]
                 else:
                     end_note = voice_in_measure[combine_up_to]
-                    assert isinstance(end_note, MPNote)
+                    assert isinstance(end_note, PCNote)
                     combined_tie = None if start_note.tie == "start" and end_note.tie == "stop" \
                         else ("continue" if start_note.tie == "continue" and end_note.tie == "continue"
                               else ("stop" if end_note.tie == "stop" else "start"))
@@ -686,7 +686,7 @@ def _combine_long_notes_voice_measure(voice_in_measure, beat_start_times):
                         if pc_note.text_annotations is not None:
                             combined_articulations += pc_note.text_annotations
 
-                    combined_note = MPNote(
+                    combined_note = PCNote(
                         start_note.start_time, combined_length, start_note.pitch, start_note.volume,
                         tie=combined_tie, notations=combined_notations, articulations=combined_articulations,
                         notehead=start_note.notehead, text_annotations=combined_text_annotations
@@ -726,7 +726,7 @@ def _add_beaming(voice, beat_groups):
             for beam_group in beam_groups[beam_depth]:
                 if len(beam_group) == 1:
                     the_note = beam_group[0]
-                    assert isinstance(the_note, MPNote)
+                    assert isinstance(the_note, PCNote)
                     if int(round((the_note.start_time - beat_scheme.start_time) / 0.5 ** beam_depth)) % 2 == 0:
                         the_note.add_beam_layer(beam_depth, "forward hook")
                     else:
