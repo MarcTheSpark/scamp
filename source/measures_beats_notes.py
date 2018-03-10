@@ -44,7 +44,7 @@ def standardize_variant_dictionary(variant_dictionary):
     return standardized_variant_dict
 
 
-class MPNote:
+class PCNote:
     def __init__(self, start_time, length, pitch, volume, variant=None, tie=None, notations=None, articulations=None,
                  notehead=None, beams=None, text_annotations=None, time_modification=None):
         self.start_time = start_time
@@ -66,11 +66,11 @@ class MPNote:
         self.initial_notehead = False
 
     def __repr__(self):
-        return "MPNote(start_time={}, length={}, pitch={}, volume={}, variant={}, tie={}, time_modification={}, " \
+        return "PCNote(start_time={}, length={}, pitch={}, volume={}, variant={}, tie={}, time_modification={}, " \
                "notations={}, articulations={})".format(
-            self.start_time, self.length, self.pitch, self.volume, self.variant, self.tie,
-            self.time_modification, self.notations, self.articulations
-        )
+                    self.start_time, self.length, self.pitch, self.volume, self.variant, self.tie,
+                    self.time_modification, self.notations, self.articulations
+                )
         # return "MPNote(start_time={}, length={}, pitch={})".format(
         #     self.start_time, self.length, self.pitch
         # )
@@ -129,8 +129,8 @@ class BeatQuantizationScheme:
         # their undesirabilities. Undesirability is a factor by which the error in a given quantization option
         # is multiplied; the lowest possible undesirability is 1
         if isinstance(divisions, int):
-            # what we care about is how well the given division works within the most natural division of the beat_length
-            # so first notate the beat_length as a fraction; its numerator is its most natural division
+            # what we care about is how well the given division works within the most natural division of the
+            # beat_length so first notate the beat_length as a fraction; its numerator is its most natural division
             beat_length_fraction = Fraction(self.beat_length).limit_denominator()
 
             quantization_divisions = []
