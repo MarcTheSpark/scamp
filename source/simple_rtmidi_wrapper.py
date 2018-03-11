@@ -31,6 +31,17 @@ def get_best_name_match(names_list, desired_name):
     return None
 
 
+def get_available_midi_output_devices():
+    if rtmidi is None:
+        print("python-rtmidi was not found; cannot check for available ports.")
+        return None
+    else:
+        midiout = rtmidi.MidiOut()
+        ports = midiout.get_ports()
+        del midiout
+        return ports
+
+
 class SimpleRtMidiOut:
     """
     Wraps a single output of rtmidi to:

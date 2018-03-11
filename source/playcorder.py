@@ -7,7 +7,9 @@ from .measures_beats_notes import *
 from midiutil.MidiFile import MIDIFile
 from .playcorder_utilities import round_to_multiple, make_flat_list
 
-from .combined_midi_player import CombinedMidiPlayer
+from .combined_midi_player import CombinedMidiPlayer, register_default_soundfont, unregister_default_soundfont
+
+from.simple_rtmidi_wrapper import get_available_midi_output_devices
 
 from warnings import warn
 
@@ -19,6 +21,7 @@ from warnings import warn
 
 # TODO: figure out if the pitch bend is not working right in the rt_midi output
 # TODO: Test on mac!
+# TODO: List ports from Playcorder
 
 
 class Playcorder:
@@ -50,7 +53,19 @@ class Playcorder:
         self.time_passed = None
 
     def get_instruments_with_substring(self, word, avoid=None, soundfont_index=0):
-        return self.midi_player.get_instruments_with_substring(word, avoid=None, soundfont_index=0)
+        return self.midi_player.get_instruments_with_substring(word, avoid=avoid, soundfont_index=soundfont_index)
+
+    @staticmethod
+    def get_available_midi_output_devices():
+        return get_available_midi_output_devices()
+
+    @staticmethod
+    def register_default_soundfont(name, soundfont_path):
+        return register_default_soundfont(name, soundfont_path)
+
+    @staticmethod
+    def unregister_default_soundfont(name):
+        return unregister_default_soundfont(name)
 
     def add_part(self, instrument):
         """
@@ -203,8 +218,6 @@ class Playcorder:
         """
         part_recordings = [this_part.recording for this_part in self.parts_recorded]
         part_names = [this_part.name for this_part in self.parts_recorded]
-        from .playcorder_utilities import save_object
-        save_object((part_recordings, part_names, file_name), "bob.pk")
         save_recording_to_xml(part_recordings, part_names, file_name, measure_schemes=measure_schemes,
                               time_signature=time_signature, tempo=tempo, divisions=divisions,
                               max_indigestibility=max_indigestibility, simplicity_preference=simplicity_preference,
