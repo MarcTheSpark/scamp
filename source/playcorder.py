@@ -8,7 +8,8 @@ from .measures_beats_notes import *
 from midiutil.MidiFile import MIDIFile
 from .playcorder_utilities import round_to_multiple, make_flat_list
 
-from .combined_midi_player import CombinedMidiPlayer, register_default_soundfont, unregister_default_soundfont
+from .combined_midi_player import CombinedMidiPlayer, register_default_soundfont, \
+    unregister_default_soundfont, get_default_soundfonts
 
 from.simple_rtmidi_wrapper import get_available_midi_output_devices
 
@@ -62,6 +63,11 @@ class Playcorder:
     @staticmethod
     def unregister_default_soundfont(name):
         return unregister_default_soundfont(name)
+
+    @staticmethod
+    def list_default_soundfonts():
+        for a, b in get_default_soundfonts().items():
+            print("{}: {}".format(a, b))
 
     def add_part(self, instrument):
         """

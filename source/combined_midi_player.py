@@ -51,6 +51,10 @@ def unregister_default_soundfont(name):
         defaults_file.writelines([', '.join(x) + '\n' for x in _defaultSoundfonts.items()])
 
 
+def get_default_soundfonts():
+    return _defaultSoundfonts
+
+
 class CombinedMidiPlayer:
 
     def __init__(self, soundfonts=None, audio_driver=None, rtmidi_output_device=None):
