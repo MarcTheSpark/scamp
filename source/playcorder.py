@@ -1,5 +1,6 @@
 import threading
 import time
+import logging
 
 from .recording_to_xml import save_to_xml_file as save_recording_to_xml
 from .recording_to_xml import separate_into_non_overlapping_voices, quantize_recording
@@ -11,15 +12,13 @@ from .combined_midi_player import CombinedMidiPlayer, register_default_soundfont
 
 from.simple_rtmidi_wrapper import get_available_midi_output_devices
 
-import logging
-
 # TODO: SOMETHING GOES WRONG WHEN THERE ARE LIKE 3 STAVES, and they get disconnected
 # TODO: SPECIFY MAX VOICES PER STAFF
 # TODO: SPECIFY MOST APPROPRIATE CLEF FOR EACH STAFF OF EACH MEASURE
 
-
 # TODO: figure out if the pitch bend is not working right in the rt_midi output
 # TODO: review and revise xml output, Simplify (what about variant dictionaries?)!
+
 
 class Playcorder:
 
@@ -35,7 +34,7 @@ class Playcorder:
         # list of the current instruments used by this playcorder
         self.instruments = []
 
-        # if we are using just one soundfont no need to put it in a list
+        # if we are using just one soundfont a string is okay; we'll just put it in a list
         soundfonts = [soundfonts] if isinstance(soundfonts, str) else soundfonts
         self.midi_player = CombinedMidiPlayer(soundfonts, audio_driver, midi_output_device)
 
