@@ -193,7 +193,6 @@ class CombinedMidiInstrument:
                             "The value of {} is being rounded up.".format(max_bend_in_semitones))
             max_bend_in_semitones = int(max_bend_in_semitones) + 1
 
-
         for chan in range(self.num_channels):
             rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
             absolute_channel = self.channels[chan]
