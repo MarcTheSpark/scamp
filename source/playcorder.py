@@ -19,9 +19,7 @@ import logging
 
 
 # TODO: figure out if the pitch bend is not working right in the rt_midi output
-# TODO: Test on mac!
-# TODO: List ports from Playcorder
-
+# TODO: review and revise xml output, Simplify (what about variant dictionaries?)!
 
 class Playcorder:
 
