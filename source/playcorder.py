@@ -11,8 +11,7 @@ from .combined_midi_player import CombinedMidiPlayer, register_default_soundfont
 
 from.simple_rtmidi_wrapper import get_available_midi_output_devices
 
-from warnings import warn
-
+import logging
 
 # TODO: SOMETHING GOES WRONG WHEN THERE ARE LIKE 3 STAVES, and they get disconnected
 # TODO: SPECIFY MAX VOICES PER STAFF
@@ -535,9 +534,9 @@ class ParameterCurve:
         if len(levels) != len(durations) + 1:
             raise ValueError("Inconsistent number of levels and durations given.")
         if len(curvatures) > len(levels) - 1:
-            warn("Too many curvature values given to ParameterCurve. Discarding extra.")
+            logging.warning("Too many curvature values given to ParameterCurve. Discarding extra.")
         if len(curvatures) < len(levels) - 1:
-            warn("Too few curvature values given to ParameterCurve. Assuming linear for remainder.")
+            logging.warning("Too few curvature values given to ParameterCurve. Assuming linear for remainder.")
 
         self.levels = levels
         self.durations = durations

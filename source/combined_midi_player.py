@@ -1,18 +1,19 @@
 from .playcorder_utilities import resolve_relative_path
 from .simple_rtmidi_wrapper import SimpleRtMidiOut
 from collections import OrderedDict
+import logging
 
 try:
     from .thirdparty import fluidsynth
 except ImportError:
     fluidsynth = None
-    print("Fluidsynth could not be loaded; synth output will not be available.")
+    logging.warning("Fluidsynth could not be loaded; synth output will not be available.")
 
 try:
     from sf2utils.sf2parse import Sf2File
 except ImportError:
     Sf2File = None
-    print("sf2utils was not found; info about soundfont presets will not be available.")
+    logging.warning("sf2utils was not found; info about soundfont presets will not be available.")
 
 
 # load up all of the default soundfonts and their paths
@@ -169,6 +170,9 @@ class CombinedMidiInstrument:
         directional_bend_value = int(bend_in_semitones / self.max_pitch_bend * 8192)
         # we can't have a directional pitch bend popping up to 8192, because we'll go one above the max allowed
         # on th other hand, -8192 is fine, since that will add up to zero
+        if directional_bend_value > 8191 or directional_bend_value < -8192:
+            logging.warning("Attempted pitch bend beyond maximum range (default is 2 semitones). Call set_max_"
+                            "pitch_bend on your MidiPlaycorderInstrument to expand the range.")
         directional_bend_value = max(-8192, min(directional_bend_value, 8191))
         # for some reason, pyFluidSynth takes a value from -8192 to 8191 and then adds 8192 to it
         self.combined_midi_player.synth.pitch_bend(absolute_channel, directional_bend_value)
@@ -184,9 +188,12 @@ class CombinedMidiInstrument:
         :type max_bend_in_semitones: int
         :return: None
         """
-        if not isinstance(max_bend_in_semitones, int):
-            print("Max pitch bend must be an integer number of semitones.")
-            return
+        if max_bend_in_semitones != int(max_bend_in_semitones):
+            logging.warning("Max pitch bend must be an integer number of semitones. "
+                            "The value of {} is being rounded up.".format(max_bend_in_semitones))
+            max_bend_in_semitones = int(max_bend_in_semitones) + 1
+
+
         for chan in range(self.num_channels):
             rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
             absolute_channel = self.channels[chan]

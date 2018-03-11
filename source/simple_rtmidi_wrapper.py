@@ -1,11 +1,12 @@
 import atexit
+import logging
 
 
 try:
     import rtmidi
 except ImportError:
     rtmidi = None
-    print("python-rtmidi was not found; midi output will not be available.")
+    logging.warning("python-rtmidi was not found; midi output will not be available.")
 
 
 def get_best_name_match(names_list, desired_name):
