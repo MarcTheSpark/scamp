@@ -17,6 +17,7 @@ from.simple_rtmidi_wrapper import get_available_midi_output_devices
 # TODO: SPECIFY MAX VOICES PER STAFF
 # TODO: SPECIFY MOST APPROPRIATE CLEF FOR EACH STAFF OF EACH MEASURE
 
+# TODO: give the "properties" a playlength proportion, figure out how to make default playback properties of things like staccato, tenuto, slurs
 # TODO: figure out if the pitch bend is not working right in the rt_midi output
 # TODO: review and revise xml output, Simplify (what about variant dictionaries?)!
 
@@ -127,16 +128,31 @@ class Playcorder:
 
     # ----------------------------------- Recording ----------------------------------
 
-    def record_note(self, instrument, pitch, volume, length, start_delay=0,
-                    variant_dictionary=None, start_time=None, written_length=None):
+    def start_recording(self, which_parts=None, manual_time=False):
+        if manual_time:
+            self.time_passed = 0
+        else:
+            self.recording_start_time = time.time()
+        self.parts_being_recorded = self.instruments if which_parts is None else which_parts
+        # the "score" for each part is recorded as an attribute of that part called "recording"
+        for instrument in self.parts_being_recorded:
+            instrument.recording = []
+
+    def is_recording(self):
+        return self.parts_being_recorded is not None
+
+    def stop_recording(self):
+        for part in self.parts_being_recorded:
+            part.end_all_notes()
+        self.parts_recorded = self.parts_being_recorded
+        self.parts_being_recorded = None
+        self.time_passed = None
+        self.recording_start_time = None
+
+    def record_note(self, instrument, start_time, length, pitch, volume, properties=None):
         if self.parts_being_recorded is not None and instrument in self.parts_being_recorded:
-            if start_time is not None:
-                note_start_time = start_time
-            else:
-                note_start_time = self.get_time_passed() + start_delay
-            instrument.recording.append(PCNote(start_time=note_start_time,
-                                               length=length if written_length is None else written_length,
-                                               pitch=pitch, volume=volume, variant=variant_dictionary, tie=None))
+            instrument.recording.append(PCNote(start_time=start_time, length=length, pitch=pitch, volume=volume,
+                                               variant=properties))
 
     def get_time_passed(self):
         if self.parts_being_recorded is not None:
@@ -150,24 +166,6 @@ class Playcorder:
             # if note recording, just default to returning time.time() so that
             # relative measurements that use this will still work
             return time.time()
-
-    def start_recording(self, which_parts=None, manual_time=False):
-        if manual_time:
-            self.time_passed = 0
-        else:
-            self.recording_start_time = time.time()
-        self.parts_being_recorded = self.instruments if which_parts is None else which_parts
-        # the "score" for each part is recorded as an attribute of that part called "recording"
-        for instrument in self.parts_being_recorded:
-            instrument.recording = []
-
-    def stop_recording(self):
-        for part in self.parts_being_recorded:
-            part.end_all_notes()
-        self.parts_recorded = self.parts_being_recorded
-        self.parts_being_recorded = None
-        self.time_passed = None
-        self.recording_start_time = None
 
     # used for a situation where all parts are played from a single thread
     def wait(self, seconds):
@@ -305,7 +303,7 @@ class Playcorder:
 
 class PlaycorderInstrument:
 
-    def __init__(self, host_playcorder=None, name=None):
+    def __init__(self, host_playcorder, name=None):
         """
         This is the parent class used all kinds of instruments used within a playcorder. The most basic one, below,
         called a MidiPlaycorderInstrument, uses fluidsynth to playback sounds from a soundfont, and also sends the
@@ -320,11 +318,11 @@ class PlaycorderInstrument:
 
     # ------------------ Methods to be implemented by subclasses ------------------
 
-    def _do_play_note(self, pitch, volume, length, start_delay, variant_dictionary=None):
+    def _do_play_note(self, pitch, volume, length, properties=None):
         # Does the actual sonic implementation of playing a note
         pass
 
-    def _do_start_note(self, pitch, volume, variant_dictionary=None):
+    def _do_start_note(self, pitch, volume, properties=None):
         # Does the actual sonic implementation of starting a note
         # should return the note_id, which is used to keep track of the note
         return 0
@@ -343,33 +341,36 @@ class PlaycorderInstrument:
 
     # ------------------------- "Public" Playback Methods -------------------------
 
-    def play_note(self, pitch, volume, length, start_delay=0, variant_dictionary=None, play_length=None):
-        threading.Thread(target=self._do_play_note, args=(pitch, volume, length if play_length is None else play_length,
-                                                          start_delay, variant_dictionary)).start()
+    def play_note(self, pitch, volume, length, properties=None):
+        volume = ParameterCurve.from_list(volume) if hasattr(volume, "__len__") else volume
+        pitch = ParameterCurve.from_list(pitch) if hasattr(pitch, "__len__") else pitch
+        threading.Thread(target=self._do_play_note, args=(pitch, volume, length, properties)).start()
 
         # record the note in the hosting playcorder, if it's recording
-        if self.host_playcorder and self.host_playcorder.get_time_passed() is not None:
-            # handle the case where an envelope is given as an argument
-            if hasattr(pitch, "__len__"):
-                if hasattr(pitch[0], "__len__"):
-                    pitch = pitch[0][0]
-                else:
-                    pitch = pitch[0]
-            if hasattr(volume, "__len__"):
-                if hasattr(volume[0], "__len__"):
-                    volume = max(volume[0])
-                else:
-                    volume = max(volume)
-            self.host_playcorder.record_note(self, pitch, volume, length,
-                                             start_delay, variant_dictionary=variant_dictionary)
+        if self.host_playcorder.is_recording():
+            # in case we're getting a parameter curve for pitch or volume, we pick a representative value
+            volume = volume.max_value() if isinstance(volume, ParameterCurve) else volume
+            pitch = pitch.value_at(0) if isinstance(pitch, ParameterCurve) else pitch
 
-    def start_note(self, pitch, volume, variant_dictionary=None):
-        note_id = self._do_start_note(pitch, volume, variant_dictionary)
-        self.notes_started.append((note_id, pitch, volume, self.host_playcorder.get_time_passed(), variant_dictionary))
+            self.host_playcorder.record_note(self, self.host_playcorder.get_time_passed(), length, pitch,
+                                             volume, properties=properties)
+
+    def start_note(self, pitch, volume, properties=None):
+        """
+        Starts a note 'manually', meaning that its length is not predetermined, and that it has to be manually ended
+        later by calling 'end_note' or 'end_all_notes'
+        """
+        note_id = self._do_start_note(pitch, volume, properties)
+        self.notes_started.append((note_id, pitch, volume, self.host_playcorder.get_time_passed(), properties))
         # returns the note_id as a reference, in case we want to change pitch mid-playback
         return note_id
 
     def end_note(self, note_id=None):
+        """
+        Ends the note with the given note id. If none is specified, it ends the note we started longest ago.
+        Note that this only applies to notes started in an open-ended way with 'start_note', notes created
+        using play_note have their lifecycle controlled automatically.
+        """
         note_to_end = None
         if note_id is not None:
             # find the note referred to in the notes_started list
@@ -387,19 +388,25 @@ class PlaycorderInstrument:
             # no appropriate note has been found to end
             return
 
-        note_id, pitch, volume, start_time, variant_dictionary = note_to_end
+        note_id, pitch, volume, start_time, properties = note_to_end
         # call the specific implementation to stop the note
         self._do_end_note(note_id)
         # record the note in the hosting playcorder, if it's recording
-        if start_time is not None and self.host_playcorder.get_time_passed() is not None:
-            self.host_playcorder.record_note(self, pitch, volume, self.host_playcorder.get_time_passed()-start_time,
-                                             start_time=start_time, variant_dictionary=variant_dictionary)
+        if self.host_playcorder.is_recording():
+            self.host_playcorder.record_note(self, start_time, self.host_playcorder.get_time_passed() - start_time,
+                                             pitch, volume, properties)
 
     def end_all_notes(self):
+        """
+        Ends all notes that have been manually started with 'start_note'
+        """
         while len(self.notes_started) > 0:
             self.end_note()
 
     def num_notes_playing(self):
+        """
+        Returns the number of notes currently playing that were manually started with 'start_note'
+        """
         return len(self.notes_started)
 
 
@@ -424,13 +431,10 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
     # ---- highest level call to implement playing a note ----
     # started as a thread from within the parent class method play_note
 
-    def _do_play_note(self, pitch, volume, length, start_delay, variant_dictionary=None):
+    def _do_play_note(self, pitch, volume, length, properties=None):
         # Does the actual sonic implementation of playing a note
-        time.sleep(start_delay)
         note_start_time = time.time()
         # convert lists to ParameterCurves
-        volume = ParameterCurve.from_list(volume) if hasattr(volume, "__len__") else volume
-        pitch = ParameterCurve.from_list(pitch) if hasattr(pitch, "__len__") else pitch
         is_animating_volume = isinstance(volume, ParameterCurve)
         is_animating_pitch = isinstance(pitch, ParameterCurve)
         # the starting volume (velocity) of the note needs to be as loud as the note is ever going to get
@@ -438,14 +442,21 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
         # the starting pitch should just be whatever it is
         start_pitch = pitch.value_at(0) if isinstance(pitch, ParameterCurve) else pitch
 
-        note_id = self._do_start_note(start_pitch, start_volume, variant_dictionary,
+        note_id = self._do_start_note(start_pitch, start_volume, properties,
                                       pitch_changes=is_animating_pitch)
 
         if is_animating_volume or is_animating_pitch:
+            temporal_resolution = float("inf")
             if is_animating_volume:
                 volume.normalize_to_duration(length)
+                temporal_resolution = min(temporal_resolution,
+                                          MidiPlaycorderInstrument.get_good_volume_temporal_resolution(volume))
             if is_animating_pitch:
                 pitch.normalize_to_duration(length)
+                temporal_resolution = min(temporal_resolution,
+                                          MidiPlaycorderInstrument.get_good_pitch_bend_temporal_resolution(pitch))
+            temporal_resolution = max(temporal_resolution, 0.01)  # faster than this is wasteful, doesn't seem to help
+            print(temporal_resolution)
 
             def animate_pitch_and_volume():
                 while note_start_time is not None:
@@ -455,7 +466,7 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
                         self.change_note_volume(note_id, volume.value_at(time.time() - note_start_time) / start_volume)
                     if is_animating_pitch:
                         self.change_note_pitch(note_id, pitch.value_at(time.time() - note_start_time))
-                    time.sleep(0.04)
+                    time.sleep(temporal_resolution)
             threading.Thread(target=animate_pitch_and_volume).start()
 
         time.sleep(length)
@@ -464,7 +475,7 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
 
     # ---- The constituent parts of the _do_play_note call ----
 
-    def _do_start_note(self, pitch, volume, variant_dictionary=None, pitch_changes=False):
+    def _do_start_note(self, pitch, volume, properties=None, pitch_changes=False):
         # Does the actual sonic implementation of starting a note
         # in this case the note_id returned will be a tuple consisting of
         # the channel, the midi key pressed, the start time, and whether or not pitch bend is used
@@ -526,6 +537,43 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
     def set_max_pitch_bend(self, semitones):
         self.midi_instrument.set_max_pitch_bend(semitones)
 
+    @staticmethod
+    def get_good_pitch_bend_temporal_resolution(pitch_param_curve):
+        """
+        Returns a minimum temporal resolution
+        :type pitch_param_curve: ParameterCurve
+        """
+        max_cents_per_second = 0
+        for i, duration in enumerate(pitch_param_curve.durations):
+            cents_per_second = abs(pitch_param_curve.levels[i+1] - pitch_param_curve.levels[i]) / duration * 100
+            # since x^c has a slope of c at x=1, we multiply by the curvature
+            # (if c < 1, then technically the slope approaches infinity at x = 0,
+            # but we'll just compromise and use 1/c)
+            cents_per_second *= max(pitch_param_curve.curvatures[i], 1/pitch_param_curve.curvatures[i])
+            if cents_per_second > max_cents_per_second:
+                max_cents_per_second = cents_per_second
+        # cents / update * updates / sec = cents / sec   =>  updates_freq = cents_per_second / cents_per_update
+        # we'll aim for 4 cents per update, since some say the JND is 5-6 cents
+        update_freq = max_cents_per_second / 4.0
+        return 1 / update_freq
+
+    @staticmethod
+    def get_good_volume_temporal_resolution(volume_param_curve):
+        """
+        Returns a minimum temporal resolution
+        :type volume_param_curve: ParameterCurve
+        """
+        max_volume_per_second = 0
+        for i, duration in enumerate(volume_param_curve.durations):
+            volume_per_second = abs(volume_param_curve.levels[i+1] - volume_param_curve.levels[i]) / duration
+            # since x^c has a slope of c at x=1, we multiply by the curvature (see note in pitch bend function above)
+            volume_per_second *= max(volume_param_curve.curvatures[i], 1/volume_param_curve.curvatures[i])
+            if volume_per_second > max_volume_per_second :
+                max_volume_per_second = volume_per_second
+        # no point in updating faster than the number of ticks per second
+        update_freq = max_volume_per_second * 127
+        return 1 / update_freq
+
 
 class ParameterCurve:
 
@@ -540,6 +588,9 @@ class ParameterCurve:
             logging.warning("Too many curvature values given to ParameterCurve. Discarding extra.")
         if len(curvatures) < len(levels) - 1:
             logging.warning("Too few curvature values given to ParameterCurve. Assuming linear for remainder.")
+            curvatures += [1] * (len(levels) - 1 - len(curvatures))
+        for c in curvatures:
+            assert (c > 0), "Curvature values cannot be negative!"
 
         self.levels = levels
         self.durations = durations
