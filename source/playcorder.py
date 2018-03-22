@@ -3,10 +3,7 @@ import time
 import logging
 
 from .recording_to_xml import save_to_xml_file as save_recording_to_xml
-from .recording_to_xml import separate_into_non_overlapping_voices, quantize_recording
 from .measures_beats_notes import *
-from midiutil.MidiFile import MIDIFile
-from .playcorder_utilities import round_to_multiple, make_flat_list
 
 from .combined_midi_player import CombinedMidiPlayer, register_default_soundfont, \
     unregister_default_soundfont, get_default_soundfonts
