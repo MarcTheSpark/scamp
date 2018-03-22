@@ -56,7 +56,6 @@ def save_to_xml_file(recorded_parts, part_names, file_name, measure_schemes=None
     for which_part, (part_recording, part_name) in enumerate(zip(recorded_parts, part_names)):
         print("Working on Part " + str(which_part+1) + "...")
 
-        # make the music21 part object, and add the instrument
         xml_part = Part(part_name)
 
         # quantize the recording, also noting the beat divisors

@@ -185,7 +185,6 @@ class Playcorder:
                          max_indigestibility=4, simplicity_preference=0.5, title=None, composer=None,
                          separate_voices_in_separate_staves=True, show_cent_values=True, add_sibelius_pitch_bend=False,
                          max_overlap=0.001):
-
         """
 
         :param file_name: The name of the file, duh
@@ -540,7 +539,7 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
     @staticmethod
     def get_good_pitch_bend_temporal_resolution(pitch_param_curve):
         """
-        Returns a minimum temporal resolution
+        Returns a reasonable temporal resolution
         :type pitch_param_curve: ParameterCurve
         """
         max_cents_per_second = 0
@@ -560,7 +559,7 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
     @staticmethod
     def get_good_volume_temporal_resolution(volume_param_curve):
         """
-        Returns a minimum temporal resolution
+        Returns a reasonable temporal resolution
         :type volume_param_curve: ParameterCurve
         """
         max_volume_per_second = 0
