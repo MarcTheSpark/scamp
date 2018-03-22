@@ -1,5 +1,9 @@
 from sortedcontainers import SortedListWithKey
-from .measures_beats_notes import PCNote
+
+from collections import namedtuple
+
+
+PerformanceNote = namedtuple("PerformanceNote", "start_time length pitch volume properties")
 
 
 class PerformanceScore:
@@ -38,5 +42,7 @@ class PerformancePart:
         self.notes = SortedListWithKey(key=lambda note: note.start_time)
         self.name = name
 
-    def add_note(self, note: PCNote):
+    def add_note(self, note: PerformanceNote):
         self.notes.add(note)
+
+
