@@ -61,9 +61,9 @@ class CombinedMidiPlayer:
 
         self.used_channels = 0  # how many channels have we already assigned to various instruments
 
+        self.soundfonts = []
         self.audio_driver = audio_driver
         self.rtmidi_output_device = rtmidi_output_device
-        self.soundfont_paths = []
 
         self.synth = None
         self.soundfont_ids = []  # the ids of loaded soundfonts
@@ -101,17 +101,17 @@ class CombinedMidiPlayer:
                 soundfont_path = resolve_relative_path("thirdparty/soundfonts/" + soundfont_path[2:])
             elif not soundfont_path.startswith("/"):
                 soundfont_path = resolve_relative_path("thirdparty/soundfonts/" + soundfont_path)
-            self.soundfont_paths.append(soundfont_path)
         else:
-            self.soundfont_paths.append(soundfont)
+            soundfont_path = soundfont
 
         if Sf2File is not None:
             # if we have sf2utils, load up the preset info from the soundfonts
-            with open(self.soundfont_paths[-1], "rb") as sf2_file:
+            with open(soundfont_path, "rb") as sf2_file:
                 sf2 = Sf2File(sf2_file)
                 self.soundfont_instrument_lists.append(sf2.presets)
 
-        self.soundfont_ids.append(self.synth.sfload(self.soundfont_paths[-1]))
+        self.soundfonts.append(soundfont)
+        self.soundfont_ids.append(self.synth.sfload(soundfont_path))
 
     def get_instruments_with_substring(self, word, avoid=None, soundfont_index=0):
         if 0 <= soundfont_index < len(self.soundfont_instrument_lists):
@@ -119,6 +119,14 @@ class CombinedMidiPlayer:
             return [inst for i, inst in enumerate(instrument_list) if word.lower() in inst.name.lower() and
                     (avoid is None or avoid.lower() not in inst.name.lower())]
         return None
+
+    def to_json(self):
+        return {"soundfonts": self.soundfonts, "audio_driver": self.audio_driver,
+                "rtmidi_output_device": self.rtmidi_output_device}
+
+    @classmethod
+    def from_json(cls, json_string):
+        return cls(**json_string)
 
 
 class CombinedMidiInstrument:
