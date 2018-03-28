@@ -61,30 +61,20 @@ class CombinedMidiPlayer:
 
         self.used_channels = 0  # how many channels have we already assigned to various instruments
 
+        self.audio_driver = audio_driver
+        self.rtmidi_output_device = rtmidi_output_device
+        self.soundfont_paths = []
+
         self.synth = None
         self.soundfont_ids = []  # the ids of loaded soundfonts
         self.soundfont_instrument_lists = []
 
-        if soundfonts is not None and fluidsynth is not None:
-            soundfont_paths = []
+        if fluidsynth is not None and self.audio_driver is not None:
+            self.initialize_fluidsynth(self.audio_driver)
+
+        if soundfonts is not None:
             for soundfont in soundfonts:
-                if soundfont in _defaultSoundfonts:
-                    soundfont_path = _defaultSoundfonts[soundfont]
-                    if soundfont_path.startswith("./"):
-                        soundfont_path = resolve_relative_path("thirdparty/soundfonts/" + soundfont_path[2:])
-                    elif not soundfont_path.startswith("/"):
-                        soundfont_path = resolve_relative_path("thirdparty/soundfonts/" + soundfont_path)
-                    soundfont_paths.append(soundfont_path)
-                else:
-                    soundfont_paths.append(soundfont)
-
-                if Sf2File is not None:
-                    # if we have sf2utils, load up the preset info from the soundfonts
-                    with open(soundfont_paths[-1], "rb") as sf2_file:
-                        sf2 = Sf2File(sf2_file)
-                        self.soundfont_instrument_lists.append(sf2.presets)
-
-            self.initialize_fluidsynth(soundfont_paths, driver=audio_driver)
+                self.load_soundfont(soundfont)
 
         self.default_rtmidi_output_device = rtmidi_output_device
 
@@ -95,12 +85,33 @@ class CombinedMidiPlayer:
         return CombinedMidiInstrument(self, num_channels, bank_and_preset, soundfont_id=self.soundfont_ids[soundfont],
                                       midi_output_device=midi_output_device, midi_output_name=midi_output_name)
 
-    def initialize_fluidsynth(self, soundfont_paths, driver=None):
-        # loads the soundfonts and gets the synth going
-        self.synth = fluidsynth.Synth()
-        for soundfont_path in soundfont_paths:
-            self.soundfont_ids.append(self.synth.sfload(soundfont_path))
-        self.synth.start(driver=driver)
+    def initialize_fluidsynth(self, driver):
+        if fluidsynth is not None:
+            self.synth = fluidsynth.Synth()
+            self.synth.start(driver=driver)
+
+    def load_soundfont(self, soundfont):
+        if fluidsynth is None:
+            logging.warning("Attempting to load soundfont, but fluidsynth was not loaded successfully.")
+            return
+
+        if soundfont in _defaultSoundfonts:
+            soundfont_path = _defaultSoundfonts[soundfont]
+            if soundfont_path.startswith("./"):
+                soundfont_path = resolve_relative_path("thirdparty/soundfonts/" + soundfont_path[2:])
+            elif not soundfont_path.startswith("/"):
+                soundfont_path = resolve_relative_path("thirdparty/soundfonts/" + soundfont_path)
+            self.soundfont_paths.append(soundfont_path)
+        else:
+            self.soundfont_paths.append(soundfont)
+
+        if Sf2File is not None:
+            # if we have sf2utils, load up the preset info from the soundfonts
+            with open(self.soundfont_paths[-1], "rb") as sf2_file:
+                sf2 = Sf2File(sf2_file)
+                self.soundfont_instrument_lists.append(sf2.presets)
+
+        self.soundfont_ids.append(self.synth.sfload(self.soundfont_paths[-1]))
 
     def get_instruments_with_substring(self, word, avoid=None, soundfont_index=0):
         if 0 <= soundfont_index < len(self.soundfont_instrument_lists):
