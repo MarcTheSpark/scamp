@@ -107,7 +107,7 @@ class Playcorder:
         if isinstance(preset, int):
             preset = (0, preset)
 
-        instrument = MidiPlaycorderInstrument(self, self.midi_player, name, preset, soundfont_index, num_channels,
+        instrument = MidiPlaycorderInstrument(self, name, preset, soundfont_index, num_channels,
                                               midi_output_device, midi_output_name)
 
         self.add_part(instrument)
@@ -122,6 +122,20 @@ class Playcorder:
         instrument = PlaycorderInstrument(self, name=name)
         self.add_part(instrument)
         return instrument
+
+    def get_part_name_count(self, name):
+        return sum(i.name == name for i in self.instruments)
+
+    # ----------------------------- Modifying MIDI Settings --------------------------
+
+    def set_audio_driver(self, driver):
+        self.midi_player.set_audio_driver(driver)
+
+    def set_default_midi_output_device(self, midi_out_device):
+        self.midi_player.default_rtmidi_output_device = midi_out_device
+
+    def load_soundfont(self, soundfont):
+        self.midi_player.load_soundfont(soundfont)
 
     # ----------------------------------- Recording ----------------------------------
 
@@ -234,6 +248,8 @@ class PlaycorderInstrument:
         assert isinstance(host_playcorder, Playcorder)
         self.host_playcorder = host_playcorder
         self.name = name
+        # used to identify instruments uniquely, even if they're given the same name
+        self.name_count = host_playcorder.get_part_name_count(name)
         self.notes_started = []   # each entry goes (note_id, pitch, volume, start_time, variant_dictionary)
         self.performance_part = None
 
@@ -246,7 +262,7 @@ class PlaycorderInstrument:
     def _do_start_note(self, pitch, volume, properties=None):
         # Does the actual sonic implementation of starting a note
         # should return the note_id, which is used to keep track of the note
-        return 0
+        pass
 
     def _do_end_note(self, note_id):
         # Does the actual sonic implementation of ending a the note with the given id
@@ -335,16 +351,16 @@ class PlaycorderInstrument:
 
 class MidiPlaycorderInstrument(PlaycorderInstrument):
 
-    def __init__(self, host_playcorder, midi_player, name, preset, soundfont_index=0, num_channels=8,
+    def __init__(self, host_playcorder, name, preset, soundfont_index=0, num_channels=8,
                  midi_output_device=None, midi_output_name=None):
         assert isinstance(host_playcorder, Playcorder)
-        assert isinstance(midi_player, CombinedMidiPlayer)
         super().__init__(host_playcorder, name)
 
-        self.midi_player = midi_player
+        self.midi_player = host_playcorder.midi_player
+        assert isinstance(self.midi_player, CombinedMidiPlayer)
         midi_output_name = name if midi_output_name is None else midi_output_name
-        self.midi_instrument = midi_player.add_instrument(num_channels, preset, soundfont_index,
-                                                          midi_output_device, midi_output_name)
+        self.midi_instrument = self.midi_player.add_instrument(num_channels, preset, soundfont_index,
+                                                               midi_output_device, midi_output_name)
         self.num_channels = num_channels
 
         # keep track of what notes are currently playing

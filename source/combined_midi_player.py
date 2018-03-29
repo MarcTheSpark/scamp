@@ -61,7 +61,7 @@ class CombinedMidiPlayer:
 
         self.used_channels = 0  # how many channels have we already assigned to various instruments
 
-        self.soundfonts = []
+        self.soundfonts = [] if soundfonts is None else soundfonts
         self.audio_driver = audio_driver
         self.rtmidi_output_device = rtmidi_output_device
 
@@ -69,10 +69,10 @@ class CombinedMidiPlayer:
         self.soundfont_ids = []  # the ids of loaded soundfonts
         self.soundfont_instrument_lists = []
 
-        if fluidsynth is not None and self.audio_driver is not None:
-            self.initialize_fluidsynth(self.audio_driver)
-
         if soundfonts is not None:
+            if fluidsynth is not None:
+                self.initialize_fluidsynth(audio_driver)
+
             for soundfont in soundfonts:
                 self.load_soundfont(soundfont)
 
@@ -89,11 +89,21 @@ class CombinedMidiPlayer:
         if fluidsynth is not None:
             self.synth = fluidsynth.Synth()
             self.synth.start(driver=driver)
+            self.audio_driver = driver
+
+    def set_audio_driver(self, driver):
+        if self.synth is not None:
+            self.synth.delete()
+        self.initialize_fluidsynth(driver)
+        for soundfont in self.soundfonts:
+            self.load_soundfont(soundfont)
 
     def load_soundfont(self, soundfont):
         if fluidsynth is None:
-            logging.warning("Attempting to load soundfont, but fluidsynth was not loaded successfully.")
+            logging.warning("Attempting to load soundfont, but fluidsynth library was not loaded successfully.")
             return
+        elif self.synth is None:
+            self.initialize_fluidsynth(self.audio_driver)
 
         if soundfont in _defaultSoundfonts:
             soundfont_path = _defaultSoundfonts[soundfont]
@@ -110,7 +120,6 @@ class CombinedMidiPlayer:
                 sf2 = Sf2File(sf2_file)
                 self.soundfont_instrument_lists.append(sf2.presets)
 
-        self.soundfonts.append(soundfont)
         self.soundfont_ids.append(self.synth.sfload(soundfont_path))
 
     def get_instruments_with_substring(self, word, avoid=None, soundfont_index=0):

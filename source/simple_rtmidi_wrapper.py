@@ -1,7 +1,6 @@
 import atexit
 import logging
 
-
 try:
     import rtmidi
 except ImportError:
