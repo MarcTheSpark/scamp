@@ -235,6 +235,23 @@ class Playcorder:
                               max_overlap=max_overlap)
 
 
+class Ensemble:
+
+    # TODO: make Playcorder Instruments serializable to and from JSON: make it an abstract method
+    def __init__(self, host_playcorder, soundfonts=None):
+        self.midi_player = CombinedMidiPlayer(soundfonts, host_playcorder.audio_driver, host_playcorder.midi_output_device)
+
+        self._instruments = []
+        # if we are using just one soundfont a string is okay; we'll just put it in a list
+        soundfonts = [soundfonts] if isinstance(soundfonts, str) else soundfonts
+
+    def set_audio_driver(self, audio_driver):
+        pass
+
+    def instruments(self):
+        return self._instruments
+
+
 class PlaycorderInstrument:
 
     def __init__(self, host_playcorder, name=None):
@@ -347,6 +364,16 @@ class PlaycorderInstrument:
         Returns the number of notes currently playing that were manually started with 'start_note'
         """
         return len(self.notes_started)
+
+    def to_json(self):
+        return {
+            "name": self.name,
+            "name_count": self.name_count
+        }
+
+    @classmethod
+    def from_json(cls, json_object, host_playcorder):
+        return cls(host_playcorder, json_object[0])
 
 
 class MidiPlaycorderInstrument(PlaycorderInstrument):

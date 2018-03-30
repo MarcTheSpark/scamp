@@ -25,6 +25,19 @@ class PerformancePart:
     def __repr__(self):
         return "PerformancePart({}, {})".format(self.name, self.instrument)
 
+    def to_json(self):
+        instrument = self.instrument
+        if hasattr(instrument, 'name') and hasattr(instrument, 'name_count'):
+            instrument = instrument.name, instrument.name_count
+        return {"name": self.name, "instrument": instrument, "notes": self.notes}
+
+    @classmethod
+    def from_json_friendly(cls, json_friendly,  playcorder=None):
+        pass
+
+    def set_ensemble(self):
+        pass
+
 
 class Performance:
 
