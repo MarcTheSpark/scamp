@@ -33,11 +33,9 @@ class Playcorder:
         """
 
         # list of the current instruments used by this playcorder
-        self.instruments = []
-
-        # if we are using just one soundfont a string is okay; we'll just put it in a list
-        soundfonts = [soundfonts] if isinstance(soundfonts, str) else soundfonts
-        self.midi_player = CombinedMidiPlayer(soundfonts, audio_driver, midi_output_device)
+        self.audio_driver = audio_driver
+        self.default_midi_output_device = midi_output_device
+        self.ensemble = Ensemble(self, soundfonts)
 
         # --- Recording ---
         # The Performance object created when we record
@@ -67,75 +65,30 @@ class Playcorder:
         for a, b in get_default_soundfonts().items():
             print("{}: {}".format(a, b))
 
+    # ------------------------------ Ensemble Modification ---------------------------
+
     def add_part(self, instrument):
-        """
-        Adds an instance of PlaycorderInstrument to this playcorder. Generally this will be done indirectly
-        by calling add_midi_part, but this functionality is here so that people can build and use their own
-        PlaycorderInstruments that implement the interface and playback sounds in different ways.
-        :type instrument: PlaycorderInstrument
-        """
         assert isinstance(instrument, PlaycorderInstrument)
-        if not hasattr(instrument, "name") or instrument.name is None:
-            instrument.name = "Track " + str(len(self.instruments) + 1)
-        instrument.host_playcorder = self
-        self.instruments.append(instrument)
+        return self.ensemble.add_part(instrument)
 
     def add_midi_part(self, name=None, preset=(0, 0), soundfont_index=0, num_channels=8,
                       midi_output_device=None, midi_output_name=None):
-        """
-        Constructs a MidiPlaycorderInstrument, adds it to the Playcorder, and returns it
-        :param name: name used for this instrument in score output and midi output (unless otherwise specified)
-        :type name: str
-        :param preset: if an int, assumes bank #0; can also be a tuple of form (bank, preset)
-        :param soundfont_index: the index of the soundfont to use for fluidsynth playback
-        :type soundfont_index: int
-        :param num_channels: maximum of midi channels available to this midi part. It's wise to use more when doing
-        microtonal playback, since pitch bends are applied per channel.
-        :type num_channels: int
-        :param midi_output_device: the name of the device to use for outgoing midi stream. Defaults to whatever was
-        set as this playcorder's default
-        :param midi_output_name: the name to use when outputting midi streams. Defaults to the name of the instrument.
-        :rtype : MidiPlaycorderInstrument
-        """
-
-        if name is None:
-            name = "Track " + str(len(self.instruments) + 1)
-
-        if not 0 <= soundfont_index < len(self.midi_player.soundfont_ids):
-            raise ValueError("Soundfont index out of bounds.")
-
-        if isinstance(preset, int):
-            preset = (0, preset)
-
-        instrument = MidiPlaycorderInstrument(self, name, preset, soundfont_index, num_channels,
-                                              midi_output_device, midi_output_name)
-
-        self.add_part(instrument)
-        return instrument
+        return self.ensemble.add_midi_part(name, preset, soundfont_index, num_channels,
+                                           midi_output_device, midi_output_name)
 
     def add_silent_part(self, name=None):
-        """
-        Constructs a basic (and therefore silent) PlaycorderInstrument, adds it to the Playcorder, and returns it
-        :rtype : PlaycorderInstrument
-        """
-        name = "Track " + str(len(self.instruments) + 1) if name is None else name
-        instrument = PlaycorderInstrument(self, name=name)
-        self.add_part(instrument)
-        return instrument
-
-    def get_part_name_count(self, name):
-        return sum(i.name == name for i in self.instruments)
+        return self.ensemble.add_silent_part(name)
 
     # ----------------------------- Modifying MIDI Settings --------------------------
 
     def set_audio_driver(self, driver):
-        self.midi_player.set_audio_driver(driver)
+        self.ensemble.set_audio_driver(driver)
 
     def set_default_midi_output_device(self, midi_out_device):
-        self.midi_player.default_rtmidi_output_device = midi_out_device
+        self.ensemble.set_default_midi_output_device(midi_out_device)
 
     def load_soundfont(self, soundfont):
-        self.midi_player.load_soundfont(soundfont)
+        self.ensemble.load_soundfont(soundfont)
 
     # ----------------------------------- Recording ----------------------------------
 
@@ -144,7 +97,7 @@ class Playcorder:
             self.time_passed = 0
         else:
             self.recording_start_time = time.time()
-        which_parts = self.instruments if which_parts is None else which_parts
+        which_parts = self.ensemble.instruments if which_parts is None else which_parts
         self.performance = Performance()
         # set a performance_part for each instrument
         for instrument in which_parts:
@@ -237,38 +190,117 @@ class Playcorder:
 
 class Ensemble:
 
-    # TODO: make Playcorder Instruments serializable to and from JSON: make it an abstract method
     def __init__(self, host_playcorder, soundfonts=None):
-        self.midi_player = CombinedMidiPlayer(soundfonts, host_playcorder.audio_driver, host_playcorder.midi_output_device)
-
-        self._instruments = []
         # if we are using just one soundfont a string is okay; we'll just put it in a list
         soundfonts = [soundfonts] if isinstance(soundfonts, str) else soundfonts
+        self.midi_player = CombinedMidiPlayer(soundfonts, host_playcorder.audio_driver,
+                                              host_playcorder.default_midi_output_device)
+        self.instruments = []
+        self.host_playcorder = host_playcorder
 
-    def set_audio_driver(self, audio_driver):
-        pass
+    def set_audio_driver(self, driver):
+        self.midi_player.set_audio_driver(driver)
 
-    def instruments(self):
-        return self._instruments
+    def load_soundfont(self, soundfont):
+        self.midi_player.load_soundfont(soundfont)
+
+    def set_default_midi_output_device(self, device):
+        self.midi_player.default_rtmidi_output_device = device
+
+    def add_part(self, instrument):
+        """
+        Adds an instance of PlaycorderInstrument to this Ensemble. Generally this will be done indirectly
+        by calling add_midi_part, but this functionality is here so that people can build and use their own
+        PlaycorderInstruments that implement the interface and playback sounds in different ways.
+        :type instrument: PlaycorderInstrument
+        """
+        assert isinstance(instrument, PlaycorderInstrument)
+        if not hasattr(instrument, "name") or instrument.name is None:
+            instrument.name = "Track " + str(len(self.instruments) + 1)
+        instrument.host_ensemble = self
+        self.instruments.append(instrument)
+        return instrument
+
+    def add_midi_part(self, name=None, preset=(0, 0), soundfont_index=0, num_channels=8,
+                      midi_output_device=None, midi_output_name=None):
+        """
+        Constructs a MidiPlaycorderInstrument, adds it to the Ensemble, and returns it
+        :param name: name used for this instrument in score output and midi output (unless otherwise specified)
+        :type name: str
+        :param preset: if an int, assumes bank #0; can also be a tuple of form (bank, preset)
+        :param soundfont_index: the index of the soundfont to use for fluidsynth playback
+        :type soundfont_index: int
+        :param num_channels: maximum of midi channels available to this midi part. It's wise to use more when doing
+        microtonal playback, since pitch bends are applied per channel.
+        :type num_channels: int
+        :param midi_output_device: the name of the device to use for outgoing midi stream. Defaults to whatever was
+        set as this playcorder's default
+        :param midi_output_name: the name to use when outputting midi streams. Defaults to the name of the instrument.
+        :rtype : MidiPlaycorderInstrument
+        """
+
+        if name is None:
+            name = "Track " + str(len(self.instruments) + 1)
+
+        if not 0 <= soundfont_index < len(self.midi_player.soundfont_ids):
+            raise ValueError("Soundfont index out of bounds.")
+
+        if isinstance(preset, int):
+            preset = (0, preset)
+
+        instrument = MidiPlaycorderInstrument(self, name, preset, soundfont_index, num_channels,
+                                              midi_output_device, midi_output_name)
+
+        self.add_part(instrument)
+        return instrument
+
+    def add_silent_part(self, name=None):
+        """
+        Constructs a basic (and therefore silent) PlaycorderInstrument, adds it to the Ensemble, and returns it
+        :rtype : PlaycorderInstrument
+        """
+        name = "Track " + str(len(self.instruments) + 1) if name is None else name
+        instrument = PlaycorderInstrument(self, name=name)
+        self.add_part(instrument)
+        return instrument
+
+    def get_part_name_count(self, name):
+        return sum(i.name == name for i in self.instruments)
 
 
 class PlaycorderInstrument:
 
-    def __init__(self, host_playcorder, name=None):
+    def __init__(self, host_ensemble=None, name=None):
         """
         This is the parent class used all kinds of instruments used within a playcorder. The most basic one, below,
         called a MidiPlaycorderInstrument, uses fluidsynth to playback sounds from a soundfont, and also sends the
         output to a port via rtmidi. Other implementations could playback sounds in a different way.
-        :param host_playcorder: The playcorder that this instrument acts within
+        :param host_ensemble: The Ensemble that this instrument acts within
         :param name: The name of this instrument (used later in labeling parts in output)
         """
-        assert isinstance(host_playcorder, Playcorder)
-        self.host_playcorder = host_playcorder
         self.name = name
+        self.name_count = None
+        if host_ensemble is not None:
+            self.set_host(host_ensemble)
+
         # used to identify instruments uniquely, even if they're given the same name
-        self.name_count = host_playcorder.get_part_name_count(name)
         self.notes_started = []   # each entry goes (note_id, pitch, volume, start_time, variant_dictionary)
         self.performance_part = None
+
+    def set_host(self, host):
+        assert isinstance(host, (Playcorder, Ensemble))
+        if isinstance(host, Playcorder):
+            self.host_ensemble = host.ensemble
+        else:
+            self.host_ensemble = host
+        self.name_count = self.host_ensemble.get_part_name_count(self.name)
+
+    def _viable(self):
+        if self.host_ensemble is None:
+            logging.warning("Instrument tried to play, but was not part of an Ensemble.")
+            return False
+        else:
+            return True
 
     # ------------------ Methods to be implemented by subclasses ------------------
 
@@ -293,9 +325,16 @@ class PlaycorderInstrument:
         # Changes the expression of the note with the given id
         pass
 
+    def to_json(self):
+        return {
+            "type": "PlaycorderInstrument",
+            "name": self.name,
+        }
+
     # ------------------------- "Public" Playback Methods -------------------------
 
     def play_note(self, pitch, volume, length, properties=None):
+        if not self._viable(): return
         volume = ParameterCurve.from_list(volume) if hasattr(volume, "__len__") else volume
         pitch = ParameterCurve.from_list(pitch) if hasattr(pitch, "__len__") else pitch
         threading.Thread(target=self._do_play_note, args=(pitch, volume, length, properties)).start()
@@ -307,15 +346,16 @@ class PlaycorderInstrument:
             volume = volume.max_value() if isinstance(volume, ParameterCurve) else volume
             pitch = pitch.value_at(0) if isinstance(pitch, ParameterCurve) else pitch
 
-            self.performance_part.new_note(self.host_playcorder.get_time_passed(), length, pitch, volume, properties)
+            self.performance_part.new_note(self.host_ensemble.host_playcorder.get_time_passed(), length, pitch, volume, properties)
 
     def start_note(self, pitch, volume, properties=None):
         """
         Starts a note 'manually', meaning that its length is not predetermined, and that it has to be manually ended
         later by calling 'end_note' or 'end_all_notes'
         """
+        if not self._viable(): return
         note_id = self._do_start_note(pitch, volume, properties)
-        self.notes_started.append((note_id, pitch, volume, self.host_playcorder.get_time_passed(), properties))
+        self.notes_started.append((note_id, pitch, volume, self.host_ensemble.host_playcorder.get_time_passed(), properties))
         # returns the note_id as a reference, in case we want to change pitch mid-playback
         return note_id
 
@@ -325,6 +365,7 @@ class PlaycorderInstrument:
         Note that this only applies to notes started in an open-ended way with 'start_note', notes created
         using play_note have their lifecycle controlled automatically.
         """
+        if not self._viable(): return
         note_to_end = None
         if note_id is not None:
             # find the note referred to in the notes_started list
@@ -349,13 +390,14 @@ class PlaycorderInstrument:
         # save to performance part if we're recording
         if self.performance_part is not None:
             assert isinstance(self.performance_part, PerformancePart)
-            self.performance_part.new_note(start_time, self.host_playcorder.get_time_passed() - start_time,
+            self.performance_part.new_note(start_time, self.host_ensemble.host_playcorder.get_time_passed() - start_time,
                                            pitch, volume, properties)
 
     def end_all_notes(self):
         """
         Ends all notes that have been manually started with 'start_note'
         """
+        if not self._viable(): return
         while len(self.notes_started) > 0:
             self.end_note()
 
@@ -363,31 +405,47 @@ class PlaycorderInstrument:
         """
         Returns the number of notes currently playing that were manually started with 'start_note'
         """
+        if not self._viable(): return
         return len(self.notes_started)
 
-    def to_json(self):
-        return {
-            "name": self.name,
-            "name_count": self.name_count
-        }
+    @staticmethod
+    def from_json(json_dict, host_ensemble):
+        # the 'type' argument of the json_dict tells us which kind of PlaycorderInstrument constructor to use
+        type_to_create = None
+        for instrument_type in PlaycorderInstrument.__subclasses__():
+            if json_dict["type"] == instrument_type.__name__:
+                type_to_create = instrument_type
+                break
+        if type_to_create is None:
+            raise ValueError("Trying to reconstruct instrument of type {}, "
+                             "but that type is not defined.".format(json_dict["type"]))
+        kwargs = dict(json_dict)
+        del kwargs["type"]
+        return type_to_create(host_ensemble, **kwargs)
 
-    @classmethod
-    def from_json(cls, json_object, host_playcorder):
-        return cls(host_playcorder, json_object[0])
+    def __repr__(self):
+        return "PlaycorderInstrument({}, {})".format(self.host_ensemble, self.name)
 
 
 class MidiPlaycorderInstrument(PlaycorderInstrument):
 
-    def __init__(self, host_playcorder, name, preset, soundfont_index=0, num_channels=8,
+    def __init__(self, host_ensemble=None, name=None, preset=(0, 0), soundfont_index=0, num_channels=8,
                  midi_output_device=None, midi_output_name=None):
-        assert isinstance(host_playcorder, Playcorder)
-        super().__init__(host_playcorder, name)
+        if host_ensemble is None:
+            raise ValueError("MidiPlaycorderInstrument must be instantiated "
+                             "within the context of an Ensemble or Playcorder")
+        super().__init__(host_ensemble, name)
 
-        self.midi_player = host_playcorder.midi_player
+        self.midi_player = host_ensemble.midi_player
         assert isinstance(self.midi_player, CombinedMidiPlayer)
-        midi_output_name = name if midi_output_name is None else midi_output_name
+        self.preset = preset
+        self.soundfont_index = soundfont_index
+        self.num_channels = num_channels
+        self.midi_output_name = name if midi_output_name is None else midi_output_name
+        self.midi_output_device = midi_output_device
+
         self.midi_instrument = self.midi_player.add_instrument(num_channels, preset, soundfont_index,
-                                                               midi_output_device, midi_output_name)
+                                                               self.midi_output_device, self.midi_output_name)
         self.num_channels = num_channels
 
         # keep track of what notes are currently playing
@@ -422,7 +480,6 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
                 temporal_resolution = min(temporal_resolution,
                                           MidiPlaycorderInstrument.get_good_pitch_bend_temporal_resolution(pitch))
             temporal_resolution = max(temporal_resolution, 0.01)  # faster than this is wasteful, doesn't seem to help
-            print(temporal_resolution)
 
             def animate_pitch_and_volume():
                 while note_start_time is not None:
@@ -450,7 +507,7 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
         channel = self._find_channel_for_note(int_pitch, new_note_uses_bend=uses_pitch_bend)
         self.midi_instrument.pitch_bend(channel, pitch - int_pitch)
         self.midi_instrument.note_on(channel, int_pitch, volume)
-        note_id = channel, int_pitch, self.host_playcorder.get_time_passed(), uses_pitch_bend
+        note_id = channel, int_pitch, self.host_ensemble.host_playcorder.get_time_passed(), uses_pitch_bend
         self.active_midi_notes.append(note_id)
         return note_id
 
@@ -539,6 +596,24 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
         # no point in updating faster than the number of ticks per second
         update_freq = max_volume_per_second * 127
         return 1 / update_freq
+
+    def to_json(self):
+        return {
+            "type": "MidiPlaycorderInstrument",
+            "name": self.name,
+            "preset": self.preset,
+            "soundfont_index": self.soundfont_index,
+            "num_channels": self.num_channels,
+            # note that this saves the parameters we gave it explicitly, but not what it defaults to if
+            # those parameters were left as None. That's good, because None should mean that it takes
+            # on the defaults of whatever Ensemble / Playcorder it's part of
+            "midi_output_device": self.midi_output_device,
+            "midi_output_name": self.midi_output_name
+        }
+
+    def __repr__(self):
+        return "MidiPlaycorderInstrument({}, {}, {}, {}, {}, {}, {})".format(self.host_ensemble, self.name, self.preset, self.soundfont_index,
+                                                                 self.num_channels, self.midi_output_device, self.midi_output_name)
 
 
 class ParameterCurve:
