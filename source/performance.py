@@ -14,7 +14,7 @@ class PerformancePart:
         # this is used for serializing to and restoring from a json file. It should be enough to find
         # the instrument in the ensemble, so long as the ensemble is compatible.
         self._instrument_id = instrument_id if instrument_id is not None else \
-                                  instrument.name, instrument.name_count if instrument is not None else None
+            ((instrument.name, instrument.name_count) if instrument is not None else None)
 
         # since the start_time is the first element of the named tuple,
         # notes is sorted by start_time by default, which is what we want
@@ -40,12 +40,25 @@ class PerformancePart:
         )
 
     def to_json(self):
-        return {"name": self.name, "instrument_id": self._instrument_id, "notes": self.notes}
+        return {"name": self.name, "instrument_id": self._instrument_id, "notes": [
+            {
+                "start_time": n.start_time,
+                "length": n.length,
+                "pitch": n.pitch,
+                "volume": n.volume,
+                "properties": n.properties
+            } for n in self.notes
+        ]}
 
     @classmethod
-    def from_json_friendly(cls, json_dict,  ensemble):
+    def from_json(cls, json_dict, ensemble=None):
         performance_part = cls(name=json_dict["name"])
         performance_part._instrument_id = json_dict["instrument_id"]
+        if ensemble is not None:
+            performance_part.instrument = ensemble.get_instrument_by_name(*performance_part._instrument_id)
+        for note in json_dict["notes"]:
+            performance_part.add_note(PerformanceNote(**note))
+        return performance_part
 
 
 class Performance:
@@ -61,6 +74,13 @@ class Performance:
 
     def add_part(self, part: PerformancePart):
         self.parts.append(part)
+
+    def to_json(self):
+        return {"parts": [part.to_json() for part in self.parts]}
+
+    @classmethod
+    def from_json(cls, json_dict, ensemble=None):
+        return cls([PerformancePart.from_json(part_json, ensemble) for part_json in json_dict["parts"]])
 
     def __repr__(self):
         return "Performance([\n{}\n])".format("   " + ",\n   ".join(

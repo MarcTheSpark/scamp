@@ -14,7 +14,6 @@ from playcorder.performance import Performance, PerformancePart
 
 # TODO: __repr__ for parameter curves
 # TODO: MAKE PERFORMANCES CAPTURE PARAMETER CURVES
-# TODO: MAKE PERFORMANCES SERIALIZABLE TO AND FROM JSON
 # TODO: give the "properties" a playlength proportion, figure out how to make default playback properties of things like staccato, tenuto, slurs
 
 
@@ -274,6 +273,21 @@ class Ensemble:
     def get_part_name_count(self, name):
         return sum(i.name == name for i in self.instruments)
 
+    def get_instrument_by_name(self, name, which=0):
+        """
+        Returns the instrument of the given name. If there are multiple with the same name, the which parameter
+        specifies the one returned. (If none match the number given by which, the first name match is returned)
+        """
+        # if there are multiple instruments of the same name, which determines which one is chosen
+        imperfect_match = None
+        for instrument in self.instruments:
+            if name == instrument.name:
+                if which == instrument.name_count:
+                    return instrument
+                else:
+                    imperfect_match = instrument if imperfect_match is None else imperfect_match
+        return imperfect_match
+
     def to_json(self):
         return {
             "midi_player": self.midi_player.to_json(),
@@ -293,7 +307,7 @@ class Ensemble:
 
 class PlaycorderInstrument:
 
-    def __init__(self, host_ensemble=None, name=None):
+    def __init__(self, host=None, name=None):
         """
         This is the parent class used all kinds of instruments used within a playcorder. The most basic one, below,
         called a MidiPlaycorderInstrument, uses fluidsynth to playback sounds from a soundfont, and also sends the
@@ -303,8 +317,9 @@ class PlaycorderInstrument:
         """
         self.name = name
         self.name_count = None
-        if host_ensemble is not None:
-            self.set_host(host_ensemble)
+        self.host_ensemble = None
+        if host is not None:
+            self.set_host(host)
 
         # used to identify instruments uniquely, even if they're given the same name
         self.notes_started = []   # each entry goes (note_id, pitch, volume, start_time, variant_dictionary)
@@ -535,14 +550,14 @@ class PlaycorderInstrument:
 
 class MidiPlaycorderInstrument(PlaycorderInstrument):
 
-    def __init__(self, host_ensemble=None, name=None, preset=(0, 0), soundfont_index=0, num_channels=8,
+    def __init__(self, host=None, name=None, preset=(0, 0), soundfont_index=0, num_channels=8,
                  midi_output_device=None, midi_output_name=None):
-        if host_ensemble is None:
+        if host is None:
             raise ValueError("MidiPlaycorderInstrument must be instantiated "
                              "within the context of an Ensemble or Playcorder")
-        super().__init__(host_ensemble, name)
+        super().__init__(host, name)
 
-        self.midi_player = host_ensemble.midi_player
+        self.midi_player = self.host_ensemble.midi_player
         assert isinstance(self.midi_player, CombinedMidiPlayer)
         self.preset = preset
         self.soundfont_index = soundfont_index
