@@ -11,13 +11,11 @@ from .simple_rtmidi_wrapper import get_available_midi_output_devices
 
 from playcorder.performance import Performance, PerformancePart
 
-# TODO: SOMETHING GOES WRONG WHEN THERE ARE LIKE 3 STAVES, and they get disconnected
-# TODO: SPECIFY MAX VOICES PER STAFF
-# TODO: SPECIFY MOST APPROPRIATE CLEF FOR EACH STAFF OF EACH MEASURE
 
+# TODO: __repr__ for parameter curves
+# TODO: MAKE PERFORMANCES CAPTURE PARAMETER CURVES
+# TODO: MAKE PERFORMANCES SERIALIZABLE TO AND FROM JSON
 # TODO: give the "properties" a playlength proportion, figure out how to make default playback properties of things like staccato, tenuto, slurs
-# TODO: figure out if the pitch bend is not working right in the rt_midi output
-# TODO: review and revise xml output, Simplify (what about variant dictionaries?)!
 
 
 class Playcorder:
@@ -110,7 +108,7 @@ class Playcorder:
         self.performance = Performance()
         # set a performance_part for each instrument
         for instrument in which_parts:
-            new_part = self.performance.new_part(instrument.name, instrument)
+            new_part = self.performance.new_part(instrument)
             instrument.performance_part = new_part
 
     def is_recording(self):
