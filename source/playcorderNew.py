@@ -3,7 +3,6 @@ import time
 import logging
 
 from .recording_to_xml import save_to_xml_file as save_recording_to_xml
-from .measures_beats_notes import *
 
 from .combined_midi_player import CombinedMidiPlayer, register_default_soundfont, \
     unregister_default_soundfont, get_default_soundfonts
@@ -46,7 +45,7 @@ class Playcorder:
         self.time_passed = None
 
     def get_instruments_with_substring(self, word, avoid=None, soundfont_index=0):
-        return self.midi_player.get_instruments_with_substring(word, avoid=avoid, soundfont_index=soundfont_index)
+        return self.ensemble.midi_player.get_instruments_with_substring(word, avoid=avoid, soundfont_index=soundfont_index)
 
     @staticmethod
     def get_available_midi_output_devices():
@@ -65,7 +64,7 @@ class Playcorder:
         for a, b in get_default_soundfonts().items():
             print("{}: {}".format(a, b))
 
-    # ------------------------------ Ensemble Modification ---------------------------
+    # --------------------------------- Ensemble Stuff -------------------------------
 
     def add_part(self, instrument):
         assert isinstance(instrument, PlaycorderInstrument)
@@ -78,6 +77,16 @@ class Playcorder:
 
     def add_silent_part(self, name=None):
         return self.ensemble.add_silent_part(name)
+
+    def save_ensemble_to_json(self, filepath):
+        import json
+        with open(filepath, "w") as file:
+            json.dump(self.ensemble.to_json(), file)
+
+    def load_ensemble_from_json(self, filepath):
+        import json
+        with open(filepath, "r") as file:
+            self.ensemble = Ensemble.from_json(json.load(file), self)
 
     # ----------------------------- Modifying MIDI Settings --------------------------
 
@@ -267,6 +276,22 @@ class Ensemble:
     def get_part_name_count(self, name):
         return sum(i.name == name for i in self.instruments)
 
+    def to_json(self):
+        return {
+            "midi_player": self.midi_player.to_json(),
+            "instruments": [
+                instrument.to_json() for instrument in self.instruments
+            ]
+        }
+
+    @classmethod
+    def from_json(cls, json_dict, host_playcorder):
+        ensemble = cls(host_playcorder)
+        ensemble.midi_player = CombinedMidiPlayer.from_json(json_dict["midi_player"])
+        for json_instrument in json_dict["instruments"]:
+            ensemble.add_part(PlaycorderInstrument.from_json(json_instrument, ensemble))
+        return ensemble
+
 
 class PlaycorderInstrument:
 
@@ -304,11 +329,7 @@ class PlaycorderInstrument:
 
     # ------------------ Methods to be implemented by subclasses ------------------
 
-    def _do_play_note(self, pitch, volume, length, properties=None):
-        # Does the actual sonic implementation of playing a note
-        pass
-
-    def _do_start_note(self, pitch, volume, properties=None):
+    def _do_start_note(self, pitch, volume, properties):
         # Does the actual sonic implementation of starting a note
         # should return the note_id, which is used to keep track of the note
         pass
@@ -331,10 +352,96 @@ class PlaycorderInstrument:
             "name": self.name,
         }
 
+    # ------------------------- "Private" Playback Methods -----------------------
+
+    def _do_play_note(self, pitch, volume, length, properties):
+        # Does the actual sonic implementation of playing a note; used as a thread by the public method "play_note"
+        note_start_time = time.time()
+        # convert lists to ParameterCurves
+        is_animating_volume = isinstance(volume, ParameterCurve)
+        is_animating_pitch = isinstance(pitch, ParameterCurve)
+        # the starting volume (velocity) of the note needs to be as loud as the note is ever going to get
+        start_volume = volume.max_value() if isinstance(volume, ParameterCurve) else volume
+        # the starting pitch should just be whatever it is
+        start_pitch = pitch.value_at(0) if isinstance(pitch, ParameterCurve) else pitch
+
+        note_id = self._do_start_note(start_pitch, start_volume, properties)
+
+        if is_animating_volume or is_animating_pitch:
+            temporal_resolution = float("inf")
+            if is_animating_volume:
+                volume.normalize_to_duration(length)
+                temporal_resolution = min(temporal_resolution,
+                                          MidiPlaycorderInstrument.get_good_volume_temporal_resolution(volume))
+            if is_animating_pitch:
+                pitch.normalize_to_duration(length)
+                temporal_resolution = min(temporal_resolution,
+                                          MidiPlaycorderInstrument.get_good_pitch_bend_temporal_resolution(pitch))
+            temporal_resolution = max(temporal_resolution, 0.01)  # faster than this is wasteful, doesn't seem to help
+
+            def animate_pitch_and_volume():
+                while note_start_time is not None:
+                    if is_animating_volume:
+                        # note that, since change_note_volume is affecting expression values, we need to send it
+                        # the proportion of the start_volume rather than the absolute volume
+                        self.change_note_volume(note_id, volume.value_at(time.time() - note_start_time) / start_volume)
+                    if is_animating_pitch:
+                        self.change_note_pitch(note_id, pitch.value_at(time.time() - note_start_time))
+                    time.sleep(temporal_resolution)
+            threading.Thread(target=animate_pitch_and_volume).start()
+
+        time.sleep(length)
+        note_start_time = None
+        self._do_end_note(note_id)
+
+    @staticmethod
+    def get_good_pitch_bend_temporal_resolution(pitch_param_curve):
+        """
+        Returns a reasonable temporal resolution
+        :type pitch_param_curve: ParameterCurve
+        """
+        max_cents_per_second = 0
+        for i, duration in enumerate(pitch_param_curve.durations):
+            cents_per_second = abs(pitch_param_curve.levels[i + 1] - pitch_param_curve.levels[i]) / duration * 100
+            # since x^c has a slope of c at x=1, we multiply by the curvature
+            # (if c < 1, then technically the slope approaches infinity at x = 0,
+            # but we'll just compromise and use 1/c)
+            cents_per_second *= max(pitch_param_curve.curvatures[i], 1 / pitch_param_curve.curvatures[i])
+            if cents_per_second > max_cents_per_second:
+                max_cents_per_second = cents_per_second
+        # cents / update * updates / sec = cents / sec   =>  updates_freq = cents_per_second / cents_per_update
+        # we'll aim for 4 cents per update, since some say the JND is 5-6 cents
+        update_freq = max_cents_per_second / 4.0
+        return 1 / update_freq
+
+    @staticmethod
+    def get_good_volume_temporal_resolution(volume_param_curve):
+        """
+        Returns a reasonable temporal resolution
+        :type volume_param_curve: ParameterCurve
+        """
+        max_volume_per_second = 0
+        for i, duration in enumerate(volume_param_curve.durations):
+            volume_per_second = abs(volume_param_curve.levels[i + 1] - volume_param_curve.levels[i]) / duration
+            # since x^c has a slope of c at x=1, we multiply by the curvature (see note in pitch bend function above)
+            volume_per_second *= max(volume_param_curve.curvatures[i], 1 / volume_param_curve.curvatures[i])
+            if volume_per_second > max_volume_per_second:
+                max_volume_per_second = volume_per_second
+        # no point in updating faster than the number of ticks per second
+        update_freq = max_volume_per_second * 127
+        return 1 / update_freq
+
     # ------------------------- "Public" Playback Methods -------------------------
+
+    @staticmethod
+    def _make_properties_dict(properties):
+        # TODO: can take a string, a list, or a dict and turn it into a standardized dict of not properties
+        if properties is None:
+            return {}
 
     def play_note(self, pitch, volume, length, properties=None):
         if not self._viable(): return
+        properties = PlaycorderInstrument._make_properties_dict(properties)
         volume = ParameterCurve.from_list(volume) if hasattr(volume, "__len__") else volume
         pitch = ParameterCurve.from_list(pitch) if hasattr(pitch, "__len__") else pitch
         threading.Thread(target=self._do_play_note, args=(pitch, volume, length, properties)).start()
@@ -354,6 +461,7 @@ class PlaycorderInstrument:
         later by calling 'end_note' or 'end_all_notes'
         """
         if not self._viable(): return
+        properties = PlaycorderInstrument._make_properties_dict(properties)
         note_id = self._do_start_note(pitch, volume, properties)
         self.notes_started.append((note_id, pitch, volume, self.host_ensemble.host_playcorder.get_time_passed(), properties))
         # returns the note_id as a reference, in case we want to change pitch mid-playback
@@ -452,58 +560,22 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
         # each entry is an identifying tuple of: (channel, pitch, unique_id)
         self.active_midi_notes = []
 
-    # ---- highest level call to implement playing a note ----
-    # started as a thread from within the parent class method play_note
-
-    def _do_play_note(self, pitch, volume, length, properties=None):
-        # Does the actual sonic implementation of playing a note
-        note_start_time = time.time()
-        # convert lists to ParameterCurves
-        is_animating_volume = isinstance(volume, ParameterCurve)
-        is_animating_pitch = isinstance(pitch, ParameterCurve)
-        # the starting volume (velocity) of the note needs to be as loud as the note is ever going to get
-        start_volume = volume.max_value() if isinstance(volume, ParameterCurve) else volume
-        # the starting pitch should just be whatever it is
-        start_pitch = pitch.value_at(0) if isinstance(pitch, ParameterCurve) else pitch
-
-        note_id = self._do_start_note(start_pitch, start_volume, properties,
-                                      pitch_changes=is_animating_pitch)
-
-        if is_animating_volume or is_animating_pitch:
-            temporal_resolution = float("inf")
-            if is_animating_volume:
-                volume.normalize_to_duration(length)
-                temporal_resolution = min(temporal_resolution,
-                                          MidiPlaycorderInstrument.get_good_volume_temporal_resolution(volume))
-            if is_animating_pitch:
-                pitch.normalize_to_duration(length)
-                temporal_resolution = min(temporal_resolution,
-                                          MidiPlaycorderInstrument.get_good_pitch_bend_temporal_resolution(pitch))
-            temporal_resolution = max(temporal_resolution, 0.01)  # faster than this is wasteful, doesn't seem to help
-
-            def animate_pitch_and_volume():
-                while note_start_time is not None:
-                    if is_animating_volume:
-                        # note that, since change_note_volume is affecting expression values, we need to send it
-                        # the proportion of the start_volume rather than the absolute volume
-                        self.change_note_volume(note_id, volume.value_at(time.time() - note_start_time) / start_volume)
-                    if is_animating_pitch:
-                        self.change_note_pitch(note_id, pitch.value_at(time.time() - note_start_time))
-                    time.sleep(temporal_resolution)
-            threading.Thread(target=animate_pitch_and_volume).start()
-
-        time.sleep(length)
-        note_start_time = None
-        self._do_end_note(note_id)
-
     # ---- The constituent parts of the _do_play_note call ----
 
-    def _do_start_note(self, pitch, volume, properties=None, pitch_changes=False):
+    def _do_play_note(self, pitch, volume, length, properties):
+        # _do_start_note needs to know whether or not the pitch changes, since pitch bends need to
+        # be placed on separate channels. We'll pass along that info by placing it in the properties
+        # dictionary, but we make a copy first so as not to alter the dictionary we're given
+        altered_properties = dict(properties)
+        altered_properties["pitch changes"] = isinstance(pitch, ParameterCurve)
+        super()._do_play_note(pitch, volume, length, altered_properties)
+
+    def _do_start_note(self, pitch, volume, properties):
         # Does the actual sonic implementation of starting a note
         # in this case the note_id returned will be a tuple consisting of
         # the channel, the midi key pressed, the start time, and whether or not pitch bend is used
         int_pitch = int(round(pitch))
-        uses_pitch_bend = (pitch != int_pitch) or pitch_changes
+        uses_pitch_bend = (pitch != int_pitch) or properties['pitch changes']
         channel = self._find_channel_for_note(int_pitch, new_note_uses_bend=uses_pitch_bend)
         self.midi_instrument.pitch_bend(channel, pitch - int_pitch)
         self.midi_instrument.note_on(channel, int_pitch, volume)
@@ -559,43 +631,6 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
 
     def set_max_pitch_bend(self, semitones):
         self.midi_instrument.set_max_pitch_bend(semitones)
-
-    @staticmethod
-    def get_good_pitch_bend_temporal_resolution(pitch_param_curve):
-        """
-        Returns a reasonable temporal resolution
-        :type pitch_param_curve: ParameterCurve
-        """
-        max_cents_per_second = 0
-        for i, duration in enumerate(pitch_param_curve.durations):
-            cents_per_second = abs(pitch_param_curve.levels[i+1] - pitch_param_curve.levels[i]) / duration * 100
-            # since x^c has a slope of c at x=1, we multiply by the curvature
-            # (if c < 1, then technically the slope approaches infinity at x = 0,
-            # but we'll just compromise and use 1/c)
-            cents_per_second *= max(pitch_param_curve.curvatures[i], 1/pitch_param_curve.curvatures[i])
-            if cents_per_second > max_cents_per_second:
-                max_cents_per_second = cents_per_second
-        # cents / update * updates / sec = cents / sec   =>  updates_freq = cents_per_second / cents_per_update
-        # we'll aim for 4 cents per update, since some say the JND is 5-6 cents
-        update_freq = max_cents_per_second / 4.0
-        return 1 / update_freq
-
-    @staticmethod
-    def get_good_volume_temporal_resolution(volume_param_curve):
-        """
-        Returns a reasonable temporal resolution
-        :type volume_param_curve: ParameterCurve
-        """
-        max_volume_per_second = 0
-        for i, duration in enumerate(volume_param_curve.durations):
-            volume_per_second = abs(volume_param_curve.levels[i+1] - volume_param_curve.levels[i]) / duration
-            # since x^c has a slope of c at x=1, we multiply by the curvature (see note in pitch bend function above)
-            volume_per_second *= max(volume_param_curve.curvatures[i], 1/volume_param_curve.curvatures[i])
-            if volume_per_second > max_volume_per_second :
-                max_volume_per_second = volume_per_second
-        # no point in updating faster than the number of ticks per second
-        update_freq = max_volume_per_second * 127
-        return 1 / update_freq
 
     def to_json(self):
         return {
