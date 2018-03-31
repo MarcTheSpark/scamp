@@ -134,8 +134,8 @@ class CombinedMidiPlayer:
                 "rtmidi_output_device": self.rtmidi_output_device}
 
     @classmethod
-    def from_json(cls, json_string):
-        return cls(**json_string)
+    def from_json(cls, json_dict):
+        return cls(**json_dict)
 
 
 class CombinedMidiInstrument:
