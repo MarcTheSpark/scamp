@@ -1,5 +1,6 @@
 from sortedcontainers import SortedList
 from collections import namedtuple
+from .parameter_curve import ParameterCurve
 
 PerformanceNote = namedtuple("PerformanceNote", "start_time length pitch volume properties")
 
@@ -44,8 +45,8 @@ class PerformancePart:
             {
                 "start_time": n.start_time,
                 "length": n.length,
-                "pitch": n.pitch,
-                "volume": n.volume,
+                "pitch": n.pitch.to_json() if hasattr(n.pitch, "to_json") else n.pitch,
+                "volume": n.volume.to_json() if hasattr(n.volume, "to_json") else n.volume,
                 "properties": n.properties
             } for n in self.notes
         ]}
@@ -57,6 +58,10 @@ class PerformancePart:
         if ensemble is not None:
             performance_part.instrument = ensemble.get_instrument_by_name(*performance_part._instrument_id)
         for note in json_dict["notes"]:
+            if hasattr(note["pitch"], "__len__"):
+                note["pitch"] = ParameterCurve.from_json(note["pitch"])
+            if hasattr(note["volume"], "__len__"):
+                note["volume"] = ParameterCurve.from_json(note["volume"])
             performance_part.add_note(PerformanceNote(**note))
         return performance_part
 

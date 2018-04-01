@@ -9,11 +9,10 @@ from .combined_midi_player import CombinedMidiPlayer, register_default_soundfont
 
 from .simple_rtmidi_wrapper import get_available_midi_output_devices
 
-from playcorder.performance import Performance, PerformancePart
+from .performance import Performance, PerformancePart
+from .parameter_curve import ParameterCurve
 
 
-# TODO: __repr__ for parameter curves
-# TODO: MAKE PERFORMANCES CAPTURE PARAMETER CURVES
 # TODO: give the "properties" a playlength proportion, figure out how to make default playback properties of things like staccato, tenuto, slurs
 
 
@@ -383,13 +382,13 @@ class PlaycorderInstrument:
         if is_animating_volume or is_animating_pitch:
             temporal_resolution = float("inf")
             if is_animating_volume:
-                volume.normalize_to_duration(length)
+                volume_curve = volume.normalize_to_duration(length, False)
                 temporal_resolution = min(temporal_resolution,
-                                          MidiPlaycorderInstrument.get_good_volume_temporal_resolution(volume))
+                                          MidiPlaycorderInstrument.get_good_volume_temporal_resolution(volume_curve))
             if is_animating_pitch:
-                pitch.normalize_to_duration(length)
+                pitch_curve = pitch.normalize_to_duration(length, False)
                 temporal_resolution = min(temporal_resolution,
-                                          MidiPlaycorderInstrument.get_good_pitch_bend_temporal_resolution(pitch))
+                                          MidiPlaycorderInstrument.get_good_pitch_bend_temporal_resolution(pitch_curve))
             temporal_resolution = max(temporal_resolution, 0.01)  # faster than this is wasteful, doesn't seem to help
 
             def animate_pitch_and_volume():
@@ -397,9 +396,10 @@ class PlaycorderInstrument:
                     if is_animating_volume:
                         # note that, since change_note_volume is affecting expression values, we need to send it
                         # the proportion of the start_volume rather than the absolute volume
-                        self.change_note_volume(note_id, volume.value_at(time.time() - note_start_time) / start_volume)
+                        self.change_note_volume(note_id,
+                                                volume_curve.value_at(time.time() - note_start_time) / start_volume)
                     if is_animating_pitch:
-                        self.change_note_pitch(note_id, pitch.value_at(time.time() - note_start_time))
+                        self.change_note_pitch(note_id, pitch_curve.value_at(time.time() - note_start_time))
                     time.sleep(temporal_resolution)
             threading.Thread(target=animate_pitch_and_volume).start()
 
@@ -453,7 +453,8 @@ class PlaycorderInstrument:
             return {}
 
     def play_note(self, pitch, volume, length, properties=None):
-        if not self._viable(): return
+        if not self._viable():
+            return
         properties = PlaycorderInstrument._make_properties_dict(properties)
         volume = ParameterCurve.from_list(volume) if hasattr(volume, "__len__") else volume
         pitch = ParameterCurve.from_list(pitch) if hasattr(pitch, "__len__") else pitch
@@ -462,11 +463,8 @@ class PlaycorderInstrument:
         # record the note in the hosting playcorder, if it's recording
         if self.performance_part is not None:
             assert isinstance(self.performance_part, PerformancePart)
-            # in case we're getting a parameter curve for pitch or volume, we pick a representative value
-            volume = volume.max_value() if isinstance(volume, ParameterCurve) else volume
-            pitch = pitch.value_at(0) if isinstance(pitch, ParameterCurve) else pitch
-
-            self.performance_part.new_note(self.host_ensemble.host_playcorder.get_time_passed(), length, pitch, volume, properties)
+            self.performance_part.new_note(self.host_ensemble.host_playcorder.get_time_passed(),
+                                           length, pitch, volume, properties)
 
     def start_note(self, pitch, volume, properties=None):
         """
@@ -660,85 +658,10 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
         }
 
     def __repr__(self):
-        return "MidiPlaycorderInstrument({}, {}, {}, {}, {}, {}, {})".format(self.host_ensemble, self.name, self.preset, self.soundfont_index,
-                                                                 self.num_channels, self.midi_output_device, self.midi_output_name)
-
-
-class ParameterCurve:
-
-    def __init__(self, levels, durations, curvatures):
-        if len(levels) == len(durations):
-            # there really should be one more level than duration, but if there's the same
-            # number, we assume that they intend the last level to stay where it is
-            levels = list(levels) + [levels[-1]]
-        if len(levels) != len(durations) + 1:
-            raise ValueError("Inconsistent number of levels and durations given.")
-        if len(curvatures) > len(levels) - 1:
-            logging.warning("Too many curvature values given to ParameterCurve. Discarding extra.")
-        if len(curvatures) < len(levels) - 1:
-            logging.warning("Too few curvature values given to ParameterCurve. Assuming linear for remainder.")
-            curvatures += [1] * (len(levels) - 1 - len(curvatures))
-        for c in curvatures:
-            assert (c > 0), "Curvature values cannot be negative!"
-
-        self.levels = levels
-        self.durations = durations
-        self.curvatures = curvatures
-
-    @classmethod
-    def from_levels(cls, levels):
-        # just given levels, so we linearly interpolate segments of equal length
-        durations = [1.0 / (len(levels) - 1)] * (len(levels) - 1)
-        curves = [1.0] * (len(levels) - 1)
-        return cls(levels, durations, curves)
-
-    @classmethod
-    def from_levels_and_durations(cls, levels, durations):
-        # given levels and durations, so we assume linear curvature for every segment
-        return cls(levels, durations, [1.0] * (len(levels) - 1))
-
-    @classmethod
-    def from_list(cls, constructor_list):
-        # converts from a list that may contain just levels, may have levels and durations, and may have everything
-        # a input of [1, 0.5, 0.3] is interpreted as evenly spaced levels
-        # an input of [[1, 0.5, 0.3], [0.2, 0.8]] is interpreted as levels and durations
-        # an input of [[1, 0.5, 0.3], [0.2, 0.8], [2, 0.5]]is interpreted as levels, durations, and curvatures
-        if hasattr(constructor_list[0], "__len__"):
-            # we were given levels and durations, and possibly curvature values
-            if len(constructor_list) == 2:
-                # given levels and durations
-                return ParameterCurve.from_levels_and_durations(constructor_list[0], constructor_list[1])
-            elif len(constructor_list) >= 3:
-                # given levels, durations, and curvature values
-                return cls(constructor_list[0], constructor_list[1], constructor_list[2])
-        else:
-            # just given levels
-            return ParameterCurve.from_levels(constructor_list)
-
-    def normalize_to_duration(self, desired_duration):
-        current_duration = sum(self.durations)
-        if current_duration != desired_duration:
-            ratio = desired_duration / current_duration
-            for i, dur in enumerate(self.durations):
-                self.durations[i] = dur * ratio
-
-    def value_at(self, t):
-        if t < 0:
-            return self.levels[-1]
-        for i, segment_length in enumerate(self.durations):
-            if t > segment_length:
-                t -= segment_length
-            else:
-                segment_progress = (t / segment_length) ** self.curvatures[i]
-                return self.levels[i] * (1 - segment_progress) + self.levels[i+1] * segment_progress
-        return self.levels[-1]
-
-    def max_value(self):
-        return max(self.levels)
-
-    def __repr__(self):
-        return "ParameterCurve({}, {}, {})".format(self.levels, self.durations, self.curvatures)
-
+        return "MidiPlaycorderInstrument({}, {}, {}, {}, {}, {}, {})".format(
+            self.host_ensemble, self.name, self.preset, self.soundfont_index,
+            self.num_channels, self.midi_output_device, self.midi_output_name
+        )
 
 # -------------- EXAMPLE --------------
 #
