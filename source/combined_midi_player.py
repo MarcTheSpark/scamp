@@ -184,21 +184,22 @@ class CombinedMidiInstrument:
         to the instrument, so no such conversion is necessary.
         """
         rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
-        absolute_channel = self.channels[chan]
         velocity = int(volume_from_0_to_1 * 127)
-        self.combined_midi_player.synth.noteon(absolute_channel, pitch, velocity)
+        if self.combined_midi_player.synth is not None:
+            absolute_channel = self.channels[chan]
+            self.combined_midi_player.synth.noteon(absolute_channel, pitch, velocity)
         rt_simple_out.note_on(chan, pitch, velocity)
 
     def note_off(self, chan, pitch):
         rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
-        absolute_channel = self.channels[chan]
-        self.combined_midi_player.synth.noteon(absolute_channel, pitch, 0)  # note on call of 0 velocity implementation
-        self.combined_midi_player.synth.noteoff(absolute_channel, pitch)  # note off call implementation
+        if self.combined_midi_player.synth is not None:
+            absolute_channel = self.channels[chan]
+            self.combined_midi_player.synth.noteon(absolute_channel, pitch, 0)  # note on call of 0 velocity implementation
+            self.combined_midi_player.synth.noteoff(absolute_channel, pitch)  # note off call implementation
         rt_simple_out.note_off(chan, pitch)
 
     def pitch_bend(self, chan, bend_in_semitones):
         rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
-        absolute_channel = self.channels[chan]
         directional_bend_value = int(bend_in_semitones / self.max_pitch_bend * 8192)
         # we can't have a directional pitch bend popping up to 8192, because we'll go one above the max allowed
         # on th other hand, -8192 is fine, since that will add up to zero
@@ -206,8 +207,10 @@ class CombinedMidiInstrument:
             logging.warning("Attempted pitch bend beyond maximum range (default is 2 semitones). Call set_max_"
                             "pitch_bend on your MidiPlaycorderInstrument to expand the range.")
         directional_bend_value = max(-8192, min(directional_bend_value, 8191))
-        # for some reason, pyFluidSynth takes a value from -8192 to 8191 and then adds 8192 to it
-        self.combined_midi_player.synth.pitch_bend(absolute_channel, directional_bend_value)
+        if self.combined_midi_player.synth is not None:
+            absolute_channel = self.channels[chan]
+            # for some reason, pyFluidSynth takes a value from -8192 to 8191 and then adds 8192 to it
+            self.combined_midi_player.synth.pitch_bend(absolute_channel, directional_bend_value)
         # rt_midi wants the normal value having added in 8192
         rt_simple_out.pitch_bend(chan, directional_bend_value + 8192)
 
@@ -227,20 +230,24 @@ class CombinedMidiInstrument:
 
         for chan in range(self.num_channels):
             rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
-            absolute_channel = self.channels[chan]
-            self.combined_midi_player.synth.cc(absolute_channel, 101, 0)
+
+            if self.combined_midi_player.synth is not None:
+                absolute_channel = self.channels[chan]
+                self.combined_midi_player.synth.cc(absolute_channel, 101, 0)
+                self.combined_midi_player.synth.cc(absolute_channel, 100, 0)
+                self.combined_midi_player.synth.cc(absolute_channel, 6, max_bend_in_semitones)
+                self.combined_midi_player.synth.cc(absolute_channel, 100, 127)
+
             rt_simple_out.cc(chan, 101, 0)
-            self.combined_midi_player.synth.cc(absolute_channel, 100, 0)
             rt_simple_out.cc(chan, 100, 0)
-            self.combined_midi_player.synth.cc(absolute_channel, 6, max_bend_in_semitones)
             rt_simple_out.cc(chan, 6, max_bend_in_semitones)
-            self.combined_midi_player.synth.cc(absolute_channel, 100, 127)
             rt_simple_out.cc(chan, 100, 127)
             self.max_pitch_bend = max_bend_in_semitones
 
     def expression(self, chan, expression_from_0_to_1):
         rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
-        absolute_channel = self.channels[chan]
         expression_val = int(expression_from_0_to_1 * 127)
-        self.combined_midi_player.synth.cc(absolute_channel, 11, expression_val)
+        if self.combined_midi_player.synth is not None:
+            absolute_channel = self.channels[chan]
+            self.combined_midi_player.synth.cc(absolute_channel, 11, expression_val)
         rt_simple_out.expression(chan, expression_val)
