@@ -16,7 +16,7 @@ from .parameter_curve import ParameterCurve
 from .ensemble import Ensemble
 from .instruments import PlaycorderInstrument, MidiPlaycorderInstrument
 
-from .clock import MasterClock
+from .clock import Clock
 
 # TODO: give the "properties" a playlength proportion, figure out how to make default playback properties of things like staccato, tenuto, slurs
 
@@ -32,20 +32,15 @@ class Playcorder:
         specified on a per-instrument basis, but this sets a global default. Defaults to creating virtual devices.
         """
 
-        # list of the current instruments used by this playcorder
-        self.audio_driver = audio_driver
-        self.default_midi_output_device = midi_output_device
-        self.ensemble = Ensemble(self, soundfonts)
+        self._ensemble = None
+        self.set_ensemble(Ensemble(soundfonts, audio_driver, midi_output_device))
 
-        # MasterClock keeps track of time and can spawn subordinate clocks
-        self.master_clock = MasterClock()
+        # Clock keeps track of time and can spawn subordinate clocks
+        self.master_clock = Clock()
         self.recording_start_time = None
 
         # The Performance object created when we record
         self.performance = None
-
-    def get_instruments_with_substring(self, word, avoid=None, soundfont_index=0):
-        return self.ensemble.midi_player.get_instruments_with_substring(word, avoid=avoid, soundfont_index=soundfont_index)
 
     @staticmethod
     def get_available_midi_output_devices():
@@ -84,46 +79,76 @@ class Playcorder:
     def wait(self, seconds):
         self.master_clock.wait(seconds)
 
+    def wait_forever(self):
+        while True:
+            self.wait(1.0)
+
     # --------------------------------- Ensemble Stuff -------------------------------
+
+    @property
+    def ensemble(self):
+        return self._ensemble
+
+    @ensemble.setter
+    def ensemble(self, ensemble: Ensemble):
+        self.set_ensemble(ensemble)
+
+    def set_ensemble(self, ensemble: Ensemble):
+        self._ensemble = ensemble
+        self._ensemble.host_playcorder = self
+
+    def get_instruments_with_substring(self, word, avoid=None, soundfont_index=0):
+        return self._ensemble.midi_player.get_instruments_with_substring(word, avoid=avoid,
+                                                                         soundfont_index=soundfont_index)
 
     def add_part(self, instrument):
         assert isinstance(instrument, PlaycorderInstrument)
-        return self.ensemble.add_part(instrument)
+        return self._ensemble.add_part(instrument)
 
     def add_midi_part(self, name=None, preset=(0, 0), soundfont_index=0, num_channels=8,
                       midi_output_device=None, midi_output_name=None):
-        return self.ensemble.add_midi_part(name, preset, soundfont_index, num_channels,
-                                           midi_output_device, midi_output_name)
+        return self._ensemble.add_midi_part(name, preset, soundfont_index, num_channels,
+                                            midi_output_device, midi_output_name)
 
     def add_silent_part(self, name=None):
-        return self.ensemble.add_silent_part(name)
+        return self._ensemble.add_silent_part(name)
 
     def save_ensemble_to_json(self, filepath):
         import json
         with open(filepath, "w") as file:
-            json.dump(self.ensemble.to_json(), file)
+            json.dump(self._ensemble.to_json(), file)
 
     def load_ensemble_from_json(self, filepath):
         import json
         with open(filepath, "r") as file:
-            self.ensemble = Ensemble.from_json(json.load(file), self)
+            self.set_ensemble(Ensemble.from_json(json.load(file)))
 
     # ----------------------------- Modifying MIDI Settings --------------------------
 
-    def set_audio_driver(self, driver):
-        self.ensemble.set_audio_driver(driver)
+    @property
+    def audio_driver(self):
+        return self._ensemble.audio_driver
 
-    def set_default_midi_output_device(self, midi_out_device):
-        self.ensemble.set_default_midi_output_device(midi_out_device)
+    @audio_driver.setter
+    def audio_driver(self, audio_driver):
+        self._ensemble.audio_driver = audio_driver
+
+    @property
+    def default_midi_output_device(self):
+        return self._ensemble.default_midi_output_device
+
+    @default_midi_output_device.setter
+    def default_midi_output_device(self, device):
+        self._ensemble.default_midi_output_device = device
 
     def load_soundfont(self, soundfont):
-        self.ensemble.load_soundfont(soundfont)
+        self._ensemble.load_soundfont(soundfont)
 
     # --------------------------------- Recording Stuff -------------------------------
 
     def start_recording(self, which_parts=None):
         self.recording_start_time = self.master_clock._t
-        which_parts = self.ensemble.instruments if which_parts is None else which_parts
+        which_parts = self._ensemble.instruments if which_parts is None else which_parts
         self.performance = Performance()
         # set a performance_part for each instrument
         for instrument in which_parts:
