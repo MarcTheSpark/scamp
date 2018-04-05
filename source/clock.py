@@ -2,6 +2,27 @@ import time
 from sortedcontainers import SortedListWithKey
 from collections import namedtuple
 import threading
+import logging
+
+# TODO: Add a policy for whether or not to care about absolute time since the start or relative time since the last sleep
+
+
+def _sleep_precisely_until(stop_time):
+    time_remaining = stop_time - time.time()
+    if time_remaining <= 0:
+        return
+    elif time_remaining < 0.0005:
+        # when there's not much left, just burn cpu cycles and hit it exactly
+        while time.time() < stop_time:
+            pass
+    else:
+        time.sleep(time_remaining / 2)
+        _sleep_precisely_until(stop_time)
+
+
+def sleep_precisely(secs):
+    _sleep_precisely_until(time.time() + secs)
+
 
 WakeUpCall = namedtuple("WakeUpCall", "t clock")
 
@@ -23,13 +44,18 @@ class Clock:
         # queue of WakeUpCalls for child clocks
         self._queue = SortedListWithKey(key=lambda x: x.t)
         # how long have I been around, in seconds since I was created
-        self._t = 0
+        self._tempo_map = TempoMap()
 
         # how long had my parent been around when I was created
         self.parent_offset = self.parent.time() if self.parent is not None else 0
         # will use these if not master clock
         self._ready_and_waiting = False
         self._wait_event = threading.Event()
+
+        self._last_sleep_time = time.time()
+        # precise timing uses a while loop when we get close to the wake-up time
+        # it burns more CPU to do this, but the timing is more accurate
+        self.use_precise_timing = True
 
     @property
     def master(self):
@@ -39,7 +65,22 @@ class Clock:
         return self.parent is None
 
     def time(self):
-        return self._t
+        return self._tempo_map.time()
+
+    def beats(self):
+        return self._tempo_map.beats()
+
+    @property
+    def rate(self):
+        return self._tempo_map.rate
+
+    @rate.setter
+    def rate(self, r):
+        self._tempo_map.rate = r
+
+    def absolute_rate(self):
+        absolute_rate = self.rate if self.parent is None else (self.rate * self.parent.rate)
+        return absolute_rate
 
     @property
     def master_offset(self):
@@ -66,31 +107,44 @@ class Clock:
         return child
 
     def wait_in_parent(self, dt):
+        if dt == 0:
+            return
         if self.is_master():
             # no parent, so this is the master thread that actually sleeps
-            time.sleep(dt)
+            # we want to stop sleeping dt after we last finished sleeping, not including the processing that happened
+            # after we finished sleeping. So we calculate the time to finish sleeping based on that
+            stop_sleeping_time = self._last_sleep_time + dt
+            # in case processing took so long that we are already past the time we were supposed to stop sleeping,
+            # we throw a warning that we're getting behind and don't try to sleep at all
+            if stop_sleeping_time < time.time():
+                logging.warning("Clock is running behind real time; probably processing is too heavy.")
+            else:
+                if self.use_precise_timing:
+                    _sleep_precisely_until(stop_sleeping_time)
+                else:
+                    time.sleep(stop_sleeping_time - time.time())
+            self._last_sleep_time = time.time()
         else:
             self.parent._queue.add(WakeUpCall(self.time_in_parent() + dt, self))
             self._ready_and_waiting = True
             self._wait_event.wait()
             self._wait_event.clear()
-            self._t += dt
 
-    def wait_absolute(self, dt):
+    def wait(self, beats):
         # wait for any and all children to schedule their next wake up call and call wait()
         while not all(child._ready_and_waiting for child in self._children):
             pass
 
-        end_time = self.time() + dt
+        end_time = self.beats() + beats
 
         # while there are wakeup calls left to do amongst the children, and those wake up calls
         # would take place before we're done waiting here on the master clock
         while len(self._queue) > 0 and self._queue[0].t < end_time:
             # find the next wake up call
             next_wake_up_call = self._queue.pop(0)
-            time_till_wake = next_wake_up_call.t - self._t
-            self.wait_in_parent(time_till_wake)
-            self._t += time_till_wake
+            time_till_wake = next_wake_up_call.t - self.beats()
+            self.wait_in_parent(self._tempo_map.get_wait_time(time_till_wake))
+            self._tempo_map.advance(time_till_wake)
 
             next_wake_up_call.clock._ready_and_waiting = False
             next_wake_up_call.clock._wait_event.set()
@@ -102,8 +156,8 @@ class Clock:
         # if we exit the while loop, that means that there is no one in the queue (meaning no children),
         # or the first wake up call is scheduled for after this wait is to end. So we can safely wait.
 
-        self.wait_in_parent(end_time - self._t)
-        self._t = end_time
+        self.wait_in_parent(self._tempo_map.get_wait_time(end_time - self.beats()))
+        self._tempo_map.advance(end_time - self.beats())
 
     def wait_for_children_to_finish(self):
         # wait for any and all children to schedule their next wake up call and call wait()
@@ -115,9 +169,9 @@ class Clock:
         while len(self._queue) > 0:
             # find the next wake up call
             next_wake_up_call = self._queue.pop(0)
-            time_till_wake = next_wake_up_call.t - self._t
-            self.wait_in_parent(time_till_wake)
-            self._t += time_till_wake
+            time_till_wake = next_wake_up_call.t - self.beats()
+            self.wait_in_parent(self._tempo_map.get_wait_time(time_till_wake))
+            self._tempo_map.advance(time_till_wake)
 
             next_wake_up_call.clock._ready_and_waiting = False
             next_wake_up_call.clock._wait_event.set()
@@ -131,37 +185,30 @@ class Clock:
         return ("Clock('{}')".format(self.name) if self.name is not None else "Clock") + "[" + child_list + "]"
 
 
-# # DEMO OF A MULTI-GENERATIONAL CLOCK FAMILY :-)
-#
-# master = Clock("master")
-#
-#
-# def infinite_grandchild_process(clock):
-#     while True:
-#         clock.wait_absolute(0.5)
-#         print("Grandkid! I've been around for {}s, and my grandpa for {}s".format(
-#             clock.time(), clock.time_in_master())
-#         )
-#
-#
-# def finite_grandchild_process(clock):
-#     for i in range(5):
-#         print("HI", i+1)
-#         clock.wait_absolute(0.2)
-#
-#
-# def child_process(clock):
-#     print("Hello - I'm a child!")
-#     clock.wait_absolute(0.75)
-#     clock.fork(finite_grandchild_process, "finite grandkid")
-#     clock.wait_for_children_to_finish()
-#     print("Just kidding around with you!")
-#     clock.fork(infinite_grandchild_process, "infinite grandkid")
-#     clock.wait_absolute(2.0)
-#     print("Okay, child out!")
-#
-#
-# print("I am the master")
-# master.wait_absolute(1.0)
-# master.fork(child_process, "child")
-# master.wait_for_children_to_finish()
+class TempoMap:
+
+    def __init__(self):
+        self._t = 0.0
+        self._beats = 0.0
+        self._rate = 1.0
+
+    def time(self):
+        return self._t
+
+    def beats(self):
+        return self._beats
+
+    @property
+    def rate(self):
+        return self._rate
+
+    @rate.setter
+    def rate(self, r):
+        self._rate = r
+
+    def get_wait_time(self, beats):
+        return beats / self._rate
+
+    def advance(self, beats):
+        self._beats += beats
+        self._t += self.get_wait_time(beats)
