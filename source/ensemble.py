@@ -4,22 +4,32 @@ from .combined_midi_player import CombinedMidiPlayer
 
 class Ensemble:
 
-    def __init__(self, host_playcorder, soundfonts=None):
+    def __init__(self, soundfonts=None, audio_driver=None, default_midi_output_device=None):
         # if we are using just one soundfont a string is okay; we'll just put it in a list
         soundfonts = [soundfonts] if isinstance(soundfonts, str) else soundfonts
-        self.midi_player = CombinedMidiPlayer(soundfonts, host_playcorder.audio_driver,
-                                              host_playcorder.default_midi_output_device)
-        self.instruments = []
-        self.host_playcorder = host_playcorder
 
-    def set_audio_driver(self, driver):
-        self.midi_player.set_audio_driver(driver)
+        self.midi_player = CombinedMidiPlayer(soundfonts, audio_driver, default_midi_output_device)
+        self.instruments = []
+        self.host_playcorder = None
+
+    @property
+    def audio_driver(self):
+        return self.midi_player.audio_driver
+
+    @audio_driver.setter
+    def audio_driver(self, driver):
+        self.midi_player.audio_driver = driver
 
     def load_soundfont(self, soundfont):
         self.midi_player.load_soundfont(soundfont)
 
-    def set_default_midi_output_device(self, device):
-        self.midi_player.default_rtmidi_output_device = device
+    @property
+    def default_midi_output_device(self):
+        return self.midi_player.rtmidi_output_device
+
+    @default_midi_output_device.setter
+    def default_midi_output_device(self, device):
+        self.midi_player.rtmidi_output_device = device
 
     def add_part(self, instrument):
         """
@@ -105,7 +115,7 @@ class Ensemble:
         }
 
     @classmethod
-    def from_json(cls, json_dict, host_playcorder):
+    def from_json(cls, json_dict, host_playcorder=None):
         ensemble = cls(host_playcorder)
         ensemble.midi_player = CombinedMidiPlayer.from_json(json_dict["midi_player"])
         for json_instrument in json_dict["instruments"]:
