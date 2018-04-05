@@ -56,6 +56,7 @@ class Clock:
         # precise timing uses a while loop when we get close to the wake-up time
         # it burns more CPU to do this, but the timing is more accurate
         self.use_precise_timing = True
+        self._log_processing_time = False
 
     @property
     def master(self):
@@ -107,6 +108,9 @@ class Clock:
         return child
 
     def wait_in_parent(self, dt):
+        if self._log_processing_time:
+            logging.info("Clock {} processed for {} secs.".format(self.name if self.name is not None else "<unnamed>",
+                                                                  time.time() - self._last_sleep_time))
         if dt == 0:
             return
         if self.is_master():
@@ -116,19 +120,19 @@ class Clock:
             stop_sleeping_time = self._last_sleep_time + dt
             # in case processing took so long that we are already past the time we were supposed to stop sleeping,
             # we throw a warning that we're getting behind and don't try to sleep at all
-            if stop_sleeping_time < time.time():
-                logging.warning("Clock is running behind real time; probably processing is too heavy.")
+            if stop_sleeping_time < time.time() - 0.01:
+                logging.warning("Clock is running noticeably behind real time; probably processing is too heavy.")
             else:
                 if self.use_precise_timing:
                     _sleep_precisely_until(stop_sleeping_time)
                 else:
                     time.sleep(stop_sleeping_time - time.time())
-            self._last_sleep_time = time.time()
         else:
             self.parent._queue.add(WakeUpCall(self.time_in_parent() + dt, self))
             self._ready_and_waiting = True
             self._wait_event.wait()
             self._wait_event.clear()
+        self._last_sleep_time = time.time()
 
     def wait(self, beats):
         # wait for any and all children to schedule their next wake up call and call wait()
@@ -159,6 +163,10 @@ class Clock:
         self.wait_in_parent(self._tempo_map.get_wait_time(end_time - self.beats()))
         self._tempo_map.advance(end_time - self.beats())
 
+    def sleep(self, beats):
+        # alias to wait
+        self.wait(beats)
+
     def wait_for_children_to_finish(self):
         # wait for any and all children to schedule their next wake up call and call wait()
         while not all(child._ready_and_waiting for child in self._children):
@@ -179,6 +187,15 @@ class Clock:
             while next_wake_up_call.clock in self._children and not next_wake_up_call.clock._ready_and_waiting:
                 # wait for the child clock that we woke up to finish processing, or to finish altogether
                 pass
+
+    def log_processing_time(self):
+        if logging.getLogger().level > 20:
+            logging.warning("Set default logger to level of 20 or less to see INFO logs about clock processing time."
+                            " (i.e. call logging.getLogger().setLevel(20))")
+        self._log_processing_time = True
+
+    def stop_logging_processing_time(self):
+        self._log_processing_time = False
 
     def __repr__(self):
         child_list = "" if len(self._children) == 0 else ", ".join(str(child) for child in self._children)
