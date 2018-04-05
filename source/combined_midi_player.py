@@ -62,7 +62,7 @@ class CombinedMidiPlayer:
         self.used_channels = 0  # how many channels have we already assigned to various instruments
 
         self.soundfonts = [] if soundfonts is None else soundfonts
-        self.audio_driver = audio_driver
+        self._audio_driver = audio_driver
         self.rtmidi_output_device = rtmidi_output_device
 
         self.synth = None
@@ -76,11 +76,9 @@ class CombinedMidiPlayer:
             for soundfont in soundfonts:
                 self.load_soundfont(soundfont)
 
-        self.default_rtmidi_output_device = rtmidi_output_device
-
     def add_instrument(self, num_channels, bank_and_preset, soundfont=0,
                        midi_output_device=None, midi_output_name=None):
-        midi_output_device = self.default_rtmidi_output_device if self.default_rtmidi_output_device is not None \
+        midi_output_device = self.rtmidi_output_device if self.rtmidi_output_device is not None \
             else midi_output_device
         return CombinedMidiInstrument(self, num_channels, bank_and_preset, soundfont_id=self.soundfont_ids[soundfont],
                                       midi_output_device=midi_output_device, midi_output_name=midi_output_name)
@@ -89,12 +87,18 @@ class CombinedMidiPlayer:
         if fluidsynth is not None:
             self.synth = fluidsynth.Synth()
             self.synth.start(driver=driver)
-            self.audio_driver = driver
+            self._audio_driver = driver
 
-    def set_audio_driver(self, driver):
+    @property
+    def audio_driver(self):
+        return self._audio_driver
+
+    @audio_driver.setter
+    def audio_driver(self, driver):
         if self.synth is not None:
             self.synth.delete()
         self.initialize_fluidsynth(driver)
+        self._audio_driver = driver
         for soundfont in self.soundfonts:
             self.load_soundfont(soundfont)
 
@@ -103,7 +107,7 @@ class CombinedMidiPlayer:
             logging.warning("Attempting to load soundfont, but fluidsynth library was not loaded successfully.")
             return
         elif self.synth is None:
-            self.initialize_fluidsynth(self.audio_driver)
+            self.initialize_fluidsynth(self._audio_driver)
 
         if soundfont in _defaultSoundfonts:
             soundfont_path = _defaultSoundfonts[soundfont]
@@ -130,7 +134,7 @@ class CombinedMidiPlayer:
         return None
 
     def to_json(self):
-        return {"soundfonts": self.soundfonts, "audio_driver": self.audio_driver,
+        return {"soundfonts": self.soundfonts, "audio_driver": self._audio_driver,
                 "rtmidi_output_device": self.rtmidi_output_device}
 
     @classmethod
@@ -201,11 +205,14 @@ class CombinedMidiInstrument:
     def pitch_bend(self, chan, bend_in_semitones):
         rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
         directional_bend_value = int(bend_in_semitones / self.max_pitch_bend * 8192)
-        # we can't have a directional pitch bend popping up to 8192, because we'll go one above the max allowed
-        # on th other hand, -8192 is fine, since that will add up to zero
-        if directional_bend_value > 8191 or directional_bend_value < -8192:
+
+        if directional_bend_value > 8192 or directional_bend_value < -8192:
             logging.warning("Attempted pitch bend beyond maximum range (default is 2 semitones). Call set_max_"
                             "pitch_bend on your MidiPlaycorderInstrument to expand the range.")
+        # we can't have a directional pitch bend popping up to 8192, because we'll go one above the max allowed
+        # on the other hand, -8192 is fine, since that will add up to zero
+        # However, notice above that we don't send a warning about going beyond max pitch bend for a value of exactly
+        # 8192, since that's obnoxious and confusing. Better to just quietly clip it to 8191
         directional_bend_value = max(-8192, min(directional_bend_value, 8191))
         if self.combined_midi_player.synth is not None:
             absolute_channel = self.channels[chan]
