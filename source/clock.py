@@ -5,7 +5,6 @@ import threading
 from multiprocessing.pool import ThreadPool
 import logging
 
-# TODO: TRY REPLACING THREADING WITH MULTIPROCESSING
 # TODO: Add a policy for whether or not to care about absolute time since the start or relative time since the last sleep
 
 
@@ -57,9 +56,13 @@ class Clock:
         self._wait_event = threading.Event()
 
         if self.is_master():
+            # The thread pool runs on the master clock
             self._pool = ThreadPool(processes=pool_size)
+            # Used to keep track of if we're using all the threads in the pool
+            # if so, we just start a thread and throw a warning to increase pool size
             self._pool_semaphore = threading.BoundedSemaphore(pool_size)
         else:
+            # All other clocks just use self.master._pool
             self._pool = None
             self._pool_semaphore = None
 
