@@ -2,8 +2,10 @@ import time
 from sortedcontainers import SortedListWithKey
 from collections import namedtuple
 import threading
+from multiprocessing.pool import ThreadPool
 import logging
 
+# TODO: TRY REPLACING THREADING WITH MULTIPROCESSING
 # TODO: Add a policy for whether or not to care about absolute time since the start or relative time since the last sleep
 
 
@@ -29,13 +31,15 @@ WakeUpCall = namedtuple("WakeUpCall", "t clock")
 
 class Clock:
 
-    def __init__(self, name=None, parent=None):
+    def __init__(self, name=None, parent=None, pool_size=200):
         """
         Recursively nestable clock class. Clocks can fork child-clocks, which can in turn fork their own child-clock.
         Only the master clock calls sleep; child-clocks instead register WakeUpCalls with their parents, who
         register wake-up calls with their parents all the way up to the master clock.
         :param name (optional): can be useful for keeping track in confusing multi-threaded situations
         :param parent: the parent clock for this clock; a value of None indicates the master clock
+        :param pool_size: the size of the process pool for unsynchronized forks, which are used for playing notes. Only
+        has an effect if this is the master clock.
         """
         self.name = name
         self.parent = parent
@@ -52,6 +56,13 @@ class Clock:
         self._ready_and_waiting = False
         self._wait_event = threading.Event()
 
+        if self.is_master():
+            self._pool = ThreadPool(processes=pool_size)
+            self._pool_semaphore = threading.BoundedSemaphore(pool_size)
+        else:
+            self._pool = None
+            self._pool_semaphore = None
+
         self._last_sleep_time = time.time()
         # precise timing uses a while loop when we get close to the wake-up time
         # it burns more CPU to do this, but the timing is more accurate
@@ -60,7 +71,7 @@ class Clock:
 
     @property
     def master(self):
-        return self if self.is_master() else self.parent.master()
+        return self if self.is_master() else self.parent.master
 
     def is_master(self):
         return self.parent is None
@@ -96,16 +107,36 @@ class Clock:
     def time_in_master(self):
         return self.time() + self.master_offset
 
-    def fork(self, process_function, name=""):
+    def _run_in_pool(self, target, args, kwargs):
+        if self.master._pool_semaphore.acquire(blocking=False):
+            semaphore = self.master._pool_semaphore
+            self.master._pool.apply_async(target, args=args, kwds=kwargs, callback=lambda _: semaphore.release())
+        else:
+            logging.warning("Ran out of threads in the master clock's ThreadPool; small thread creation delays may "
+                            "result. You should increase the number of threads in the pool.")
+            threading.Thread(target=target, args=args, kwargs=kwargs, daemon=True).start()
+
+    def fork(self, process_function, name="", extra_args=(), kwargs=None):
+        kwargs = {} if kwargs is None else kwargs
+
         child = Clock(name, parent=self)
         self._children.append(child)
 
-        def _process():
-            process_function(child)
+        def _process(*args, **kwds):
+            process_function(child, *args, **kwds)
             self._children.remove(child)
 
-        threading.Thread(target=_process, daemon=True).start()
+        self._run_in_pool(_process, extra_args, kwargs)
+
         return child
+
+    def fork_unsynchronized(self, process_function, args=(), kwargs=None):
+        kwargs = {} if kwargs is None else kwargs
+
+        def _process(*args, **kwargs):
+            process_function(*args, **kwargs)
+
+        self._run_in_pool(_process, args, kwargs)
 
     def wait_in_parent(self, dt):
         if self._log_processing_time:
