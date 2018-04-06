@@ -41,6 +41,12 @@ class PlaycorderInstrument:
         else:
             return True
 
+    def time(self):
+        if self.host_ensemble is not None and self.host_ensemble.host_playcorder is not None:
+            return self.host_ensemble.host_playcorder.time()
+        else:
+            return time.time()
+
     # ------------------ Methods to be implemented by subclasses ------------------
 
     def _do_start_note(self, pitch, volume, properties):
@@ -68,7 +74,7 @@ class PlaycorderInstrument:
 
     # ------------------------- "Private" Playback Methods -----------------------
 
-    def _do_play_note(self, pitch, volume, length, properties):
+    def _do_play_note(self, pitch, volume, length, properties, clock=None):
         # Does the actual sonic implementation of playing a note; used as a thread by the public method "play_note"
         note_start_time = time.time()
         # convert lists to ParameterCurves
@@ -80,7 +86,6 @@ class PlaycorderInstrument:
         start_pitch = pitch.value_at(0) if isinstance(pitch, ParameterCurve) else pitch
 
         note_id = self._do_start_note(start_pitch, start_volume, properties)
-
         if is_animating_volume or is_animating_pitch:
             temporal_resolution = float("inf")
             if is_animating_volume:
@@ -102,11 +107,18 @@ class PlaycorderInstrument:
                                                 volume_curve.value_at(time.time() - note_start_time) / start_volume)
                     if is_animating_pitch:
                         self.change_note_pitch(note_id, pitch_curve.value_at(time.time() - note_start_time))
+
                     time.sleep(temporal_resolution)
-            threading.Thread(target=animate_pitch_and_volume).start()
+
+            if clock is not None:
+                clock.fork_unsynchronized(process_function=animate_pitch_and_volume)
+            else:
+                threading.Thread(target=animate_pitch_and_volume, daemon=True).start()
 
         time.sleep(length)
+        # cut off any pitch or volume animation thread by setting the start_time to None
         note_start_time = None
+
         self._do_end_note(note_id)
 
     @staticmethod
@@ -150,17 +162,28 @@ class PlaycorderInstrument:
 
     @staticmethod
     def _make_properties_dict(properties):
-        # TODO: can take a string, a list, or a dict and turn it into a standardized dict of not properties
+        # TODO: can take a string, a list, or a dict and turn it into a standardized dict of note properties
         if properties is None:
             return {}
+        return properties
 
-    def play_note(self, pitch, volume, length, properties=None):
+    def play_note(self, pitch, volume, length, properties=None, clock=None):
         if not self._viable():
             return
+
         properties = PlaycorderInstrument._make_properties_dict(properties)
         volume = ParameterCurve.from_list(volume) if hasattr(volume, "__len__") else volume
         pitch = ParameterCurve.from_list(pitch) if hasattr(pitch, "__len__") else pitch
-        threading.Thread(target=self._do_play_note, args=(pitch, volume, length, properties)).start()
+
+        length = length / clock.absolute_rate() if clock is not None else length
+        # Note that, even if there's a clock involved we run _do_play_note in a simple thread rather than a sub-clock.
+        # That is because the overhead of running in a clock is high small sleep values like animation ot pitch and
+        # volume, and it gets way behind. Better to just use a parallel Thread and adjust the length
+        if clock is not None:
+            clock.fork_unsynchronized(process_function=self._do_play_note,
+                                      args=(pitch, volume, length, properties, clock))
+        else:
+            threading.Thread(target=self._do_play_note, args=(pitch, volume, length, properties)).start()
 
         # record the note in the hosting playcorder, if it's recording
         if self.performance_part is not None:
@@ -178,8 +201,7 @@ class PlaycorderInstrument:
             return
         properties = PlaycorderInstrument._make_properties_dict(properties)
         note_id = self._do_start_note(pitch, volume, properties)
-        self.notes_started.append((note_id, pitch, volume,
-                                   self.host_ensemble.host_playcorder.time(), properties))
+        self.notes_started.append((note_id, pitch, volume, self.time(), properties))
         # returns the note_id as a reference, in case we want to change pitch mid-playback
         return note_id
 
@@ -216,8 +238,7 @@ class PlaycorderInstrument:
         if self.performance_part is not None and start_time >= self.host_ensemble.host_playcorder.recording_start_time:
             self.performance_part.new_note(
                 start_time - self.host_ensemble.host_playcorder.recording_start_time,
-                self.host_ensemble.host_playcorder.time() - start_time,
-                pitch, volume, properties
+                self.time() - start_time, pitch, volume, properties
             )
 
     def end_all_notes(self):
@@ -284,13 +305,13 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
 
     # ---- The constituent parts of the _do_play_note call ----
 
-    def _do_play_note(self, pitch, volume, length, properties):
+    def _do_play_note(self, pitch, volume, length, properties, clock=None):
         # _do_start_note needs to know whether or not the pitch changes, since pitch bends need to
         # be placed on separate channels. We'll pass along that info by placing it in the properties
         # dictionary, but we make a copy first so as not to alter the dictionary we're given
         altered_properties = dict(properties)
         altered_properties["pitch changes"] = isinstance(pitch, ParameterCurve)
-        super()._do_play_note(pitch, volume, length, altered_properties)
+        super()._do_play_note(pitch, volume, length, altered_properties, clock)
 
     def _do_start_note(self, pitch, volume, properties):
         # Does the actual sonic implementation of starting a note
@@ -301,7 +322,7 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
         channel = self._find_channel_for_note(int_pitch, new_note_uses_bend=uses_pitch_bend)
         self.midi_instrument.pitch_bend(channel, pitch - int_pitch)
         self.midi_instrument.note_on(channel, int_pitch, volume)
-        note_id = channel, int_pitch, self.host_ensemble.host_playcorder.time(), uses_pitch_bend
+        note_id = channel, int_pitch, self.time(), uses_pitch_bend
         self.active_midi_notes.append(note_id)
         return note_id
 
