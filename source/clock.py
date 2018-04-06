@@ -155,6 +155,7 @@ class Clock:
             # in case processing took so long that we are already past the time we were supposed to stop sleeping,
             # we throw a warning that we're getting behind and don't try to sleep at all
             if stop_sleeping_time < time.time() - 0.01:
+                # if we're more than 10 ms behind, throw a warning: this starts to get noticeable
                 logging.warning("Clock is running noticeably behind real time; probably processing is too heavy.")
             else:
                 if self.use_precise_timing:
