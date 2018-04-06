@@ -167,7 +167,7 @@ class PlaycorderInstrument:
             return {}
         return properties
 
-    def play_note(self, pitch, volume, length, properties=None, clock=None):
+    def play_note(self, pitch, volume, length, properties=None, clock=None, blocking=False):
         if not self._viable():
             return
 
@@ -175,15 +175,21 @@ class PlaycorderInstrument:
         volume = ParameterCurve.from_list(volume) if hasattr(volume, "__len__") else volume
         pitch = ParameterCurve.from_list(pitch) if hasattr(pitch, "__len__") else pitch
 
-        length = length / clock.absolute_rate() if clock is not None else length
         # Note that, even if there's a clock involved we run _do_play_note in a simple thread rather than a sub-clock.
         # That is because the overhead of running in a clock is high small sleep values like animation ot pitch and
         # volume, and it gets way behind. Better to just use a parallel Thread and adjust the length
         if clock is not None:
-            clock.fork_unsynchronized(process_function=self._do_play_note,
-                                      args=(pitch, volume, length, properties, clock))
+            if blocking:
+                self._do_play_note(pitch, volume, length / clock.absolute_rate(), properties, clock)
+            else:
+                clock.fork_unsynchronized(process_function=self._do_play_note,
+                                          args=(pitch, volume, length / clock.absolute_rate(), properties, clock))
+
         else:
-            threading.Thread(target=self._do_play_note, args=(pitch, volume, length, properties)).start()
+            if blocking:
+                self._do_play_note(pitch, volume, length, properties)
+            else:
+                threading.Thread(target=self._do_play_note, args=(pitch, volume, length, properties)).start()
 
         # record the note in the hosting playcorder, if it's recording
         if self.performance_part is not None:
