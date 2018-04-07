@@ -5,8 +5,6 @@ import threading
 from multiprocessing.pool import ThreadPool
 import logging
 
-# TODO: Add a policy for whether or not to care about absolute time since the start or relative time since the last sleep
-
 
 def _sleep_precisely_until(stop_time):
     time_remaining = stop_time - time.time()
@@ -30,7 +28,7 @@ WakeUpCall = namedtuple("WakeUpCall", "t clock")
 
 class Clock:
 
-    def __init__(self, name=None, parent=None, pool_size=200):
+    def __init__(self, name=None, parent=None, pool_size=200, timing_policy="relative"):
         """
         Recursively nestable clock class. Clocks can fork child-clocks, which can in turn fork their own child-clock.
         Only the master clock calls sleep; child-clocks instead register WakeUpCalls with their parents, who
@@ -39,6 +37,12 @@ class Clock:
         :param parent: the parent clock for this clock; a value of None indicates the master clock
         :param pool_size: the size of the process pool for unsynchronized forks, which are used for playing notes. Only
         has an effect if this is the master clock.
+        :param timing_policy: either "relative" or "absolute". "relative" attempts to keeps each wait call as faithful
+        as possible to what it should be. This can result in the clock getting behind real time, since if heavy
+        processing causes us to get behind on one note we never catch up. "absolute" tries instead to stay faithful to
+        the time since the clock began. If one wait is too long due to heavy processing, later delays will be shorter
+        to try to catch up. This can result in inaccuracies in relative timing. In general, use "relative" unless you
+        are trying to synchronize the output with an external process.
         """
         self.name = name
         self.parent = parent
@@ -66,11 +70,14 @@ class Clock:
             self._pool = None
             self._pool_semaphore = None
 
-        self._last_sleep_time = time.time()
+        self._last_sleep_time = self._start_time = time.time()
         # precise timing uses a while loop when we get close to the wake-up time
         # it burns more CPU to do this, but the timing is more accurate
         self.use_precise_timing = True
         self._log_processing_time = False
+
+        assert timing_policy in ("relative", "absolute")
+        self.timing_policy = timing_policy
 
     @property
     def master(self):
@@ -116,7 +123,7 @@ class Clock:
             self.master._pool.apply_async(target, args=args, kwds=kwargs, callback=lambda _: semaphore.release())
         else:
             logging.warning("Ran out of threads in the master clock's ThreadPool; small thread creation delays may "
-                            "result. You should increase the number of threads in the pool.")
+                            "result. You can increase the number of threads in the pool to avoid this.")
             threading.Thread(target=target, args=args, kwargs=kwargs, daemon=True).start()
 
     def fork(self, process_function, name="", extra_args=(), kwargs=None):
@@ -151,7 +158,8 @@ class Clock:
             # no parent, so this is the master thread that actually sleeps
             # we want to stop sleeping dt after we last finished sleeping, not including the processing that happened
             # after we finished sleeping. So we calculate the time to finish sleeping based on that
-            stop_sleeping_time = self._last_sleep_time + dt
+            stop_sleeping_time = self._start_time + self.time() + dt if self.timing_policy == "absolute" \
+                else self._last_sleep_time + dt
             # in case processing took so long that we are already past the time we were supposed to stop sleeping,
             # we throw a warning that we're getting behind and don't try to sleep at all
             if stop_sleeping_time < time.time() - 0.01:
