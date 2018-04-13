@@ -249,7 +249,8 @@ class Clock:
 
 class ParameterCurveSegment:
 
-    def __init__(self, start_time, end_time, start_level, end_level, curve_shape):
+    def __init__(self, start_time, end_time, start_level, end_level, curve_shape, shape_scaling_scheme="unscaled"):
+        assert shape_scaling_scheme in ("unscaled", "exponential")
         # note that start_level, end_level, and curvature are properties, since we want
         # to recalculate the constants that we use internally if they are changed.
         self.start_time = start_time
@@ -257,18 +258,28 @@ class ParameterCurveSegment:
         self._start_level = start_level
         self._end_level = end_level
         self._curve_shape = curve_shape
+        self._shape_scaling_scheme = shape_scaling_scheme
         # we avoid calculating the constants until necessary for the calculations so that this
         # class is lightweight and can freely be created and discarded by a ParameterCurve object
+
         self._curve_coefficient = self._A = self._B = None
 
     def _calculate_coefficients(self):
-        # _curvature gets scaled internally to _curve_coefficient so that a "curvature" of 1 is
-        # simple exponential interpolation. _A and _B are constants used in integration, and it's
-        # more efficient to just calculate them once.
-        self._curve_coefficient = self._curve_shape * math.log(self._end_level / self._start_level)
+        # A and _B are constants used in integration, and it's more efficient to just calculate them once.
         if abs(self._curve_shape) < 0.000001:
-            self._A = self._B = None
+            # the curve shape is essentially zero, so set the constants to none as a flag to use linear interpolation
+            self._A = self._B = self._curve_coefficient = None
+            return
         else:
+            if self._shape_scaling_scheme == "unscaled":
+                # in this case the curve follows the shape of e^x in the interval [0, self._curve_shape]
+                self._curve_coefficient = self._curve_shape
+            else:
+                # self._shape_normalization == "exponential"
+                # so a curve_shape of 1 is normalized to standard exponential growth
+                assert self._end_level > 0 and self._start_level > 0
+                self._curve_coefficient = self._curve_shape * math.log(self._end_level / self._start_level)
+
             self._A = (self._start_level - (self._end_level - self._start_level) /
                        (math.exp(self._curve_coefficient) - 1))
             self._B = (self._end_level - self._start_level) / \
@@ -326,7 +337,7 @@ class ParameterCurveSegment:
             return self._start_level
         else:
             norm_t = (t - self.start_time) / (self.end_time - self.start_time)
-        if abs(self._curve_coefficient) < 0.000001:
+        if self._curve_coefficient is None:
             # S is or is essentially zero, so this segment is linear. That limiting case breaks
             # our standard formula, but is easy to simply interpolate
             return self._start_level + norm_t * (self._end_level - self._start_level)
@@ -363,22 +374,44 @@ class ParameterCurveSegment:
 
         return segment_length * (self._segment_antiderivative(norm_t2) - self._segment_antiderivative(norm_t1))
 
+    def split_at(self, t):
+        assert self.start_time < t < self.end_time
+        middle_level = self.value_at(t)
+        if self._shape_scaling_scheme == "unscaled":
+            curve_shape_1 = (t - self.start_time) / (self.end_time - self.start_time) * self.curve_shape
+            curve_shape_2 = self.curve_shape - curve_shape_1
+        else:
+            curve_coefficient = self._curve_shape * math.log(self._end_level / self._start_level)
+            curve_coefficient_1 = (t - self.start_time) / (self.end_time - self.start_time) * curve_coefficient
+            curve_coefficient_2 = curve_coefficient - curve_coefficient_1
+            curve_shape_1 = curve_coefficient_1 / math.log(middle_level / self._start_level)
+            curve_shape_2 = curve_coefficient_2 / math.log(self._end_level / middle_level)
+        new_segment = ParameterCurveSegment(t, self.end_time, middle_level, self.end_level,
+                                            curve_shape_2, self._shape_scaling_scheme)
+
+        self.end_time = t
+        self._end_level = middle_level
+        self._curve_shape = curve_shape_1
+        self._calculate_coefficients()
+        return self, new_segment
+
     def __contains__(self, t):
         # checks if the given time is contained within this parameter curve segment
         return self.start_time <= t <= self.end_time
 
     def __repr__(self):
-        return "ParameterCurveSegment({}, {}, {}, {}, {})".format(self.start_time, self.end_time, self.start_level,
-                                                                  self.end_level, self.curve_shape)
+        return "ParameterCurveSegment({}, {}, {}, {}, {}, {})".format(self.start_time, self.end_time, self.start_level,
+                                                                      self.end_level, self.curve_shape,
+                                                                      self._shape_scaling_scheme)
 
 
 class ParameterCurve:
 
-    def __init__(self, levels=(0, 0), durations=(0,), curve_shapes=None):
+    def __init__(self, levels=(0, 0), durations=(0,), curve_shapes=None, shape_scaling_scheme="unscaled"):
         """
         Implements a parameter curve using exponential curve segments.
         A curve shape of zero is linear, > 0 changes late, and < 0 changes early.
-        A curve shape 1 represents standard exponential interpolation, i.e. fixed proportional growth
+
         :param levels: at least 1 level should be given (if only one level is given, it is automatically doubled so as
         to be the start and end level of the one segment of the curve)
         :param durations: there should be one fewer duration than level given
@@ -395,17 +428,17 @@ class ParameterCurve:
         if curve_shapes is None:
             curve_shapes = [0] * (len(levels) - 1)
 
+        self._shape_scaling_scheme = shape_scaling_scheme
         self._segments = self._construct_segments_list(levels, durations, curve_shapes)
 
-    @staticmethod
-    def _construct_segments_list(levels, durations, curve_shapes):
+    def _construct_segments_list(self, levels, durations, curve_shapes):
         if len(levels) == 0:
-            return [ParameterCurveSegment(0, 0, levels[0], levels[0], 0)]
+            return [self.make_curve_segment(0, 0, levels[0], levels[0], 0)]
         segments = []
         t = 0
         for i in range(len(levels) - 1):
-            segments.append(ParameterCurveSegment(t, t + durations[i],
-                                                  levels[i], levels[i + 1], curve_shapes[i]))
+            segments.append(self.make_curve_segment(t, t + durations[i],
+                                                    levels[i], levels[i + 1], curve_shapes[i]))
             t += durations[i]
         return segments
 
@@ -416,35 +449,61 @@ class ParameterCurve:
 
     def append_segment(self, level, duration, curve_shape=0.0):
         if len(self._segments) == 1 and self._segments[0].duration() == 0:
-            self._segments[0].end_level = ParameterCurveSegment(0, duration, self._segments[0].start_level,
-                                                                level, curve_shape)
+            self._segments[0].end_level = self.make_curve_segment(0, duration, self._segments[0].start_level,
+                                                                  level, curve_shape)
         else:
-            self._segments.append(ParameterCurveSegment(self.length(), self.length() + duration,
-                                                        self._segments[-1].end_level, level, curve_shape))
+            self._segments.append(self.make_curve_segment(self.length(), self.length() + duration,
+                                                          self._segments[-1].end_level, level, curve_shape))
 
     def insert(self, t, level, curve_shape_in=0, curve_shape_out=0):
-        # TODO: This
+        """
+        insert a curve point at time t, and set the shape of the curve into and out of it
+        """
         assert t >= 0, "ParameterCurve is only defined for positive values"
-        if len(self._segments) == 0:
-            # empty curve, just put zero-length segment right at the beginning
-            # honestly, it shouldn't ever because an empty curve is created with that zero-length segment anyway
-            self.append_segment(level, 0, curve_shape_in)
         if t > self.length():
+            # adding a point after the curve
             self.append_segment(level, t - self.length(), curve_shape_in)
             return
         elif t == self.length:
+            # replacing the very end of the curve
             self._segments[-1].end_level = level
             self._segments[-1].curve_shape = curve_shape_in
-            # replacing the very end of the curve. Should probably rewrite the last segment's final level and curve shape
             pass
         else:
-            for segment in self._segments:
+            for i, segment in enumerate(self._segments):
                 if t == segment.start_time:
                     # we are right on the dot of an existing segment, so we replace it
-                    pass
+                    segment.start_level = level
+                    segment.curve_shape = curve_shape_out
+                    if i > 0:
+                        self._segments[i-1].curve_shape = curve_shape_in
                 elif segment.start_time < t < segment.end_time:
-                    # we are inside an existing segment
-                    pass
+                    # we are inside an existing segment, so we break it in two
+                    # save the old segment end time and level, since these will be the end of the second half
+                    end_time = segment.end_time
+                    end_level = segment.end_level
+                    # change the first half to end at t and have the given shape
+                    segment.end_time = t
+                    segment.curve_shape = curve_shape_in
+                    segment.end_level = level
+                    new_segment = self.make_curve_segment(t, end_time, level, end_level, curve_shape_out)
+                    self._segments.insert(i+1, new_segment)
+
+    def insert_interpolated(self, t):
+        """
+        insert another curve point at the given time, without changing the shape of the curve
+        """
+        assert t >= 0, "ParameterCurve is only defined for positive values."
+        assert t <= self.length(), "Cannot interpolate after end of curve."
+        if t == self.length():
+            return
+        for i, segment in enumerate(self._segments):
+            if t == segment.start_time:
+                return
+            if t in segment:
+                # this is the case that matters; t is within one of the segments
+                part1, part2 = segment.split_at(t)
+                self._segments.insert(i+1, part2)
 
     def pop_segment(self):
         if len(self._segments) == 1:
@@ -458,8 +517,23 @@ class ParameterCurve:
         return self._segments.pop()
 
     def remove_segments_after(self, t):
-        # TODO: This
-        pass
+        if t <= 0:
+            while True:
+                try:
+                    self.pop_segment()
+                except IndexError:
+                    break
+        for i in range(len(self._segments)):
+            this_segment = self._segments[i]
+            if t == this_segment.start_time:
+                while self.length() > t:
+                    self.pop_segment()
+                return
+            elif this_segment.start_time < t < this_segment.end_time:
+                self.insert_interpolated(t)
+                while self.length() > t:
+                    self.pop_segment()
+                return
 
     def integrate_interval(self, t1, t2):
         # TODO: This
@@ -527,15 +601,15 @@ class ParameterCurve:
 
     @property
     def levels(self):
-        return [segment.start_level for segment in self._segments] + [self._segments[-1].end_level]
+        return tuple([segment.start_level for segment in self._segments] + [self._segments[-1].end_level])
 
     @property
     def durations(self):
-        return [segment.duration for segment in self._segments]
+        return tuple([segment.duration for segment in self._segments])
 
     @property
     def curve_shapes(self):
-        return [segment.curve_shape for segment in self._segments]
+        return tuple([segment.curve_shape for segment in self._segments])
 
     def to_json(self):
         levels = self.levels
@@ -556,6 +630,10 @@ class ParameterCurve:
     @staticmethod
     def from_json(json_list):
         return ParameterCurve.from_list(json_list)
+
+    def make_curve_segment(self, start_time, end_time, start_level, end_level, curve_shape):
+        return ParameterCurveSegment(start_time, end_time, start_level, end_level,
+                                     curve_shape, self._shape_scaling_scheme)
 
     def __repr__(self):
         return "ParameterCurve({}, {}, {})".format(self.levels, self.durations, self.curve_shapes)
@@ -633,20 +711,23 @@ class ParameterCurve:
 # pc.normalize_to_duration(6)
 # print(time.time()-start)
 
+bill = ParameterCurve((10, 5), (4,), (-50,), "exponential")
+print(bill.value_at(3))
+bill.insert_interpolated(0.01)
+print(bill)
 
-start = time.time()
-bob = ParameterCurve([6, 10, 3, 13], [2, 0.5, 2.5], [0, 1, 1])
-print(bob)
-bob.pop_segment()
-print(bob)
-bob.pop_segment()
-print(bob)
-bob.pop_segment()
-print(bob)
+# bill.split_at(5.5)
+# print(bill)
+# print(bill.value_at(5.5))
 
-print(ParameterCurve.from_json(bob.to_json()))
+#
+# start = time.time()
+# bob = ParameterCurve([6, 10, 3, 13], [2, 0.5, 2.5], [0, 1, 1])
+# print(bob)
+# bob.pop_segment()
+# print(bob)
+# bob.insert(2.1, -10, 2, 1)
+# print(bob)
 
-# TODO: MAYBE ParameterCurve should only have the parameter segments in it, not store the lists of levels, durations, etc.
-# it would have to reconstruct them to store in a json, but that's okay, I think
 # TODO: BUILD IT BASED ON BEAT_LENGTH, HAVE DEFAULT CURVATURE BE LINEAR CHANGE IN BEAT_LENGTH.
 # INTERESTINGLY, THIS SEEMS TO BE THE SAME AS EXPONENTIAL INTERPOLATION OF TEMPO; I don't understand why...
