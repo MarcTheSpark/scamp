@@ -75,20 +75,9 @@ class ParameterCurve:
             # adding a point after the curve
             self.append_segment(level, t - self.length(), curve_shape_in)
             return
-        elif t == self.length:
-            # replacing the very end of the curve
-            self._segments[-1].end_level = level
-            self._segments[-1].curve_shape = curve_shape_in
-            pass
         else:
             for i, segment in enumerate(self._segments):
-                if t == segment.start_time:
-                    # we are right on the dot of an existing segment, so we replace it
-                    segment.start_level = level
-                    segment.curve_shape = curve_shape_out
-                    if i > 0:
-                        self._segments[i-1].curve_shape = curve_shape_in
-                elif segment.start_time < t < segment.end_time:
+                if segment.start_time < t < segment.end_time:
                     # we are inside an existing segment, so we break it in two
                     # save the old segment end time and level, since these will be the end of the second half
                     end_time = segment.end_time
@@ -99,6 +88,15 @@ class ParameterCurve:
                     segment.end_level = level
                     new_segment = ParameterCurveSegment(t, end_time, level, end_level, curve_shape_out)
                     self._segments.insert(i+1, new_segment)
+                    break
+                else:
+                    if t == segment.start_time:
+                        # we are right on the dot of an existing segment, so we replace it
+                        segment.start_level = level
+                        segment.curve_shape = curve_shape_out
+                    if t == segment.end_time:
+                        segment.end_level = level
+                        segment.curve_shape = curve_shape_in
 
     def insert_interpolated(self, t):
         """
