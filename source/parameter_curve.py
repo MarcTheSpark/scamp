@@ -46,6 +46,12 @@ class ParameterCurve:
             return 0
         return self._segments[-1].end_time
 
+    def start_level(self):
+        return self._segments[0].start_level
+
+    def end_level(self):
+        return self._segments[-1].end_level
+
     def max_level(self):
         return max(segment.max_level() for segment in self._segments)
 
