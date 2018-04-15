@@ -156,7 +156,7 @@ class ParameterCurve:
         return self._segments.pop()
 
     def remove_segments_after(self, t):
-        if t <= 0:
+        if t < 0:
             while True:
                 try:
                     self.pop_segment()
@@ -196,7 +196,7 @@ class ParameterCurve:
             return (t2 - self.length()) * self.end_level() + self.integrate_interval(t1, self.length())
         # now that the edge conditions are covered, we just add up the segment integrals
         integral = 0
-        for segment in self._segments:
+        for i, segment in enumerate(self._segments):
             if t1 < segment.start_time:
                 if t2 > segment.start_time:
                     if t2 <= segment.end_time:
@@ -423,6 +423,8 @@ class ParameterCurveSegment:
         """
         assert self.start_time <= t1 <= self.end_time and self.start_time <= t2 <= self.end_time, \
             "Integration bounds must be within curve segment bounds."
+        if t1 == t2:
+            return 0
         if self._A is None:
             self._calculate_coefficients()
 
