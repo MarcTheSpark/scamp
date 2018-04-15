@@ -353,6 +353,11 @@ class ParameterCurveSegment:
         term ends up being e^abs(S). We then have to scale that by the average slope over our interval divided by
         the average slope of e^x over [0, S] to get the true, scaled average slope. Hence the other scaling terms.
         """
+        if self.duration == 0:
+            # a duration of zero means we have an immediate change of value. Since this function is used primarily
+            # to figure out the temporal resolution needed for smoothness, that doesn't matter; it's supposed to be
+            # a discontinuity. So we just return zero as a throwaway.
+            return 0
         if abs(self._curve_shape) < 0.000001:
             # it's essentially linear, so just return the average slope
             return abs(self._end_level - self._start_level) / self.duration
