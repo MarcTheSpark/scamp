@@ -81,7 +81,7 @@ class PlaycorderInstrument:
         is_animating_volume = isinstance(volume, ParameterCurve)
         is_animating_pitch = isinstance(pitch, ParameterCurve)
         # the starting volume (velocity) of the note needs to be as loud as the note is ever going to get
-        start_volume = volume.max_value() if isinstance(volume, ParameterCurve) else volume
+        start_volume = volume.max_level() if isinstance(volume, ParameterCurve) else volume
         # the starting pitch should just be whatever it is
         start_pitch = pitch.value_at(0) if isinstance(pitch, ParameterCurve) else pitch
 
@@ -127,15 +127,7 @@ class PlaycorderInstrument:
         Returns a reasonable temporal resolution
         :type pitch_param_curve: ParameterCurve
         """
-        max_cents_per_second = 0
-        for i, duration in enumerate(pitch_param_curve.durations):
-            cents_per_second = abs(pitch_param_curve.levels[i + 1] - pitch_param_curve.levels[i]) / duration * 100
-            # since x^c has a slope of c at x=1, we multiply by the curvature
-            # (if c < 1, then technically the slope approaches infinity at x = 0,
-            # but we'll just compromise and use 1/c)
-            cents_per_second *= max(pitch_param_curve.curvatures[i], 1 / pitch_param_curve.curvatures[i])
-            if cents_per_second > max_cents_per_second:
-                max_cents_per_second = cents_per_second
+        max_cents_per_second = pitch_param_curve.max_absolute_slope() * 100
         # cents / update * updates / sec = cents / sec   =>  updates_freq = cents_per_second / cents_per_update
         # we'll aim for 4 cents per update, since some say the JND is 5-6 cents
         update_freq = max_cents_per_second / 4.0
@@ -147,13 +139,7 @@ class PlaycorderInstrument:
         Returns a reasonable temporal resolution
         :type volume_param_curve: ParameterCurve
         """
-        max_volume_per_second = 0
-        for i, duration in enumerate(volume_param_curve.durations):
-            volume_per_second = abs(volume_param_curve.levels[i + 1] - volume_param_curve.levels[i]) / duration
-            # since x^c has a slope of c at x=1, we multiply by the curvature (see note in pitch bend function above)
-            volume_per_second *= max(volume_param_curve.curvatures[i], 1 / volume_param_curve.curvatures[i])
-            if volume_per_second > max_volume_per_second:
-                max_volume_per_second = volume_per_second
+        max_volume_per_second = volume_param_curve.max_absolute_slope()
         # no point in updating faster than the number of ticks per second
         update_freq = max_volume_per_second * 127
         return 1 / update_freq
@@ -179,12 +165,10 @@ class PlaycorderInstrument:
         # That is because the overhead of running in a clock is high small sleep values like animation ot pitch and
         # volume, and it gets way behind. Better to just use a parallel Thread and adjust the length
         if clock is not None:
+            clock.fork_unsynchronized(process_function=self._do_play_note,
+                                      args=(pitch, volume, length / clock.absolute_rate(), properties, clock))
             if blocking:
-                self._do_play_note(pitch, volume, length / clock.absolute_rate(), properties, clock)
-            else:
-                clock.fork_unsynchronized(process_function=self._do_play_note,
-                                          args=(pitch, volume, length / clock.absolute_rate(), properties, clock))
-
+                clock.wait(length)
         else:
             if blocking:
                 self._do_play_note(pitch, volume, length, properties)
