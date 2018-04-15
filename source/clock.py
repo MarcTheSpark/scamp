@@ -4,6 +4,7 @@ from collections import namedtuple
 import threading
 from multiprocessing.pool import ThreadPool
 import logging
+from .parameter_curve import ParameterCurve
 
 
 def _sleep_precisely_until(stop_time):
@@ -93,12 +94,37 @@ class Clock:
         return self._tempo_map.beats()
 
     @property
+    def beat_length(self):
+        return self._tempo_map.beat_length
+
+    @beat_length.setter
+    def beat_length(self, b):
+        self._tempo_map.beat_length = b
+
+    @property
     def rate(self):
         return self._tempo_map.rate
 
     @rate.setter
     def rate(self, r):
         self._tempo_map.rate = r
+
+    @property
+    def tempo(self):
+        return self._tempo_map.tempo
+
+    @tempo.setter
+    def tempo(self, t):
+        self._tempo_map.tempo = t
+
+    def set_beat_length_target(self, beat_length_target, transition_time_in_beats, curve_shape=0):
+        self._tempo_map.set_beat_length_target(beat_length_target, transition_time_in_beats, curve_shape)
+
+    def set_rate_target(self, rate_target, transition_time_in_beats, curve_shape=0):
+        self._tempo_map.set_rate_target(rate_target, transition_time_in_beats, curve_shape)
+
+    def set_tempo_target(self, tempo_target, transition_time_in_beats, curve_shape=0):
+        self._tempo_map.set_tempo_target(tempo_target, transition_time_in_beats, curve_shape)
 
     def absolute_rate(self):
         absolute_rate = self.rate if self.parent is None else (self.rate * self.parent.rate)
@@ -189,9 +215,10 @@ class Clock:
         while len(self._queue) > 0 and self._queue[0].t < end_time:
             # find the next wake up call
             next_wake_up_call = self._queue.pop(0)
-            time_till_wake = next_wake_up_call.t - self.beats()
-            self.wait_in_parent(self._tempo_map.get_wait_time(time_till_wake))
-            self._tempo_map.advance(time_till_wake)
+            beats_till_wake = next_wake_up_call.t - self.beats()
+            parent_wait_time = self._tempo_map.get_wait_time(beats_till_wake)
+            self.wait_in_parent(parent_wait_time)
+            self._tempo_map.advance(beats_till_wake, parent_wait_time)
 
             next_wake_up_call.clock._ready_and_waiting = False
             next_wake_up_call.clock._wait_event.set()
@@ -220,9 +247,10 @@ class Clock:
         while len(self._queue) > 0:
             # find the next wake up call
             next_wake_up_call = self._queue.pop(0)
-            time_till_wake = next_wake_up_call.t - self.beats()
-            self.wait_in_parent(self._tempo_map.get_wait_time(time_till_wake))
-            self._tempo_map.advance(time_till_wake)
+            beats_till_wake = next_wake_up_call.t - self.beats()
+            parent_wait_time = self._tempo_map.get_wait_time(beats_till_wake)
+            self.wait_in_parent(parent_wait_time)
+            self._tempo_map.advance(beats_till_wake, parent_wait_time)
 
             next_wake_up_call.clock._ready_and_waiting = False
             next_wake_up_call.clock._wait_event.set()
@@ -245,15 +273,13 @@ class Clock:
         return ("Clock('{}')".format(self.name) if self.name is not None else "Clock") + "[" + child_list + "]"
 
 
-class TempoMap:
+class TempoMap(ParameterCurve):
 
-    def __init__(self):
+    def __init__(self, starting_rate=1.0):
+        # This is built on a parameter curve of beat length (units = s / beat, or really parent_beats / beat)
+        super().__init__(1/starting_rate)
         self._t = 0.0
         self._beats = 0.0
-        self._rate = 1.0
-        # either None or (target_rate, start_time, end_time, curve_power, curve_segment_start, curve_segment_end)
-        self._rate_target = None
-        self._timeline_history = []
 
     def time(self):
         return self._t
@@ -262,45 +288,56 @@ class TempoMap:
         return self._beats
 
     @property
+    def beat_length(self):
+        return self.value_at(self._beats)
+
+    @beat_length.setter
+    def beat_length(self, beat_length):
+        self._prepare_for_new_segment()
+        self.append_segment(beat_length, 0)
+
+    @property
     def rate(self):
-        return self._rate
+        return 1/self.beat_length
 
     @rate.setter
     def rate(self, rate):
-        self._rate = rate
-
-    def set_rate_target(self, target, transition_time, curve=1):
-        pass
+        self.beat_length = 1/rate
 
     @property
     def tempo(self):
-        return self._rate * 60
+        return self.rate * 60
 
-    def set_tempo(self, tempo):
-        self._rate = tempo / 60
+    @tempo.setter
+    def tempo(self, tempo):
+        self.rate = tempo / 60
+
+    def set_beat_length_target(self, beat_length_target, transition_time_in_beats, curve_shape=0):
+        self._prepare_for_new_segment()
+        self.append_segment(beat_length_target, transition_time_in_beats, curve_shape)
+
+    def set_rate_target(self, rate_target, transition_time_in_beats, curve_shape=0):
+        self.set_beat_length_target(1 / rate_target, transition_time_in_beats, curve_shape)
+
+    def set_tempo_target(self, tempo_target, transition_time_in_beats, curve_shape=0):
+        self.set_beat_length_target(60 / tempo_target, transition_time_in_beats, curve_shape)
+        
+    def _prepare_for_new_segment(self):
+        # brings us up-to-date, removing any segments that extend into the future, and extending the last level to now
+        self.remove_segments_after(self.beats())
+        if self.length() < self.beats():
+            # no explicit segments have been made for a while, insert a constant segment to bring us up to date
+            self.append_segment(self.end_level(), self.beats() - self.length())
 
     def get_wait_time(self, beats):
-        return beats / self._rate
+        return self.integrate_interval(self._beats, self._beats + beats)
 
-    def advance(self, beats):
+    def advance(self, beats, wait_time=None):
+        if wait_time is None:
+            wait_time = self.get_wait_time(beats)
         self._beats += beats
-        self._t += self.get_wait_time(beats)
+        self._t += wait_time
 
-    @staticmethod
-    def interpolate(T1, T2, t, S):
-        """
-        The equation here is T(t) = T1 + (T2 - T1) / (e^S - 1) * (e^(S*t) - 1)
-        (T1=starting rate, T2=final rate, t=progress along the curve 0 to 1, S=curvature coefficient)
-        essentially it's an appropriately scaled and stretched segment of e^x with x in the range [0, S]
-        as S approaches zero, we get a linear segment, while large values of S correspond to last-minute change
-        conveniently, negative values of S represent early change in a symmetrical way
-        a value of S of ln(T2/T1) gives us steady, proportional exponential growth, a smooth accelerando
-        """
-        if abs(S) < 0.000001:
-            # S is or is essentially zero, so this segment is linear. That limiting case breaks
-            # our standard formula, but is easy to simply interpolate
-            return T1 + t*(T2 - T1)
-        return T1 + (T2 - T1) / (math.exp(S) - 1) * (math.exp(S * t) - 1)
 
 # TODO: BUILD IT BASED ON BEAT_LENGTH, HAVE DEFAULT CURVATURE BE LINEAR CHANGE IN BEAT_LENGTH.
 # INTERESTINGLY, THIS SEEMS TO BE THE SAME AS EXPONENTIAL INTERPOLATION OF TEMPO; I don't understand why...
