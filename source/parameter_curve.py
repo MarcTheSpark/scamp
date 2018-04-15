@@ -60,7 +60,7 @@ class ParameterCurve:
 
     @property
     def levels(self):
-        return tuple([segment.start_level for segment in self._segments] + [self._segments[-1].end_level])
+        return tuple([segment.start_level for segment in self._segments] + [self.end_level()])
 
     @property
     def durations(self):
@@ -123,12 +123,26 @@ class ParameterCurve:
     # ----------------------- Appending / removing segments --------------------------
 
     def append_segment(self, level, duration, curve_shape=0.0):
-        if len(self._segments) == 1 and self._segments[0].duration() == 0:
-            self._segments[0].end_level = ParameterCurveSegment(0, duration, self._segments[0].start_level,
-                                                                level, curve_shape)
+        if self._segments[-1].duration == 0:
+            # the previous segment has no length. Are we also adding a segment with no length?
+            if duration == 0:
+                # If so, replace the end level of the existing zero-length segment
+                self._segments[-1].end_level = level
+            else:
+                # okay, we're adding a segment with length
+                # did the previous segment actually change the level?
+                if self._segments[-1].end_level != self._segments[-1].start_level:
+                    # If so we keep it and add a new one
+                    self._segments.append(ParameterCurveSegment(self.length(), self.length() + duration,
+                                                                self.end_level(), level, curve_shape))
+                else:
+                    # if not, just modify the previous segment into what we want
+                    self._segments[-1].end_level = level
+                    self._segments[-1].end_time = self.length() + duration
+                    self._segments[-1].curve_shape = curve_shape
         else:
             self._segments.append(ParameterCurveSegment(self.length(), self.length() + duration,
-                                                        self._segments[-1].end_level, level, curve_shape))
+                                                        self.end_level(), level, curve_shape))
 
     def pop_segment(self):
         if len(self._segments) == 1:
@@ -163,12 +177,13 @@ class ParameterCurve:
     # ------------------------ Interpolation, Integration --------------------------
 
     def value_at(self, t):
-        if t <= 0:
-            return self._segments[0].start_level
-        for segment in self._segments:
+        if t < 0:
+            return self.start_level()
+        for segment in reversed(self._segments):
+            # we start at the end in case of zero_length segments; it's best that they return their end level
             if t in segment:
                 return segment.value_at(t)
-        return self._segments[-1].end_level
+        return self.end_level()
 
     def integrate_interval(self, t1, t2):
         if t1 == t2:
@@ -178,7 +193,7 @@ class ParameterCurve:
         if t1 < 0:
             return -t1 * self._segments[0].start_level + self.integrate_interval(0, t2)
         if t2 > self.length():
-            return (t2 - self.length()) * self._segments[-1].end_level + self.integrate_interval(t1, self.length())
+            return (t2 - self.length()) * self.end_level() + self.integrate_interval(t1, self.length())
         # now that the edge conditions are covered, we just add up the segment integrals
         integral = 0
         for segment in self._segments:
