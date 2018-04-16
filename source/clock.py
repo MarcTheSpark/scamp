@@ -93,6 +93,9 @@ class Clock:
     def beats(self):
         return self._tempo_map.beats()
 
+    def time_in_master(self):
+        return self.master.time()
+
     @property
     def beat_length(self):
         return self._tempo_map.beat_length
@@ -129,19 +132,6 @@ class Clock:
     def absolute_rate(self):
         absolute_rate = self.rate if self.parent is None else (self.rate * self.parent.rate)
         return absolute_rate
-
-    @property
-    def master_offset(self):
-        if self.parent is None:
-            return 0
-        else:
-            return self.parent_offset + self.parent.master_offset
-
-    def time_in_parent(self):
-        return self.time() + self.parent_offset
-
-    def time_in_master(self):
-        return self.time() + self.master_offset
 
     def _run_in_pool(self, target, args, kwargs):
         if self.master._pool_semaphore.acquire(blocking=False):
@@ -197,7 +187,7 @@ class Clock:
                 else:
                     time.sleep(stop_sleeping_time - time.time())
         else:
-            self.parent._queue.add(WakeUpCall(self.time_in_parent() + dt, self))
+            self.parent._queue.add(WakeUpCall(self.parent.beats() + dt, self))
             self._ready_and_waiting = True
             self._wait_event.wait()
             self._wait_event.clear()
