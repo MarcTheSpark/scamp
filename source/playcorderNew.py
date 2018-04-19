@@ -19,6 +19,8 @@ from .instruments import PlaycorderInstrument, MidiPlaycorderInstrument
 from .clock import Clock
 
 # TODO: give the "properties" a playlength proportion, figure out how to make default playback properties of things like staccato, tenuto, slurs
+# TODO: Make a performance record on a particular clock, meaning that it always asks that clock for the time by calling .beats() on it. Save an Absolute tempo map from that clock and have it be part of the performance object
+# TODO: Why are there little variations in clock time?
 
 
 class Playcorder:
@@ -36,8 +38,8 @@ class Playcorder:
         self.set_ensemble(Ensemble(soundfonts, audio_driver, midi_output_device))
 
         # Clock keeps track of time and can spawn subordinate clocks
-        self.master_clock = Clock()
-        self.recording_start_time = None
+        self.master_clock = Clock("MASTER")
+        self._recording_start_time = None
 
         # The Performance object created when we record
         self.performance = None
@@ -64,7 +66,10 @@ class Playcorder:
     def time(self):
         return self.master_clock.time()
 
-    def fork(self, process_function):
+    def beats(self):
+        return self.master_clock.beats()
+
+    def fork(self, process_function, name="", initial_rate=1.0):
         num_params = len(signature(process_function).parameters)
         if num_params > 1:
             logging.warning("The function passed to fork should take one argument, which is the clock used for that "
@@ -73,7 +78,7 @@ class Playcorder:
             logging.warning("The function passed to fork must take one argument, which is the clock used for that "
                             "thread, but none were given.")
             return
-        return self.master_clock.fork(process_function)
+        return self.master_clock.fork(process_function, name=name, initial_rate=initial_rate)
 
     # used for a situation where all parts are played from a single thread
     def wait(self, seconds):
@@ -147,70 +152,23 @@ class Playcorder:
     # --------------------------------- Recording Stuff -------------------------------
 
     def start_recording(self, which_parts=None):
-        self.recording_start_time = self.master_clock._t
         which_parts = self._ensemble.instruments if which_parts is None else which_parts
         self.performance = Performance()
         # set a performance_part for each instrument
         for instrument in which_parts:
             new_part = self.performance.new_part(instrument)
-            instrument.performance_part = new_part
+            instrument._performance_part = new_part
 
     def is_recording(self):
-        return self.recording_start_time is not None
+        return self._recording_start_time is not None
 
-    def recording_time(self):
-        return self.time() - self.recording_start_time
+    def time_since_recording_start(self):
+        return self.master_clock.time() - self._recording_start_time
 
     def stop_recording(self):
         for part in self.performance.parts:
             instrument = part.instrument
             instrument.end_all_notes()
-            instrument.performance_part = None
-        self.recording_start_time = None
+            instrument._performance_part = None
+        self._recording_start_time = None
         return self.performance
-
-    # ---------------------------------------- SAVING TO XML ----------------------------------------------
-
-    def save_to_xml_file(self, file_name, measure_schemes=None, time_signature="4/4", tempo=60, divisions=8,
-                         max_indigestibility=4, simplicity_preference=0.5, title=None, composer=None,
-                         separate_voices_in_separate_staves=True, show_cent_values=True, add_sibelius_pitch_bend=False,
-                         max_overlap=0.001):
-        """
-
-        :param file_name: The name of the file, duh
-        :param measure_schemes: list of measure schemes, which include time signature and quantization preferences. If
-        None, then we assume a single persistent measure scheme based on the given  time_signature, tempo, divisions,
-        max_indigestibility, and simplicity_preference
-        :param time_signature: formatted as a tuple e.g. (4, 4) or a string e.g. "4/4"
-        :param tempo: in bpm
-        :param divisions: For beat quantization purposes. This parameter can take several forms. If an integer is given,
-        then all beat divisions up to that integer are allowed, providing that the divisor indigestibility is less than
-        the max_indigestibility. Alternatively, a list of allowed divisors can be given. This is useful if we know
-        ahead of time exactly how we will be dividing the beat. Each divisor will be assigned an undesirability based
-        on its indigestibility; however these can be overridden by passing a list of tuples formatted
-        [(divisor1, undesirability1), (divisor2, undesirability2), etc... ] to this parameter.
-        :param max_indigestibility: when an integer is passed to the divisions parameter, all beat divisions up to that
-        integer that have indigestibility less than max_indigestibility are allowed
-        :param simplicity_preference: ranges 0 - whatever. A simplicity_preference of 0 means, all beat divisions are
-        treated equally; a 7 is as good as a 4. A simplicity_preference of 1 means that the most desirable division
-        is left alone, the most undesirable division gets its error doubled, and all other divisions are somewhere in
-        between. Simplicity preference can be greater than 1, in which case the least desirable division gets its
-        error multiplied by (simplicity_preference + 1).
-        :param title: duh
-        :param composer: duh
-        :param separate_voices_in_separate_staves: where notes in a part overlap, they are placed in separate staves if
-        true and separate voices of the same staff if false
-        :param show_cent_values: adds text displaying the cent deviations of a microtonal pitch
-        :param add_sibelius_pitch_bend: adds in hidden text used to send midi pitch bend messages in sibelius when given
-        a microtonal pitch.
-        :param max_overlap: used to determine when two simultaneous notes form a chord
-        """
-        part_recordings = [this_part.recording for this_part in self.parts_recorded]
-        part_names = [this_part.name for this_part in self.parts_recorded]
-        save_recording_to_xml(part_recordings, part_names, file_name, measure_schemes=measure_schemes,
-                              time_signature=time_signature, tempo=tempo, divisions=divisions,
-                              max_indigestibility=max_indigestibility, simplicity_preference=simplicity_preference,
-                              title=title, composer=composer,
-                              separate_voices_in_separate_staves=separate_voices_in_separate_staves,
-                              show_cent_values=show_cent_values, add_sibelius_pitch_bend=add_sibelius_pitch_bend,
-                              max_overlap=max_overlap)
