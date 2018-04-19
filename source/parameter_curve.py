@@ -217,6 +217,21 @@ class ParameterCurve:
                     integral += segment.integrate_segment(t1, segment.end_time)
         return integral
 
+    def get_upper_integration_bound(self, t1, desired_area, max_error=0.001):
+
+        if desired_area < max_error:
+            return t1
+        t2_guess = desired_area / self.value_at(t1) + t1
+        area = self.integrate_interval(t1, t2_guess)
+        if area <= desired_area:
+            if desired_area - area < max_error:
+                return t2_guess
+            else:
+                return self.get_upper_integration_bound(t2_guess, desired_area - area)
+        else:
+            return self.get_upper_integration_bound((t2_guess + t1) / 2,
+                                                    desired_area - self.integrate_interval(t1, (t2_guess + t1) / 2))
+
     # -------------------------- Utilities, classmethods ----------------------------
 
     def normalize_to_duration(self, desired_duration, in_place=True):
