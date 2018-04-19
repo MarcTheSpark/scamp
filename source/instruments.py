@@ -21,8 +21,8 @@ class PlaycorderInstrument:
             self.set_host(host)
 
         # used to identify instruments uniquely, even if they're given the same name
-        self.notes_started = []   # each entry goes (note_id, pitch, volume, start_time, variant_dictionary)
-        self.performance_part = None
+        self._notes_started = []   # each entry goes (note_id, pitch, volume, start_time, variant_dictionary)
+        self._performance_part = None
 
     def set_host(self, host):
         from .playcorderNew import Playcorder
@@ -153,13 +153,36 @@ class PlaycorderInstrument:
             return {}
         return properties
 
-    def play_note(self, pitch, volume, length, properties=None, clock=None, blocking=False):
+    def play_note(self, pitch, volume, length, properties=None, blocking=False, clock=None):
+        """
+        Play a note
+        :param pitch: The midi pitch of the note. Can be floating-point, can be a list or Parameter curve.
+        :param volume: The volume, in a normalized range 0 to 1. Can be a list or Parameter curve.
+        :param length: The length of the note with respect to the clock used (seconds if no clock is used).
+        :param properties: A dictionary of properties about this note
+        :param blocking: blocks the current thread until done playing
+        :param clock: The clock within which this note is played. If none, we check if a clock has been defined on this
+        thread by setting threading.current_thread().__clock__ and use that. If no clocks at all, uses seconds.
+        :return: None
+        """
         if not self._viable():
             return
+
+        if clock is None and hasattr(threading.current_thread(), "__clock__"):
+            clock = threading.current_thread().__clock__
 
         properties = PlaycorderInstrument._make_properties_dict(properties)
         volume = ParameterCurve.from_list(volume) if hasattr(volume, "__len__") else volume
         pitch = ParameterCurve.from_list(pitch) if hasattr(pitch, "__len__") else pitch
+
+        # record the note in the hosting playcorder, if it's recording
+        if self._performance_part is not None:
+            from .performance import PerformancePart
+            assert isinstance(self._performance_part, PerformancePart)
+            pc = self.host_ensemble.host_playcorder
+            recorded_length = length / clock.absolute_rate() * \
+                (1 if pc.recording_clock == "absolute" else pc.recording_clock.absolute_rate())
+            self._performance_part.new_note(pc.time_since_recording_start(), recorded_length, pitch, volume, properties)
 
         # Note that, even if there's a clock involved we run _do_play_note in a simple thread rather than a sub-clock.
         # That is because the overhead of running in a clock is high small sleep values like animation ot pitch and
@@ -175,13 +198,6 @@ class PlaycorderInstrument:
             else:
                 threading.Thread(target=self._do_play_note, args=(pitch, volume, length, properties)).start()
 
-        # record the note in the hosting playcorder, if it's recording
-        if self.performance_part is not None:
-            from .performance import PerformancePart
-            assert isinstance(self.performance_part, PerformancePart)
-            self.performance_part.new_note(self.host_ensemble.host_playcorder.recording_time(),
-                                           length, pitch, volume, properties)
-
     def start_note(self, pitch, volume, properties=None):
         """
         Starts a note 'manually', meaning that its length is not predetermined, and that it has to be manually ended
@@ -191,7 +207,7 @@ class PlaycorderInstrument:
             return
         properties = PlaycorderInstrument._make_properties_dict(properties)
         note_id = self._do_start_note(pitch, volume, properties)
-        self.notes_started.append((note_id, pitch, volume, self.time(), properties))
+        self._notes_started.append((note_id, pitch, volume, self.time(), properties))
         # returns the note_id as a reference, in case we want to change pitch mid-playback
         return note_id
 
@@ -206,15 +222,15 @@ class PlaycorderInstrument:
         note_to_end = None
         if note_id is not None:
             # find the note referred to in the notes_started list
-            for started_note in self.notes_started:
+            for started_note in self._notes_started:
                 if started_note[0] == note_id:
                     note_to_end = started_note
                     break
             if note_to_end is not None:
-                self.notes_started.remove(note_to_end)
-        elif len(self.notes_started) > 0:
+                self._notes_started.remove(note_to_end)
+        elif len(self._notes_started) > 0:
             # if no note_id is specified, just end the note that has been going the longest
-            note_to_end = self.notes_started.pop(0)
+            note_to_end = self._notes_started.pop(0)
 
         if note_to_end is None:
             # no appropriate note has been found to end
@@ -225,8 +241,8 @@ class PlaycorderInstrument:
         self._do_end_note(note_id)
 
         # save to performance part if we're recording, and we have been since the note started
-        if self.performance_part is not None and start_time >= self.host_ensemble.host_playcorder.recording_start_time:
-            self.performance_part.new_note(
+        if self._performance_part is not None and start_time >= self.host_ensemble.host_playcorder.recording_start_time:
+            self._performance_part.new_note(
                 start_time - self.host_ensemble.host_playcorder.recording_start_time,
                 self.time() - start_time, pitch, volume, properties
             )
@@ -237,7 +253,7 @@ class PlaycorderInstrument:
         """
         if not self._viable():
             return
-        while len(self.notes_started) > 0:
+        while len(self._notes_started) > 0:
             self.end_note()
 
     def num_notes_playing(self):
@@ -246,7 +262,7 @@ class PlaycorderInstrument:
         """
         if not self._viable():
             return
-        return len(self.notes_started)
+        return len(self._notes_started)
 
     @staticmethod
     def from_json(json_dict, host_ensemble):
