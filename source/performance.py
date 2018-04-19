@@ -73,7 +73,7 @@ class PerformancePart:
 
             while True:
                 instrument.play_note(current_note.pitch, current_note.volume,
-                                     current_note.length, current_note.properties, child_clock)
+                                     current_note.length, current_note.properties, clock=child_clock)
                 try:
                     next_note = next(note_iterator)
                     child_clock.wait(next_note.start_time - current_note.start_time)
@@ -150,7 +150,7 @@ class Performance:
         if ensemble is not None:
             self.set_instruments_from_ensemble(ensemble)
 
-        # if not given a valid MasterClock, create one
+        # if not given a valid clock, create one
         if not isinstance(clock, Clock):
             clock = Clock()
 
@@ -181,6 +181,12 @@ class Performance:
         import json
         with open(file_path, "w") as file:
             json.dump(self.to_json(), file)
+
+    @staticmethod
+    def load_from_json(file_path):
+        import json
+        with open(file_path, "r") as file:
+            return Performance.from_json(json.load(file))
 
     def __repr__(self):
         return "Performance([\n{}\n])".format("   " + ",\n   ".join(
