@@ -181,8 +181,8 @@ class PlaycorderInstrument:
             assert isinstance(self._performance_part, PerformancePart)
             pc = self.host_ensemble.host_playcorder
             recorded_length = length / clock.absolute_rate() * \
-                (1 if pc.recording_clock == "absolute" else pc.recording_clock.absolute_rate())
-            self._performance_part.new_note(pc.time_since_recording_start(), recorded_length, pitch, volume, properties)
+                (1 if pc._recording_clock == "absolute" else pc._recording_clock.absolute_rate())
+            self._performance_part.new_note(pc.get_recording_beat(), recorded_length, pitch, volume, properties)
 
         # Note that, even if there's a clock involved we run _do_play_note in a simple thread rather than a sub-clock.
         # That is because the overhead of running in a clock is high small sleep values like animation ot pitch and

@@ -19,7 +19,6 @@ from .instruments import PlaycorderInstrument, MidiPlaycorderInstrument
 from .clock import Clock
 
 # TODO: give the "properties" a playlength proportion, figure out how to make default playback properties of things like staccato, tenuto, slurs
-# TODO: Make a performance record on a particular clock, meaning that it always asks that clock for the time by calling .beats() on it. Save an Absolute tempo map from that clock and have it be part of the performance object
 # TODO: Why are there little variations in clock time?
 
 
@@ -39,6 +38,7 @@ class Playcorder:
 
         # Clock keeps track of time and can spawn subordinate clocks
         self.master_clock = Clock("MASTER")
+        self._recording_clock = None
         self._recording_start_time = None
 
         # The Performance object created when we record
@@ -151,7 +151,12 @@ class Playcorder:
 
     # --------------------------------- Recording Stuff -------------------------------
 
-    def start_recording(self, which_parts=None):
+    def start_recording(self, which_parts=None, clock="absolute"):
+        if isinstance(clock, str) and clock == "master":
+            clock = self.master_clock
+        assert clock == "absolute" or isinstance(clock, Clock)
+        self._recording_clock = clock
+        self._recording_start_time = self.time() if clock == "absolute" else clock.beats()
         which_parts = self._ensemble.instruments if which_parts is None else which_parts
         self.performance = Performance()
         # set a performance_part for each instrument
@@ -162,8 +167,11 @@ class Playcorder:
     def is_recording(self):
         return self._recording_start_time is not None
 
-    def time_since_recording_start(self):
-        return self.master_clock.time() - self._recording_start_time
+    def get_recording_beat(self):
+        if self._recording_clock == "absolute":
+            return self.master_clock.time() - self._recording_start_time
+        else:
+            return self._recording_clock.beats() - self._recording_start_time
 
     def stop_recording(self):
         for part in self.performance.parts:
