@@ -52,8 +52,21 @@ class ParameterCurve:
     def end_level(self):
         return self._segments[-1].end_level
 
-    def max_level(self):
-        return max(segment.max_level() for segment in self._segments)
+    def max_level(self, t_range=None):
+        if t_range is None:
+            # checking over the entire range, so that's easy
+            return max(segment.max_level() for segment in self._segments)
+        else:
+            # checking over the range (t1, t2), so look at the values at those endpoints and any anchor points between
+            assert hasattr(t_range, "__len__") and len(t_range) == 2 and t_range[0] < t_range[1]
+            t1, t2 = t_range
+            points_to_check = [self.value_at(t1), self.value_at(t2)]
+            for segment in self._segments:
+                if t1 <= segment.start_time <= t2:
+                    points_to_check.append(segment.start_level)
+                if t1 <= segment.end_time <= t2:
+                    points_to_check.append(segment.end_level)
+            return max(points_to_check)
 
     def max_absolute_slope(self):
         return max(segment.max_absolute_slope() for segment in self._segments)
@@ -218,19 +231,25 @@ class ParameterCurve:
         return integral
 
     def get_upper_integration_bound(self, t1, desired_area, max_error=0.001):
-
         if desired_area < max_error:
             return t1
-        t2_guess = desired_area / self.value_at(t1) + t1
+        t1_level = self.value_at(t1)
+        t2_guess = desired_area / t1_level + t1
         area = self.integrate_interval(t1, t2_guess)
         if area <= desired_area:
             if desired_area - area < max_error:
+                # we hit it almost perfectly and didn't go over
                 return t2_guess
             else:
-                return self.get_upper_integration_bound(t2_guess, desired_area - area)
+                # we undershot, so start from where we left off.
+                # Eventually we will get close enough that we're below the max_error
+                return self.get_upper_integration_bound(t2_guess, desired_area - area, max_error=max_error)
         else:
-            return self.get_upper_integration_bound((t2_guess + t1) / 2,
-                                                    desired_area - self.integrate_interval(t1, (t2_guess + t1) / 2))
+            # we overshot, so back up to a point that we know must be below the upper integration bound
+            conservative_guess = t1_level / self.max_level((t1, t2_guess)) * (t2_guess - t1) + t1
+            return self.get_upper_integration_bound(
+                conservative_guess, desired_area - self.integrate_interval(t1, conservative_guess), max_error=max_error
+            )
 
     # -------------------------- Utilities, classmethods ----------------------------
 
