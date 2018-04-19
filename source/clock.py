@@ -29,7 +29,7 @@ WakeUpCall = namedtuple("WakeUpCall", "t clock")
 
 class Clock:
 
-    def __init__(self, name=None, parent=None, pool_size=200, timing_policy="relative"):
+    def __init__(self, name=None, parent=None, initial_rate=1.0, pool_size=200, timing_policy="relative"):
         """
         Recursively nestable clock class. Clocks can fork child-clocks, which can in turn fork their own child-clock.
         Only the master clock calls sleep; child-clocks instead register WakeUpCalls with their parents, who
@@ -52,10 +52,10 @@ class Clock:
         # queue of WakeUpCalls for child clocks
         self._queue = SortedListWithKey(key=lambda x: x.t)
         # how long have I been around, in seconds since I was created
-        self._tempo_map = TempoMap()
+        self._tempo_map = TempoMap(initial_rate)
 
         # how long had my parent been around when I was created
-        self.parent_offset = self.parent.time() if self.parent is not None else 0
+        self.parent_offset = self.parent.beats() if self.parent is not None else 0
         # will use these if not master clock
         self._ready_and_waiting = False
         self._wait_event = threading.Event()
@@ -66,6 +66,7 @@ class Clock:
             # Used to keep track of if we're using all the threads in the pool
             # if so, we just start a thread and throw a warning to increase pool size
             self._pool_semaphore = threading.BoundedSemaphore(pool_size)
+            threading.current_thread().__clock__ = self
         else:
             # All other clocks just use self.master._pool
             self._pool = None
@@ -142,13 +143,14 @@ class Clock:
                             "result. You can increase the number of threads in the pool to avoid this.")
             threading.Thread(target=target, args=args, kwargs=kwargs, daemon=True).start()
 
-    def fork(self, process_function, name="", extra_args=(), kwargs=None):
+    def fork(self, process_function, name="", initial_rate=1.0, extra_args=(), kwargs=None):
         kwargs = {} if kwargs is None else kwargs
 
-        child = Clock(name, parent=self)
+        child = Clock(name, parent=self, initial_rate=initial_rate)
         self._children.append(child)
 
         def _process(*args, **kwds):
+            threading.current_thread().__clock__ = child
             process_function(child, *args, **kwds)
             self._children.remove(child)
 
@@ -205,10 +207,11 @@ class Clock:
         while len(self._queue) > 0 and self._queue[0].t < end_time:
             # find the next wake up call
             next_wake_up_call = self._queue.pop(0)
-            beats_till_wake = next_wake_up_call.t - self.beats()
-            parent_wait_time = self._tempo_map.get_wait_time(beats_till_wake)
-            self.wait_in_parent(parent_wait_time)
-            self._tempo_map.advance(beats_till_wake, parent_wait_time)
+            wake_up_beat = next_wake_up_call.t
+
+            beats_till_wake = wake_up_beat - self.beats()
+            self.wait_in_parent(self._tempo_map.get_wait_time(beats_till_wake))
+            self.advance_tempo_map_to_beat(wake_up_beat)
 
             next_wake_up_call.clock._ready_and_waiting = False
             next_wake_up_call.clock._wait_event.set()
@@ -222,6 +225,15 @@ class Clock:
 
         self.wait_in_parent(self._tempo_map.get_wait_time(end_time - self.beats()))
         self._tempo_map.advance(end_time - self.beats())
+
+        # when we're done waiting, some of the children may be behind, having not woken up yet
+        # we advance them forward to the current time
+        for child in self._children:
+            if child.time() < self.beats():
+                child._tempo_map.advance_time(self.beats() - child.time())
+
+    def advance_tempo_map_to_beat(self, beat):
+        self._tempo_map.advance(beat - self.beats())
 
     def sleep(self, beats):
         # alias to wait
@@ -294,6 +306,9 @@ class TempoMap(ParameterCurve):
     def rate(self, rate):
         self.beat_length = 1/rate
 
+    def rate_at(self, beat):
+        return 1/self.value_at(self._beats + beat)
+
     @property
     def tempo(self):
         return self.rate * 60
@@ -328,6 +343,10 @@ class TempoMap(ParameterCurve):
         self._beats += beats
         self._t += wait_time
 
+    def advance_time(self, seconds):
+        beat_to_get_to = self.get_upper_integration_bound(self._beats, seconds)
+        self.advance(beat_to_get_to - self._beats)
 
-# TODO: BUILD IT BASED ON BEAT_LENGTH, HAVE DEFAULT CURVATURE BE LINEAR CHANGE IN BEAT_LENGTH.
-# INTERESTINGLY, THIS SEEMS TO BE THE SAME AS EXPONENTIAL INTERPOLATION OF TEMPO; I don't understand why...
+
+# TODO: DO NOT ALLOW ACCESS TO SUBCLOCK FROM PARENT CLOCK; ONLY OTHER WAY ROUND
+# TODO: EACH CLOCK NEEDS TO KNOW ITS START OFFSET IN SECONDS FROM THE MASTER CLOCK THEN WE CAN BUILD THE TEMPO MAP
