@@ -4,7 +4,7 @@ from collections import namedtuple
 import threading
 from multiprocessing.pool import ThreadPool
 import logging
-from .parameter_curve import ParameterCurve
+from .parameter_curve import ParameterCurve, ParameterCurveSegment
 
 
 def _sleep_precisely_until(stop_time):
@@ -25,17 +25,6 @@ def sleep_precisely(secs):
 
 
 WakeUpCall = namedtuple("WakeUpCall", "t clock")
-
-
-last_check_in = (time.time(), None, None)
-
-
-def check_in(name, spot, no_print=False):
-    global last_check_in
-    time_since_last = time.time() - last_check_in[0]
-    if not no_print and time_since_last > 0.0001:
-        print("{}:{} took {} seconds since {}:{}".format(name, spot, time_since_last, last_check_in[1], last_check_in[2]))
-    last_check_in = (time.time(), name, spot)
 
 
 class Clock:
@@ -132,14 +121,15 @@ class Clock:
     def tempo(self, t):
         self._tempo_curve.tempo = t
 
-    def set_beat_length_target(self, beat_length_target, transition_time_in_beats, curve_shape=0):
-        self._tempo_curve.set_beat_length_target(beat_length_target, transition_time_in_beats, curve_shape)
+    def set_beat_length_target(self, beat_length_target, duration, curve_shape=0,
+                               duration_units="beats", truncate=True):
+        self._tempo_curve.set_beat_length_target(beat_length_target, duration, curve_shape, duration_units, truncate)
 
-    def set_rate_target(self, rate_target, transition_time_in_beats, curve_shape=0):
-        self._tempo_curve.set_rate_target(rate_target, transition_time_in_beats, curve_shape)
+    def set_rate_target(self, rate_target, duration, curve_shape=0, duration_units="beats", truncate=True):
+        self._tempo_curve.set_rate_target(rate_target, duration, curve_shape, duration_units, truncate)
 
-    def set_tempo_target(self, tempo_target, transition_time_in_beats, curve_shape=0):
-        self._tempo_curve.set_tempo_target(tempo_target, transition_time_in_beats, curve_shape)
+    def set_tempo_target(self, tempo_target, duration, curve_shape=0, duration_units="beats", truncate=True):
+        self._tempo_curve.set_tempo_target(tempo_target, duration, curve_shape, duration_units, truncate)
 
     def absolute_rate(self):
         absolute_rate = self.rate if self.parent is None else (self.rate * self.parent.rate)
@@ -161,10 +151,12 @@ class Clock:
         self._children.append(child)
 
         def _process(*args, **kwds):
-            threading.current_thread().__clock__ = child
-            process_function(child, *args, **kwds)
-            self._children.remove(child)
-
+            try:
+                threading.current_thread().__clock__ = child
+                process_function(child, *args, **kwds)
+                self._children.remove(child)
+            except Exception as e:
+                logging.exception(e)
         self._run_in_pool(_process, extra_args, kwargs)
 
         return child
@@ -173,7 +165,10 @@ class Clock:
         kwargs = {} if kwargs is None else kwargs
 
         def _process(*args, **kwargs):
-            process_function(*args, **kwargs)
+            try:
+                process_function(*args, **kwargs)
+            except Exception as e:
+                logging.exception(e)
 
         self._run_in_pool(_process, args, kwargs)
 
@@ -311,7 +306,11 @@ class TempoCurve(ParameterCurve):
 
     @beat_length.setter
     def beat_length(self, beat_length):
-        self._prepare_for_new_segment()
+        self.remove_segments_after(self.beats())
+        # brings us up-to-date by adding a constant segment in case we haven't had a segment for a while
+        if self.length() < self.beats():
+            # no explicit segments have been made for a while, insert a constant segment to bring us up to date
+            self.append_segment(self.end_level(), self.beats() - self.length())
         self.append_segment(beat_length, 0)
 
     @property
@@ -333,22 +332,39 @@ class TempoCurve(ParameterCurve):
     def tempo(self, tempo):
         self.rate = tempo / 60
 
-    def set_beat_length_target(self, beat_length_target, transition_time_in_beats, curve_shape=0):
-        self._prepare_for_new_segment()
-        self.append_segment(beat_length_target, transition_time_in_beats, curve_shape)
+    def set_beat_length_target(self, beat_length_target, duration, curve_shape=0,
+                               duration_units="beats", truncate=True):
+        assert duration_units in ("beats", "time")
+        # truncate removes any segments that extend into the future
+        if truncate:
+            self.remove_segments_after(self.beats())
 
-    def set_rate_target(self, rate_target, transition_time_in_beats, curve_shape=0):
-        self.set_beat_length_target(1 / rate_target, transition_time_in_beats, curve_shape)
-
-    def set_tempo_target(self, tempo_target, transition_time_in_beats, curve_shape=0):
-        self.set_beat_length_target(60 / tempo_target, transition_time_in_beats, curve_shape)
-        
-    def _prepare_for_new_segment(self):
-        # brings us up-to-date, removing any segments that extend into the future, and extending the last level to now
-        self.remove_segments_after(self.beats())
+        # brings us up-to-date by adding a constant segment in case we haven't had a segment for a while
         if self.length() < self.beats():
             # no explicit segments have been made for a while, insert a constant segment to bring us up to date
             self.append_segment(self.end_level(), self.beats() - self.length())
+
+        if duration_units == "beats":
+            extension_into_future = self.length() - self.beats()
+            assert duration > extension_into_future, "Target must extend beyond the last existing target."
+            self.append_segment(beat_length_target, duration - extension_into_future, curve_shape)
+        else:
+            # units == "time", so we need to figure out how many beats are necessary
+            time_extension_into_future = self.integrate_interval(self.beats(), self.length())
+            assert duration > time_extension_into_future, "Target must extend beyond the last existing target."
+
+            # normalized_time = how long the curve would take if it were one beat long
+            normalized_time = ParameterCurveSegment(
+                0, 1, self.value_at(self.length()), beat_length_target, curve_shape
+            ).integrate_segment(0, 1)
+            desired_curve_length = duration - time_extension_into_future
+            self.append_segment(beat_length_target, desired_curve_length / normalized_time, curve_shape)
+
+    def set_rate_target(self, rate_target, duration, curve_shape=0, duration_units="beats", truncate=True):
+        self.set_beat_length_target(1 / rate_target, duration, curve_shape, duration_units, truncate)
+
+    def set_tempo_target(self, tempo_target, duration, curve_shape=0, duration_units="beats", truncate=True):
+        self.set_beat_length_target(60 / tempo_target, duration, curve_shape, duration_units, truncate)
 
     def get_wait_time(self, beats):
         return self.integrate_interval(self._beats, self._beats + beats)
@@ -362,6 +378,3 @@ class TempoCurve(ParameterCurve):
     def advance_time(self, seconds):
         beat_to_get_to = self.get_upper_integration_bound(self._beats, seconds)
         self.advance(beat_to_get_to - self._beats)
-
-
-# TODO: EACH CLOCK NEEDS TO KNOW ITS START OFFSET IN SECONDS FROM THE MASTER CLOCK THEN WE CAN BUILD THE TEMPO MAP
