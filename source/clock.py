@@ -135,6 +135,12 @@ class Clock:
         absolute_rate = self.rate if self.parent is None else (self.rate * self.parent.rate)
         return absolute_rate
 
+    def absolute_tempo(self):
+        return self.absolute_rate() * 60
+
+    def absolute_beat_length(self):
+        return 1 / self.absolute_rate()
+
     def _run_in_pool(self, target, args, kwargs):
         if self.master._pool_semaphore.acquire(blocking=False):
             semaphore = self.master._pool_semaphore
@@ -236,8 +242,8 @@ class Clock:
         # when we're done waiting, some of the children may be behind, having not woken up yet
         # we advance them forward to the current time
         for child in self._children:
-            if child.time() < self.beats():
-                child._tempo_curve.advance_time(self.beats() - child.time())
+            if (child.parent_offset + child.time()) < self.beats():
+                child._tempo_curve.advance_time(self.beats() - (child.parent_offset + child.time()) )
 
     def advance_tempo_map_to_beat(self, beat):
         self._tempo_curve.advance(beat - self.beats())
