@@ -88,6 +88,31 @@ class Playcorder:
         while True:
             self.wait(1.0)
 
+    @property
+    def use_precise_timing(self):
+        return self.master_clock.use_precise_timing
+
+    @use_precise_timing.setter
+    def use_precise_timing(self, value):
+        self.master_clock.use_precise_timing = value
+
+    @property
+    def keep_children_caught_up(self):
+        return self.master_clock.keep_children_caught_up
+
+    @keep_children_caught_up.setter
+    def keep_children_caught_up(self, value):
+        self.master_clock.keep_children_caught_up = value
+
+    @property
+    def timing_policy(self):
+        return self.master_clock.timing_policy
+
+    @timing_policy.setter
+    def timing_policy(self, value):
+        assert value in Clock.timing_policy_choices
+        self.master_clock.timing_policy = value
+
     # --------------------------------- Ensemble Stuff -------------------------------
 
     @property
