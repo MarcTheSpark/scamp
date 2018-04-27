@@ -53,10 +53,11 @@ class SimpleRtMidiOut:
 
         if rtmidi is not None:
             self.midiout = rtmidi.MidiOut()
-
-            def cleanup():
-                del self.midiout
-            atexit.register(cleanup)
+            # # FOR SOME REASON, in the python-rtmidi examples, they call `del midiout` at the end
+            # # I don't think it's necessary, and it causes an annoying error on exit, so it's commented out
+            # def cleanup():
+            #     del self.midiout
+            # atexit.register(cleanup)
             if isinstance(output_device, int):
                 self.midiout.open_port(output_device, name=output_name)
             else:
