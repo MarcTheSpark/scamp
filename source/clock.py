@@ -24,10 +24,17 @@ def sleep_precisely(secs):
     _sleep_precisely_until(time.time() + secs)
 
 
+def current_clock():
+    # utility for getting the clock we are currently using (we attach it to the thread when it's started)
+    return threading.current_thread().__clock__
+
+
 WakeUpCall = namedtuple("WakeUpCall", "t clock")
 
 
 class Clock:
+
+    timing_policy_choices = ("relative", "absolute")
 
     def __init__(self, name=None, parent=None, initial_rate=1.0, pool_size=200, timing_policy="relative"):
         """
@@ -76,9 +83,12 @@ class Clock:
         # precise timing uses a while loop when we get close to the wake-up time
         # it burns more CPU to do this, but the timing is more accurate
         self.use_precise_timing = True
+        # keep_children_caught_up catches up all child clocks when the parent wakes up
+        # this is important if recording on a child clock, otherwise not so much
+        self.keep_children_caught_up = True
         self._log_processing_time = False
 
-        assert timing_policy in ("relative", "absolute")
+        assert timing_policy in Clock.timing_policy_choices
         self.timing_policy = timing_policy
 
     @property
@@ -195,11 +205,15 @@ class Clock:
             if stop_sleeping_time < time.time() - 0.01:
                 # if we're more than 10 ms behind, throw a warning: this starts to get noticeable
                 logging.warning("Clock is running noticeably behind real time; probably processing is too heavy.")
+            elif stop_sleeping_time < time.time():
+                # we're running a tiny bit behind, but not noticeably, so just don't sleep and let it be what it is
+                pass
             else:
                 if self.use_precise_timing:
                     _sleep_precisely_until(stop_sleeping_time)
                 else:
-                    time.sleep(stop_sleeping_time - time.time())
+                    # the max is just in case we got behind in the microsecond it took before the elif check above
+                    time.sleep(max(0, stop_sleeping_time - time.time()))
         else:
             self.parent._queue.add(WakeUpCall(self.parent.beats() + dt, self))
             self._ready_and_waiting = True
@@ -224,7 +238,7 @@ class Clock:
             wake_up_beat = next_wake_up_call.t
             beats_till_wake = wake_up_beat - self.beats()
             self.wait_in_parent(self._tempo_curve.get_wait_time(beats_till_wake))
-            self.advance_tempo_map_to_beat(wake_up_beat)
+            self._advance_tempo_map_to_beat(wake_up_beat)
             next_wake_up_call.clock._ready_and_waiting = False
             next_wake_up_call.clock._wait_event.set()
 
@@ -240,12 +254,30 @@ class Clock:
         self._tempo_curve.advance(end_time - self.beats())
 
         # when we're done waiting, some of the children may be behind, having not woken up yet
-        # we advance them forward to the current time
+        # we advance them forward to the current time, unless we've been told not to
+        if self._we_should_catch_up_the_children():
+            start = time.time()
+            self._catch_up_children()
+            calc_time = time.time() - start
+            if calc_time > 0.003:
+                logging.warning("Catching up child clocks is taking more than 3 milliseconds ({} seconds to be "
+                                "precise) on clock {}. \nUnless you are recording on a child clock, you can safely "
+                                "turn this off by setting the keep_children_caught_up flag to false on the clock or "
+                                "playcorder.".format(calc_time, current_clock().name))
+
+    def _we_should_catch_up_the_children(self):
+        # it's only worth catching up child clocks if this clock itself is always caught up, so let's
+        # check that the keep_children_caught_up is set for this and all parent clocks.
+        return all(clock.keep_children_caught_up for clock in self.iterate_inheritance())
+
+    def _catch_up_children(self):
+        # when we catch up the children, they also have to recursively catch up their children, etc.
         for child in self._children:
             if (child.parent_offset + child.time()) < self.beats():
-                child._tempo_curve.advance_time(self.beats() - (child.parent_offset + child.time()) )
+                child._tempo_curve.advance_time(self.beats() - (child.parent_offset + child.time()))
+                child._catch_up_children()
 
-    def advance_tempo_map_to_beat(self, beat):
+    def _advance_tempo_map_to_beat(self, beat):
         self._tempo_curve.advance(beat - self.beats())
 
     def sleep(self, beats):
@@ -286,6 +318,27 @@ class Clock:
 
     def stop_logging_processing_time(self):
         self._log_processing_time = False
+
+    def iterate_inheritance(self):
+        clock = self
+        yield clock
+        while clock.parent is not None:
+            clock = clock.parent
+            yield clock
+
+    def inheritance(self):
+        return list(self.iterate_inheritance())
+
+    def get_beat_map(self, start_beat=0, end_beat=None):
+        clocks = self.inheritance()
+
+        tempo_curves = [clock._tempo_curve for clock in clocks]
+
+        beats = [start_beat]
+        for i in range(len(clocks)):
+            # for each clock, its parent_offset + the time it would take to get to its current beat = its parent's beat
+            beats.append(clocks[i].parent_offset + tempo_curves[i].integrate_interval(0, beats[i]))
+        print(beats)
 
     def __repr__(self):
         child_list = "" if len(self._children) == 0 else ", ".join(str(child) for child in self._children)
@@ -380,7 +433,10 @@ class TempoCurve(ParameterCurve):
             wait_time = self.get_wait_time(beats)
         self._beats += beats
         self._t += wait_time
+        return beats, wait_time
 
     def advance_time(self, seconds):
-        beat_to_get_to = self.get_upper_integration_bound(self._beats, seconds)
-        self.advance(beat_to_get_to - self._beats)
+        beat_to_get_to = self.get_upper_integration_bound(self._beats, seconds, max_error=0.00000001)
+        beats = beat_to_get_to - self._beats
+        self.advance(beats)
+        return beats, seconds
