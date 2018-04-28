@@ -188,8 +188,11 @@ class PlaycorderInstrument:
         # That is because the overhead of running in a clock is high small sleep values like animation ot pitch and
         # volume, and it gets way behind. Better to just use a parallel Thread and adjust the length
         if clock is not None:
-            clock.fork_unsynchronized(process_function=self._do_play_note,
-                                      args=(pitch, volume, length / clock.absolute_rate(), properties, clock))
+            if not clock.is_fast_forwarding():
+                # note that if we're fast-forwarding we don't want to play the note
+                # we do still want to call wait below to advance time (no sleeping will happen on the master clock)
+                clock.fork_unsynchronized(process_function=self._do_play_note,
+                                          args=(pitch, volume, length / clock.absolute_rate(), properties, clock))
             if blocking:
                 clock.wait(length)
         else:

@@ -88,6 +88,18 @@ class Playcorder:
         while True:
             self.wait(1.0)
 
+    def fast_forward_to_time(self, t):
+        self.master_clock.fast_forward_to_time(t)
+
+    def fast_forward_in_time(self, t):
+        self.master_clock.fast_forward_in_time(t)
+
+    def fast_forward_to_beat(self, b):
+        self.master_clock.fast_forward_to_beat(b)
+
+    def fast_forward_in_beats(self, b):
+        self.master_clock.fast_forward_in_beats(b)
+
     @property
     def use_precise_timing(self):
         return self.master_clock.use_precise_timing

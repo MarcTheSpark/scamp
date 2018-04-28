@@ -6,6 +6,8 @@ from multiprocessing.pool import ThreadPool
 import logging
 from .parameter_curve import ParameterCurve, ParameterCurveSegment
 
+# TODO: WHY IS CATCHING UP CHILDREN TAKING LONGER AND LONGER the longer the score goes on!?!?!?
+
 
 def _sleep_precisely_until(stop_time):
     time_remaining = stop_time - time.time()
@@ -87,9 +89,10 @@ class Clock:
         # this is important if recording on a child clock, otherwise not so much
         self.keep_children_caught_up = True
         self._log_processing_time = False
-
         assert timing_policy in Clock.timing_policy_choices
         self.timing_policy = timing_policy
+
+        self._fast_forward_goal = None
 
     @property
     def master(self):
@@ -195,9 +198,29 @@ class Clock:
         if dt == 0:
             return
         if self.is_master():
-            # no parent, so this is the master thread that actually sleeps
-            # we want to stop sleeping dt after we last finished sleeping, not including the processing that happened
-            # after we finished sleeping. So we calculate the time to finish sleeping based on that
+            # this is the master thread that actually sleeps
+            # ...unless we're fast-forwarding. Better address that possibility.
+            if self._fast_forward_goal is not None:
+                if self.time() >= self._fast_forward_goal:
+                    # done fast-forwarding
+                    self._fast_forward_goal = None
+                elif self.time() < self._fast_forward_goal <= self.time() + dt:
+                    # the fast forward goal is reached in the middle of this wait call,
+                    # so we should redefine dt as the remaining time after the fast-forward goal
+                    dt = (self.time() + dt) - self._fast_forward_goal
+                    # if using absolute timing, pretend that we started playback earlier by the part that we didn't wait
+                    self._start_time -= (self._fast_forward_goal - self.time())
+                    self._fast_forward_goal = None
+                else:
+                    # clearly, self._fast_forward_goal >= self.time() + dt, so we're still fast-forwarding.
+                    # keep track of _last_sleep_time, but then return without waiting
+                    self._last_sleep_time = time.time()
+                    # if we're using absolute timing, we need to pretend that we started playback earlier by dt
+                    self._start_time -= dt
+                    return
+
+            # we want to stop sleeping dt after we last finished sleeping, not including the processing that
+            # happened after we finished sleeping. So we calculate the time to finish sleeping based on that
             stop_sleeping_time = self._start_time + self.time() + dt if self.timing_policy == "absolute" \
                 else self._last_sleep_time + dt
             # in case processing took so long that we are already past the time we were supposed to stop sleeping,
@@ -265,6 +288,25 @@ class Clock:
                                 "turn this off by setting the keep_children_caught_up flag to false on the clock or "
                                 "playcorder.".format(calc_time, current_clock().name))
 
+    def fast_forward_to_time(self, t):
+        assert self.is_master(), "Only the master clock can be fast-forwarded."
+        assert t >= self.time(), "Cannot fast-forward to a time in the past."
+        self._fast_forward_goal = t
+
+    def fast_forward_in_time(self, t):
+        self.fast_forward_to_time(self.time() + t)
+
+    def fast_forward_to_beat(self, b):
+        assert b > self.beats(), "Cannot fast-forward to a beat in the past."
+        self.fast_forward_in_beats(b - self.beats())
+
+    def fast_forward_in_beats(self, b):
+        self.fast_forward_in_time(self._tempo_curve.get_wait_time(b))
+
+    def is_fast_forwarding(self):
+        # same as asking if this clock's master clock is fast-forwarding
+        return self.master._fast_forward_goal is not None
+
     def _we_should_catch_up_the_children(self):
         # it's only worth catching up child clocks if this clock itself is always caught up, so let's
         # check that the keep_children_caught_up is set for this and all parent clocks.
@@ -296,11 +338,10 @@ class Clock:
         while len(self._queue) > 0:
             # find the next wake up call
             next_wake_up_call = self._queue.pop(0)
-            beats_till_wake = next_wake_up_call.t - self.beats()
-            parent_wait_time = self._tempo_curve.get_wait_time(beats_till_wake)
-            self.wait_in_parent(parent_wait_time)
-            self._tempo_curve.advance(beats_till_wake, parent_wait_time)
-
+            wake_up_beat = next_wake_up_call.t
+            beats_till_wake = wake_up_beat - self.beats()
+            self.wait_in_parent(self._tempo_curve.get_wait_time(beats_till_wake))
+            self._advance_tempo_map_to_beat(wake_up_beat)
             next_wake_up_call.clock._ready_and_waiting = False
             next_wake_up_call.clock._wait_event.set()
 
@@ -435,8 +476,11 @@ class TempoCurve(ParameterCurve):
         self._t += wait_time
         return beats, wait_time
 
-    def advance_time(self, seconds):
+    def get_beat_wait_from_time_wait(self, seconds):
         beat_to_get_to = self.get_upper_integration_bound(self._beats, seconds, max_error=0.00000001)
-        beats = beat_to_get_to - self._beats
+        return beat_to_get_to - self._beats
+
+    def advance_time(self, seconds):
+        beats = self.get_beat_wait_from_time_wait(seconds)
         self.advance(beats)
         return beats, seconds
