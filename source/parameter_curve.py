@@ -209,7 +209,17 @@ class ParameterCurve:
             return (t2 - self.length()) * self.end_level() + self.integrate_interval(t1, self.length())
         # now that the edge conditions are covered, we just add up the segment integrals
         integral = 0
-        for i, segment in enumerate(self._segments):
+
+        # if there are a lot of segments, we bisect the list repeatedly until we get close t
+        start_index = 0
+        while True:
+            new_start_index = start_index + (len(self._segments) - start_index) // 2
+            if self._segments[new_start_index].end_time < t1 and len(self._segments) - new_start_index > 3:
+                start_index = new_start_index
+            else:
+                break
+
+        for segment in self._segments[start_index:]:
             if t1 < segment.start_time:
                 if t2 > segment.start_time:
                     if t2 <= segment.end_time:

@@ -6,8 +6,6 @@ from multiprocessing.pool import ThreadPool
 import logging
 from .parameter_curve import ParameterCurve, ParameterCurveSegment
 
-# TODO: WHY IS CATCHING UP CHILDREN TAKING LONGER AND LONGER the longer the score goes on!?!?!?
-
 
 def _sleep_precisely_until(stop_time):
     time_remaining = stop_time - time.time()
@@ -282,8 +280,8 @@ class Clock:
             start = time.time()
             self._catch_up_children()
             calc_time = time.time() - start
-            if calc_time > 0.003:
-                logging.warning("Catching up child clocks is taking more than 3 milliseconds ({} seconds to be "
+            if calc_time > 0.001:
+                logging.warning("Catching up child clocks is taking more than 1 milliseconds ({} seconds to be "
                                 "precise) on clock {}. \nUnless you are recording on a child clock, you can safely "
                                 "turn this off by setting the keep_children_caught_up flag to false on the clock or "
                                 "playcorder.".format(calc_time, current_clock().name))
