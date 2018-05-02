@@ -1,1 +1,2 @@
-default, GrandPiano.sf2
+default, Merlin.sf2
+piano, GrandPiano.sf2
