@@ -4,9 +4,17 @@ from copy import deepcopy
 
 class ParameterCurve:
 
-    def __init__(self, levels=(0, 0), durations=(0,), curve_shapes=None):
+    def __init__(self):
         """
-        Implements a parameter curve using exponential curve segments.
+        Implements a parameter curve using exponential curve segments. Initialization happens outside
+        of the constructor for smoother subclassing; this way all of the class methods work correctly
+        on derived classes like TempoCurve.
+        """
+        self._segments = None
+        self.initialize()
+
+    def initialize(self, levels=(0, 0), durations=(0,), curve_shapes=None):
+        """
         A curve shape of zero is linear, > 0 changes late, and < 0 changes early. Strings containing "exp" will also be
         evaluated, with "exp" standing for the shape that will produce constant proportional change per unit time.
 
@@ -27,6 +35,7 @@ class ParameterCurve:
             curve_shapes = [0] * (len(levels) - 1)
 
         self._segments = ParameterCurve._construct_segments_list(levels, durations, curve_shapes)
+        return self
 
     @staticmethod
     def _construct_segments_list(levels, durations, curve_shapes):
@@ -135,7 +144,13 @@ class ParameterCurve:
 
     # ----------------------- Appending / removing segments --------------------------
 
-    def append_segment(self, level, duration, curve_shape=0.0):
+    def append_segment(self, level, duration, curve_shape=0.0, tolerance=0):
+        """
+        Append a segment to the end of the curve ending at level and lasting for duration.
+        If we're adding a linear segment to a linear segment, then we extend the last linear segment
+        instead of adding a new one if the level is within tolerance of where the last one was headed
+        :return:
+        """
         if self._segments[-1].duration == 0:
             # the previous segment has no length. Are we also adding a segment with no length?
             if duration == 0:
@@ -153,6 +168,12 @@ class ParameterCurve:
                     self._segments[-1].end_level = level
                     self._segments[-1].end_time = self.length() + duration
                     self._segments[-1].curve_shape = curve_shape
+        elif self._segments[-1].curve_shape == 0 and curve_shape == 0 and \
+                abs(self._segments[-1].value_at(self.length() + duration, clip_at_boundary=False) - level) <= tolerance:
+            # we're adding a point that would be a perfect continuation of the previous linear segment
+            # (could do this for non-linear, but it's probably not worth the effort)
+            self._segments[-1].end_time = self.length() + duration
+            self._segments[-1].end_level = level
         else:
             self._segments.append(ParameterCurveSegment(self.length(), self.length() + duration,
                                                         self.end_level(), level, curve_shape))
@@ -273,6 +294,10 @@ class ParameterCurve:
         return out
 
     @classmethod
+    def from_levels_and_durations(cls, levels=(0, 0), durations=(0,), curve_shapes=None):
+        return cls().initialize(levels, durations, curve_shapes)
+
+    @classmethod
     def from_levels(cls, levels, length=1.0):
         """
         Construct a parameter curve from levels alone, normalized to the given length
@@ -286,7 +311,7 @@ class ParameterCurve:
         # just given levels, so we linearly interpolate segments of equal length
         durations = [length / (len(levels) - 1)] * (len(levels) - 1)
         curves = [0.0] * (len(levels) - 1)
-        return cls(levels, durations, curves)
+        return cls.from_levels_and_durations(levels, durations, curves)
 
     @classmethod
     def from_list(cls, constructor_list):
@@ -300,17 +325,17 @@ class ParameterCurve:
             if len(constructor_list) == 2:
                 if hasattr(constructor_list[1], "__len__"):
                     # given levels and durations
-                    return ParameterCurve(constructor_list[0], constructor_list[1])
+                    return cls.from_levels_and_durations(constructor_list[0], constructor_list[1])
                 else:
                     # given levels and the total length
-                    return ParameterCurve.from_levels(constructor_list[0], length=constructor_list[1])
+                    return cls.from_levels(constructor_list[0], length=constructor_list[1])
 
             elif len(constructor_list) >= 3:
                 # given levels, durations, and curvature values
-                return cls(constructor_list[0], constructor_list[1], constructor_list[2])
+                return cls.from_levels_and_durations(constructor_list[0], constructor_list[1], constructor_list[2])
         else:
             # just given levels
-            return ParameterCurve.from_levels(constructor_list)
+            return cls.from_levels(constructor_list)
 
     def to_json(self):
         levels = self.levels
@@ -328,9 +353,9 @@ class ParameterCurve:
         else:
             return [levels, durations, curve_shapes]
 
-    @staticmethod
-    def from_json(json_list):
-        return ParameterCurve.from_list(json_list)
+    @classmethod
+    def from_json(cls, json_list):
+        return cls.from_list(json_list)
 
     def __repr__(self):
         return "ParameterCurve({}, {}, {})".format(self.levels, self.durations, self.curve_shapes)
@@ -429,7 +454,7 @@ class ParameterCurveSegment:
         return math.exp(abs(self._curve_shape)) * abs(self._end_level - self._start_level) / self.duration * \
             abs(self._curve_shape) / (math.exp(abs(self._curve_shape)) - 1)
 
-    def value_at(self, t):
+    def value_at(self, t, clip_at_boundary=True):
         """
         Get interpolated value of the curve at time t
         The equation here is y(t) = y1 + (y2 - y1) / (e^S - 1) * (e^(S*t) - 1)
@@ -441,9 +466,9 @@ class ParameterCurveSegment:
         if self._A is None:
             self._calculate_coefficients()
 
-        if t >= self.end_time:
+        if clip_at_boundary and t >= self.end_time:
             return self._end_level
-        elif t <= self.start_time:
+        elif clip_at_boundary and t <= self.start_time:
             return self._start_level
         else:
             norm_t = (t - self.start_time) / (self.end_time - self.start_time)
