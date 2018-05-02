@@ -26,7 +26,7 @@ class PlaycorderInstrument(SavesToJSON):
         self._performance_part = None
 
     def set_host(self, host):
-        from .playcorderNew import Playcorder
+        from .playcorder import Playcorder
         from .ensemble import Ensemble
         assert isinstance(host, (Playcorder, Ensemble))
         if isinstance(host, Playcorder):
