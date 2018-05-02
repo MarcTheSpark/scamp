@@ -293,6 +293,26 @@ class ParameterCurve:
                 segment.end_time *= ratio
         return out
 
+    def inflection_points(self):
+        """
+        Returns a list of the times where the curve changes direction.
+        """
+        inflection_points = []
+        last_direction = 0
+        for segment in self._segments:
+            if segment.end_level > segment.start_level:
+                direction = 1
+            elif segment.end_level < segment.start_level:
+                direction = -1
+            else:
+                # if this segment was static, then keep the direction we had going in
+                direction = last_direction
+            if last_direction * direction < 0:
+                # we changed sign, since
+                inflection_points.append(segment.start_time)
+            last_direction = direction
+        return inflection_points
+
     @classmethod
     def from_levels_and_durations(cls, levels=(0, 0), durations=(0,), curve_shapes=None):
         return cls().initialize(levels, durations, curve_shapes)
