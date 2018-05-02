@@ -144,6 +144,7 @@ class Playcorder:
 
     def add_midi_part(self, name=None, preset=(0, 0), soundfont_index=0, num_channels=8,
                       midi_output_device=None, midi_output_name=None):
+        assert isinstance(self._ensemble, Ensemble)
         return self._ensemble.add_midi_part(name, preset, soundfont_index, num_channels,
                                             midi_output_device, midi_output_name)
 
