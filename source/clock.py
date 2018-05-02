@@ -5,6 +5,7 @@ import threading
 from multiprocessing.pool import ThreadPool
 import logging
 from .parameter_curve import ParameterCurve, ParameterCurveSegment
+from copy import deepcopy
 
 
 def _sleep_precisely_until(stop_time):
@@ -131,6 +132,20 @@ class Clock:
     @tempo.setter
     def tempo(self, t):
         self._tempo_curve.tempo = t
+
+    def apply_tempo_curve(self, tempo_curve, start_beat=None):
+        assert isinstance(tempo_curve, TempoCurve)
+        assert start_beat is None or start_beat > 0
+        if self.beats() == 0 and start_beat is None:
+            self._tempo_curve = tempo_curve
+        else:
+            start_beat = self.beats() if start_beat is None else start_beat
+            self._tempo_curve.truncate(start_beat)
+
+            if self._tempo_curve.end_level() != tempo_curve.start_level():
+                self._tempo_curve.append_segment(tempo_curve.start_level(), 0)
+            for l, d, cs in zip(tempo_curve.levels[1:], tempo_curve.durations, tempo_curve.curve_shapes):
+                self._tempo_curve.append_segment(l, d, cs)
 
     def set_beat_length_target(self, beat_length_target, duration, curve_shape=0,
                                duration_units="beats", truncate=True):
@@ -368,16 +383,35 @@ class Clock:
     def inheritance(self):
         return list(self.iterate_inheritance())
 
-    def get_beat_map(self, start_beat=0, end_beat=None):
+    def extract_absolute_tempo_curve(self, start_beat=0, step_size=0.1, tolerance=0.005):
+        if self.is_master():
+            # if this is the master clock, no extraction is necessary; just use its tempo curve
+            return self._tempo_curve
+
         clocks = self.inheritance()
 
-        tempo_curves = [clock._tempo_curve for clock in clocks]
+        tempo_curves = [deepcopy(clock._tempo_curve) for clock in clocks]
+        tempo_curves[0].go_to_beat(start_beat)
 
-        beats = [start_beat]
-        for i in range(len(clocks)):
+        for i in range(1, len(tempo_curves)):
             # for each clock, its parent_offset + the time it would take to get to its current beat = its parent's beat
-            beats.append(clocks[i].parent_offset + tempo_curves[i].integrate_interval(0, beats[i]))
-        print(beats)
+            tempo_curves[i].go_to_beat(clocks[i-1].parent_offset + tempo_curves[i-1].time())
+
+        def step_and_get_rate():
+            beat_change = step_size
+            for tempo_curve in tempo_curves:
+                _, beat_change = tempo_curve.advance(beat_change)
+            return step_size / beat_change
+
+        initial_rate = step_and_get_rate()
+        output_curve = TempoCurve(starting_rate=initial_rate)
+        output_curve.append_segment(1/initial_rate, step_size)
+
+        while any(tempo_curve.beats() < tempo_curve.length() for tempo_curve in tempo_curves):
+            output_curve.append_segment(1 / step_and_get_rate(), step_size, tolerance=tolerance)
+
+        output_curve.end_level()
+        return output_curve
 
     def __repr__(self):
         child_list = "" if len(self._children) == 0 else ", ".join(str(child) for child in self._children)
@@ -388,7 +422,8 @@ class TempoCurve(ParameterCurve):
 
     def __init__(self, starting_rate=1.0):
         # This is built on a parameter curve of beat length (units = s / beat, or really parent_beats / beat)
-        super().__init__(1/starting_rate)
+        super().__init__()
+        self.initialize(1/starting_rate)
         self._t = 0.0
         self._beats = 0.0
 
@@ -402,13 +437,19 @@ class TempoCurve(ParameterCurve):
     def beat_length(self):
         return self.value_at(self._beats)
 
+    def truncate(self, beat=None):
+        # removes all segments after beat (which defaults to the current beat) and adds a constant segment
+        # if necessary to being us up to that beat
+        beat = self.beats() if beat is None else beat
+        self.remove_segments_after(beat)
+        # brings us up-to-date by adding a constant segment in case we haven't had a segment for a while
+        if self.length() < beat:
+            # no explicit segments have been made for a while, insert a constant segment to bring us up to date
+            self.append_segment(self.end_level(), beat - self.length())
+
     @beat_length.setter
     def beat_length(self, beat_length):
-        self.remove_segments_after(self.beats())
-        # brings us up-to-date by adding a constant segment in case we haven't had a segment for a while
-        if self.length() < self.beats():
-            # no explicit segments have been made for a while, insert a constant segment to bring us up to date
-            self.append_segment(self.end_level(), self.beats() - self.length())
+        self.truncate()
         self.append_segment(beat_length, 0)
 
     @property
@@ -482,3 +523,11 @@ class TempoCurve(ParameterCurve):
         beats = self.get_beat_wait_from_time_wait(seconds)
         self.advance(beats)
         return beats, seconds
+
+    def go_to_beat(self, b):
+        self._beats = b
+        self._t = self.integrate_interval(0, b)
+        return self
+
+    def __repr__(self):
+        return "TempoCurve({}, {}, {})".format(self.levels, self.durations, self.curve_shapes)
