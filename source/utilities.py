@@ -1,3 +1,5 @@
+__author__ = 'mpevans'
+
 import os
 import sys
 import inspect
@@ -6,8 +8,6 @@ import itertools
 import pickle
 import json
 from abc import ABC, abstractmethod
-
-__author__ = 'mpevans'
 
 
 def resolve_relative_path(file_name, from_root_process=False):
