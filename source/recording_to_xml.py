@@ -5,7 +5,7 @@ from .measures_beats_notes import *
 from copy import deepcopy
 from .thirdparty.interval import IntervalSet
 from itertools import permutations
-from .playcorder_utilities import make_flat_list, round_to_multiple, get_standard_indispensability_array, prime_factor
+from .utilities import make_flat_list, round_to_multiple, get_standard_indispensability_array, prime_factor
 import re
 
 notation_locations = {

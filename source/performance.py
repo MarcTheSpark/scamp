@@ -117,8 +117,8 @@ class PerformancePart(SavesToJSON):
             {
                 "start_time": n.start_time,
                 "length": n.length,
-                "pitch": n.pitch.to_json() if hasattr(n.pitch, "to_json") else n.pitch,
-                "volume": n.volume.to_json() if hasattr(n.volume, "to_json") else n.volume,
+                "pitch": n.pitch._to_json() if hasattr(n.pitch, "_to_json") else n.pitch,
+                "volume": n.volume._to_json() if hasattr(n.volume, "_to_json") else n.volume,
                 "properties": n.properties
             } for n in self.notes
         ]}
@@ -184,11 +184,11 @@ class Performance(SavesToJSON):
         return self
 
     def _to_json(self):
-        return {"parts": [part.to_json() for part in self.parts], "tempo_curve": self.tempo_curve.to_json()}
+        return {"parts": [part._to_json() for part in self.parts], "tempo_curve": self.tempo_curve._to_json()}
 
     @classmethod
     def _from_json(cls, json_dict):
-        return cls([PerformancePart.from_json(part_json) for part_json in json_dict["parts"]],
+        return cls([PerformancePart._from_json(part_json) for part_json in json_dict["parts"]],
                    TempoCurve.from_list(json_dict["tempo_curve"]))
 
     def __repr__(self):

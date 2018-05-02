@@ -1,8 +1,7 @@
-from .playcorder_utilities import resolve_relative_path
+from .utilities import resolve_relative_path, SavesToJSON
 from .simple_rtmidi_wrapper import SimpleRtMidiOut
 from collections import OrderedDict
 import logging
-from .utilities import SavesToJSON
 
 try:
     from .thirdparty import fluidsynth
