@@ -39,6 +39,8 @@ class PerformancePart:
 
     @property
     def end_time(self):
+        if len(self.notes) == 0:
+            return 0
         return max(n.start_time + n.length for n in self.notes)
 
     def get_note_iterator(self, start_time, stop_time):
