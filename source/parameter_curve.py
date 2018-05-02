@@ -1,8 +1,9 @@
 import math
 from copy import deepcopy
+from .utilities import SavesToJSON
 
 
-class ParameterCurve:
+class ParameterCurve(SavesToJSON):
 
     def __init__(self):
         """
@@ -357,7 +358,7 @@ class ParameterCurve:
             # just given levels
             return cls.from_levels(constructor_list)
 
-    def to_json(self):
+    def _to_json(self):
         levels = self.levels
         durations = self.durations
         curve_shapes = self.curve_shapes
@@ -374,7 +375,7 @@ class ParameterCurve:
             return [levels, durations, curve_shapes]
 
     @classmethod
-    def from_json(cls, json_list):
+    def _from_json(cls, json_list):
         return cls.from_list(json_list)
 
     def __repr__(self):

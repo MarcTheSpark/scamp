@@ -2,6 +2,7 @@ from .playcorder_utilities import resolve_relative_path
 from .simple_rtmidi_wrapper import SimpleRtMidiOut
 from collections import OrderedDict
 import logging
+from .utilities import SavesToJSON
 
 try:
     from .thirdparty import fluidsynth
@@ -55,7 +56,7 @@ def get_default_soundfonts():
     return _defaultSoundfonts
 
 
-class CombinedMidiPlayer:
+class CombinedMidiPlayer(SavesToJSON):
 
     def __init__(self, soundfonts=None, audio_driver=None, rtmidi_output_device=None):
 
@@ -133,12 +134,12 @@ class CombinedMidiPlayer:
                     (avoid is None or avoid.lower() not in inst.name.lower())]
         return None
 
-    def to_json(self):
+    def _to_json(self):
         return {"soundfonts": self.soundfonts, "audio_driver": self._audio_driver,
                 "rtmidi_output_device": self.rtmidi_output_device}
 
     @classmethod
-    def from_json(cls, json_dict):
+    def _from_json(cls, json_dict):
         return cls(**json_dict)
 
 

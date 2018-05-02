@@ -3,11 +3,12 @@ from collections import namedtuple
 from .parameter_curve import ParameterCurve
 from .clock import Clock, TempoCurve
 import logging
+from .utilities import SavesToJSON
 
 PerformanceNote = namedtuple("PerformanceNote", "start_time length pitch volume properties")
 
 
-class PerformancePart:
+class PerformancePart(SavesToJSON):
 
     def __init__(self, instrument=None, name=None, notes=None, instrument_id=None):
         self.instrument = instrument  # A PlaycorderInstrument instance
@@ -111,7 +112,7 @@ class PerformancePart:
             self.name, self._instrument_id, "   " + ", \n   ".join(str(x) for x in self.notes)
         )
 
-    def to_json(self):
+    def _to_json(self):
         return {"name": self.name, "instrument_id": self._instrument_id, "notes": [
             {
                 "start_time": n.start_time,
@@ -123,19 +124,19 @@ class PerformancePart:
         ]}
 
     @classmethod
-    def from_json(cls, json_dict):
+    def _from_json(cls, json_dict):
         performance_part = cls(name=json_dict["name"])
         performance_part._instrument_id = json_dict["instrument_id"]
         for note in json_dict["notes"]:
             if hasattr(note["pitch"], "__len__"):
-                note["pitch"] = ParameterCurve.from_json(note["pitch"])
+                note["pitch"] = ParameterCurve._from_json(note["pitch"])
             if hasattr(note["volume"], "__len__"):
-                note["volume"] = ParameterCurve.from_json(note["volume"])
+                note["volume"] = ParameterCurve._from_json(note["volume"])
             performance_part.add_note(PerformanceNote(**note))
         return performance_part
 
 
-class Performance:
+class Performance(SavesToJSON):
 
     def __init__(self, parts=None, tempo_curve=None):
         self.parts = [] if parts is None else parts
@@ -182,24 +183,13 @@ class Performance:
             part.set_instrument_from_ensemble(ensemble)
         return self
 
-    def to_json(self):
+    def _to_json(self):
         return {"parts": [part.to_json() for part in self.parts], "tempo_curve": self.tempo_curve.to_json()}
 
     @classmethod
-    def from_json(cls, json_dict):
+    def _from_json(cls, json_dict):
         return cls([PerformancePart.from_json(part_json) for part_json in json_dict["parts"]],
                    TempoCurve.from_list(json_dict["tempo_curve"]))
-
-    def save_to_json(self, file_path):
-        import json
-        with open(file_path, "w") as file:
-            json.dump(self.to_json(), file)
-
-    @staticmethod
-    def load_from_json(file_path):
-        import json
-        with open(file_path, "r") as file:
-            return Performance.from_json(json.load(file))
 
     def __repr__(self):
         return "Performance([\n{}\n])".format("   " + ",\n   ".join(

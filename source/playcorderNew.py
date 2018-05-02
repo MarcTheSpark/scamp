@@ -1,20 +1,14 @@
-import threading
-import time
 import logging
 from inspect import signature
 
-from .recording_to_xml import save_to_xml_file as save_recording_to_xml
-
-from .combined_midi_player import CombinedMidiPlayer, register_default_soundfont, \
-    unregister_default_soundfont, get_default_soundfonts
+from .combined_midi_player import register_default_soundfont, unregister_default_soundfont, get_default_soundfonts
 
 from .simple_rtmidi_wrapper import get_available_midi_output_devices
 
-from .performance import Performance, PerformancePart
-from .parameter_curve import ParameterCurve
+from .performance import Performance
 
 from .ensemble import Ensemble
-from .instruments import PlaycorderInstrument, MidiPlaycorderInstrument
+from .instruments import PlaycorderInstrument
 
 from .clock import Clock
 

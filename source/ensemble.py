@@ -1,8 +1,9 @@
 from .instruments import PlaycorderInstrument, MidiPlaycorderInstrument
 from .combined_midi_player import CombinedMidiPlayer
+from .utilities import SavesToJSON
 
 
-class Ensemble:
+class Ensemble(SavesToJSON):
 
     def __init__(self, soundfonts=None, audio_driver=None, default_midi_output_device=None):
         # if we are using just one soundfont a string is okay; we'll just put it in a list
@@ -106,18 +107,18 @@ class Ensemble:
                     imperfect_match = instrument if imperfect_match is None else imperfect_match
         return imperfect_match
 
-    def to_json(self):
+    def _to_json(self):
         return {
-            "midi_player": self.midi_player.to_json(),
+            "midi_player": self.midi_player._to_json(),
             "instruments": [
-                instrument.to_json() for instrument in self.instruments
+                instrument._to_json() for instrument in self.instruments
             ]
         }
 
     @classmethod
-    def from_json(cls, json_dict, host_playcorder=None):
+    def _from_json(cls, json_dict, host_playcorder=None):
         ensemble = cls(host_playcorder)
-        ensemble.midi_player = CombinedMidiPlayer.from_json(json_dict["midi_player"])
+        ensemble.midi_player = CombinedMidiPlayer._from_json(json_dict["midi_player"])
         for json_instrument in json_dict["instruments"]:
-            ensemble.add_part(PlaycorderInstrument.from_json(json_instrument, ensemble))
+            ensemble.add_part(PlaycorderInstrument._from_json(json_instrument, ensemble))
         return ensemble

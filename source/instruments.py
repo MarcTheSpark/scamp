@@ -2,9 +2,10 @@ import threading
 import time
 from .parameter_curve import ParameterCurve
 import logging
+from .utilities import SavesToJSON
 
 
-class PlaycorderInstrument:
+class PlaycorderInstrument(SavesToJSON):
 
     def __init__(self, host=None, name=None):
         """
@@ -66,11 +67,28 @@ class PlaycorderInstrument:
         # Changes the expression of the note with the given id
         pass
 
-    def to_json(self):
+    def _to_json(self):
         return {
             "type": "PlaycorderInstrument",
             "name": self.name,
         }
+
+    # -------------- Reconstruct from JSON (doesn't need subclass reimplementation) ---------------
+
+    @staticmethod
+    def _from_json(json_dict, host_ensemble=None):
+        # the 'type' argument of the json_dict tells us which kind of PlaycorderInstrument constructor to use
+        type_to_create = None
+        for instrument_type in PlaycorderInstrument.__subclasses__():
+            if json_dict["type"] == instrument_type.__name__:
+                type_to_create = instrument_type
+                break
+        if type_to_create is None:
+            raise ValueError("Trying to reconstruct instrument of type {}, "
+                             "but that type is not defined.".format(json_dict["type"]))
+        kwargs = dict(json_dict)
+        del kwargs["type"]
+        return type_to_create(host_ensemble, **kwargs)
 
     # ------------------------- "Private" Playback Methods -----------------------
 
@@ -267,21 +285,6 @@ class PlaycorderInstrument:
             return
         return len(self._notes_started)
 
-    @staticmethod
-    def from_json(json_dict, host_ensemble):
-        # the 'type' argument of the json_dict tells us which kind of PlaycorderInstrument constructor to use
-        type_to_create = None
-        for instrument_type in PlaycorderInstrument.__subclasses__():
-            if json_dict["type"] == instrument_type.__name__:
-                type_to_create = instrument_type
-                break
-        if type_to_create is None:
-            raise ValueError("Trying to reconstruct instrument of type {}, "
-                             "but that type is not defined.".format(json_dict["type"]))
-        kwargs = dict(json_dict)
-        del kwargs["type"]
-        return type_to_create(host_ensemble, **kwargs)
-
     def __repr__(self):
         return "PlaycorderInstrument({}, {})".format(self.host_ensemble, self.name)
 
@@ -384,7 +387,7 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
     def set_max_pitch_bend(self, semitones):
         self.midi_instrument.set_max_pitch_bend(semitones)
 
-    def to_json(self):
+    def _to_json(self):
         return {
             "type": "MidiPlaycorderInstrument",
             "name": self.name,
