@@ -13,7 +13,6 @@ from .instruments import PlaycorderInstrument
 from .clock import Clock
 
 # TODO: give the "properties" a playlength proportion, figure out how to make default playback properties of things like staccato, tenuto, slurs
-# TODO: Why are there little variations in clock time?
 
 
 class Playcorder:
@@ -134,8 +133,10 @@ class Playcorder:
         self._ensemble.host_playcorder = self
 
     def get_instruments_with_substring(self, word, avoid=None, soundfont_index=0):
-        return self._ensemble.midi_player.get_instruments_with_substring(word, avoid=avoid,
-                                                                         soundfont_index=soundfont_index)
+        return self._ensemble.get_instruments_with_substring(word, avoid=avoid, soundfont_index=soundfont_index)
+
+    def print_all_soundfont_presets(self):
+        self._ensemble.print_all_soundfont_presets()
 
     def add_part(self, instrument):
         assert isinstance(instrument, PlaycorderInstrument)

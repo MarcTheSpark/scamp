@@ -133,6 +133,12 @@ class CombinedMidiPlayer(SavesToJSON):
                     (avoid is None or avoid.lower() not in inst.name.lower())]
         return None
 
+    def print_all_soundfont_presets(self):
+        for i in range(len(self.soundfonts)):
+            print("PRESETS FOR {}".format(self.soundfonts[i]))
+            for preset in self.soundfont_instrument_lists[i]:
+                print("   {}".format(preset))
+
     def _to_json(self):
         return {"soundfonts": self.soundfonts, "audio_driver": self._audio_driver,
                 "rtmidi_output_device": self.rtmidi_output_device}

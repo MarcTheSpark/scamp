@@ -32,6 +32,12 @@ class Ensemble(SavesToJSON):
     def default_midi_output_device(self, device):
         self.midi_player.rtmidi_output_device = device
 
+    def get_instruments_with_substring(self, word, avoid=None, soundfont_index=0):
+        return self.midi_player.get_instruments_with_substring(word, avoid=avoid, soundfont_index=soundfont_index)
+
+    def print_all_soundfont_presets(self):
+        self.midi_player.print_all_soundfont_presets()
+
     def add_part(self, instrument):
         """
         Adds an instance of PlaycorderInstrument to this Ensemble. Generally this will be done indirectly
