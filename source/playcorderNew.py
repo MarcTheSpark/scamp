@@ -210,10 +210,20 @@ class Playcorder:
         else:
             return self._recording_clock.beats() - self._recording_start_time
 
-    def stop_recording(self):
+    def stop_recording(self, tempo_curve_tolerance=0.001):
+        """
+        Stop recording and save the recording as a Performance
+        :type tempo_curve_tolerance: when we record on a child clock and we extract the absolute tempo curve,
+        this is the degree of error in tempo that we allow in simplifying the curve. You should probably
+        not be worrying about this, honestly.
+        """
         for part in self.performance.parts:
             instrument = part.instrument
             instrument.end_all_notes()
             instrument._performance_part = None
+        if isinstance(self._recording_clock, Clock):
+            self.performance.tempo_curve = self._recording_clock.extract_absolute_tempo_curve(
+                self._recording_start_time, tolerance=tempo_curve_tolerance
+            )
         self._recording_start_time = None
         return self.performance

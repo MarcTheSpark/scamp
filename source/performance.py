@@ -1,7 +1,7 @@
 from sortedcontainers import SortedList
 from collections import namedtuple
 from .parameter_curve import ParameterCurve
-from .clock import Clock
+from .clock import Clock, TempoCurve
 import logging
 
 PerformanceNote = namedtuple("PerformanceNote", "start_time length pitch volume properties")
@@ -50,7 +50,7 @@ class PerformancePart:
 
         return iterator()
 
-    def play(self, start_time=0, stop_time=None, instrument=None, clock=None, blocking=False):
+    def play(self, start_time=0, stop_time=None, instrument=None, clock=None, blocking=False, tempo_curve=None):
         instrument = self.instrument if instrument is None else instrument
         from playcorder.instruments import PlaycorderInstrument
         if not isinstance(instrument, PlaycorderInstrument):
@@ -60,6 +60,8 @@ class PerformancePart:
             raise ValueError("PerformancePart was given an invalid clock.")
         stop_time = self.end_time if stop_time is None else stop_time
         assert stop_time >= start_time
+        if tempo_curve is not None:
+            assert isinstance(tempo_curve, TempoCurve)
 
         def _play_thread(child_clock):
             note_iterator = self.get_note_iterator(start_time, stop_time)
@@ -86,10 +88,15 @@ class PerformancePart:
 
         if blocking:
             # clock blocked ;-)
+            if tempo_curve is not None:
+                clock.apply_tempo_curve(tempo_curve)
             _play_thread(clock)
             return clock
         else:
-            return clock.fork(_play_thread)
+            sub_clock = clock.fork(_play_thread)
+            if tempo_curve is not None:
+                sub_clock.apply_tempo_curve(tempo_curve)
+            return sub_clock
 
     def set_instrument_from_ensemble(self, ensemble):
         self.instrument = ensemble.get_instrument_by_name(*self._instrument_id)
@@ -128,8 +135,9 @@ class PerformancePart:
 
 class Performance:
 
-    def __init__(self, parts=None):
+    def __init__(self, parts=None, tempo_curve=None):
         self.parts = [] if parts is None else parts
+        self.tempo_curve = TempoCurve() if tempo_curve is None else tempo_curve
         assert isinstance(self.parts, list) and all(isinstance(x, PerformancePart) for x in self.parts)
 
     def new_part(self, instrument=None):
@@ -146,7 +154,7 @@ class Performance:
     def get_parts_by_name(self, name):
         return [x for x in self.parts if x.name == name]
 
-    def play(self, start_time=0, stop_time=None, ensemble=None, clock=None, blocking=False):
+    def play(self, start_time=0, stop_time=None, ensemble=None, clock=None, blocking=False, use_tempo_curve=True):
         if ensemble is not None:
             self.set_instruments_from_ensemble(ensemble)
 
@@ -154,11 +162,13 @@ class Performance:
         if not isinstance(clock, Clock):
             clock = Clock()
 
+        tempo_curve = self.tempo_curve if use_tempo_curve else None
+
         if stop_time is None:
             stop_time = max(p.end_time for p in self.parts)
 
         for p in self.parts:
-            p.play(start_time, stop_time, clock=clock, blocking=False)
+            p.play(start_time, stop_time, clock=clock, blocking=False, tempo_curve=tempo_curve)
 
         if blocking:
             clock.wait_for_children_to_finish()
@@ -171,11 +181,12 @@ class Performance:
         return self
 
     def to_json(self):
-        return {"parts": [part.to_json() for part in self.parts]}
+        return {"parts": [part.to_json() for part in self.parts], "tempo_curve": self.tempo_curve.to_json()}
 
     @classmethod
     def from_json(cls, json_dict):
-        return cls([PerformancePart.from_json(part_json) for part_json in json_dict["parts"]])
+        return cls([PerformancePart.from_json(part_json) for part_json in json_dict["parts"]],
+                   TempoCurve.from_list(json_dict["tempo_curve"]))
 
     def save_to_json(self, file_path):
         import json
