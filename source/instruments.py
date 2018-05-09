@@ -325,6 +325,13 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
         altered_properties["pitch changes"] = isinstance(pitch, ParameterCurve)
         super()._do_play_note(pitch, volume, length, altered_properties, clock)
 
+    def start_note(self, pitch, volume, properties=None):
+        # Same as with _do_play_note, we need to set the "pitch changes" key in the properties dictionary
+        altered_properties = dict(properties) if properties is not None else {}
+        # since we don't know if the pitch will change, we'd better assume it does
+        altered_properties["pitch changes"] = True
+        return super().start_note(pitch, volume, altered_properties)
+
     def _do_start_note(self, pitch, volume, properties):
         # Does the actual sonic implementation of starting a note
         # in this case the note_id returned will be a tuple consisting of
