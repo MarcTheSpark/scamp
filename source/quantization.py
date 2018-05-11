@@ -164,19 +164,25 @@ class MeasureScheme:
         if isinstance(time_signature, str):
             time_signature = TimeSignature.from_string(time_signature)
         self.time_signature = time_signature
-        self.measure_length = time_signature.measure_length
-        assert sum([beat_scheme.beat_length for beat_scheme in beat_quantization_schemes]) == self.measure_length()
+        self.measure_length = time_signature.measure_length()
+        # this better be true
+        assert sum([beat_scheme.beat_length for beat_scheme in beat_quantization_schemes]) == self.measure_length
         self.beat_quantization_schemes = beat_quantization_schemes
 
     @classmethod
     def from_time_signature(cls, time_signature: TimeSignature, max_divisor=8,
                             max_indigestibility=None, simplicity_preference=2.0):
+        # allow for different formulations of the time signature argument
         if isinstance(time_signature, str):
             time_signature = TimeSignature.from_string(time_signature)
+        elif isinstance(time_signature, tuple):
+            time_signature = TimeSignature(*time_signature)
 
         measure_length = time_signature.measure_length()
 
+        # first we make a list of the beat lengths based on the time signature
         if not hasattr(time_signature.numerator, '__len__'):
+            # not an additive meter
             if time_signature.denominator <= 4 or is_multiple(time_signature.numerator, 3):
                 # if the denominator is 4 or less, we'll use the denominator as the beat
                 # and if not, but the numerator is a multiple of 3, then we've got a compound meter
@@ -197,17 +203,23 @@ class MeasureScheme:
                 else:
                     beat_lengths = [duple_beat_length] * (time_signature.numerator // 2 - 1) + [triple_beat_length]
         else:
+            # additive meter
             if time_signature.denominator <= 4:
+                # denominator is quarter note or slower, so treat each denominator value as a beat, ignoring groupings
                 beat_lengths = [4.0 / time_signature.denominator] * sum(time_signature.numerator)
             else:
+                # denominator is eighth or faster, so treat each grouping as a beat
                 beat_lengths = [4.0 / time_signature.denominator * x for x in time_signature.numerator]
 
+        # now we convert the beat lengths to BeatQuantizationSchemes and construct our object
         if max_indigestibility is None:
+            # no max_indigestibility, so just use the max divisor
             beat_schemes = [
                 BeatQuantizationScheme.from_max_divisor(beat_length, max_divisor, simplicity_preference)
                 for beat_length in beat_lengths
             ]
         else:
+            # using a max_indigestibility
             beat_schemes = [
                 BeatQuantizationScheme.from_max_indigestibility(beat_length, max_divisor,
                                                                 max_indigestibility, simplicity_preference)
