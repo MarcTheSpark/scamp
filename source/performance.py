@@ -1,4 +1,4 @@
-from sortedcontainers import SortedList
+import bisect
 from collections import namedtuple
 from playcorder.parameter_curve import ParameterCurve
 from playcorder.clock import Clock, TempoCurve
@@ -24,12 +24,17 @@ class PerformancePart(SavesToJSON):
         # notes is sorted by start_time by default, which is what we want
         if notes is not None:
             assert hasattr(notes, "__len__") and all(isinstance(x, PerformanceNote) for x in notes)
-            self.notes = SortedList(notes)
+            self.notes = notes
         else:
-            self.notes = SortedList()
+            self.notes = []
 
     def add_note(self, note: PerformanceNote):
-        self.notes.add(note)
+        last_note_start_time = self.notes[-1].start_time if len(self.notes) > 0 else 0
+        self.notes.append(note)
+        if note.start_time < last_note_start_time:
+            # always keep self.notes sorted; if we're appending something that shouldn't be at the
+            # very end, we'll need to sort the list after appending. This probably doesn't come up much.
+            self.notes.sort(key=lambda n: n.start_time)
 
     def new_note(self, start_time, length, pitch, volume, properties):
         self.add_note(PerformanceNote(start_time, length, pitch, volume, properties))
@@ -46,7 +51,7 @@ class PerformancePart(SavesToJSON):
 
     def get_note_iterator(self, start_time, stop_time):
         def iterator():
-            note_index = self.notes.bisect_left((start_time,))
+            note_index = bisect.bisect_left(self.notes, (start_time,))
             while note_index < len(self.notes) and self.notes[note_index].start_time < stop_time:
                 yield self.notes[note_index]
                 note_index += 1
@@ -107,6 +112,10 @@ class PerformancePart(SavesToJSON):
             logging.warning("No matching instrument could be found for part {}.".format(self.name))
         return self
 
+    def quantized(self, quantization_scheme):
+        from playcorder.quantization import QuantizedPerformancePart
+        return QuantizedPerformancePart(self, quantization_scheme)
+
     def __repr__(self):
         return "PerformancePart(name=\"{}\", instrument_id={}, notes=[\n{}\n])".format(
             self.name, self._instrument_id, "   " + ", \n   ".join(str(x) for x in self.notes)
@@ -157,6 +166,13 @@ class Performance(SavesToJSON):
     def get_parts_by_name(self, name):
         return [x for x in self.parts if x.name == name]
 
+    @property
+    def end_time(self):
+        return max(p.end_time for p in self.parts)
+
+    def length(self):
+        return self.end_time
+
     def play(self, start_time=0, stop_time=None, ensemble=None, clock=None, blocking=False, use_tempo_curve=True):
         if ensemble is not None:
             self.set_instruments_from_ensemble(ensemble)
@@ -182,6 +198,10 @@ class Performance(SavesToJSON):
         for part in self.parts:
             part.set_instrument_from_ensemble(ensemble)
         return self
+
+    def quantized(self, quantization_scheme):
+        from playcorder.quantization import QuantizedPerformance
+        return QuantizedPerformance(self, quantization_scheme)
 
     def _to_json(self):
         return {"parts": [part._to_json() for part in self.parts], "tempo_curve": self.tempo_curve._to_json()}
