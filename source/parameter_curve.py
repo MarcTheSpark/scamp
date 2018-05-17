@@ -1,6 +1,6 @@
 import math
 from copy import deepcopy
-from .utilities import SavesToJSON
+from playcorder.utilities import SavesToJSON
 
 
 class ParameterCurve(SavesToJSON):

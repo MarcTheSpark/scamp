@@ -1,6 +1,6 @@
-from .utilities import resolve_relative_path, SavesToJSON
-from .simple_rtmidi_wrapper import SimpleRtMidiOut
-from .settings import playback_settings
+from playcorder.utilities import resolve_relative_path, SavesToJSON
+from playcorder.simple_rtmidi_wrapper import SimpleRtMidiOut
+from playcorder.settings import playback_settings
 import logging
 
 try:

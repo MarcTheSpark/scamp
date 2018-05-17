@@ -1,8 +1,8 @@
 import threading
 import time
-from .parameter_curve import ParameterCurve
+from playcorder.parameter_curve import ParameterCurve
 import logging
-from .utilities import SavesToJSON
+from playcorder.utilities import SavesToJSON
 
 
 class PlaycorderInstrument(SavesToJSON):

@@ -1,9 +1,9 @@
 from sortedcontainers import SortedList
 from collections import namedtuple
-from .parameter_curve import ParameterCurve
-from .clock import Clock, TempoCurve
+from playcorder.parameter_curve import ParameterCurve
+from playcorder.clock import Clock, TempoCurve
 import logging
-from .utilities import SavesToJSON
+from playcorder.utilities import SavesToJSON
 
 PerformanceNote = namedtuple("PerformanceNote", "start_time length pitch volume properties")
 

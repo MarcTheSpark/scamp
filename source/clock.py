@@ -4,7 +4,7 @@ from collections import namedtuple
 import threading
 from multiprocessing.pool import ThreadPool
 import logging
-from .parameter_curve import ParameterCurve, ParameterCurveSegment
+from playcorder.parameter_curve import ParameterCurve, ParameterCurveSegment
 from copy import deepcopy
 
 

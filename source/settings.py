@@ -1,4 +1,4 @@
-from .utilities import resolve_relative_path, SavesToJSON
+from playcorder.utilities import resolve_relative_path, SavesToJSON
 import logging
 
 

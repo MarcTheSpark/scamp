@@ -1,6 +1,6 @@
-from .instruments import PlaycorderInstrument, MidiPlaycorderInstrument
-from .combined_midi_player import CombinedMidiPlayer
-from .utilities import SavesToJSON
+from playcorder.instruments import PlaycorderInstrument, MidiPlaycorderInstrument
+from playcorder.combined_midi_player import CombinedMidiPlayer
+from playcorder.utilities import SavesToJSON
 
 
 class Ensemble(SavesToJSON):

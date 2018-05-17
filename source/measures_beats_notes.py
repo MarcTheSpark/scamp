@@ -3,7 +3,7 @@ from fractions import Fraction
 from copy import deepcopy
 import math
 
-from .utilities import floor_x_to_pow_of_y, is_x_pow_of_y, is_multiple, indigestibility
+from playcorder.utilities import floor_x_to_pow_of_y, is_x_pow_of_y, is_multiple, indigestibility
 
 __author__ = 'mpevans'
 

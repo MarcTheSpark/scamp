@@ -1,6 +1,6 @@
-from .performance import Performance, PerformancePart
+from playcorder.performance import Performance, PerformancePart
 from fractions import Fraction
-from .utilities import indigestibility, is_multiple, is_x_pow_of_y
+from playcorder.utilities import indigestibility, is_multiple, is_x_pow_of_y
 from collections import namedtuple
 
 

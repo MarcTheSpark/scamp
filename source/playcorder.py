@@ -1,16 +1,16 @@
 import logging
 from inspect import signature
 
-from .settings import playback_settings
+from playcorder.settings import playback_settings
 
-from .simple_rtmidi_wrapper import get_available_midi_output_devices
+from playcorder.simple_rtmidi_wrapper import get_available_midi_output_devices
 
-from .performance import Performance
+from playcorder.performance import Performance
 
-from .ensemble import Ensemble
-from .instruments import PlaycorderInstrument
+from playcorder.ensemble import Ensemble
+from playcorder.instruments import PlaycorderInstrument
 
-from .clock import Clock
+from playcorder.clock import Clock
 
 # TODO: give the "properties" a playlength proportion, figure out how to make default playback properties of things like staccato, tenuto, slurs
 
