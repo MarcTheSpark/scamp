@@ -19,10 +19,12 @@ def play_some_stuff():
         strings.play_note([75, 73], 0.5, 1.0, blocking=True)
 
 
-# construct_ensemble()
+construct_ensemble()
 
+# # ------- Use this line to save the Ensemble so that it can be reloaded -------
 # ensemble.save_to_json("savedEnsemble.json")
 
+# # ------- Use this line to reloaded the Ensemble from the saved file -------
 # ensemble = Ensemble.load_from_json("savedEnsemble.json")
 # piano, flute, strings = ensemble.instruments
 
