@@ -1,52 +1,62 @@
-from .utilities import resolve_relative_path
-import json
+from .utilities import resolve_relative_path, SavesToJSON
+import logging
 
 
-class SoundfontSettings:
+class PlaybackSettings(SavesToJSON):
 
-    @staticmethod
-    def restore_factory_defaults():
-        SoundfontSettings._save_defaults_to_disk({
+    def __init__(self, settings_dict):
+        self.settings_dict = settings_dict
+
+    def restore_factory_defaults(self):
+        self.settings_dict["default soundfonts"] = {
             "default": "Merlin.sf2",
             "piano": "GrandPiano.sf2"
-        })
+        }
+        return self
 
-    @staticmethod
-    def register_default_soundfont(name: str, soundfont_path: str):
+    def register_default_soundfont(self, name: str, soundfont_path: str):
         """
         Adds a default named soundfont, so that it can be easily referred to in constructing a Playcorder
         :param name: the default soundfont name
         :param soundfont_path: the absolute path to the soundfont, staring with a slash, or a relative path that
         gets resolved relative to the thirdparty/soundfonts directory
         """
-        default_soundfonts = SoundfontSettings.get_default_soundfonts()
-        default_soundfonts[name] = soundfont_path
-        SoundfontSettings._save_defaults_to_disk(default_soundfonts)
+        self.settings_dict["default soundfonts"][name] = soundfont_path
 
-    @staticmethod
-    def unregister_default_soundfont(name: str):
+    def unregister_default_soundfont(self, name: str):
         """
         Same as above, but removes a default named soundfont
         :param name: the default soundfont name to remove
         """
-        default_soundfonts = SoundfontSettings.get_default_soundfonts()
-        del default_soundfonts[name]
-        SoundfontSettings._save_defaults_to_disk(default_soundfonts)
+        if name not in self.settings_dict["default soundfonts"]:
+            logging.warning("Tried to unregister default soundfont '{}', but it didn't exist.".format(name))
+            return
+        del self.settings_dict["default soundfonts"][name]
 
-    @staticmethod
-    def get_default_soundfonts():
-        with open(resolve_relative_path("settings/soundfontSettings.json"), 'r') as soundfont_settings_file:
-            default_soundfonts = json.load(soundfont_settings_file)
-        return default_soundfonts
+    def get_default_soundfonts(self):
+        return self.settings_dict["default soundfonts"]
 
-    @staticmethod
-    def _save_defaults_to_disk(default_soundfonts):
-        with open(resolve_relative_path("settings/soundfontSettings.json"), 'w') as soundfont_settings_file:
-            json.dump(default_soundfonts, soundfont_settings_file, sort_keys=True, indent=4)
+    def make_persistent(self):
+        self.save_to_json(resolve_relative_path("settings/playbackSettings.json"))
 
+    @classmethod
+    def factory_default(cls):
+        return cls({}).restore_factory_defaults()
 
-soundfont_settings = SoundfontSettings()
+    def _to_json(self):
+        return self.settings_dict
+
+    @classmethod
+    def _from_json(cls, json_object):
+        return cls(json_object)
 
 
 def restore_all_factory_defaults():
-    soundfont_settings.restore_factory_defaults()
+    PlaybackSettings({}).restore_factory_defaults().make_persistent()
+
+
+try:
+    playback_settings = PlaybackSettings.load_from_json(resolve_relative_path("settings/playbackSettings.json"))
+except FileNotFoundError:
+    playback_settings = PlaybackSettings.factory_default()
+    playback_settings.make_persistent()

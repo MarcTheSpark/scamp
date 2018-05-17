@@ -1,6 +1,6 @@
 from .utilities import resolve_relative_path, SavesToJSON
 from .simple_rtmidi_wrapper import SimpleRtMidiOut
-from .settings import soundfont_settings
+from .settings import playback_settings
 import logging
 
 try:
@@ -70,7 +70,7 @@ class CombinedMidiPlayer(SavesToJSON):
         elif self.synth is None:
             self.initialize_fluidsynth(self._audio_driver)
 
-        default_soundfonts = soundfont_settings.get_default_soundfonts()
+        default_soundfonts = playback_settings.get_default_soundfonts()
         if soundfont in default_soundfonts:
             soundfont_path = default_soundfonts[soundfont]
             if soundfont_path.startswith("./"):

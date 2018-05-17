@@ -60,7 +60,7 @@ class SavesToJSON(ABC):
 
     def save_to_json(self, file_path):
         with open(file_path, "w") as file:
-            json.dump(self._to_json(), file)
+            json.dump(self._to_json(), file, sort_keys=True, indent=4)
 
     @classmethod
     def load_from_json(cls, file_path):
