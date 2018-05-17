@@ -1,7 +1,7 @@
 import logging
 from inspect import signature
 
-from .combined_midi_player import register_default_soundfont, unregister_default_soundfont, get_default_soundfonts
+from .settings import soundfont_settings
 
 from .simple_rtmidi_wrapper import get_available_midi_output_devices
 
@@ -43,15 +43,15 @@ class Playcorder:
 
     @staticmethod
     def register_default_soundfont(name, soundfont_path):
-        return register_default_soundfont(name, soundfont_path)
+        return soundfont_settings.register_default_soundfont(name, soundfont_path)
 
     @staticmethod
     def unregister_default_soundfont(name):
-        return unregister_default_soundfont(name)
+        return soundfont_settings.unregister_default_soundfont(name)
 
     @staticmethod
     def list_default_soundfonts():
-        for a, b in get_default_soundfonts().items():
+        for a, b in soundfont_settings.get_default_soundfonts().items():
             print("{}: {}".format(a, b))
 
     # ----------------------------------- Clock Stuff --------------------------------

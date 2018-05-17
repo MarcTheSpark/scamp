@@ -1,6 +1,6 @@
 from .utilities import resolve_relative_path, SavesToJSON
 from .simple_rtmidi_wrapper import SimpleRtMidiOut
-from collections import OrderedDict
+from .settings import soundfont_settings
 import logging
 
 try:
@@ -14,45 +14,6 @@ try:
 except ImportError:
     Sf2File = None
     logging.warning("sf2utils was not found; info about soundfont presets will not be available.")
-
-
-# load up all of the default soundfonts and their paths
-with open(resolve_relative_path('thirdparty/soundfonts/defaultSoundfonts.txt'), 'r') as f:
-    _defaultSoundfonts = OrderedDict()
-    for line in f.read().split("\n"):
-        name_and_path = line.split(', ')
-        if len(name_and_path) >= 2:
-            _defaultSoundfonts[name_and_path[0]] = name_and_path[1]
-
-
-def register_default_soundfont(name, soundfont_path):
-    """
-    Adds a default named soundfont, so that it can be easily referred to in constructing a Playcorder
-    :param name: the name to refer to the soundfont as
-    :type name: str
-    :param soundfont_path: the absolute path to the soundfont, staring with a slash, or a relative path that
-    gets resolved relative to the thirdparty/soundfonts directory
-    :type soundfont_path: str
-    """
-    _defaultSoundfonts[name] = soundfont_path
-    with open(resolve_relative_path('thirdparty/soundfonts/defaultSoundfonts.txt'), 'w') as defaults_file:
-        defaults_file.writelines([', '.join(x) + '\n' for x in _defaultSoundfonts.items()])
-
-
-def unregister_default_soundfont(name):
-    """
-    Same as above, but removes a default named soundfont
-    :param name: the default soundfont name to remove
-    :type name: str
-    """
-    del _defaultSoundfonts[name]
-
-    with open(resolve_relative_path('thirdparty/soundfonts/defaultSoundfonts.txt'), 'w') as defaults_file:
-        defaults_file.writelines([', '.join(x) + '\n' for x in _defaultSoundfonts.items()])
-
-
-def get_default_soundfonts():
-    return _defaultSoundfonts
 
 
 class CombinedMidiPlayer(SavesToJSON):
@@ -109,8 +70,9 @@ class CombinedMidiPlayer(SavesToJSON):
         elif self.synth is None:
             self.initialize_fluidsynth(self._audio_driver)
 
-        if soundfont in _defaultSoundfonts:
-            soundfont_path = _defaultSoundfonts[soundfont]
+        default_soundfonts = soundfont_settings.get_default_soundfonts()
+        if soundfont in default_soundfonts:
+            soundfont_path = default_soundfonts[soundfont]
             if soundfont_path.startswith("./"):
                 soundfont_path = resolve_relative_path("thirdparty/soundfonts/" + soundfont_path[2:])
             elif not soundfont_path.startswith("/"):
