@@ -8,9 +8,13 @@ class PlaybackSettings(SavesToJSON):
         self.settings_dict = settings_dict
 
     def restore_factory_defaults(self):
-        self.settings_dict["default soundfonts"] = {
-            "default": "Merlin.sf2",
-            "piano": "GrandPiano.sf2"
+        self.settings_dict = {
+            "default soundfonts": {
+                "default": "Merlin.sf2",
+                "piano": "GrandPiano.sf2"
+            },
+            "audio_driver": None,
+            "default_midi_output_device": None,
         }
         return self
 
@@ -38,6 +42,22 @@ class PlaybackSettings(SavesToJSON):
 
     def make_persistent(self):
         self.save_to_json(resolve_relative_path("settings/playbackSettings.json"))
+
+    @property
+    def default_audio_driver(self):
+        return self.settings_dict["audio_driver"]
+
+    @default_audio_driver.setter
+    def default_audio_driver(self, audio_driver):
+        self.settings_dict["audio_driver"] = audio_driver
+
+    @property
+    def default_midi_output_device(self):
+        return self.settings_dict["default_midi_output_device"]
+
+    @default_midi_output_device.setter
+    def default_midi_output_device(self, default_midi_output_device):
+        self.settings_dict["default_midi_output_device"] = default_midi_output_device
 
     @classmethod
     def factory_default(cls):

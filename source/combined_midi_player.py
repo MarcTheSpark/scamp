@@ -20,9 +20,17 @@ class CombinedMidiPlayer(SavesToJSON):
 
     def __init__(self, soundfonts=None, audio_driver=None, rtmidi_output_device=None):
 
+        if audio_driver is None:
+            audio_driver = playback_settings.default_audio_driver
+
+        if rtmidi_output_device is None:
+            rtmidi_output_device = playback_settings.default_midi_output_device
+
         self.used_channels = 0  # how many channels have we already assigned to various instruments
 
         self.soundfonts = [] if soundfonts is None else soundfonts
+        # we need audio_driver to be a property, since every time it's changed we need to restart fluidsynth
+
         self._audio_driver = audio_driver
         self.rtmidi_output_device = rtmidi_output_device
 
