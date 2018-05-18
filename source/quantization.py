@@ -1,7 +1,15 @@
 from playcorder.performance import Performance, PerformancePart
 from fractions import Fraction
-from playcorder.utilities import indigestibility, is_multiple, is_x_pow_of_y
+from playcorder.utilities import indigestibility, is_multiple, is_x_pow_of_y, round_to_multiple
 from collections import namedtuple
+from playcorder.settings import quantization_settings
+
+# note onset importance, note ending importance
+
+
+QuantizedBeat = namedtuple("QuantizedBeat", "start_time beat_length end_time beat_length_without_tuplet divisor")
+
+QuantizedMeasure = namedtuple("QuantizedMeasure", "beat_schemes time_signature measure_length start_time end_time")
 
 
 class QuantizedPerformancePart(PerformancePart):
@@ -11,15 +19,101 @@ class QuantizedPerformancePart(PerformancePart):
                          performance_part.notes, performance_part.instrument_id)
         self.quantized_measures = self.quantize(quantization_scheme)
 
-    def quantize(self, quantization_scheme):
-        # TODO: THIS
-        pass
-        # # raw_onsets and raw_terminations are in seconds
-        # raw_onsets = [(pc_note.start_time, pc_note) for pc_note in recording_in_seconds]
-        # raw_terminations = [(pc_note.start_time + pc_note.length, pc_note) for pc_note in recording_in_seconds]
-        # raw_onsets.sort(key=lambda x: x[0])
-        # raw_terminations.sort(key=lambda x: x[0])
-        #
+    def quantize(self, quantization_scheme, onset_weighting="default", termination_weighting="default"):
+        if onset_weighting == "default":
+            onset_weighting = quantization_settings.onset_weighting
+
+        if termination_weighting == "default":
+            termination_weighting = quantization_settings.termination_weighting
+
+        assert isinstance(quantization_scheme, QuantizationScheme)
+        # make list of (note onset time, note) tuples
+        raw_onsets = [(performance_note.start_time, performance_note) for performance_note in self.notes]
+        # make list of (note termination time, note) tuples
+        raw_terminations = [(performance_note.start_time + performance_note.length, performance_note)
+                            for performance_note in self.notes]
+        # sort them
+        raw_onsets.sort(key=lambda x: x[0])
+        raw_terminations.sort(key=lambda x: x[0])
+
+        beat_scheme_iterator = quantization_scheme.measure_scheme_iterator()
+        beat_divisors = []
+
+        while len(raw_onsets) + len(raw_terminations) > 0:
+            this_beat_scheme, beat_start_time = next(beat_scheme_iterator)
+            assert isinstance(this_beat_scheme, BeatQuantizationScheme)
+            beat_end_time = beat_start_time + this_beat_scheme.length
+
+            # find the onsets in this beat
+            onsets_in_this_beat = []
+            while len(raw_onsets) > 0 and raw_onsets[0][0] < beat_end_time:
+                onsets_in_this_beat.append(raw_onsets.pop(0))
+
+            # find the terminations in this beat
+            terminations_in_this_beat = []
+            while len(raw_terminations) > 0 and raw_terminations[0][0] < beat_end_time:
+                terminations_in_this_beat.append(raw_terminations.pop(0))
+
+            if len(onsets_in_this_beat) + len(terminations_in_this_beat) == 0:
+                # an empty beat, nothing to see here
+                beat_divisors.append(None)
+                continue
+
+            # try out each quantization division
+            best_divisor = None
+            best_error = float("inf")
+
+            for divisor, undesirability in this_beat_scheme.quantization_divisions:
+                division_length = this_beat_scheme.length / divisor
+                total_squared_onset_error = 0
+                total_squared_termination_error = 0
+
+                for onset in onsets_in_this_beat:
+                    time_since_beat_start = onset[0] - beat_start_time
+                    # squared distance from closest division of the beat
+                    total_squared_onset_error += \
+                        (time_since_beat_start - round_to_multiple(time_since_beat_start, division_length)) ** 2
+
+                for termination in terminations_in_this_beat:
+                    time_since_beat_start = termination[0] - beat_start_time
+                    # squared distance from closest division of the beat
+                    total_squared_termination_error += \
+                        (time_since_beat_start - round_to_multiple(time_since_beat_start, division_length)) ** 2
+
+                this_div_error_score = undesirability * (termination_weighting * total_squared_termination_error +
+                                                         onset_weighting * total_squared_onset_error)
+
+                if this_div_error_score < best_error:
+                    best_divisor = divisor
+                    best_error = this_div_error_score
+
+            division_length = this_beat_scheme.length / best_divisor
+
+            for onset, pc_note in onsets_to_quantize:
+                pieces_past_beat_start = round((onset - seconds_beat_start_time) / best_piece_length_seconds)
+                pc_note_to_quantize_start_time[
+                    pc_note] = quarters_beat_start_time + pieces_past_beat_start * best_piece_length_quarters
+                # save this info for later, when we need to assure they all have the same Tuplet
+                pc_note.start_time_divisor = best_divisor
+
+            for termination, pc_note in terminations_to_quantize:
+                pieces_past_beat_start = round((termination - seconds_beat_start_time) / best_piece_length_seconds)
+                pc_note_to_quantize_end_time[
+                    pc_note] = quarters_beat_start_time + pieces_past_beat_start * best_piece_length_quarters
+                if pc_note_to_quantize_end_time[pc_note] == pc_note_to_quantize_start_time[pc_note]:
+                    # if the quantization collapses the start and end times of a note to the same point, adjust the
+                    # end time so the the note is a single piece_length long.
+                    if pc_note_to_quantize_end_time[pc_note] + best_piece_length_quarters <= quarters_beat_end_time:
+                        # unless both are quantized to the start of the next beat, just move the end one piece forward
+                        pc_note_to_quantize_end_time[pc_note] += best_piece_length_quarters
+                    else:
+                        # if they're at the start of the next beat, move the start one piece back
+                        pc_note_to_quantize_start_time[pc_note] -= best_piece_length_quarters
+                # save this info for later, when we need to assure they all have the same Tuplet
+                pc_note.end_time_divisor = best_divisor
+
+            beat_divisors.append(best_divisor)
+
         # pc_note_to_quantize_start_time = {}
         # pc_note_to_quantize_end_time = {}
         # current_beat_scheme = 0
@@ -125,16 +219,13 @@ class QuantizedPerformance(Performance):
         Represents a quantized version of a performance that knows what measure schemes it was quantized to.
         This is the first step in outputting a readable score.
         :param performance: The unquantized performance it's based on
-        :param measure_schemes: the measure quantization scheme(s) to use
+        :param quantization_scheme: the quantization scheme to use
         """
         super().__init__(performance.parts, performance.tempo_curve)
         self.quantize(quantization_scheme)
 
     def quantize(self, quantization_scheme):
         self.parts = [QuantizedPerformancePart(part, quantization_scheme) for part in self.parts]
-
-
-QuantizedBeat = namedtuple("QuantizedBeat", "start_time beat_length end_time beat_length_without_tuplet divisor")
 
 
 class BeatQuantizationScheme:
@@ -248,6 +339,7 @@ class TimeSignature:
 
     @classmethod
     def from_string(cls, time_signature_string):
+        assert isinstance(time_signature_string, str) and len(time_signature_string.split("/")) == 2
         numerator_string, denominator_string = time_signature_string.split("/")
         numerator = tuple(int(x) for x in numerator_string.split("+")) \
             if "+" in numerator_string else int(numerator_string)
@@ -271,9 +363,6 @@ class TimeSignature:
 
     def __repr__(self):
         return "TimeSignature({}, {})".format(self.numerator, self.denominator)
-
-
-QuantizedMeasure = namedtuple("QuantizedMeasure", "beat_schemes time_signature measure_length start_time end_time")
 
 
 class MeasureQuantizationScheme:

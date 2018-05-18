@@ -1,8 +1,8 @@
 {
-    "audio_driver": null,
-    "default soundfonts": {
+    "default_audio_driver": null,
+    "default_midi_output_device": null,
+    "default_soundfonts": {
         "default": "Merlin.sf2",
         "piano": "GrandPiano.sf2"
-    },
-    "default_midi_output_device": null
+    }
 }

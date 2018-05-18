@@ -1,0 +1,7 @@
+{
+    "max_divisor": 8,
+    "max_indigestibility": null,
+    "onset_weighting": 1.0,
+    "simplicity_preference": 2.0,
+    "termination_weighting": 0.5
+}
