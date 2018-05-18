@@ -1,22 +1,20 @@
-from playcorder.performance import Performance, PerformancePart
+from playcorder.performance import Performance, PerformancePart, PerformanceNote
 from fractions import Fraction
 from playcorder.utilities import indigestibility, is_multiple, is_x_pow_of_y, round_to_multiple
 from collections import namedtuple
 from playcorder.settings import quantization_settings
 
-# note onset importance, note ending importance
 
+QuantizedBeat = namedtuple("QuantizedBeat", "start_time beat_length end_time divisor")
 
-QuantizedBeat = namedtuple("QuantizedBeat", "start_time beat_length end_time beat_length_without_tuplet divisor")
-
-QuantizedMeasure = namedtuple("QuantizedMeasure", "beat_schemes time_signature measure_length start_time end_time")
+QuantizedMeasure = namedtuple("QuantizedMeasure", "beats time_signature measure_length start_time end_time")
 
 
 class QuantizedPerformancePart(PerformancePart):
 
     def __init__(self, performance_part, quantization_scheme):
         super().__init__(performance_part.instrument, performance_part.name,
-                         performance_part.notes, performance_part.instrument_id)
+                         performance_part.notes, performance_part._instrument_id)
         self.quantized_measures = self.quantize(quantization_scheme)
 
     def quantize(self, quantization_scheme, onset_weighting="default", termination_weighting="default"):
@@ -36,13 +34,15 @@ class QuantizedPerformancePart(PerformancePart):
         raw_onsets.sort(key=lambda x: x[0])
         raw_terminations.sort(key=lambda x: x[0])
 
-        beat_scheme_iterator = quantization_scheme.measure_scheme_iterator()
+        notes_to_quantized_onsets = {}
+        notes_to_quantized_terminations = {}
+        beat_scheme_iterator = quantization_scheme.beat_scheme_iterator()
         beat_divisors = []
 
         while len(raw_onsets) + len(raw_terminations) > 0:
-            this_beat_scheme, beat_start_time = next(beat_scheme_iterator)
-            assert isinstance(this_beat_scheme, BeatQuantizationScheme)
-            beat_end_time = beat_start_time + this_beat_scheme.length
+            beat_scheme, beat_start_time = next(beat_scheme_iterator)
+            assert isinstance(beat_scheme, BeatQuantizationScheme)
+            beat_end_time = beat_start_time + beat_scheme.length
 
             # find the onsets in this beat
             onsets_in_this_beat = []
@@ -59,157 +59,91 @@ class QuantizedPerformancePart(PerformancePart):
                 beat_divisors.append(None)
                 continue
 
-            # try out each quantization division
-            best_divisor = None
-            best_error = float("inf")
-
-            for divisor, undesirability in this_beat_scheme.quantization_divisions:
-                division_length = this_beat_scheme.length / divisor
-                total_squared_onset_error = 0
-                total_squared_termination_error = 0
-
-                for onset in onsets_in_this_beat:
-                    time_since_beat_start = onset[0] - beat_start_time
-                    # squared distance from closest division of the beat
-                    total_squared_onset_error += \
-                        (time_since_beat_start - round_to_multiple(time_since_beat_start, division_length)) ** 2
-
-                for termination in terminations_in_this_beat:
-                    time_since_beat_start = termination[0] - beat_start_time
-                    # squared distance from closest division of the beat
-                    total_squared_termination_error += \
-                        (time_since_beat_start - round_to_multiple(time_since_beat_start, division_length)) ** 2
-
-                this_div_error_score = undesirability * (termination_weighting * total_squared_termination_error +
-                                                         onset_weighting * total_squared_onset_error)
-
-                if this_div_error_score < best_error:
-                    best_divisor = divisor
-                    best_error = this_div_error_score
-
-            division_length = this_beat_scheme.length / best_divisor
-
-            for onset, pc_note in onsets_to_quantize:
-                pieces_past_beat_start = round((onset - seconds_beat_start_time) / best_piece_length_seconds)
-                pc_note_to_quantize_start_time[
-                    pc_note] = quarters_beat_start_time + pieces_past_beat_start * best_piece_length_quarters
-                # save this info for later, when we need to assure they all have the same Tuplet
-                pc_note.start_time_divisor = best_divisor
-
-            for termination, pc_note in terminations_to_quantize:
-                pieces_past_beat_start = round((termination - seconds_beat_start_time) / best_piece_length_seconds)
-                pc_note_to_quantize_end_time[
-                    pc_note] = quarters_beat_start_time + pieces_past_beat_start * best_piece_length_quarters
-                if pc_note_to_quantize_end_time[pc_note] == pc_note_to_quantize_start_time[pc_note]:
-                    # if the quantization collapses the start and end times of a note to the same point, adjust the
-                    # end time so the the note is a single piece_length long.
-                    if pc_note_to_quantize_end_time[pc_note] + best_piece_length_quarters <= quarters_beat_end_time:
-                        # unless both are quantized to the start of the next beat, just move the end one piece forward
-                        pc_note_to_quantize_end_time[pc_note] += best_piece_length_quarters
-                    else:
-                        # if they're at the start of the next beat, move the start one piece back
-                        pc_note_to_quantize_start_time[pc_note] -= best_piece_length_quarters
-                # save this info for later, when we need to assure they all have the same Tuplet
-                pc_note.end_time_divisor = best_divisor
-
+            best_divisor = QuantizedPerformancePart._get_best_divisor(beat_scheme, beat_start_time, onsets_in_this_beat,
+                                                                      terminations_in_this_beat, onset_weighting,
+                                                                      termination_weighting)
             beat_divisors.append(best_divisor)
+            division_length = beat_scheme.length / best_divisor
 
-        # pc_note_to_quantize_start_time = {}
-        # pc_note_to_quantize_end_time = {}
-        # current_beat_scheme = 0
-        # quarters_beat_start_time = 0.0
-        # seconds_beat_start_time = 0.0
-        # beat_divisors = []
-        # while len(raw_onsets) + len(raw_terminations) > 0:
-        #     # move forward one beat at a time
-        #     # get the beat scheme for this beat
-        #     this_beat_scheme = beat_schemes[current_beat_scheme] if current_beat_scheme < len(beat_schemes) \
-        #         else beat_schemes[-1]
-        #     assert isinstance(this_beat_scheme, BeatQuantizationScheme)
-        #     current_beat_scheme += 1
-        #
-        #     # get the beat length and end time in quarters and seconds
-        #     quarters_beat_length = this_beat_scheme.length
-        #     seconds_beat_length = this_beat_scheme.length * 60.0 / this_beat_scheme.tempo
-        #     quarters_beat_end_time = quarters_beat_start_time + this_beat_scheme.length
-        #     seconds_beat_end_time = seconds_beat_start_time + seconds_beat_length
-        #
-        #     # find the onsets in this beat
-        #     onsets_to_quantize = []
-        #     while len(raw_onsets) > 0 and raw_onsets[0][0] < seconds_beat_end_time:
-        #         onsets_to_quantize.append(raw_onsets.pop(0))
-        #
-        #     # find the terminations in this beat
-        #     terminations_to_quantize = []
-        #     while len(raw_terminations) > 0 and raw_terminations[0][0] < seconds_beat_end_time:
-        #         terminations_to_quantize.append(raw_terminations.pop(0))
-        #
-        #     if len(onsets_to_quantize) + len(terminations_to_quantize) == 0:
-        #         # an empty beat, nothing to see here
-        #         beat_divisors.append(None)
-        #     else:
-        #         # try out each quantization division
-        #         best_divisor = None
-        #         best_error = float("inf")
-        #
-        #         for divisor, undesirability in this_beat_scheme.quantization_divisions:
-        #             seconds_piece_length = seconds_beat_length / divisor
-        #             total_squared_onset_error = 0
-        #             for onset in onsets_to_quantize:
-        #                 time_since_beat_start = onset[0] - seconds_beat_start_time
-        #                 total_squared_onset_error += (time_since_beat_start - round_to_multiple(time_since_beat_start,
-        #                                                                                         seconds_piece_length)) ** 2
-        #             total_squared_term_error = 0
-        #             for term in terminations_to_quantize:
-        #                 time_since_beat_start = term[0] - seconds_beat_start_time
-        #                 total_squared_term_error += (time_since_beat_start - round_to_multiple(time_since_beat_start,
-        #                                                                                        seconds_piece_length)) ** 2
-        #             this_div_error_score = undesirability * (onset_termination_weighting * total_squared_term_error +
-        #                                                      (
-        #                                                              1 - onset_termination_weighting) * total_squared_onset_error)
-        #             if this_div_error_score < best_error:
-        #                 best_divisor = divisor
-        #                 best_error = this_div_error_score
-        #         best_piece_length_quarters = this_beat_scheme.length / best_divisor
-        #         best_piece_length_seconds = seconds_beat_length / best_divisor
-        #
-        #         for onset, pc_note in onsets_to_quantize:
-        #             pieces_past_beat_start = round((onset - seconds_beat_start_time) / best_piece_length_seconds)
-        #             pc_note_to_quantize_start_time[
-        #                 pc_note] = quarters_beat_start_time + pieces_past_beat_start * best_piece_length_quarters
-        #             # save this info for later, when we need to assure they all have the same Tuplet
-        #             pc_note.start_time_divisor = best_divisor
-        #
-        #         for termination, pc_note in terminations_to_quantize:
-        #             pieces_past_beat_start = round((termination - seconds_beat_start_time) / best_piece_length_seconds)
-        #             pc_note_to_quantize_end_time[
-        #                 pc_note] = quarters_beat_start_time + pieces_past_beat_start * best_piece_length_quarters
-        #             if pc_note_to_quantize_end_time[pc_note] == pc_note_to_quantize_start_time[pc_note]:
-        #                 # if the quantization collapses the start and end times of a note to the same point, adjust the
-        #                 # end time so the the note is a single piece_length long.
-        #                 if pc_note_to_quantize_end_time[pc_note] + best_piece_length_quarters <= quarters_beat_end_time:
-        #                     # unless both are quantized to the start of the next beat, just move the end one piece forward
-        #                     pc_note_to_quantize_end_time[pc_note] += best_piece_length_quarters
-        #                 else:
-        #                     # if they're at the start of the next beat, move the start one piece back
-        #                     pc_note_to_quantize_start_time[pc_note] -= best_piece_length_quarters
-        #             # save this info for later, when we need to assure they all have the same Tuplet
-        #             pc_note.end_time_divisor = best_divisor
-        #
-        #         beat_divisors.append(best_divisor)
-        #
-        #     quarters_beat_start_time += quarters_beat_length
-        #     seconds_beat_start_time += seconds_beat_length
-        #
-        # quantized_recording = []
-        # for pc_note in recording_in_seconds:
-        #     quantized_recording.append(PCNote(start_time=pc_note_to_quantize_start_time[pc_note],
-        #                                       length=pc_note_to_quantize_end_time[pc_note] -
-        #                                              pc_note_to_quantize_start_time[pc_note],
-        #                                       pitch=pc_note.pitch, volume=pc_note.volume, variant=pc_note.variant,
-        #                                       tie=pc_note.tie))
-        #
-        # return quantized_recording, beat_divisors
+
+
+            for onset, note in onsets_in_this_beat:
+                divisions_after_beat_start = round((onset - beat_start_time) / division_length)
+                print(note)
+                notes_to_quantized_onsets[note] = beat_start_time + divisions_after_beat_start * division_length
+
+            for termination, note in terminations_in_this_beat:
+                divisions_after_beat_start = round((termination - beat_start_time) / division_length)
+                notes_to_quantized_terminations[note] = beat_start_time + divisions_after_beat_start * division_length
+
+                if notes_to_quantized_terminations[note] == notes_to_quantized_onsets[note]:
+                    # if the quantization collapses the start and end times of a note to the same point,
+                    # adjust so the the note is a single division_length long.
+                    if notes_to_quantized_terminations[note] + division_length <= beat_end_time:
+                        # if there's room to, just move the end of the note one division forward
+                        notes_to_quantized_terminations[note] += division_length
+                    else:
+                        # otherwise, move the start of the note one division backward
+                        notes_to_quantized_onsets[note] -= division_length
+
+        quantized_notes = []
+        for note in self.notes:
+            new_start_time = notes_to_quantized_onsets[note],
+            new_length = notes_to_quantized_terminations[note] - notes_to_quantized_terminations[note]
+            quantized_notes.append(PerformanceNote(new_start_time, new_length,
+                                                   note.pitch, note.volume, note.properties))
+        self.notes = quantized_notes
+
+        return QuantizedPerformancePart._construct_quantized_measures(beat_divisors, quantization_scheme)
+
+    @staticmethod
+    def _get_best_divisor(beat_scheme, beat_start_time, onsets_in_beat, terminations_in_beat,
+                          onset_weighting, termination_weighting):
+        # try out each quantization division of a beat and return the best fit
+        best_divisor = None
+        best_error = float("inf")
+
+        for divisor, undesirability in beat_scheme.quantization_divisions:
+            division_length = beat_scheme.length / divisor
+            total_squared_onset_error = 0
+            total_squared_termination_error = 0
+
+            for onset in onsets_in_beat:
+                time_since_beat_start = onset[0] - beat_start_time
+                # squared distance from closest division of the beat
+                total_squared_onset_error += \
+                    (time_since_beat_start - round_to_multiple(time_since_beat_start, division_length)) ** 2
+
+            for termination in terminations_in_beat:
+                time_since_beat_start = termination[0] - beat_start_time
+                # squared distance from closest division of the beat
+                total_squared_termination_error += \
+                    (time_since_beat_start - round_to_multiple(time_since_beat_start, division_length)) ** 2
+
+            this_div_error_score = undesirability * (termination_weighting * total_squared_termination_error +
+                                                     onset_weighting * total_squared_onset_error)
+
+            if this_div_error_score < best_error:
+                best_divisor = divisor
+                best_error = this_div_error_score
+
+        return best_divisor
+
+    @staticmethod
+    def _construct_quantized_measures(beat_divisors, quantization_scheme):
+        assert isinstance(beat_divisors, list)
+        quantized_measures = []
+        for measure_scheme, t in quantization_scheme.measure_scheme_iterator():
+            quantized_measure = QuantizedMeasure([], measure_scheme.time_signature, measure_scheme.length,
+                                                 t, t + measure_scheme.length)
+            for beat_scheme in measure_scheme.beat_schemes:
+                divisor = beat_divisors.pop(0) if len(beat_divisors) > 0 else None
+                quantized_measure.beats.append(
+                    QuantizedBeat(t, beat_scheme.length, t + beat_scheme.length, divisor)
+                )
+                t += beat_scheme.length
+            if len(beat_divisors) == 0:
+                return quantized_measures
 
 
 class QuantizedPerformance(Performance):
@@ -221,11 +155,10 @@ class QuantizedPerformance(Performance):
         :param performance: The unquantized performance it's based on
         :param quantization_scheme: the quantization scheme to use
         """
-        super().__init__(performance.parts, performance.tempo_curve)
-        self.quantize(quantization_scheme)
-
-    def quantize(self, quantization_scheme):
-        self.parts = [QuantizedPerformancePart(part, quantization_scheme) for part in self.parts]
+        super().__init__(
+            [QuantizedPerformancePart(part, quantization_scheme) for part in performance.parts],
+            performance.tempo_curve
+        )
 
 
 class BeatQuantizationScheme:
