@@ -416,25 +416,37 @@ def _combine_tied_quarters_and_longer(recording_in_seconds, measure_schemes):
     return recording_in_seconds
 
 
-def _get_tuplet_type(beat_length, beat_div):
-    if beat_div is None:
+def _get_tuplet_type(beat_length, beat_divisor):
+    """
+    Returns a tuple of (actual number, normal number, normal note length)
+    For instance, (7, 4, 0.25) reads '7 in the space of 4 sixteenth notes'
+    """
+
+    if beat_divisor is None:
         # the beat was empty...
         return None
 
-    # preference is to express the
+    # consider a beat length of 1.5 and a tuplet of 11
+    # normal number gets set initially to 3 and normal type gets set to 8, since it's 3 eighth notes long
     beat_length_fraction = Fraction(beat_length).limit_denominator()
     normal_number = beat_length_fraction.numerator
-    # if denominator is 1, normal type is quarter note, 2 -> eighth note, etc.
+    # (if denominator is 1, normal type is quarter note, 2 -> eighth note, etc.)
     normal_type = 4 * beat_length_fraction.denominator
-    while normal_number * 2 <= beat_div:
+
+    # now, we keep dividing the beat in two until we're just about to divide it into more pieces than the divisor
+    # so in our example, we start with 3 8th notes, then 6 16th notes, but we don't go up to 12 32nd notes, since
+    # that is more than the beat divisor of 11. Now we know that we are looking at 11 in the space of 6 16th notes.
+    while normal_number * 2 <= beat_divisor:
         normal_number *= 2
         normal_type *= 2
 
-    # now we have beat_div in the space of normal_number normal_type-th notes
-    if normal_number == beat_div:
+    if normal_number == beat_divisor:
+        # if the beat divisor exactly equals the normal number, then we don't have a tuplet at all,
+        # just a standard duple division.
         return None
     else:
-        return beat_div, normal_number, 4.0/normal_type
+        # otherwise, we return our answer
+        return beat_divisor, normal_number, 4.0 / normal_type
 
 
 def _set_tuplets_for_notes_in_voice(voice, beat_schemes, beat_divisors):
