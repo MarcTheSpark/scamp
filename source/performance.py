@@ -1,11 +1,45 @@
 import bisect
-from collections import namedtuple
 from playcorder.parameter_curve import ParameterCurve
 from playcorder.clock import Clock, TempoCurve
 import logging
 from playcorder.utilities import SavesToJSON
+from functools import total_ordering
 
-PerformanceNote = namedtuple("PerformanceNote", "start_time length pitch volume properties")
+
+@total_ordering
+class PerformanceNote:
+    def __init__(self, start_time, length, pitch, volume, properties):
+        self.start_time = start_time
+        self.length = length
+        self.pitch = pitch
+        self.volume = volume
+        self.properties = properties
+
+    @property
+    def end_time(self):
+        return self.start_time + self.length
+
+    @end_time.setter
+    def end_time(self, new_end_time):
+        self.length = new_end_time - self.start_time
+
+    def __repr__(self):
+        return "PerformanceNote(start_time={}, length={}, pitch={}, volume={}, properties={})".format(
+            self.start_time, self.length, self.pitch, self.volume, self.properties
+        )
+
+    def __lt__(self, other):
+        # this allows it to be compared with numbers. I use that below to bisect a list of notes
+        if isinstance(other, PerformanceNote):
+            return self.start_time < other.start_time
+        else:
+            return self.start_time < other
+
+    def __eq__(self, other):
+        if isinstance(other, PerformanceNote):
+            return self.start_time == other.start_time
+        else:
+            return self.start_time == other
 
 
 class PerformancePart(SavesToJSON):
@@ -51,7 +85,7 @@ class PerformancePart(SavesToJSON):
 
     def get_note_iterator(self, start_time, stop_time):
         def iterator():
-            note_index = bisect.bisect_left(self.notes, (start_time,))
+            note_index = bisect.bisect_left(self.notes, start_time)
             while note_index < len(self.notes) and self.notes[note_index].start_time < stop_time:
                 yield self.notes[note_index]
                 note_index += 1
