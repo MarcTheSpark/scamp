@@ -5,6 +5,11 @@ from collections import namedtuple
 from playcorder.settings import quantization_settings
 
 
+# TODO: Make QuantizedPerformancePart print the measure / beat info
+# TODO: Make all the quantization stuff use the defaults better
+# TODO: Double-check some quantization examples
+
+
 QuantizedBeat = namedtuple("QuantizedBeat", "start_time beat_length end_time divisor")
 
 QuantizedMeasure = namedtuple("QuantizedMeasure", "beats time_signature measure_length start_time end_time")
@@ -18,13 +23,18 @@ class QuantizedPerformancePart(PerformancePart):
         self.quantized_measures = self.quantize(quantization_scheme)
 
     def quantize(self, quantization_scheme, onset_weighting="default", termination_weighting="default"):
+        beat_divisors = self.quantize_and_return_divisors(quantization_scheme, onset_weighting, termination_weighting)
+        return QuantizedPerformancePart._construct_quantized_measures(beat_divisors, quantization_scheme)
+
+    def quantize_and_return_divisors(self, quantization_scheme, onset_weighting="default",
+                                     termination_weighting="default"):
+        assert isinstance(quantization_scheme, QuantizationScheme)
+
         if onset_weighting == "default":
             onset_weighting = quantization_settings.onset_weighting
-
         if termination_weighting == "default":
             termination_weighting = quantization_settings.termination_weighting
 
-        assert isinstance(quantization_scheme, QuantizationScheme)
         # make list of (note onset time, note) tuples
         raw_onsets = [(performance_note.start_time, performance_note) for performance_note in self.notes]
         # make list of (note termination time, note) tuples
@@ -34,12 +44,11 @@ class QuantizedPerformancePart(PerformancePart):
         raw_onsets.sort(key=lambda x: x[0])
         raw_terminations.sort(key=lambda x: x[0])
 
-        notes_to_quantized_onsets = {}
-        notes_to_quantized_terminations = {}
         beat_scheme_iterator = quantization_scheme.beat_scheme_iterator()
         beat_divisors = []
 
         while len(raw_onsets) + len(raw_terminations) > 0:
+            # First, use all the onsets and terminations in this beat to determin the best divisor
             beat_scheme, beat_start_time = next(beat_scheme_iterator)
             assert isinstance(beat_scheme, BeatQuantizationScheme)
             beat_end_time = beat_start_time + beat_scheme.length
@@ -59,46 +68,38 @@ class QuantizedPerformancePart(PerformancePart):
                 beat_divisors.append(None)
                 continue
 
-            best_divisor = QuantizedPerformancePart._get_best_divisor(beat_scheme, beat_start_time, onsets_in_this_beat,
-                                                                      terminations_in_this_beat, onset_weighting,
-                                                                      termination_weighting)
+            best_divisor = QuantizedPerformancePart._get_best_divisor_for_beat(
+                beat_scheme, beat_start_time, onsets_in_this_beat, terminations_in_this_beat,
+                onset_weighting, termination_weighting
+            )
             beat_divisors.append(best_divisor)
+
+            # Now, quantize all of the notes that start or end in this beat accordingly
             division_length = beat_scheme.length / best_divisor
-
-
-
             for onset, note in onsets_in_this_beat:
                 divisions_after_beat_start = round((onset - beat_start_time) / division_length)
-                print(note)
-                notes_to_quantized_onsets[note] = beat_start_time + divisions_after_beat_start * division_length
+                note.start_time = beat_start_time + divisions_after_beat_start * division_length
 
             for termination, note in terminations_in_this_beat:
                 divisions_after_beat_start = round((termination - beat_start_time) / division_length)
-                notes_to_quantized_terminations[note] = beat_start_time + divisions_after_beat_start * division_length
+                note.end_time = beat_start_time + divisions_after_beat_start * division_length
 
-                if notes_to_quantized_terminations[note] == notes_to_quantized_onsets[note]:
+                if note.length <= 0:
                     # if the quantization collapses the start and end times of a note to the same point,
                     # adjust so the the note is a single division_length long.
-                    if notes_to_quantized_terminations[note] + division_length <= beat_end_time:
+                    if note.end_time + division_length <= beat_end_time:
                         # if there's room to, just move the end of the note one division forward
-                        notes_to_quantized_terminations[note] += division_length
+                        note.length += division_length
                     else:
                         # otherwise, move the start of the note one division backward
-                        notes_to_quantized_onsets[note] -= division_length
+                        note.start_time -= division_length
+                        note.length += division_length
 
-        quantized_notes = []
-        for note in self.notes:
-            new_start_time = notes_to_quantized_onsets[note],
-            new_length = notes_to_quantized_terminations[note] - notes_to_quantized_terminations[note]
-            quantized_notes.append(PerformanceNote(new_start_time, new_length,
-                                                   note.pitch, note.volume, note.properties))
-        self.notes = quantized_notes
-
-        return QuantizedPerformancePart._construct_quantized_measures(beat_divisors, quantization_scheme)
+        return beat_divisors
 
     @staticmethod
-    def _get_best_divisor(beat_scheme, beat_start_time, onsets_in_beat, terminations_in_beat,
-                          onset_weighting, termination_weighting):
+    def _get_best_divisor_for_beat(beat_scheme, beat_start_time, onsets_in_beat, terminations_in_beat,
+                                   onset_weighting, termination_weighting):
         # try out each quantization division of a beat and return the best fit
         best_divisor = None
         best_error = float("inf")
