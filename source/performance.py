@@ -92,7 +92,7 @@ class PerformancePart(SavesToJSON):
 
         return iterator()
 
-    def play(self, start_time=0, stop_time=None, instrument=None, clock=None, blocking=False, tempo_curve=None):
+    def play(self, start_time=0, stop_time=None, instrument=None, clock=None, blocking=True, tempo_curve=None):
         instrument = self.instrument if instrument is None else instrument
         from playcorder.instruments import PlaycorderInstrument
         if not isinstance(instrument, PlaycorderInstrument):
@@ -117,7 +117,8 @@ class PerformancePart(SavesToJSON):
 
             while True:
                 instrument.play_note(current_note.pitch, current_note.volume,
-                                     current_note.length, current_note.properties, clock=child_clock)
+                                     current_note.length, current_note.properties,
+                                     clock=child_clock, blocking=False)
                 try:
                     next_note = next(note_iterator)
                     child_clock.wait(next_note.start_time - current_note.start_time)
@@ -207,7 +208,7 @@ class Performance(SavesToJSON):
     def length(self):
         return self.end_time
 
-    def play(self, start_time=0, stop_time=None, ensemble=None, clock=None, blocking=False, use_tempo_curve=True):
+    def play(self, start_time=0, stop_time=None, ensemble=None, clock=None, blocking=True, use_tempo_curve=True):
         if ensemble is not None:
             self.set_instruments_from_ensemble(ensemble)
 
