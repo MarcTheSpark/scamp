@@ -1,6 +1,3 @@
-import logging
-from inspect import signature
-
 from playcorder.settings import playback_settings
 
 from playcorder.simple_rtmidi_wrapper import get_available_midi_output_devices
@@ -62,16 +59,9 @@ class Playcorder:
     def beats(self):
         return self.master_clock.beats()
 
-    def fork(self, process_function, name="", initial_rate=1.0):
-        num_params = len(signature(process_function).parameters)
-        if num_params > 1:
-            logging.warning("The function passed to fork should take one argument, which is the clock used for that "
-                            "thread. Additional arguments are not used.")
-        elif num_params == 0:
-            logging.warning("The function passed to fork must take one argument, which is the clock used for that "
-                            "thread, but none were given.")
-            return
-        return self.master_clock.fork(process_function, name=name, initial_rate=initial_rate)
+    def fork(self, process_function, name="", initial_rate=1.0, extra_args=(), kwargs=None):
+        return self.master_clock.fork(process_function, name=name, initial_rate=initial_rate,
+                                      extra_args=extra_args, kwargs=kwargs)
 
     # used for a situation where all parts are played from a single thread
     def wait(self, seconds):

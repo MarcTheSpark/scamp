@@ -6,6 +6,7 @@ from multiprocessing.pool import ThreadPool
 import logging
 from playcorder.parameter_curve import ParameterCurve, ParameterCurveSegment
 from copy import deepcopy
+import inspect
 
 
 def _sleep_precisely_until(stop_time):
@@ -184,8 +185,23 @@ class Clock:
 
         def _process(*args, **kwds):
             try:
+                # set the implicit variable __clock__ in this thread
                 threading.current_thread().__clock__ = child
-                process_function(child, *args, **kwds)
+                # make sure we have been given a reasonable number of arguments, and see if
+                # the number given suggests an expected first clock argument
+                process_function_signature = inspect.signature(process_function)
+                num_positional_parameters = len([
+                    param for param in process_function_signature.parameters if
+                    process_function_signature.parameters[param].default == inspect.Parameter.empty
+                ])
+                assert len(args) <= num_positional_parameters, \
+                    "Too many arguments given for function {}".format(process_function.__name__)
+                assert len(args) >= num_positional_parameters-1, \
+                    "Too few arguments given for function {}".format(process_function.__name__)
+                if len(args) == num_positional_parameters - 1:
+                    process_function(child, *args, **kwds)
+                else:
+                    process_function(*args, **kwds)
                 self._children.remove(child)
             except Exception as e:
                 logging.exception(e)
