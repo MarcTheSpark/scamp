@@ -338,11 +338,12 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
         altered_properties["pitch changes"] = isinstance(pitch, ParameterCurve)
         super()._do_play_note(pitch, volume, length, altered_properties, clock)
 
-    def start_note(self, pitch, volume, properties=None):
+    def start_note(self, pitch, volume, properties=None, pitch_might_change=True):
         # Same as with _do_play_note, we need to set the "pitch changes" key in the properties dictionary
+        # since we don't know if the pitch will change, the default is to assume it does. If the user knows it
+        # won't change pitch, then they can set pitch_might_change to false for more efficient MIDI channel use
         altered_properties = dict(properties) if properties is not None else {}
-        # since we don't know if the pitch will change, we'd better assume it does
-        altered_properties["pitch changes"] = True
+        altered_properties["pitch changes"] = pitch_might_change
         return super().start_note(pitch, volume, altered_properties)
 
     def _do_start_note(self, pitch, volume, properties):
