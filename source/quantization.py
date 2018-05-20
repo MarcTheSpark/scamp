@@ -3,6 +3,7 @@ from fractions import Fraction
 from playcorder.utilities import indigestibility, is_multiple, is_x_pow_of_y, round_to_multiple
 from collections import namedtuple
 from playcorder.settings import quantization_settings
+from copy import deepcopy
 
 
 # TODO: Make QuantizedPerformancePart print the measure / beat info
@@ -19,7 +20,7 @@ class QuantizedPerformancePart(PerformancePart):
 
     def __init__(self, performance_part, quantization_scheme):
         super().__init__(performance_part.instrument, performance_part.name,
-                         performance_part.notes, performance_part._instrument_id)
+                         deepcopy(performance_part.notes), performance_part._instrument_id)
         self.quantized_measures = self.quantize(quantization_scheme)
 
     def quantize(self, quantization_scheme, onset_weighting="default", termination_weighting="default"):
