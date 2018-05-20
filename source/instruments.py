@@ -171,7 +171,7 @@ class PlaycorderInstrument(SavesToJSON):
             return {}
         return properties
 
-    def play_note(self, pitch, volume, length, properties=None, blocking=False, clock=None):
+    def play_note(self, pitch, volume, length, properties=None, blocking=True, clock=None):
         """
         Play a note
         :param pitch: The midi pitch of the note. Can be floating-point, can be a list or Parameter curve.
@@ -218,6 +218,18 @@ class PlaycorderInstrument(SavesToJSON):
                 self._do_play_note(pitch, volume, length, properties)
             else:
                 threading.Thread(target=self._do_play_note, args=(pitch, volume, length, properties)).start()
+
+    def play_chord(self, pitches, volume, length, properties=None, blocking=True, clock=None):
+        """
+        Simple utility for playing chords without having to play notes with blocking=False
+        Takes a list of pitches, and passes them to play_note
+        """
+        assert hasattr(pitches, "__len__")
+        for pitch in pitches[:-1]:
+            # for all but the last pitch, play it without blocking, so we can start all the others
+            self.play_note(pitch, volume, length, properties=properties, blocking=False, clock=clock)
+        # for the last pitch, block or not based on the blocking parameter
+        self.play_note(pitches[-1], volume, length, properties=properties, blocking=blocking, clock=clock)
 
     def start_note(self, pitch, volume, properties=None):
         """
@@ -314,6 +326,7 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
         # keep track of what notes are currently playing
         # each entry is an identifying tuple of: (channel, pitch, unique_id)
         self.active_midi_notes = []
+        self.note_start_lock = threading.Lock()
 
     # ---- The constituent parts of the _do_play_note call ----
 
@@ -338,11 +351,15 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
         # the channel, the midi key pressed, the start time, and whether or not pitch bend is used
         int_pitch = int(round(pitch))
         uses_pitch_bend = (pitch != int_pitch) or properties['pitch changes']
-        channel = self._find_channel_for_note(int_pitch, new_note_uses_bend=uses_pitch_bend)
+
+        with self.note_start_lock:
+            channel = self._find_channel_for_note(int_pitch, new_note_uses_bend=uses_pitch_bend)
+            note_id = channel, int_pitch, self.time(), uses_pitch_bend
+            self.active_midi_notes.append(note_id)
+
         self.midi_instrument.pitch_bend(channel, pitch - int_pitch)
         self.midi_instrument.note_on(channel, int_pitch, volume)
-        note_id = channel, int_pitch, self.time(), uses_pitch_bend
-        self.active_midi_notes.append(note_id)
+
         return note_id
 
     def _find_channel_for_note(self, int_pitch, new_note_uses_bend=False):
