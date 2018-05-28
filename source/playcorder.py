@@ -9,6 +9,7 @@ from playcorder.instruments import PlaycorderInstrument
 
 from playcorder.clock import Clock
 
+from playcorder.midi_listener import *
 # TODO: give the "properties" a playlength proportion, figure out how to make default playback properties of things like staccato, tenuto, slurs
 
 
@@ -110,6 +111,21 @@ class Playcorder:
     def timing_policy(self, value):
         assert value in Clock.timing_policy_choices
         self.master_clock.timing_policy = value
+
+    # ----------------------------------- Listeners ----------------------------------
+
+    @staticmethod
+    def get_available_ports_and_devices():
+        return get_available_ports_and_devices()
+
+    @staticmethod
+    def print_available_ports_and_devices():
+        print_available_ports_and_devices()
+
+    def register_midi_callback(self, port_number_or_device_name, callback_function,
+                               time_resolution=0.005, synchronous=False):
+        start_midi_listener(port_number_or_device_name, callback_function,
+                            clock=self.master_clock, time_resolution=time_resolution, synchronous=synchronous)
 
     # --------------------------------- Ensemble Stuff -------------------------------
 
