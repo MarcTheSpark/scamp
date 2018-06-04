@@ -1,9 +1,11 @@
 import bisect
 from playcorder.parameter_curve import ParameterCurve
+from playcorder.quantization import quantize_performance_part, QuantizationRecord
 from playcorder.clock import Clock, TempoCurve
 import logging
 from playcorder.utilities import SavesToJSON
 from functools import total_ordering
+from copy import deepcopy
 
 
 @total_ordering
@@ -44,7 +46,7 @@ class PerformanceNote:
 
 class PerformancePart(SavesToJSON):
 
-    def __init__(self, instrument=None, name=None, notes=None, instrument_id=None):
+    def __init__(self, instrument=None, name=None, notes=None, instrument_id=None, quantization_record=None):
         self.instrument = instrument  # A PlaycorderInstrument instance
         # the name of the part can be specified directly, or if not derives from the instrument it's attached to
         # if the part is not attached to an instrument, it starts with a name of None
@@ -61,6 +63,9 @@ class PerformancePart(SavesToJSON):
             self.notes = notes
         else:
             self.notes = []
+
+        # a record of the quantization that was applied to this part, if any
+        self.quantization_record = quantization_record
 
     def add_note(self, note: PerformanceNote):
         last_note_start_time = self.notes[-1].start_time if len(self.notes) > 0 else 0
@@ -147,25 +152,48 @@ class PerformancePart(SavesToJSON):
             logging.warning("No matching instrument could be found for part {}.".format(self.name))
         return self
 
+    def quantize(self, quantization_scheme):
+        """
+        Quantizes this PerformancePart according to the quantization_scheme, returning the QuantizationRecord
+        """
+        self.quantization_record = quantize_performance_part(self, quantization_scheme)
+        return self.quantization_record
+
     def quantized(self, quantization_scheme):
-        from playcorder.quantization import QuantizedPerformancePart
-        return QuantizedPerformancePart(self, quantization_scheme)
+        """
+        Returns a quantized copy of this PerformancePart, leaving the original unchanged
+        """
+        copy = PerformancePart(instrument=self.instrument, name=self.name, notes=deepcopy(self.notes),
+                               instrument_id=self._instrument_id)
+        copy.quantization_record = quantize_performance_part(copy, quantization_scheme)
+        return copy
+
+    @property
+    def is_quantized(self):
+        return self.quantization_record is not None
 
     def __repr__(self):
-        return "PerformancePart(name=\"{}\", instrument_id={}, notes=[\n{}\n])".format(
-            self.name, self._instrument_id, "   " + ", \n   ".join(str(x) for x in self.notes)
+        return "PerformancePart(name=\"{}\", instrument_id={}, notes=[\n{}\n]{}".format(
+            self.name, self._instrument_id, "   " + ", \n   ".join(str(x) for x in self.notes),
+            ", quantization_record={})".format(self.quantization_record)
+            if self.quantization_record is not None else ")"
         )
 
     def _to_json(self):
-        return {"name": self.name, "instrument_id": self._instrument_id, "notes": [
-            {
-                "start_time": n.start_time,
-                "length": n.length,
-                "pitch": n.pitch._to_json() if hasattr(n.pitch, "_to_json") else n.pitch,
-                "volume": n.volume._to_json() if hasattr(n.volume, "_to_json") else n.volume,
-                "properties": n.properties
-            } for n in self.notes
-        ]}
+        return {
+            "name": self.name,
+            "instrument_id": self._instrument_id,
+            "notes": [
+                {
+                    "start_time": n.start_time,
+                    "length": n.length,
+                    "pitch": n.pitch._to_json() if hasattr(n.pitch, "_to_json") else n.pitch,
+                    "volume": n.volume._to_json() if hasattr(n.volume, "_to_json") else n.volume,
+                    "properties": n.properties
+                } for n in self.notes
+            ],
+            "quantization_record": self.quantization_record._to_json() if self.quantization_record is not None else None
+        }
 
     @classmethod
     def _from_json(cls, json_dict):
@@ -177,6 +205,8 @@ class PerformancePart(SavesToJSON):
             if hasattr(note["volume"], "__len__"):
                 note["volume"] = ParameterCurve._from_json(note["volume"])
             performance_part.add_note(PerformanceNote(**note))
+        performance_part.quantization_record = QuantizationRecord._from_json(json_dict["quantization_record"]) \
+            if json_dict["quantization_record"] is not None else None
         return performance_part
 
 
@@ -234,9 +264,22 @@ class Performance(SavesToJSON):
             part.set_instrument_from_ensemble(ensemble)
         return self
 
+    def quantize(self, quantization_scheme):
+        """
+        Quantizes all parts according to the given quantization_scheme
+        """
+        for part in self.parts:
+            part.quantize(quantization_scheme)
+
     def quantized(self, quantization_scheme):
-        from playcorder.quantization import QuantizedPerformance
-        return QuantizedPerformance(self, quantization_scheme)
+        """
+        Returns a quantized copy of this Performance, leaving the original unchanged
+        """
+        return Performance([part.quantized(quantization_scheme) for part in self.parts], tempo_curve=self.tempo_curve)
+
+    @property
+    def is_quantized(self):
+        return all(part.is_quantized for part in self.parts)
 
     def _to_json(self):
         return {"parts": [part._to_json() for part in self.parts], "tempo_curve": self.tempo_curve._to_json()}

@@ -1,12 +1,9 @@
-from playcorder.performance import Performance, PerformancePart, PerformanceNote
 from fractions import Fraction
-from playcorder.utilities import indigestibility, is_multiple, is_x_pow_of_y, round_to_multiple
+from playcorder.utilities import indigestibility, is_multiple, is_x_pow_of_y, round_to_multiple, SavesToJSON
 from collections import namedtuple
 from playcorder.settings import quantization_settings
-from copy import deepcopy
 
 
-# TODO: Make QuantizedPerformancePart print the measure / beat info
 # TODO: Make all the quantization stuff use the defaults better
 # TODO: Double-check some quantization examples
 
@@ -16,151 +13,170 @@ QuantizedBeat = namedtuple("QuantizedBeat", "start_time beat_length end_time div
 QuantizedMeasure = namedtuple("QuantizedMeasure", "beats time_signature measure_length start_time end_time")
 
 
-class QuantizedPerformancePart(PerformancePart):
+class QuantizationRecord(SavesToJSON):
 
-    def __init__(self, performance_part, quantization_scheme):
-        super().__init__(performance_part.instrument, performance_part.name,
-                         deepcopy(performance_part.notes), performance_part._instrument_id)
-        self.quantized_measures = self.quantize(quantization_scheme)
+    def __init__(self, quantized_measures):
+        assert all(isinstance(x, QuantizedMeasure) for x in quantized_measures)
+        self.quantized_measures = quantized_measures
 
-    def quantize(self, quantization_scheme, onset_weighting="default", termination_weighting="default"):
-        beat_divisors = self.quantize_and_return_divisors(quantization_scheme, onset_weighting, termination_weighting)
-        return QuantizedPerformancePart._construct_quantized_measures(beat_divisors, quantization_scheme)
+    def _to_json(self):
+        quantized_measures_json_friendly = []
+        for quantized_measure in self.quantized_measures:
+            quantized_measure_as_dict = quantized_measure._asdict()
+            quantized_beats_as_dicts = []
+            for beat in quantized_measure.beats:
+                quantized_beats_as_dicts.append(beat._asdict())
+            quantized_measure_as_dict["beats"] = quantized_beats_as_dicts
+            quantized_measure_as_dict["time_signature"] = quantized_measure_as_dict["time_signature"]._to_json()
+            quantized_measures_json_friendly.append(quantized_measure_as_dict)
+        return quantized_measures_json_friendly
 
-    def quantize_and_return_divisors(self, quantization_scheme, onset_weighting="default",
-                                     termination_weighting="default"):
-        assert isinstance(quantization_scheme, QuantizationScheme)
-
-        if onset_weighting == "default":
-            onset_weighting = quantization_settings.onset_weighting
-        if termination_weighting == "default":
-            termination_weighting = quantization_settings.termination_weighting
-
-        # make list of (note onset time, note) tuples
-        raw_onsets = [(performance_note.start_time, performance_note) for performance_note in self.notes]
-        # make list of (note termination time, note) tuples
-        raw_terminations = [(performance_note.start_time + performance_note.length, performance_note)
-                            for performance_note in self.notes]
-        # sort them
-        raw_onsets.sort(key=lambda x: x[0])
-        raw_terminations.sort(key=lambda x: x[0])
-
-        beat_scheme_iterator = quantization_scheme.beat_scheme_iterator()
-        beat_divisors = []
-
-        while len(raw_onsets) + len(raw_terminations) > 0:
-            # First, use all the onsets and terminations in this beat to determin the best divisor
-            beat_scheme, beat_start_time = next(beat_scheme_iterator)
-            assert isinstance(beat_scheme, BeatQuantizationScheme)
-            beat_end_time = beat_start_time + beat_scheme.length
-
-            # find the onsets in this beat
-            onsets_in_this_beat = []
-            while len(raw_onsets) > 0 and raw_onsets[0][0] < beat_end_time:
-                onsets_in_this_beat.append(raw_onsets.pop(0))
-
-            # find the terminations in this beat
-            terminations_in_this_beat = []
-            while len(raw_terminations) > 0 and raw_terminations[0][0] < beat_end_time:
-                terminations_in_this_beat.append(raw_terminations.pop(0))
-
-            if len(onsets_in_this_beat) + len(terminations_in_this_beat) == 0:
-                # an empty beat, nothing to see here
-                beat_divisors.append(None)
-                continue
-
-            best_divisor = QuantizedPerformancePart._get_best_divisor_for_beat(
-                beat_scheme, beat_start_time, onsets_in_this_beat, terminations_in_this_beat,
-                onset_weighting, termination_weighting
-            )
-            beat_divisors.append(best_divisor)
-
-            # Now, quantize all of the notes that start or end in this beat accordingly
-            division_length = beat_scheme.length / best_divisor
-            for onset, note in onsets_in_this_beat:
-                divisions_after_beat_start = round((onset - beat_start_time) / division_length)
-                note.start_time = beat_start_time + divisions_after_beat_start * division_length
-
-            for termination, note in terminations_in_this_beat:
-                divisions_after_beat_start = round((termination - beat_start_time) / division_length)
-                note.end_time = beat_start_time + divisions_after_beat_start * division_length
-
-                if note.length <= 0:
-                    # if the quantization collapses the start and end times of a note to the same point,
-                    # adjust so the the note is a single division_length long.
-                    if note.end_time + division_length <= beat_end_time:
-                        # if there's room to, just move the end of the note one division forward
-                        note.length += division_length
-                    else:
-                        # otherwise, move the start of the note one division backward
-                        note.start_time -= division_length
-                        note.length += division_length
-
-        return beat_divisors
-
-    @staticmethod
-    def _get_best_divisor_for_beat(beat_scheme, beat_start_time, onsets_in_beat, terminations_in_beat,
-                                   onset_weighting, termination_weighting):
-        # try out each quantization division of a beat and return the best fit
-        best_divisor = None
-        best_error = float("inf")
-
-        for divisor, undesirability in beat_scheme.quantization_divisions:
-            division_length = beat_scheme.length / divisor
-            total_squared_onset_error = 0
-            total_squared_termination_error = 0
-
-            for onset in onsets_in_beat:
-                time_since_beat_start = onset[0] - beat_start_time
-                # squared distance from closest division of the beat
-                total_squared_onset_error += \
-                    (time_since_beat_start - round_to_multiple(time_since_beat_start, division_length)) ** 2
-
-            for termination in terminations_in_beat:
-                time_since_beat_start = termination[0] - beat_start_time
-                # squared distance from closest division of the beat
-                total_squared_termination_error += \
-                    (time_since_beat_start - round_to_multiple(time_since_beat_start, division_length)) ** 2
-
-            this_div_error_score = undesirability * (termination_weighting * total_squared_termination_error +
-                                                     onset_weighting * total_squared_onset_error)
-
-            if this_div_error_score < best_error:
-                best_divisor = divisor
-                best_error = this_div_error_score
-
-        return best_divisor
-
-    @staticmethod
-    def _construct_quantized_measures(beat_divisors, quantization_scheme):
-        assert isinstance(beat_divisors, list)
+    @classmethod
+    def _from_json(cls, json_object):
         quantized_measures = []
-        for measure_scheme, t in quantization_scheme.measure_scheme_iterator():
-            quantized_measure = QuantizedMeasure([], measure_scheme.time_signature, measure_scheme.length,
-                                                 t, t + measure_scheme.length)
-            for beat_scheme in measure_scheme.beat_schemes:
-                divisor = beat_divisors.pop(0) if len(beat_divisors) > 0 else None
-                quantized_measure.beats.append(
-                    QuantizedBeat(t, beat_scheme.length, t + beat_scheme.length, divisor)
-                )
-                t += beat_scheme.length
-            if len(beat_divisors) == 0:
-                return quantized_measures
+        for quantized_measure_as_dict in json_object:
+            quantized_measure_as_dict["time_signature"] = TimeSignature._from_json(
+                quantized_measure_as_dict["time_signature"]
+            )
+            quantized_beats = []
+            for quantized_beat_as_dict in quantized_measure_as_dict["beats"]:
+                quantized_beats.append(QuantizedBeat(**quantized_beat_as_dict))
+            quantized_measures.append(QuantizedMeasure(**quantized_measure_as_dict))
+        return cls(quantized_measures)
 
-
-class QuantizedPerformance(Performance):
-
-    def __init__(self, performance, quantization_scheme):
-        """
-        Represents a quantized version of a performance that knows what measure schemes it was quantized to.
-        This is the first step in outputting a readable score.
-        :param performance: The unquantized performance it's based on
-        :param quantization_scheme: the quantization scheme to use
-        """
-        super().__init__(
-            [QuantizedPerformancePart(part, quantization_scheme) for part in performance.parts],
-            performance.tempo_curve
+    def __repr__(self):
+        return "QuantizationRecord([\n{}\n])".format(
+            "   " + ", \n   ".join(str(x) for x in self.quantized_measures)
         )
+
+
+def quantize_performance_part(part, quantization_scheme, onset_weighting="default", termination_weighting="default"):
+    """
+    Quantizes a performance part (in place) and return a QuantizationRecord
+    :param part: a PerformancePart
+    :param quantization_scheme: a QuantizationScheme
+    :param onset_weighting: How much do we care about accurate onsets
+    :param termination_weighting: How much do we care about accurate terminations
+    :return: a QuantizationRecord, detailing all of the time signatures, beat divisions selected, etc.
+    """
+    assert isinstance(quantization_scheme, QuantizationScheme)
+
+    if onset_weighting == "default":
+        onset_weighting = quantization_settings.onset_weighting
+    if termination_weighting == "default":
+        termination_weighting = quantization_settings.termination_weighting
+
+    # make list of (note onset time, note) tuples
+    raw_onsets = [(performance_note.start_time, performance_note) for performance_note in part.notes]
+    # make list of (note termination time, note) tuples
+    raw_terminations = [(performance_note.start_time + performance_note.length, performance_note)
+                        for performance_note in part.notes]
+    # sort them
+    raw_onsets.sort(key=lambda x: x[0])
+    raw_terminations.sort(key=lambda x: x[0])
+
+    beat_scheme_iterator = quantization_scheme.beat_scheme_iterator()
+    beat_divisors = []
+
+    while len(raw_onsets) + len(raw_terminations) > 0:
+        # First, use all the onsets and terminations in this beat to determin the best divisor
+        beat_scheme, beat_start_time = next(beat_scheme_iterator)
+        assert isinstance(beat_scheme, BeatQuantizationScheme)
+        beat_end_time = beat_start_time + beat_scheme.length
+
+        # find the onsets in this beat
+        onsets_in_this_beat = []
+        while len(raw_onsets) > 0 and raw_onsets[0][0] < beat_end_time:
+            onsets_in_this_beat.append(raw_onsets.pop(0))
+
+        # find the terminations in this beat
+        terminations_in_this_beat = []
+        while len(raw_terminations) > 0 and raw_terminations[0][0] < beat_end_time:
+            terminations_in_this_beat.append(raw_terminations.pop(0))
+
+        if len(onsets_in_this_beat) + len(terminations_in_this_beat) == 0:
+            # an empty beat, nothing to see here
+            beat_divisors.append(None)
+            continue
+
+        best_divisor = _get_best_divisor_for_beat(
+            beat_scheme, beat_start_time, onsets_in_this_beat, terminations_in_this_beat,
+            onset_weighting, termination_weighting
+        )
+        beat_divisors.append(best_divisor)
+
+        # Now, quantize all of the notes that start or end in this beat accordingly
+        division_length = beat_scheme.length / best_divisor
+        for onset, note in onsets_in_this_beat:
+            divisions_after_beat_start = round((onset - beat_start_time) / division_length)
+            note.start_time = beat_start_time + divisions_after_beat_start * division_length
+
+        for termination, note in terminations_in_this_beat:
+            divisions_after_beat_start = round((termination - beat_start_time) / division_length)
+            note.end_time = beat_start_time + divisions_after_beat_start * division_length
+
+            if note.length <= 0:
+                # if the quantization collapses the start and end times of a note to the same point,
+                # adjust so the the note is a single division_length long.
+                if note.end_time + division_length <= beat_end_time:
+                    # if there's room to, just move the end of the note one division forward
+                    note.length += division_length
+                else:
+                    # otherwise, move the start of the note one division backward
+                    note.start_time -= division_length
+                    note.length += division_length
+
+    return _construct_quantization_record(beat_divisors, quantization_scheme)
+
+
+def _get_best_divisor_for_beat(beat_scheme, beat_start_time, onsets_in_beat, terminations_in_beat,
+                               onset_weighting, termination_weighting):
+    # try out each quantization division of a beat and return the best fit
+    best_divisor = None
+    best_error = float("inf")
+
+    for divisor, undesirability in beat_scheme.quantization_divisions:
+        division_length = beat_scheme.length / divisor
+        total_squared_onset_error = 0
+        total_squared_termination_error = 0
+
+        for onset in onsets_in_beat:
+            time_since_beat_start = onset[0] - beat_start_time
+            # squared distance from closest division of the beat
+            total_squared_onset_error += \
+                (time_since_beat_start - round_to_multiple(time_since_beat_start, division_length)) ** 2
+
+        for termination in terminations_in_beat:
+            time_since_beat_start = termination[0] - beat_start_time
+            # squared distance from closest division of the beat
+            total_squared_termination_error += \
+                (time_since_beat_start - round_to_multiple(time_since_beat_start, division_length)) ** 2
+
+        this_div_error_score = undesirability * (termination_weighting * total_squared_termination_error +
+                                                 onset_weighting * total_squared_onset_error)
+
+        if this_div_error_score < best_error:
+            best_divisor = divisor
+            best_error = this_div_error_score
+
+    return best_divisor
+
+
+def _construct_quantization_record(beat_divisors, quantization_scheme):
+    assert isinstance(beat_divisors, list)
+    quantized_measures = []
+    for measure_scheme, t in quantization_scheme.measure_scheme_iterator():
+        quantized_measure = QuantizedMeasure([], measure_scheme.time_signature, measure_scheme.length,
+                                             t, t + measure_scheme.length)
+        for beat_scheme in measure_scheme.beat_schemes:
+            divisor = beat_divisors.pop(0) if len(beat_divisors) > 0 else None
+            quantized_measure.beats.append(
+                QuantizedBeat(t, beat_scheme.length, t + beat_scheme.length, divisor)
+            )
+            t += beat_scheme.length
+        quantized_measures.append(quantized_measure)
+        if len(beat_divisors) == 0:
+            return QuantizationRecord(quantized_measures)
 
 
 class BeatQuantizationScheme:
@@ -264,7 +280,7 @@ class BeatQuantizationScheme:
         )
 
 
-class TimeSignature:
+class TimeSignature(SavesToJSON):
 
     def __init__(self, numerator, denominator):
         self.numerator = numerator
@@ -295,6 +311,13 @@ class TimeSignature:
             return 4 * sum(self.numerator) / self.denominator
         else:
             return 4 * self.numerator / self.denominator
+
+    def _to_json(self):
+        return self.numerator, self.denominator
+
+    @classmethod
+    def _from_json(cls, json_object):
+        return cls(*json_object)
 
     def __repr__(self):
         return "TimeSignature({}, {})".format(self.numerator, self.denominator)
