@@ -41,6 +41,7 @@ class QuantizationRecord(SavesToJSON):
             quantized_beats = []
             for quantized_beat_as_dict in quantized_measure_as_dict["beats"]:
                 quantized_beats.append(QuantizedBeat(**quantized_beat_as_dict))
+            quantized_measure_as_dict["beats"] = quantized_beats
             quantized_measures.append(QuantizedMeasure(**quantized_measure_as_dict))
         return cls(quantized_measures)
 
