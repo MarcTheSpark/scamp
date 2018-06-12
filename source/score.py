@@ -3,8 +3,13 @@ from playcorder.quantization import QuantizationRecord
 from copy import deepcopy
 
 
+# TODO: SEPARATE VOICES DURING QUANTIZATION OF PERFORMANCE
+# TODO: ALLOW "VOICE HINT" TO BE GIVEN TO NOTES TO KEEP THEM IN THE DESIRED VOICE?
+
 def quantized_performance_part_to_score_part(quantized_performance_part: PerformancePart):
     assert quantized_performance_part.is_quantized
+    quantization_record = quantized_performance_part.quantization_record
+
     notes = deepcopy(quantized_performance_part.notes)
     # probably shouldn't be necessary to sort, but we'll do it anyway
     notes.sort(key=lambda note: note.start_time)
@@ -16,7 +21,9 @@ def quantized_performance_part_to_score_part(quantized_performance_part: Perform
     print("Separated voices:")
     print(separated_voices)
     print("--------")
-    measures = _separate_voices_into_measures(separated_voices, quantized_performance_part.quantization_record)
+    measures_voices = _separate_voices_into_measures(separated_voices, quantization_record)
+    measures = [Measure(voices, measure_quantization_record)
+                for voices, measure_quantization_record in zip(measures_voices, quantization_record.quantized_measures)]
 
 
 def _collapse_chords(notes):
@@ -116,17 +123,19 @@ def _split_performance_note_at_beat(performance_note: PerformanceNote, split_bea
         second_part.start_time = split_beat
         second_part.end_time = performance_note.end_time
         performance_note.end_time = split_beat
-        # assign the '_tie_position' property of the parts based on the tie position of the original note
-        if "_tie_position" not in performance_note.properties:
-            performance_note.properties["_tie_position"] = "start"
-            second_part.properties["_tie_position"] = "end"
-        elif performance_note.properties["_tie_position"] == "start":
-            second_part.properties["_tie_position"] = "middle"
-        elif performance_note.properties["_tie_position"] == "middle":
-            second_part.properties["_tie_position"] = "middle"
-        elif performance_note.properties["_tie_position"] == "end":
-            performance_note.properties["_tie_position"] = "middle"
-            second_part.properties["_tie_position"] = "end"
+        # if this isn't a rest, then we're going to need to keep track of ties that will be needed
+        if performance_note.pitch is not None:
+            # assign the '_tie' property of the parts based on the tie property of the note being split
+            if "_tie" not in performance_note.properties:
+                performance_note.properties["_tie"] = "start"
+                second_part.properties["_tie"] = "end"
+            elif performance_note.properties["_tie"] == "start":
+                second_part.properties["_tie"] = "middle"
+            elif performance_note.properties["_tie"] == "middle":
+                second_part.properties["_tie"] = "middle"
+            elif performance_note.properties["_tie"] == "end":
+                performance_note.properties["_tie"] = "middle"
+                second_part.properties["_tie"] = "end"
 
         return performance_note, second_part
     else:
@@ -137,9 +146,10 @@ def _split_performance_note_at_beat(performance_note: PerformanceNote, split_bea
 
 class Measure:
 
-    def __init__(self, voices, quantization_record):
-        self.voices = voices
-        self.quantization_record = quantization_record
+    def __init__(self, voices, measure_quantization_record):
+        self.voices = [Voice(v, measure_quantization_record) for v in voices]
+        self.quantization_record = measure_quantization_record
+        # Add rests
 
     def get_XML(self):
         pass
@@ -147,9 +157,47 @@ class Measure:
 
 class Voice:
 
-    def __init__(self, notes):
-        # Hmm... what is this???
+    def __init__(self, notes, measure_quantization):
         self.notes = notes
+        self.measure_quantization = measure_quantization
+        print("HOO!!!!")
+        for note in self.notes:
+            note.start_time -= measure_quantization.start_time
+        self._fill_in_rests()
+        self._split_at_beats()
+        print("[\n   " + "\n   ".join(str(x) for x in self.notes) + "\n]")
+        print("Haaa")
+        # Hmm... what is this???
+
+    def _fill_in_rests(self):
+        notes_and_rests = []
+        t = 0
+        for note in self.notes:
+            if t < note.start_time:
+                notes_and_rests.append(PerformanceNote(t, note.start_time - t, None, None, {}))
+            notes_and_rests.append(note)
+            t = note.end_time
+
+        if t < self.measure_quantization.measure_length:
+            notes_and_rests.append(PerformanceNote(t, self.measure_quantization.measure_length - t, None, None, {}))
+        self.notes = notes_and_rests
+
+    def _split_at_beats(self):
+        measure_start_time = self.measure_quantization.start_time
+        for beat in self.measure_quantization.beats:
+            split_notes = []
+            for note in self.notes:
+                split_notes.extend(_split_performance_note_at_beat(note, beat.start_time - measure_start_time))
+            self.notes = split_notes
 
     def get_XML(self):
         pass
+
+
+class Tuplet:
+    pass
+
+
+class NoteLike:
+    # represents a note, a chord, or a rest
+    pass
