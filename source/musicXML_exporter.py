@@ -68,6 +68,7 @@ class Pitch(ET.Element):
 
 #  -------------------------------------------------- DURATION ----------------------------------------------------- #
 
+
 length_to_note_type = {
     8.0: "breve",
     4.0: "whole",
@@ -465,7 +466,7 @@ class Backup(ET.Element):
 
 #  --------------------------------------------------- EXAMPLE ----------------------------------------------------- #
 
-# my_score = Score("Test Score", "D. Trump")
+# my_score = Score("Test Score", "D. Bag")
 # violin_part = Part("Violin")
 # measure = Measure(1, (3, 4), "treble")
 # measure.append(Note(Pitch(58.5), Duration(1.5, (3, 2, 1)), notations=[Tuplet("start")],
