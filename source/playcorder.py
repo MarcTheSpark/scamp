@@ -67,9 +67,11 @@ class Playcorder:
     def fork_unsynchronized(self, process_function, args=(), kwargs=None):
         self.master_clock.fork_unsynchronized(process_function, args=args, kwargs=kwargs)
 
-    # used for a situation where all parts are played from a single thread
-    def wait(self, seconds):
-        self.master_clock.wait(seconds)
+    def wait(self, t):
+        self.master_clock.wait(t)
+
+    def sleep(self, t):
+        self.master_clock.wait(t)
 
     def wait_forever(self):
         while True:
