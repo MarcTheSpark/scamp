@@ -208,20 +208,22 @@ class PerformancePart(SavesToJSON):
             logging.warning("No matching instrument could be found for part {}.".format(self.name))
         return self
 
-    def quantize(self, quantization_scheme):
+    def quantize(self, quantization_scheme, onset_weighting="default", termination_weighting="default"):
         """
         Quantizes this PerformancePart according to the quantization_scheme, returning the QuantizationRecord
         """
-        quantize_performance_part(self, quantization_scheme)
+        quantize_performance_part(self, quantization_scheme, onset_weighting=onset_weighting,
+                                  termination_weighting=termination_weighting)
         return self.voice_quantization_records
 
-    def quantized(self, quantization_scheme):
+    def quantized(self, quantization_scheme, onset_weighting="default", termination_weighting="default"):
         """
         Returns a quantized copy of this PerformancePart, leaving the original unchanged
         """
         copy = PerformancePart(instrument=self.instrument, name=self.name, voices=deepcopy(self.voices),
                                instrument_id=self._instrument_id)
-        quantize_performance_part(copy, quantization_scheme)
+        quantize_performance_part(copy, quantization_scheme, onset_weighting=onset_weighting,
+                                  termination_weighting=termination_weighting)
         return copy
 
     @property
@@ -336,18 +338,21 @@ class Performance(SavesToJSON):
             part.set_instrument_from_ensemble(ensemble)
         return self
 
-    def quantize(self, quantization_scheme):
+    def quantize(self, quantization_scheme, onset_weighting="default", termination_weighting="default"):
         """
         Quantizes all parts according to the given quantization_scheme
         """
         for part in self.parts:
-            part.quantize(quantization_scheme)
+            part.quantize(quantization_scheme, onset_weighting=onset_weighting,
+                          termination_weighting=termination_weighting)
 
-    def quantized(self, quantization_scheme):
+    def quantized(self, quantization_scheme, onset_weighting="default", termination_weighting="default"):
         """
         Returns a quantized copy of this Performance, leaving the original unchanged
         """
-        return Performance([part.quantized(quantization_scheme) for part in self.parts], tempo_curve=self.tempo_curve)
+        return Performance([part.quantized(quantization_scheme, onset_weighting=onset_weighting,
+                                           termination_weighting=termination_weighting)
+                            for part in self.parts], tempo_curve=self.tempo_curve)
 
     @property
     def is_quantized(self):
