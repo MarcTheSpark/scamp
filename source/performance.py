@@ -6,6 +6,8 @@ import logging
 from playcorder.utilities import SavesToJSON
 from functools import total_ordering
 from copy import deepcopy
+import itertools
+import textwrap
 
 
 @total_ordering
@@ -24,6 +26,12 @@ class PerformanceNote:
     @end_time.setter
     def end_time(self, new_end_time):
         self.length = new_end_time - self.start_time
+
+    def play(self, instrument, clock=None, blocking=True):
+        if isinstance(self.pitch, tuple):
+            instrument.play_chord(self.pitch, self.volume, self.length, self.properties, clock=clock, blocking=blocking)
+        else:
+            instrument.play_note(self.pitch, self.volume, self.length, self.properties, clock=clock, blocking=blocking)
 
     def __repr__(self):
         return "PerformanceNote(start_time={}, length={}, pitch={}, volume={}, properties={})".format(
@@ -46,7 +54,17 @@ class PerformanceNote:
 
 class PerformancePart(SavesToJSON):
 
-    def __init__(self, instrument=None, name=None, notes=None, instrument_id=None, quantization_record=None):
+    def __init__(self, instrument=None, name=None, voices=None, instrument_id=None, voice_quantization_records=None):
+        """
+        Recording of the notes played by a PlaycorderInstrument. Can be saved to json and played back on a clock.
+        :param instrument: the PlaycorderInstrument associated with this part; used for playback
+        :param name: The name of this part
+        :param voices: either a list of PerformanceNotes (which is interpreted as one unnamed voice), a list of lists
+        of PerformanceNotes (which is interpreted as several numbered voices), or a dictionary mapping voice names
+        to lists of notes.
+        :param instrument_id: a json serializable record of the instrument used
+        :param voice_quantization_records: a record of how this part was quantized if it has been quantized
+        """
         self.instrument = instrument  # A PlaycorderInstrument instance
         # the name of the part can be specified directly, or if not derives from the instrument it's attached to
         # if the part is not attached to an instrument, it starts with a name of None
@@ -56,24 +74,56 @@ class PerformancePart(SavesToJSON):
         self._instrument_id = instrument_id if instrument_id is not None else \
             ((instrument.name, instrument.name_count) if instrument is not None else None)
 
-        # since the start_time is the first element of the named tuple,
-        # notes is sorted by start_time by default, which is what we want
-        if notes is not None:
-            assert hasattr(notes, "__len__") and all(isinstance(x, PerformanceNote) for x in notes)
-            self.notes = notes
+        if voices is None:
+            # no voices specified; create a dictionary with the catch-all voice "_unspecified_"
+            self.voices = {"_unspecified_": []}
+        elif isinstance(voices, dict):
+            # a dict of voices is given
+            self.voices = voices
+            # make sure that the dict contains the catch-all voice "_unspecified_"
+            if "_unspecified_" not in self.voices:
+                self.voices["_unspecified_"] = []
         else:
-            self.notes = []
+            # a single voice or list of voices is given
+            assert hasattr(voices, "__len__")
+            # check if we were given a list of voices
+            if hasattr(voices[0], "__len__"):
+                # if so, just assign them numbers 1, 2, 3, 4...
+                self.voices = {(i+1): voice for i, voice in enumerate(voices)}
+                # and add the unspecified voice
+                self.voices["_unspecified_"] = []
+            else:
+                # otherwise, we should have just been given a single list of notes for an unspecified default voice
+                assert all(isinstance(x, PerformanceNote) for x in voices)
+                self.voices = {"_unspecified_": voices}
 
         # a record of the quantization that was applied to this part, if any
-        self.quantization_record = quantization_record
+        self.voice_quantization_records = voice_quantization_records
 
-    def add_note(self, note: PerformanceNote):
-        last_note_start_time = self.notes[-1].start_time if len(self.notes) > 0 else 0
-        self.notes.append(note)
+    def add_note(self, note: PerformanceNote, voice=None):
+        # the voice kwarg here is only used when reconstructing this from a json serialization
+        if voice is not None:
+            # if the voice kwarg is given, use it - it should be a string
+            assert isinstance(voice, str)
+            voice_name = voice
+        elif "voice" in note.properties:
+            # if the note specifies its voice, use that
+            voice_name = str(note.properties["voice"])
+        else:
+            # otherwise, use the catch-all voice "_unspecified_"
+            voice_name = "_unspecified_"
+
+        # make sure we have an entry for the desired voice, or create one if not
+        if voice_name not in self.voices:
+            self.voices[voice_name] = []
+        voice = self.voices[voice_name]
+
+        last_note_start_time = voice[-1].start_time if len(voice) > 0 else 0
+        voice.append(note)
         if note.start_time < last_note_start_time:
             # always keep self.notes sorted; if we're appending something that shouldn't be at the
             # very end, we'll need to sort the list after appending. This probably doesn't come up much.
-            self.notes.sort(key=lambda n: n.start_time)
+            voice.sort()  # they are defined to sort by start_time
 
     def new_note(self, start_time, length, pitch, volume, properties):
         self.add_note(PerformanceNote(start_time, length, pitch, volume, properties))
@@ -84,20 +134,26 @@ class PerformancePart(SavesToJSON):
 
     @property
     def end_time(self):
-        if len(self.notes) == 0:
+        if len(self.voices) == 0:
             return 0
-        return max(n.start_time + n.length for n in self.notes)
+        return max(max(n.start_time + n.length for n in voice) for voice in self.voices.values())
 
-    def get_note_iterator(self, start_time, stop_time):
+    def get_note_iterator(self, start_time, stop_time, selected_voices=None):
+        # we can be given a list of voices to play, or if none is specified, we play all of them
+        selected_voices = self.voices.keys() if selected_voices is None else selected_voices
+        all_notes = list(itertools.chain(*[self.voices[x] for x in selected_voices]))
+        all_notes.sort()
+
         def iterator():
-            note_index = bisect.bisect_left(self.notes, start_time)
-            while note_index < len(self.notes) and self.notes[note_index].start_time < stop_time:
-                yield self.notes[note_index]
+            note_index = bisect.bisect_left(all_notes, start_time)
+            while note_index < len(all_notes) and all_notes[note_index].start_time < stop_time:
+                yield all_notes[note_index]
                 note_index += 1
 
         return iterator()
 
-    def play(self, start_time=0, stop_time=None, instrument=None, clock=None, blocking=True, tempo_curve=None):
+    def play(self, start_time=0, stop_time=None, instrument=None, clock=None, blocking=True,
+             tempo_curve=None, selected_voices=None):
         instrument = self.instrument if instrument is None else instrument
         from playcorder.instruments import PlaycorderInstrument
         if not isinstance(instrument, PlaycorderInstrument):
@@ -111,7 +167,7 @@ class PerformancePart(SavesToJSON):
             assert isinstance(tempo_curve, TempoCurve)
 
         def _play_thread(child_clock):
-            note_iterator = self.get_note_iterator(start_time, stop_time)
+            note_iterator = self.get_note_iterator(start_time, stop_time, selected_voices)
             self.get_note_iterator(start_time, stop_time)
             try:
                 current_note = next(note_iterator)
@@ -121,9 +177,9 @@ class PerformancePart(SavesToJSON):
             child_clock.wait(current_note.start_time - start_time)
 
             while True:
-                instrument.play_note(current_note.pitch, current_note.volume,
-                                     current_note.length, current_note.properties,
-                                     clock=child_clock, blocking=False)
+                assert isinstance(current_note, PerformanceNote)
+                current_note.play(instrument, clock=child_clock, blocking=False)
+
                 try:
                     next_note = next(note_iterator)
                     child_clock.wait(next_note.start_time - current_note.start_time)
@@ -156,57 +212,73 @@ class PerformancePart(SavesToJSON):
         """
         Quantizes this PerformancePart according to the quantization_scheme, returning the QuantizationRecord
         """
-        self.quantization_record = quantize_performance_part(self, quantization_scheme)
-        return self.quantization_record
+        quantize_performance_part(self, quantization_scheme)
+        return self.voice_quantization_records
 
     def quantized(self, quantization_scheme):
         """
         Returns a quantized copy of this PerformancePart, leaving the original unchanged
         """
-        copy = PerformancePart(instrument=self.instrument, name=self.name, notes=deepcopy(self.notes),
+        copy = PerformancePart(instrument=self.instrument, name=self.name, voices=deepcopy(self.voices),
                                instrument_id=self._instrument_id)
-        copy.quantization_record = quantize_performance_part(copy, quantization_scheme)
+        quantize_performance_part(copy, quantization_scheme)
         return copy
 
     @property
     def is_quantized(self):
-        return self.quantization_record is not None
+        return self.voice_quantization_records is not None
 
     def __repr__(self):
-        return "PerformancePart(name=\"{}\", instrument_id={}, notes=[\n{}\n]{}".format(
-            self.name, self._instrument_id, "   " + ", \n   ".join(str(x) for x in self.notes),
-            ", quantization_record={})".format(self.quantization_record)
-            if self.quantization_record is not None else ")"
+        voice_strings = [
+            "{}: [\n{}\n]".format("'" + voice_name + "'" if isinstance(voice_name, str) else voice_name,
+                                  textwrap.indent(",\n".join(str(x) for x in self.voices[voice_name]), "   "))
+            for voice_name in self.voices
+        ]
+        return "PerformancePart(name=\'{}\', instrument_id={}, voices={}{}".format(
+            self.name, self._instrument_id,
+            "{{\n{}\n}}".format(textwrap.indent(",\n".join(voice_strings), "   ")),
+            ", quantization_record={})".format(self.voice_quantization_records)
+            if self.voice_quantization_records is not None else ")"
         )
 
     def _to_json(self):
         return {
             "name": self.name,
             "instrument_id": self._instrument_id,
-            "notes": [
-                {
-                    "start_time": n.start_time,
-                    "length": n.length,
-                    "pitch": n.pitch._to_json() if hasattr(n.pitch, "_to_json") else n.pitch,
-                    "volume": n.volume._to_json() if hasattr(n.volume, "_to_json") else n.volume,
-                    "properties": n.properties
-                } for n in self.notes
-            ],
-            "quantization_record": self.quantization_record._to_json() if self.quantization_record is not None else None
+            "voices": {
+                voice_name: [
+                    {
+                        "start_time": n.start_time,
+                        "length": n.length,
+                        "pitch": n.pitch._to_json() if hasattr(n.pitch, "_to_json") else n.pitch,
+                        "volume": n.volume._to_json() if hasattr(n.volume, "_to_json") else n.volume,
+                        "properties": n.properties
+                    } for n in voice
+                ] for voice_name, voice in self.voices.items()
+            },
+            "voice_quantization_records": {
+                voice_name: self.voice_quantization_records[voice_name]._to_json()
+                for voice_name in self.voice_quantization_records
+            } if self.voice_quantization_records is not None else None
         }
 
     @classmethod
     def _from_json(cls, json_dict):
         performance_part = cls(name=json_dict["name"])
         performance_part._instrument_id = json_dict["instrument_id"]
-        for note in json_dict["notes"]:
-            if hasattr(note["pitch"], "__len__"):
-                note["pitch"] = ParameterCurve._from_json(note["pitch"])
-            if hasattr(note["volume"], "__len__"):
-                note["volume"] = ParameterCurve._from_json(note["volume"])
-            performance_part.add_note(PerformanceNote(**note))
-        performance_part.quantization_record = QuantizationRecord._from_json(json_dict["quantization_record"]) \
-            if json_dict["quantization_record"] is not None else None
+        for voice in json_dict["voices"]:
+            voice_notes = json_dict["voices"][voice]
+            for note in voice_notes:
+                if hasattr(note["pitch"], "__len__"):
+                    note["pitch"] = ParameterCurve._from_json(note["pitch"])
+                if hasattr(note["volume"], "__len__"):
+                    note["volume"] = ParameterCurve._from_json(note["volume"])
+                performance_part.add_note(PerformanceNote(**note), voice=voice)
+        performance_part.voice_quantization_records = {
+            voice_name: QuantizationRecord._from_json(json_dict["voice_quantization_records"][voice_name])
+            for voice_name in json_dict["voice_quantization_records"]
+        } if json_dict["voice_quantization_records"] is not None else None
+
         return performance_part
 
 
@@ -290,6 +362,6 @@ class Performance(SavesToJSON):
                    TempoCurve.from_list(json_dict["tempo_curve"]))
 
     def __repr__(self):
-        return "Performance([\n{}\n])".format("   " + ",\n   ".join(
-            "\n   ".join(str(x).split('\n')) for x in self.parts
-        ))
+        return "Performance([\n{}\n])".format(
+            textwrap.indent(",\n".join(str(x) for x in self.parts), "   ")
+        )
