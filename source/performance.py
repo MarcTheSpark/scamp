@@ -11,10 +11,12 @@ import textwrap
 
 
 @total_ordering
-class PerformanceNote:
+class PerformanceNote(SavesToJSON):
+
     def __init__(self, start_time, length, pitch, volume, properties):
         self.start_time = start_time
         self.length = length
+        # if pitch is a tuple, this indicates a chord
         self.pitch = pitch
         self.volume = volume
         self.properties = properties
@@ -33,11 +35,6 @@ class PerformanceNote:
         else:
             instrument.play_note(self.pitch, self.volume, self.length, self.properties, clock=clock, blocking=blocking)
 
-    def __repr__(self):
-        return "PerformanceNote(start_time={}, length={}, pitch={}, volume={}, properties={})".format(
-            self.start_time, self.length, self.pitch, self.volume, self.properties
-        )
-
     def __lt__(self, other):
         # this allows it to be compared with numbers. I use that below to bisect a list of notes
         if isinstance(other, PerformanceNote):
@@ -50,6 +47,45 @@ class PerformanceNote:
             return self.start_time == other.start_time
         else:
             return self.start_time == other
+
+    def _to_json(self):
+        if isinstance(self.pitch, tuple):
+            # if this is a chord
+            json_pitch = [p._to_json() if isinstance(p, ParameterCurve) else p for p in self.pitch]
+            json_pitch.insert(0, "chord")  # indicates that it's a chord, since json can't distinguish tuples from lists
+        elif isinstance(self.pitch, ParameterCurve):
+            json_pitch = self.pitch._to_json()
+        else:
+            json_pitch = self.pitch
+
+        return {
+            "start_time": self.start_time,
+            "length": self.length,
+            "pitch": json_pitch,
+            "volume": self.volume._to_json() if isinstance(self.volume, ParameterCurve) else self.volume,
+            "properties": self.properties
+        }
+
+    @classmethod
+    def _from_json(cls, json_object):
+        # if pitch is an array starting with "chord"
+        if hasattr(json_object["pitch"], "__len__") and json_object["pitch"][0] == "chord":
+            pitches = []
+            for pitch in json_object["pitch"][1:]:  # ignore the "chord" indicator
+                pitches.append(ParameterCurve._from_json(pitch) if hasattr(pitch, "__len__") else pitch)
+            json_object["pitch"] = tuple(pitches)
+        # otherwise check if it's a ParameterCurve
+        elif hasattr(json_object["pitch"], "__len__"):
+            json_object["pitch"] = ParameterCurve._from_json(json_object["pitch"])
+
+        if hasattr(json_object["volume"], "__len__"):
+            json_object["volume"] = ParameterCurve._from_json(json_object["volume"])
+        return PerformanceNote(**json_object)
+
+    def __repr__(self):
+        return "PerformanceNote(start_time={}, length={}, pitch={}, volume={}, properties={})".format(
+            self.start_time, self.length, self.pitch, self.volume, self.properties
+        )
 
 
 class PerformancePart(SavesToJSON):
@@ -248,15 +284,7 @@ class PerformancePart(SavesToJSON):
             "name": self.name,
             "instrument_id": self._instrument_id,
             "voices": {
-                voice_name: [
-                    {
-                        "start_time": n.start_time,
-                        "length": n.length,
-                        "pitch": n.pitch._to_json() if hasattr(n.pitch, "_to_json") else n.pitch,
-                        "volume": n.volume._to_json() if hasattr(n.volume, "_to_json") else n.volume,
-                        "properties": n.properties
-                    } for n in voice
-                ] for voice_name, voice in self.voices.items()
+                voice_name: [n._to_json() for n in voice] for voice_name, voice in self.voices.items()
             },
             "voice_quantization_records": {
                 voice_name: self.voice_quantization_records[voice_name]._to_json()
@@ -269,13 +297,8 @@ class PerformancePart(SavesToJSON):
         performance_part = cls(name=json_dict["name"])
         performance_part._instrument_id = json_dict["instrument_id"]
         for voice in json_dict["voices"]:
-            voice_notes = json_dict["voices"][voice]
-            for note in voice_notes:
-                if hasattr(note["pitch"], "__len__"):
-                    note["pitch"] = ParameterCurve._from_json(note["pitch"])
-                if hasattr(note["volume"], "__len__"):
-                    note["volume"] = ParameterCurve._from_json(note["volume"])
-                performance_part.add_note(PerformanceNote(**note), voice=voice)
+            for note in json_dict["voices"][voice]:
+                performance_part.add_note(PerformanceNote._from_json(note), voice=voice)
         performance_part.voice_quantization_records = {
             voice_name: QuantizationRecord._from_json(json_dict["voice_quantization_records"][voice_name])
             for voice_name in json_dict["voice_quantization_records"]
