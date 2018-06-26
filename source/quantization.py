@@ -2,10 +2,9 @@ from fractions import Fraction
 from playcorder.utilities import indigestibility, is_multiple, is_x_pow_of_y, round_to_multiple, SavesToJSON
 from collections import namedtuple
 from playcorder.settings import quantization_settings
-
+import textwrap
 
 # TODO: Make all the quantization stuff use the defaults better
-# TODO: Double-check some quantization examples
 
 
 QuantizedBeat = namedtuple("QuantizedBeat", "start_time beat_length end_time divisor")
@@ -47,18 +46,57 @@ class QuantizationRecord(SavesToJSON):
 
     def __repr__(self):
         return "QuantizationRecord([\n{}\n])".format(
-            "   " + ", \n   ".join(str(x) for x in self.quantized_measures)
+            textwrap.indent(",\n".join(str(x) for x in self.quantized_measures), "   ")
         )
 
 
 def quantize_performance_part(part, quantization_scheme, onset_weighting="default", termination_weighting="default"):
     """
-    Quantizes a performance part (in place) and return a QuantizationRecord
+    Quantizes a performance part (in place) and sets its voice_quantization_records
     :param part: a PerformancePart
     :param quantization_scheme: a QuantizationScheme
     :param onset_weighting: How much do we care about accurate onsets
     :param termination_weighting: How much do we care about accurate terminations
     :return: a QuantizationRecord, detailing all of the time signatures, beat divisions selected, etc.
+    """
+    assert isinstance(quantization_scheme, QuantizationScheme)
+
+    part.voice_quantization_records = {}
+
+    for voice_name, voice in list(part.voices.items()):
+        quantization_record = _quantize_performance_voice(voice, quantization_scheme,
+                                                          onset_weighting, termination_weighting)
+        # make any simultaneous notes in the part chords
+        _collapse_chords(voice)
+        # break the voice into a list of non-overlapping voices. If there was no overlap, this has length 1
+        non_overlapping_voices = _separate_into_non_overlapping_voices(voice)
+
+        for i, new_voice in enumerate(non_overlapping_voices):
+            if i == 0:
+                # the first of the non-overlapping voices just retains the old voice name
+                new_voice_name = voice_name
+            else:
+                # any extra voice created has to be given a related name
+                # we follow the pattern 'original_voice', 'original_voice_2', 'original_voice_3', etc.
+                k = i+1
+                new_voice_name = voice_name + "_{}".format(str(k))
+                # in the ridiculous case someone names two voices 'voice' and 'voice_2', and the first one needs to
+                # be split up, we'll just have to increment to 'voice_3'
+                while new_voice_name in part.voices:
+                    k += 1
+                    voice_name + "_{}".format(str(k))
+            part.voices[new_voice_name] = new_voice
+            part.voice_quantization_records[new_voice_name] = quantization_record
+
+
+def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="default", termination_weighting="default"):
+    """
+    Quantizes a voice (modifying notes in place) and returns a QuantizationRecord
+    :param voice: a single voice (list of PerformanceNotes) from a PerformancePart
+    :param quantization_scheme: a QuantizationScheme
+    :param onset_weighting: How much do we care about accurate onsets
+    :param termination_weighting: How much do we care about accurate terminations
+    :return: QuantizationRecord, detailing all of the time signatures, beat divisions selected, etc.
     """
     assert isinstance(quantization_scheme, QuantizationScheme)
 
@@ -68,10 +106,10 @@ def quantize_performance_part(part, quantization_scheme, onset_weighting="defaul
         termination_weighting = quantization_settings.termination_weighting
 
     # make list of (note onset time, note) tuples
-    raw_onsets = [(performance_note.start_time, performance_note) for performance_note in part.notes]
+    raw_onsets = [(performance_note.start_time, performance_note) for performance_note in voice]
     # make list of (note termination time, note) tuples
     raw_terminations = [(performance_note.start_time + performance_note.length, performance_note)
-                        for performance_note in part.notes]
+                        for performance_note in voice]
     # sort them
     raw_onsets.sort(key=lambda x: x[0])
     raw_terminations.sort(key=lambda x: x[0])
@@ -128,6 +166,52 @@ def quantize_performance_part(part, quantization_scheme, onset_weighting="defaul
                     note.length += division_length
 
     return _construct_quantization_record(beat_divisors, quantization_scheme)
+
+
+def _collapse_chords(notes):
+    """
+    Modifies a list of PerformanceNotes in place so that simultaneous notes become chords
+    (i.e. they become PerformanceNotes with a tuple of different values for the pitch.)
+    :param notes: a list of PerformanceNotes
+    """
+    i = 1
+    while i < len(notes):
+        # if same as the previous not in all but pitch
+        if notes[i].start_time == notes[i - 1].start_time and notes[i].length == notes[i - 1].length \
+                and notes[i].volume == notes[i - 1].volume and notes[i].properties == notes[i - 1].properties:
+            # if it's already a chord (represented by a tuple in pitch)
+            if isinstance(notes[i].pitch, tuple):
+                notes[i-1].pitch += (notes[i].pitch,)
+            else:
+                notes[i-1].pitch = (notes[i-1].pitch, notes[i].pitch)
+            # remove the current note, since it has been merged into the previous. No need to increment i.
+            notes.pop(i)
+        else:
+            i += 1
+
+
+def _separate_into_non_overlapping_voices(notes):
+    """
+    Takes a list of PerformanceNotes and breaks it up into separate voices that don't overlap more than max_overlap
+    :param notes: a list of PerformanceNotes
+    :return: a list of voices, each of which is a non-overlapping list of PerformanceNotes
+    """
+    voices = []
+    # for each note, find the first non-conflicting voice and add it to that
+    # or create a new voice to add it to if none of the existing voices work
+    for note in notes:
+        voice_to_add_to = None
+        for voice in voices:
+            # check each voice to see if its last note ends before the note we want to add
+            if voice[-1].end_time <= note.start_time:
+                voice_to_add_to = voice
+                break
+        if voice_to_add_to is None:
+            voice_to_add_to = []
+            voices.append(voice_to_add_to)
+        voice_to_add_to.append(note)
+
+    return voices
 
 
 def _get_best_divisor_for_beat(beat_scheme, beat_start_time, onsets_in_beat, terminations_in_beat,
