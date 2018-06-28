@@ -102,6 +102,36 @@ class QuantizationSettings(SavesToJSON):
         return cls(**json_object)
 
 
+_engraving_settings_factory_defaults = {
+    "max_voices_per_part": 4,
+}
+
+
+class EngravingSettings(SavesToJSON):
+
+    def __init__(self, **settings):
+        self.max_voices_per_part = None if "max_voices_per_part" not in settings else settings["max_voices_per_part"]
+
+    def restore_factory_defaults(self):
+        for key in _engraving_settings_factory_defaults:
+            self.__dict__[key] = _engraving_settings_factory_defaults[key]
+        return self
+
+    def make_persistent(self):
+        self.save_to_json(resolve_relative_path("settings/engravingSettings.json"))
+
+    @classmethod
+    def factory_default(cls):
+        return cls().restore_factory_defaults()
+
+    def _to_json(self):
+        return self.__dict__
+
+    @classmethod
+    def _from_json(cls, json_object):
+        return cls(**json_object)
+
+
 try:
     playback_settings = PlaybackSettings.load_from_json(resolve_relative_path("settings/playbackSettings.json"))
 except FileNotFoundError:
@@ -117,7 +147,22 @@ except FileNotFoundError:
     quantization_settings.make_persistent()
 
 
+try:
+    engraving_settings = EngravingSettings.load_from_json(resolve_relative_path("settings/engravingSettings.json"))
+except FileNotFoundError:
+    engraving_settings = EngravingSettings.factory_default()
+    engraving_settings.make_persistent()
+
+
 def restore_all_factory_defaults(persist=False):
     playback_settings.restore_factory_defaults()
     if persist:
         playback_settings.make_persistent()
+
+    quantization_settings.restore_factory_defaults()
+    if persist:
+        quantization_settings.make_persistent()
+    engraving_settings.restore_factory_defaults()
+
+    if persist:
+        engraving_settings.make_persistent()
