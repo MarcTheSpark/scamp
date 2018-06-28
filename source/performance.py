@@ -262,7 +262,6 @@ class PerformancePart(SavesToJSON):
                                   termination_weighting=termination_weighting)
         return copy
 
-    @property
     def is_quantized(self):
         return self.voice_quantization_records is not None
 
