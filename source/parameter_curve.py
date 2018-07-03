@@ -78,6 +78,9 @@ class ParameterCurve(SavesToJSON):
                     points_to_check.append(segment.end_level)
             return max(points_to_check)
 
+    def average_level(self):
+        return self.integrate_interval(0, self.length()) / self.length()
+
     def max_absolute_slope(self):
         return max(segment.max_absolute_slope() for segment in self._segments)
 
@@ -455,6 +458,9 @@ class ParameterCurveSegment:
 
     def max_level(self):
         return max(self.start_level, self.end_level)
+
+    def average_level(self):
+        return self.integrate_segment(self.start_time, self.end_time) / self.duration
 
     def max_absolute_slope(self):
         """
