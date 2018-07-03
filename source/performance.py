@@ -29,6 +29,13 @@ class PerformanceNote(SavesToJSON):
     def end_time(self, new_end_time):
         self.length = new_end_time - self.start_time
 
+    def average_pitch(self):
+        if isinstance(self.pitch, tuple):
+            # it's a chord, so take the average of its members
+            return sum(x.average_level() if isinstance(x, ParameterCurve) else x for x in self.pitch) / len(self.pitch)
+        else:
+            return self.pitch.average_level() if isinstance(self.pitch, ParameterCurve) else self.pitch
+
     def play(self, instrument, clock=None, blocking=True):
         if isinstance(self.pitch, tuple):
             instrument.play_chord(self.pitch, self.volume, self.length, self.properties, clock=clock, blocking=blocking)
@@ -174,7 +181,7 @@ class PerformancePart(SavesToJSON):
             return 0
         return max(max(n.start_time + n.length for n in voice) for voice in self.voices.values())
 
-    def get_note_iterator(self, start_time, stop_time, selected_voices=None):
+    def get_note_iterator(self, start_time=0, stop_time=None, selected_voices=None):
         # we can be given a list of voices to play, or if none is specified, we play all of them
         selected_voices = self.voices.keys() if selected_voices is None else selected_voices
         all_notes = list(itertools.chain(*[self.voices[x] for x in selected_voices]))
@@ -182,7 +189,7 @@ class PerformancePart(SavesToJSON):
 
         def iterator():
             note_index = bisect.bisect_left(all_notes, start_time)
-            while note_index < len(all_notes) and all_notes[note_index].start_time < stop_time:
+            while note_index < len(all_notes) and (stop_time is None or all_notes[note_index].start_time < stop_time):
                 yield all_notes[note_index]
                 note_index += 1
 
