@@ -3,6 +3,7 @@ from playcorder.settings import engraving_settings
 from copy import deepcopy
 import math
 from fractions import Fraction
+from playcorder.utilities import get_standard_indispensability_array, prime_factor
 
 
 def quantized_performance_part_to_staff_group(quantized_performance_part: PerformancePart):
@@ -236,7 +237,7 @@ class Voice:
         notes = Voice._fill_in_rests(notes, length)
         notes = Voice._split_notes_at_beats(notes, [beat.start_time - measure_quantization.start_time
                                                     for beat in measure_quantization.beats])
-
+        Voice._set_note_tuplet_info(notes, measure_quantization)
         print(notes)
         # Not appropriate yet!
         return cls(notes, length)
@@ -264,8 +265,95 @@ class Voice:
             notes = split_notes
         return notes
 
+    @staticmethod
+    def _set_note_tuplet_info(notes, measure_quantization):
+        notes = list(notes)
+        for beat_quantization in measure_quantization.beats:
+            tuplet = Tuplet.from_length_and_divisor(beat_quantization.beat_length, beat_quantization.divisor) \
+                if beat_quantization.divisor is not None else None
+
+            while len(notes) > 0 and notes[0].start_time < beat_quantization.end_time:
+                # go through all the notes in this beat
+                this_note = notes.pop(0)
+                assert isinstance(this_note, PerformanceNote)
+                # it's useful to keep track of the quantization of the beat the note is a part of
+                # for later ordering of the tied constituents of the note
+                this_note.properties["_beat_quantization"] = beat_quantization
+
+                if tuplet is not None:
+                    this_note.properties["_tuplet"] = tuplet
+                    this_note.properties["_written_length"] = this_note.length * tuplet.dilation_factor()
+
+                    if this_note.start_time == beat_quantization.start_time:
+                        this_note.properties["_starts_tuplet"] = True
+                    if this_note.end_time == beat_quantization.end_time:
+                        this_note.properties["_ends_tuplet"] = True
+                else:
+                    this_note.properties["_tuplet"] = None
+                    this_note.properties["_written_length"] = this_note.length
+
     def get_XML(self):
         pass
+
+
+def _process_voice(pc_voice, beat_schemes, beat_divisors):
+    _set_tuplets_for_notes_in_voice(pc_voice, beat_schemes, beat_divisors)
+    _break_notes_into_undotted_constituents(pc_voice, beat_schemes, beat_divisors)
+    # this one doesn't modify in place, since we're changing the number of notes
+    pc_voice = _separate_note_components_into_different_notes(pc_voice)
+    return pc_voice
+
+
+def _break_notes_into_undotted_constituents(voice, beat_schemes, beat_divisors):
+    # first, we  decompose a note into its undotted constituents
+    for pc_note in voice:
+        if is_single_note_length(pc_note.length):
+            pc_note.length_without_tuplet = [pc_note.length_without_tuplet]
+        else:
+            pc_note.length_without_tuplet = PCNote.length_to_undotted_constituents(pc_note.length_without_tuplet)
+
+    # if it can't be represented with a single notehead, we order the constituent noteheads so that larger noteheads
+    # sit on more important subdivisions. We use indispensability to judge the importance of subdivisions
+    for beat_scheme, divisor in zip(beat_schemes, beat_divisors):
+        if divisor is None:
+            continue
+        beat_indispensabilities = get_standard_indispensability_array(
+            _get_multiplicative_beat_meter(beat_scheme.beat_length, divisor), normalize=True
+        )
+        notes_in_beat = [pc_note for pc_note in voice
+                         if beat_scheme.start_time <= pc_note.start_time < beat_scheme.end_time]
+        for pc_note in notes_in_beat:
+            if len(pc_note.length_without_tuplet) == 1:
+                # this case really shouldn't come up, since we returned above if there's only one constituent duration
+                continue
+            else:
+                # try every permutation of the duration constituents. Get a score for it by multiplying the length of
+                # each constituent with the indispensability of that pulse within the beat and summing them.
+                best_permutation = None
+                best_score = 0
+                for permutation in permutations(pc_note.length_without_tuplet):
+                    score = 0.
+                    position = (pc_note.start_time - beat_scheme.start_time) * beat_scheme.length_without_tuplet / beat_scheme.beat_length
+                    for segment in permutation:
+                        score += beat_indispensabilities[int(round(position / beat_scheme.length_without_tuplet * divisor))] * segment
+                        position += segment
+                    if score > best_score:
+                        best_score = score
+                        best_permutation = permutation
+                pc_note.length_without_tuplet = list(best_permutation)
+
+
+def _get_multiplicative_beat_meter(beat_length, beat_divisor):
+    # a beat of length 1.5 = 3/2 prefers to divide into 3 first
+    # a beat length of 3.75 = 15/4 prefers to divide fist into 3 then into 5
+    natural_divisions = sorted(Fraction(beat_length).limit_denominator().numerator, reverse=True)
+    prime_decomposition = prime_factor(beat_divisor)
+    prime_decomposition.sort()
+    print(prime_decomposition, natural_division)
+    for preferred_factor in sorted(prime_factor(natural_division), reverse=True):
+        print(preferred_factor)
+        prime_decomposition.insert(0, prime_decomposition.pop(prime_decomposition.index(preferred_factor)))
+    return prime_decomposition
 
 
 class Tuplet:
@@ -278,6 +366,9 @@ class Tuplet:
         self.tuplet_divisions = tuplet_divisions
         self.normal_divisions = normal_divisions
         self.division_length = division_length
+
+    def dilation_factor(self):
+        return self.tuplet_divisions / self.normal_divisions
 
     def length(self):
         return self.normal_divisions * self.division_length
