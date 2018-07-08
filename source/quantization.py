@@ -4,12 +4,10 @@ from collections import namedtuple
 from playcorder.settings import quantization_settings
 import textwrap
 
-# TODO: Make all the quantization stuff use the defaults better
 
+QuantizedBeat = namedtuple("QuantizedBeat", "start_time start_time_in_measure length divisor")
 
-QuantizedBeat = namedtuple("QuantizedBeat", "start_time beat_length end_time divisor")
-
-QuantizedMeasure = namedtuple("QuantizedMeasure", "beats time_signature measure_length start_time end_time")
+QuantizedMeasure = namedtuple("QuantizedMeasure", "start_time measure_length beats time_signature ")
 
 
 class QuantizationRecord(SavesToJSON):
@@ -251,12 +249,11 @@ def _construct_quantization_record(beat_divisors, quantization_scheme):
     assert isinstance(beat_divisors, list)
     quantized_measures = []
     for measure_scheme, t in quantization_scheme.measure_scheme_iterator():
-        quantized_measure = QuantizedMeasure([], measure_scheme.time_signature, measure_scheme.length,
-                                             t, t + measure_scheme.length)
+        quantized_measure = QuantizedMeasure(t, measure_scheme.length, [], measure_scheme.time_signature)
         for beat_scheme in measure_scheme.beat_schemes:
             divisor = beat_divisors.pop(0) if len(beat_divisors) > 0 else None
             quantized_measure.beats.append(
-                QuantizedBeat(t, beat_scheme.length, t + beat_scheme.length, divisor)
+                QuantizedBeat(t, t - quantized_measure.start_time, beat_scheme.length, divisor)
             )
             t += beat_scheme.length
         quantized_measures.append(quantized_measure)
