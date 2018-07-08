@@ -3,7 +3,90 @@ from playcorder.settings import engraving_settings
 from copy import deepcopy
 import math
 from fractions import Fraction
-from playcorder.utilities import get_standard_indispensability_array, prime_factor
+from playcorder.utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y
+
+# TODO: NoteLike needs a static method to take a PerformanceNote and a desired split of the lengths and produce
+# a list of tied NoteLikes. They'll also need to split up any pitch ParameterCurves into their chunks.
+# For now, we'll do this as gracenotes, but maybe there can be a setting that first splits a note into constituents
+# based on the key points of the param curve and then splits those constituents into reproducible notes?
+
+# TODO: fix old code in_process_and_convert_beat
+
+# ---------------------------------------------- Duration Utilities --------------------------------------------
+
+length_to_note_type = {
+    8.0: "breve",
+    4.0: "whole",
+    2.0: "half",
+    1.0: "quarter",
+    0.5: "eighth",
+    0.25: "16th",
+    1.0/8: "32nd",
+    1.0/16: "64th",
+    1.0/32: "128th"
+}
+
+
+def get_basic_length_and_num_dots(length):
+    length = Fraction(length).limit_denominator()
+    if length in length_to_note_type:
+        return length, 0
+    else:
+        dots_multiplier = 1.5
+        dots = 1
+        while length / dots_multiplier not in length_to_note_type:
+            dots += 1
+            dots_multiplier = (2.0 ** (dots + 1) - 1) / 2.0 ** dots
+            if dots > engraving_settings.max_dots_allowed:
+                raise ValueError("Duration length of {} does not resolve to single note type.".format(length))
+        return length / dots_multiplier, dots
+
+
+def is_single_note_length(length):
+    try:
+        get_basic_length_and_num_dots(length)
+        return True
+    except ValueError:
+        return False
+
+
+def length_to_undotted_constituents(length):
+    # fix any floating point inaccuracies
+    length = Fraction(length).limit_denominator()
+    length_parts = []
+    while length > 0:
+        this_part = floor_x_to_pow_of_y(length, 2.0)
+        length -= this_part
+        length_parts.append(this_part)
+    return length_parts
+
+
+def _get_beat_division_indispensabilities(beat_length, beat_divisor):
+    # In general, it's best to divide a beat into the smaller prime factors first. For instance, a 6 tuple is probably
+    # easiest as two groups of 3 rather than 3 groups of 2. (This is definitely debatable and context dependent.)
+    # An special case occurs when the beat naturally wants to divide a certain way. For instance, a beat of length 1.5
+    # divided into 6 will prefer to divide into 3s first and then 2s.
+
+    # first, get the divisor prime factors from to small
+    divisor_factors = sorted(prime_factor(beat_divisor))
+
+    # then get the natural divisors of the beat length from big to small
+    natural_factors = sorted(prime_factor(Fraction(beat_length).limit_denominator().numerator), reverse=True)
+
+    # now for each natural factor
+    for natural_factor in natural_factors:
+        # if it's a factor of the divisor
+        if natural_factor in divisor_factors:
+            # then pop it and move it to the front
+            divisor_factors.pop(divisor_factors.index(natural_factor))
+            divisor_factors.insert(0, natural_factor)
+            # (Note that we sorted the natural factors from big to small so that the small ones get
+            # pushed to the front last and end up at the very beginning of the queue)
+
+    return get_standard_indispensability_array(divisor_factors, normalize=True)
+
+
+# ---------------------------------------- Performance Part Conversion -----------------------------------------
 
 
 def quantized_performance_part_to_staff_group(quantized_performance_part: PerformancePart):
@@ -232,15 +315,30 @@ class Voice:
         :return: a Voice object containing all the notation
         """
         length = measure_quantization.measure_length
+
+        # change each PerformanceNote to have a start_time relative to the start of the measure
         for note in notes:
             note.start_time -= measure_quantization.start_time
+
         notes = Voice._fill_in_rests(notes, length)
-        notes = Voice._split_notes_at_beats(notes, [beat.start_time - measure_quantization.start_time
-                                                    for beat in measure_quantization.beats])
-        Voice._set_note_tuplet_info(notes, measure_quantization)
-        print(notes)
-        # Not appropriate yet!
-        return cls(notes, length)
+        # break notes that cross beat boundaries into two tied notes
+        # later, some of these can be recombined, but we need to convert them to NoteLikes first
+        notes = Voice._split_notes_at_beats(notes, [beat.start_time_in_measure for beat in measure_quantization.beats])
+
+        # construct the processed contents of this voice (made up of NoteLikes Tuplets)
+        processed_contents = []
+        for beat_quantization in measure_quantization.beats:
+            notes_from_this_beat = []
+
+            while len(notes) > 0 and \
+                    notes[0].start_time < beat_quantization.start_time_in_measure + beat_quantization.length:
+                # go through all the notes in this beat
+                notes_from_this_beat.append(notes.pop(0))
+
+            processed_contents.extend(Voice._process_and_convert_beat(notes_from_this_beat, beat_quantization))
+
+        # instantiate and return the constructed voice
+        return cls(processed_contents, length)
 
     @staticmethod
     def _fill_in_rests(notes, total_length):
@@ -266,99 +364,65 @@ class Voice:
         return notes
 
     @staticmethod
-    def _set_note_tuplet_info(notes, measure_quantization):
-        notes = list(notes)
-        for beat_quantization in measure_quantization.beats:
-            tuplet = Tuplet.from_length_and_divisor(beat_quantization.beat_length, beat_quantization.divisor) \
-                if beat_quantization.divisor is not None else None
+    def _process_and_convert_beat(beat_notes, beat_quantization):
+        if beat_quantization.divisor is None:
+            # if there's no beat divisor, then it should just be a rest of the full length of the beat
+            assert len(beat_notes) == 1 and beat_notes[0].pitch is None
+            rest = beat_notes[0]
 
-            while len(notes) > 0 and notes[0].start_time < beat_quantization.end_time:
-                # go through all the notes in this beat
-                this_note = notes.pop(0)
-                assert isinstance(this_note, PerformanceNote)
-                # it's useful to keep track of the quantization of the beat the note is a part of
-                # for later ordering of the tied constituents of the note
-                this_note.properties["_beat_quantization"] = beat_quantization
+            if is_single_note_length(rest.length):
+                return [NoteLike(None, rest.length, rest.properties)]
+            else:
+                constituent_lengths = length_to_undotted_constituents(rest.length)
+                return [NoteLike(None, l, rest.properties) for l in constituent_lengths]
 
-                if tuplet is not None:
-                    this_note.properties["_tuplet"] = tuplet
-                    this_note.properties["_written_length"] = this_note.length * tuplet.dilation_factor()
+        # if the divisor requires a tuplet, we construct it
+        tuplet = Tuplet.from_length_and_divisor(beat_quantization.length, beat_quantization.divisor) \
+            if beat_quantization.divisor is not None else None
 
-                    if this_note.start_time == beat_quantization.start_time:
-                        this_note.properties["_starts_tuplet"] = True
-                    if this_note.end_time == beat_quantization.end_time:
-                        this_note.properties["_ends_tuplet"] = True
-                else:
-                    this_note.properties["_tuplet"] = None
-                    this_note.properties["_written_length"] = this_note.length
+        # if there's a tuplet, the processed contents of this beat will be placed within the tuplet and returned
+        # if not, we return a list of NoteLikes directly. So we'll always add to out_container, and return out
+        out_container = tuplet.contents if tuplet is not None else []
+        out = [tuplet] if tuplet is not None else out_container
+
+        dilation_factor = tuplet.dilation_factor() if tuplet is not None else 1
+
+        division_indispensabilities = _get_beat_division_indispensabilities(beat_quantization.length,
+                                                                            beat_quantization.divisor)
+
+        for note in beat_notes:
+            written_length = note.length * dilation_factor
+            print(written_length, is_single_note_length(written_length))
+            if is_single_note_length(written_length):
+                written_length_components = [written_length]
+            else:
+                written_length_components = length_to_undotted_constituents(written_length)
+            print(note.length, beat_quantization.divisor, written_length, written_length_components)
+
+            # TODO: CONVERT THIS OLD CODE
+            # # try every permutation of the duration constituents. Get a score for it by multiplying the length of
+            # # each constituent with the indispensability of that pulse within the beat and summing them.
+            # best_permutation = None
+            # best_score = 0
+            # for permutation in permutations(pc_note.length_without_tuplet):
+            #     score = 0.
+            #     position = (pc_note.start_time - beat_scheme.start_time) * beat_scheme.length_without_tuplet / beat_scheme.beat_length
+            #     for segment in permutation:
+            #         score += beat_indispensabilities[int(round(position / beat_scheme.length_without_tuplet * divisor))] * segment
+            #         position += segment
+            #     if score > best_score:
+            #         best_score = score
+            #         best_permutation = permutation
+            # pc_note.length_without_tuplet = list(best_permutation)
+        return []
 
     def get_XML(self):
         pass
 
 
-def _process_voice(pc_voice, beat_schemes, beat_divisors):
-    _set_tuplets_for_notes_in_voice(pc_voice, beat_schemes, beat_divisors)
-    _break_notes_into_undotted_constituents(pc_voice, beat_schemes, beat_divisors)
-    # this one doesn't modify in place, since we're changing the number of notes
-    pc_voice = _separate_note_components_into_different_notes(pc_voice)
-    return pc_voice
-
-
-def _break_notes_into_undotted_constituents(voice, beat_schemes, beat_divisors):
-    # first, we  decompose a note into its undotted constituents
-    for pc_note in voice:
-        if is_single_note_length(pc_note.length):
-            pc_note.length_without_tuplet = [pc_note.length_without_tuplet]
-        else:
-            pc_note.length_without_tuplet = PCNote.length_to_undotted_constituents(pc_note.length_without_tuplet)
-
-    # if it can't be represented with a single notehead, we order the constituent noteheads so that larger noteheads
-    # sit on more important subdivisions. We use indispensability to judge the importance of subdivisions
-    for beat_scheme, divisor in zip(beat_schemes, beat_divisors):
-        if divisor is None:
-            continue
-        beat_indispensabilities = get_standard_indispensability_array(
-            _get_multiplicative_beat_meter(beat_scheme.beat_length, divisor), normalize=True
-        )
-        notes_in_beat = [pc_note for pc_note in voice
-                         if beat_scheme.start_time <= pc_note.start_time < beat_scheme.end_time]
-        for pc_note in notes_in_beat:
-            if len(pc_note.length_without_tuplet) == 1:
-                # this case really shouldn't come up, since we returned above if there's only one constituent duration
-                continue
-            else:
-                # try every permutation of the duration constituents. Get a score for it by multiplying the length of
-                # each constituent with the indispensability of that pulse within the beat and summing them.
-                best_permutation = None
-                best_score = 0
-                for permutation in permutations(pc_note.length_without_tuplet):
-                    score = 0.
-                    position = (pc_note.start_time - beat_scheme.start_time) * beat_scheme.length_without_tuplet / beat_scheme.beat_length
-                    for segment in permutation:
-                        score += beat_indispensabilities[int(round(position / beat_scheme.length_without_tuplet * divisor))] * segment
-                        position += segment
-                    if score > best_score:
-                        best_score = score
-                        best_permutation = permutation
-                pc_note.length_without_tuplet = list(best_permutation)
-
-
-def _get_multiplicative_beat_meter(beat_length, beat_divisor):
-    # a beat of length 1.5 = 3/2 prefers to divide into 3 first
-    # a beat length of 3.75 = 15/4 prefers to divide fist into 3 then into 5
-    natural_divisions = sorted(Fraction(beat_length).limit_denominator().numerator, reverse=True)
-    prime_decomposition = prime_factor(beat_divisor)
-    prime_decomposition.sort()
-    print(prime_decomposition, natural_division)
-    for preferred_factor in sorted(prime_factor(natural_division), reverse=True):
-        print(preferred_factor)
-        prime_decomposition.insert(0, prime_decomposition.pop(prime_decomposition.index(preferred_factor)))
-    return prime_decomposition
-
-
 class Tuplet:
 
-    def __init__(self, tuplet_divisions, normal_divisions, division_length):
+    def __init__(self, tuplet_divisions, normal_divisions, division_length, contents=None):
         """
         Creates a tuplet representing tuplet_divisions in the space of normal_divisions of division_length
         e.g. 7, 4, and 0.25 would mean '7 in the space of 4 sixteenth notes'
@@ -366,6 +430,7 @@ class Tuplet:
         self.tuplet_divisions = tuplet_divisions
         self.normal_divisions = normal_divisions
         self.division_length = division_length
+        self.contents = [] if contents is None else contents
 
     def dilation_factor(self):
         return self.tuplet_divisions / self.normal_divisions
@@ -411,9 +476,7 @@ class NoteLike:
     def __init__(self, pitch, written_length, properties):
         """
         Represents note, chord, or rest that can be notated without ties
-        :param pitch:
-        :param length:
-        :param properties:
+        :param pitch: tuple if a pitch, None if a rest
         """
         self.pitch = pitch
         self.written_length = written_length
