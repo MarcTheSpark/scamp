@@ -104,6 +104,7 @@ class QuantizationSettings(SavesToJSON):
 
 _engraving_settings_factory_defaults = {
     "max_voices_per_part": 4,
+    "max_dots_allowed": 3
 }
 
 
@@ -111,6 +112,7 @@ class EngravingSettings(SavesToJSON):
 
     def __init__(self, **settings):
         self.max_voices_per_part = None if "max_voices_per_part" not in settings else settings["max_voices_per_part"]
+        self.max_dots_allowed = None if "max_dots_allowed" not in settings else settings["max_dots_allowed"]
 
     def restore_factory_defaults(self):
         for key in _engraving_settings_factory_defaults:
