@@ -162,6 +162,23 @@ class Playcorder:
     def add_silent_part(self, name=None):
         return self._ensemble.add_silent_part(name)
 
+    def add_osc_part(self, port, name=None, ip_address="127.0.0.1", message_prefix=None,
+                     osc_message_strings="default"):
+        """
+        Constructs an OSCPlaycorderInstrument, adds it to the Ensemble, and returns it
+        :param port: The port to send OSC Messages to (required)
+        :param name: The name of the instrument
+        :param ip_address: IP Address to send to; defaults to localhost
+        :param message_prefix: the first part of the message address. Defaults to name or "unnamed" if name is None.
+        If two instruments have the same name, this can be used to give them distinct messages
+        :param osc_message_strings: A dictionary defining the strings used in the address of different kinds of
+        messages. The defaults are defined in playbackSettings.json, and you probably would never change them. But
+        just in case you have no control over which messages you listen for, the option is there.
+        :rtype : OSCPlaycorderInstrument
+        """
+        return self._ensemble.add_osc_part(port, name=name, ip_address=ip_address, message_prefix=message_prefix,
+                                           osc_message_strings=osc_message_strings)
+
     def save_ensemble_to_json(self, filepath):
         import json
         with open(filepath, "w") as file:

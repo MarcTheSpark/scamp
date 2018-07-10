@@ -1,8 +1,11 @@
 import threading
 import time
 from playcorder.parameter_curve import ParameterCurve
-import logging
 from playcorder.utilities import SavesToJSON
+from pythonosc import udp_client
+from itertools import count
+from playcorder.settings import playback_settings
+import atexit
 
 
 class PlaycorderInstrument(SavesToJSON):
@@ -111,13 +114,19 @@ class PlaycorderInstrument(SavesToJSON):
 
             def animate_pitch_and_volume():
                 while note_start_time is not None:
-                    if is_animating_volume:
-                        # note that, since change_note_volume is affecting expression values, we need to send it
-                        # the proportion of the start_volume rather than the absolute volume
-                        self.change_note_volume(note_id,
-                                                volume_curve.value_at(time.time() - note_start_time) / start_volume)
-                    if is_animating_pitch:
-                        self.change_note_pitch(note_id, pitch_curve.value_at(time.time() - note_start_time))
+                    try:
+                        # Sometimes do_play_note ends and start_time gets set to None in the middle of
+                        # the while loop, leading to a TypeError when we do time.time() - note_start_time
+                        # this catches that possibility
+                        if is_animating_volume:
+                            # note that, since change_note_volume is affecting expression values, we need to send it
+                            # the proportion of the start_volume rather than the absolute volume
+                            self.change_note_volume(note_id,
+                                                    volume_curve.value_at(time.time() - note_start_time) / start_volume)
+                        if is_animating_pitch:
+                            self.change_note_pitch(note_id, pitch_curve.value_at(time.time() - note_start_time))
+                    except TypeError:
+                        break
 
                     time.sleep(temporal_resolution)
 
@@ -284,6 +293,9 @@ class PlaycorderInstrument(SavesToJSON):
         return "PlaycorderInstrument({}, {})".format(self.host_ensemble, self.name)
 
 
+# -------------------------------------------- MIDIPlaycorderInstrument ---------------------------------------------
+
+
 class MidiPlaycorderInstrument(PlaycorderInstrument):
 
     def __init__(self, host=None, name=None, preset=(0, 0), soundfont_index=0, num_channels=8,
@@ -413,4 +425,155 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
         return "MidiPlaycorderInstrument({}, {}, {}, {}, {}, {}, {})".format(
             self.host_ensemble, self.name, self.preset, self.soundfont_index,
             self.num_channels, self.midi_output_device, self.midi_output_name
+        )
+
+
+# -------------------------------------------- OSCPlaycorderInstrument ----------------------------------------------
+# TODO: OSCPlaycorderInstrument._currently playing duplicates some functionality from
+# PlaycorderInstrument._notes_started   Fix that?
+
+_note_id_generator = count()
+
+
+class OSCPlaycorderInstrument(PlaycorderInstrument):
+
+    def __init__(self, host=None, name=None, port=None, ip_address="127.0.0.1", message_prefix=None,
+                 osc_message_strings="default"):
+        super().__init__(host, name)
+
+        # the output client for OSC messages
+        # by default the IP address is the local 127.0.0.1
+        self.ip_address = ip_address
+        assert port is not None, "OSCPlaycorderInstrument must set an output port."
+        self.port = port
+        self.client = udp_client.SimpleUDPClient(ip_address, port)
+        # the first part of the osc message; used to distinguish between instruments
+        # by default uses the name of the instrument, but if two instruments have the same name, this is bad
+        self.message_prefix = (name if name is not None else "unnamed") if message_prefix is None else message_prefix
+
+        self._start_note_message_string = osc_message_strings["start_note_message_string"] \
+            if isinstance(osc_message_strings, dict) and "start_note_message_string" in osc_message_strings \
+            else playback_settings.osc_message_defaults["start_note_message_string"]
+        self._end_note_message_string = osc_message_strings["end_note_message_string"] \
+            if isinstance(osc_message_strings, dict) and "end_note_message_string" in osc_message_strings \
+            else playback_settings.osc_message_defaults["end_note_message_string"]
+        self._change_pitch_message_string = osc_message_strings["change_pitch_message_string"] \
+            if isinstance(osc_message_strings, dict) and "change_pitch_message_string" in osc_message_strings \
+            else playback_settings.osc_message_defaults["change_pitch_message_string"]
+        self._change_volume_message_string = osc_message_strings["change_volume_message_string"] \
+            if isinstance(osc_message_strings, dict) and "change_volume_message_string" in osc_message_strings \
+            else playback_settings.osc_message_defaults["change_volume_message_string"]
+        self._change_quality_message_string = osc_message_strings["change_quality_message_string"] \
+            if isinstance(osc_message_strings, dict) and "change_quality_message_string" in osc_message_strings \
+            else playback_settings.osc_message_defaults["change_quality_message_string"]
+
+        self._currently_playing = []
+
+        def clean_up():
+            for note_id in self._currently_playing:
+                self._do_end_note(note_id)
+
+        atexit.register(clean_up)
+
+    # ---- The constituent parts of the _do_play_note call ----
+
+    def _do_play_note(self, pitch, volume, length, properties, clock=None):
+        # This extra bit of implementation for _do_play_note allows us to animate extra qualities that are
+        # defined by ParameterCurve values in properties["qualities"]. It's kind of ugly, but it works.
+
+        if "qualities" in properties and isinstance(properties["qualities"], dict):
+            start_time = time.time()
+            qualities_being_animated = {}
+            for quality in properties["qualities"]:
+                # if we're given a parameter curve in the form of a list, convert it to a ParameterCurve object
+                if isinstance(properties["qualities"][quality], list):
+                    properties["qualities"][quality] = ParameterCurve.from_list(properties["qualities"][quality])
+                value = properties["qualities"][quality]
+                if isinstance(value, ParameterCurve):
+                    qualities_being_animated[quality] = value.normalize_to_duration(length, False)
+            if len(qualities_being_animated) > 0:
+                properties["_osc_note_id"] = next(_note_id_generator)
+
+                def animate_qualities():
+                    while start_time is not None:
+                        time.sleep(0.01)  # we sleep first, since we set the property at the beginning
+                        try:
+                            # Sometimes do_play_note ends and start_time gets set to None in the middle of
+                            # the while loop, leading to a TypeError when we do time.time() - start_time
+                            # this catches that possibility
+                            for animated_quality in qualities_being_animated:
+                                self.change_note_quality(
+                                    properties["_osc_note_id"], animated_quality,
+                                    qualities_being_animated[animated_quality].value_at(time.time() - start_time)
+                                )
+                        except TypeError:
+                            break
+
+                if clock is not None:
+                    clock.fork_unsynchronized(process_function=animate_qualities)
+                else:
+                    threading.Thread(target=animate_qualities, daemon=True).start()
+
+        super()._do_play_note(pitch, volume, length, properties, clock)
+        start_time = None
+
+    def _do_start_note(self, pitch, volume, properties):
+        note_id = properties["_osc_note_id"] if "_osc_note_id" in properties else next(_note_id_generator)
+        self.client.send_message("/{}/{}".format(self.message_prefix, self._start_note_message_string),
+                                 [note_id, pitch, volume])
+
+        if "qualities" in properties and isinstance(properties["qualities"], dict):
+            for quality in properties["qualities"]:
+                value = properties["qualities"][quality]
+                if isinstance(value, ParameterCurve):
+                    self.change_note_quality(note_id, quality, value.value_at(0))
+                else:
+                    self.change_note_quality(note_id, quality, value)
+
+        self._currently_playing.append(note_id)
+        return note_id
+
+    def _do_end_note(self, note_id):
+        self.client.send_message("/{}/{}".format(self.message_prefix, self._end_note_message_string), [note_id])
+        if note_id in self._currently_playing:
+            self._currently_playing.remove(note_id)
+
+    def change_note_pitch(self, note_id, new_pitch):
+        self.client.send_message("/{}/{}".format(self.message_prefix, self._change_pitch_message_string),
+                                 [note_id, new_pitch])
+
+    def change_note_volume(self, note_id, new_volume):
+        self.client.send_message("/{}/{}".format(self.message_prefix, self._change_volume_message_string),
+                                 [note_id, new_volume])
+
+    def change_note_quality(self, note_id, quality, value):
+        self.client.send_message("/{}/{}/{}".format(self.message_prefix, self._change_quality_message_string, quality),
+                                 [note_id, value])
+
+    def _to_json(self):
+        return {
+            "type": "OSCPlaycorderInstrument",
+            "name": self.name,
+            "port": self.port,
+            "ip_address": self.ip_address,
+            "message_prefix": self.message_prefix,
+            "osc_message_strings": {
+                "start_note_message_string": self._start_note_message_string,
+                "end_note_message_string": self._end_note_message_string,
+                "change_pitch_message_string": self._change_pitch_message_string,
+                "change_volume_message_string": self._change_volume_message_string,
+                "change_quality_message_string": self._change_quality_message_string
+            },
+        }
+
+    def __repr__(self):
+        return "OSCPlaycorderInstrument({}, {}, {}, {}, {})".format(
+            self.host_ensemble, self.name, self.port, self.ip_address,
+            self.message_prefix, {
+                "start_note_message_string": self._start_note_message_string,
+                "end_note_message_string": self._end_note_message_string,
+                "change_pitch_message_string": self._change_pitch_message_string,
+                "change_volume_message_string": self._change_volume_message_string,
+                "change_quality_message_string": self._change_quality_message_string
+            }
         )

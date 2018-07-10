@@ -1,7 +1,9 @@
-from playcorder.instruments import PlaycorderInstrument, MidiPlaycorderInstrument
+from playcorder.instruments import PlaycorderInstrument, MidiPlaycorderInstrument, OSCPlaycorderInstrument
 from playcorder.combined_midi_player import CombinedMidiPlayer
 from playcorder.utilities import SavesToJSON
 
+
+# TODO: allow a silent MIDI Instrument to be created (e.g. "add_silent_midi_part") that outputs a MIDI stream only
 
 class Ensemble(SavesToJSON):
 
@@ -9,6 +11,9 @@ class Ensemble(SavesToJSON):
         # if we are using just one soundfont a string is okay; we'll just put it in a list
         soundfonts = [soundfonts] if isinstance(soundfonts, str) else soundfonts
 
+        # We always construct a CombinedMidiPlayer, but if no soundfonts are given, it's mostly a placeholder
+        # FluidSynth only starts up when a soundfont is loaded. Similarly, the rtmidi output only functions ig
+        # a midi_output_device is provided either to the CombinedMidiPlayer or the specific instrument
         self.midi_player = CombinedMidiPlayer(soundfonts, audio_driver, default_midi_output_device)
         self.instruments = []
         self.host_playcorder = None
@@ -70,8 +75,7 @@ class Ensemble(SavesToJSON):
         :rtype : MidiPlaycorderInstrument
         """
 
-        if name is None:
-            name = "Track " + str(len(self.instruments) + 1)
+        name = "Track " + str(len(self.instruments) + 1) if name is None else name
 
         if not 0 <= soundfont_index < len(self.midi_player.soundfont_ids):
             raise ValueError("Soundfont index out of bounds.")
@@ -92,6 +96,26 @@ class Ensemble(SavesToJSON):
         """
         name = "Track " + str(len(self.instruments) + 1) if name is None else name
         instrument = PlaycorderInstrument(self, name=name)
+        self.add_part(instrument)
+        return instrument
+
+    def add_osc_part(self, port, name=None, ip_address="127.0.0.1", message_prefix=None,
+                     osc_message_strings="default"):
+        """
+        Constructs an OSCPlaycorderInstrument, adds it to the Ensemble, and returns it
+        :param port: The port to send OSC Messages to (required)
+        :param name: The name of the instrument
+        :param ip_address: IP Address to send to; defaults to localhost
+        :param message_prefix: the first part of the message address. Defaults to name or "unnamed" if name is None.
+        If two instruments have the same name, this can be used to give them distinct messages
+        :param osc_message_strings: A dictionary defining the strings used in the address of different kinds of
+        messages. The defaults are defined in playbackSettings.json, and you probably would never change them. But
+        just in case you have no control over which messages you listen for, the option is there.
+        :rtype : OSCPlaycorderInstrument
+        """
+        name = "Track " + str(len(self.instruments) + 1) if name is None else name
+        instrument = OSCPlaycorderInstrument(self, name=name, port=port, ip_address=ip_address,
+                                             message_prefix=message_prefix, osc_message_strings=osc_message_strings)
         self.add_part(instrument)
         return instrument
 
