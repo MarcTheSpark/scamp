@@ -28,19 +28,12 @@ class PlaycorderInstrument(SavesToJSON):
     def set_host(self, host):
         from .playcorder import Playcorder
         from .ensemble import Ensemble
-        assert isinstance(host, (Playcorder, Ensemble))
+        assert isinstance(host, (Playcorder, Ensemble)), "PlaycorderInstrument must be hosted by Ensemble or Playcorder"
         if isinstance(host, Playcorder):
             self.host_ensemble = host.ensemble
         else:
             self.host_ensemble = host
         self.name_count = self.host_ensemble.get_part_name_count(self.name)
-
-    def _viable(self):
-        if self.host_ensemble is None:
-            logging.warning("Instrument tried to play, but was not part of an Ensemble.")
-            return False
-        else:
-            return True
 
     def time(self):
         if self.host_ensemble is not None and self.host_ensemble.host_playcorder is not None:
@@ -183,8 +176,6 @@ class PlaycorderInstrument(SavesToJSON):
         thread by setting threading.current_thread().__clock__ and use that. If no clocks at all, uses seconds.
         :return: None
         """
-        if not self._viable():
-            return
 
         if clock is None and hasattr(threading.current_thread(), "__clock__"):
             clock = threading.current_thread().__clock__
@@ -236,8 +227,6 @@ class PlaycorderInstrument(SavesToJSON):
         Starts a note 'manually', meaning that its length is not predetermined, and that it has to be manually ended
         later by calling 'end_note' or 'end_all_notes'
         """
-        if not self._viable():
-            return
         properties = PlaycorderInstrument._make_properties_dict(properties)
         note_id = self._do_start_note(pitch, volume, properties)
         self._notes_started.append((note_id, pitch, volume, self.time(), properties))
@@ -250,8 +239,6 @@ class PlaycorderInstrument(SavesToJSON):
         Note that this only applies to notes started in an open-ended way with 'start_note', notes created
         using play_note have their lifecycle controlled automatically.
         """
-        if not self._viable():
-            return
         note_to_end = None
         if note_id is not None:
             # find the note referred to in the notes_started list
@@ -284,8 +271,6 @@ class PlaycorderInstrument(SavesToJSON):
         """
         Ends all notes that have been manually started with 'start_note'
         """
-        if not self._viable():
-            return
         while len(self._notes_started) > 0:
             self.end_note()
 
@@ -293,8 +278,6 @@ class PlaycorderInstrument(SavesToJSON):
         """
         Returns the number of notes currently playing that were manually started with 'start_note'
         """
-        if not self._viable():
-            return
         return len(self._notes_started)
 
     def __repr__(self):
