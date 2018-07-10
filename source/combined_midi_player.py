@@ -29,8 +29,8 @@ class CombinedMidiPlayer(SavesToJSON):
         self.used_channels = 0  # how many channels have we already assigned to various instruments
 
         self.soundfonts = [] if soundfonts is None else soundfonts
-        # we need audio_driver to be a property, since every time it's changed we need to restart fluidsynth
 
+        # we need audio_driver to be a property, since every time it's changed we need to restart fluidsynth
         self._audio_driver = audio_driver
         self.rtmidi_output_device = rtmidi_output_device
 
