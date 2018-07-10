@@ -9,6 +9,13 @@ _playback_settings_factory_defaults = {
     },
     "default_audio_driver": None,
     "default_midi_output_device": None,
+    "osc_message_defaults": {
+        "start_note_message_string": "start_note",
+        "end_note_message_string": "end_note",
+        "change_pitch_message_string": "change_pitch",
+        "change_volume_message_string": "change_volume",
+        "change_quality_message_string": "change_quality"
+    }
 }
 
 
@@ -19,6 +26,7 @@ class PlaybackSettings(SavesToJSON):
         self.default_audio_driver = None if "default_audio_driver" not in settings else settings["default_audio_driver"]
         self.default_midi_output_device = None if "default_midi_output_device" not in settings \
             else settings["default_midi_output_device"]
+        self.osc_message_defaults = None if "osc_message_defaults" not in settings else settings["osc_message_defaults"]
 
     def restore_factory_defaults(self):
         for key in _playback_settings_factory_defaults:
