@@ -331,7 +331,7 @@ class ParameterCurve(SavesToJSON):
         """
         assert len(levels) > 0, "At least one level is needed to construct a parameter curve."
         if len(levels) == 1:
-            levels = list(levels) + levels[-1]
+            levels = list(levels) * 2
         # just given levels, so we linearly interpolate segments of equal length
         durations = [length / (len(levels) - 1)] * (len(levels) - 1)
         curves = [0.0] * (len(levels) - 1)
