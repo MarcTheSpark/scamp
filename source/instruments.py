@@ -130,10 +130,11 @@ class PlaycorderInstrument(SavesToJSON):
 
                     time.sleep(temporal_resolution)
 
-            if clock is not None:
-                clock.fork_unsynchronized(process_function=animate_pitch_and_volume)
-            else:
-                threading.Thread(target=animate_pitch_and_volume, daemon=True).start()
+            if temporal_resolution < length:  # catches the case of a static curve with infinite temporal_resolution
+                if clock is not None:
+                    clock.fork_unsynchronized(process_function=animate_pitch_and_volume)
+                else:
+                    threading.Thread(target=animate_pitch_and_volume, daemon=True).start()
 
         time.sleep(length)
         # cut off any pitch or volume animation thread by setting the start_time to None
