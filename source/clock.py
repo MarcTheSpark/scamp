@@ -40,9 +40,8 @@ WakeUpCall = namedtuple("WakeUpCall", "t clock")
 
 class Clock:
 
-    timing_policy_choices = ("relative", "absolute")
 
-    def __init__(self, name=None, parent=None, initial_rate=1.0, pool_size=200, timing_policy="relative"):
+    def __init__(self, name=None, parent=None, initial_rate=1.0, pool_size=200, timing_policy=0.98):
         """
         Recursively nestable clock class. Clocks can fork child-clocks, which can in turn fork their own child-clock.
         Only the master clock calls sleep; child-clocks instead register WakeUpCalls with their parents, who
@@ -93,8 +92,7 @@ class Clock:
         # this is important if recording on a child clock, otherwise not so much
         self.keep_children_caught_up = True
         self._log_processing_time = False
-        assert timing_policy in Clock.timing_policy_choices
-        self.timing_policy = timing_policy
+        self._timing_policy = timing_policy
 
         self._fast_forward_goal = None
 
@@ -171,6 +169,30 @@ class Clock:
 
     def absolute_beat_length(self):
         return 1 / self.absolute_rate()
+
+    def use_absolute_timing_policy(self):
+        """
+        This timing policy only cares about keeping the time since the clock start accurate to what it should be.
+        The downside is that relative timings get distorted when it falls behind.
+        """
+        self._timing_policy = "absolute"
+
+    def use_relative_timing_policy(self):
+        """
+        This timing policy only cares about making each individual wait call as accurate as possible.
+        The downside is that long periods of calculation cause the clock to drift and get behind.
+        """
+        self._timing_policy = "relative"
+
+    def use_mixed_timing_policy(self, absolute_relative_mix: float):
+        """
+        Balance considerations of relative timing and absolute timing accuracy according to the given coefficient
+        :param absolute_relative_mix: a float representing the minimum proportion of the ideal wait time we are willing
+        to wait in order to catch up to the correct absolute time since the clock started.
+        """
+        assert 0.0 <= absolute_relative_mix <= 1.0, "Mix coefficient should be between 0 (fully absolute timing " \
+                                                    "policy) and 1 (fully relative timing policy)."
+        self._timing_policy = absolute_relative_mix
 
     def _run_in_pool(self, target, args, kwargs):
         if self.master._pool_semaphore.acquire(blocking=False):
@@ -252,10 +274,20 @@ class Clock:
                     self._start_time -= dt
                     return
 
-            # we want to stop sleeping dt after we last finished sleeping, not including the processing that
-            # happened after we finished sleeping. So we calculate the time to finish sleeping based on that
-            stop_sleeping_time = self._start_time + self.time() + dt if self.timing_policy == "absolute" \
-                else self._last_sleep_time + dt
+            # a relative timing policy means we stop sleeping dt after we last finished sleeping, not including the
+            # processing that happened since we woke up. This makes each wait call as accurate as possible
+            stop_sleeping_time_relative = self._last_sleep_time + dt
+            # an absolute timing policy means we remain faithful to the amount of time that should have passed since
+            # the start of the clock. This eliminates the possibility of drift, but might lead to some inaccurate waits
+            stop_sleeping_time_absolute = self._start_time + self.time() + dt
+
+            # if self._timing_policy is a float, that represents a compromise between absolute and relative timing
+            # we can wait shorter than expected in order to catch up when we get behind, but only down to a certain
+            # percentage of the given wait. E.g. 0.8 means that we are guaranteed to wait at least 80% of the wait time
+            stop_sleeping_time = stop_sleeping_time_relative if self._timing_policy == "relative" \
+                else stop_sleeping_time_absolute if self._timing_policy == "absolute" \
+                else max(self._last_sleep_time + dt * self._timing_policy, stop_sleeping_time_absolute)
+
             # in case processing took so long that we are already past the time we were supposed to stop sleeping,
             # we throw a warning that we're getting behind and don't try to sleep at all
             if stop_sleeping_time < time.time() - 0.01:
