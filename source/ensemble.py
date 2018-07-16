@@ -40,6 +40,9 @@ class Ensemble(SavesToJSON):
     def get_instruments_with_substring(self, word, avoid=None, soundfont_index=0):
         return self.midi_player.get_instruments_with_substring(word, avoid=avoid, soundfont_index=soundfont_index)
 
+    def iter_presets(self):
+        return self.midi_player.iter_presets()
+
     def print_all_soundfont_presets(self):
         self.midi_player.print_all_soundfont_presets()
 

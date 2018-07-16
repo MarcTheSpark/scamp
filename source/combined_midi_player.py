@@ -2,6 +2,7 @@ from playcorder.utilities import resolve_relative_path, SavesToJSON
 from playcorder.simple_rtmidi_wrapper import SimpleRtMidiOut
 from playcorder.settings import playback_settings
 import logging
+from collections import namedtuple
 
 try:
     from .thirdparty import fluidsynth
@@ -14,6 +15,9 @@ try:
 except ImportError:
     Sf2File = None
     logging.warning("sf2utils was not found; info about soundfont presets will not be available.")
+
+
+PlaycorderMidiPreset = namedtuple("PlaycorderMidiPreset", "name preset soundfont_index")
 
 
 class CombinedMidiPlayer(SavesToJSON):
@@ -102,6 +106,15 @@ class CombinedMidiPlayer(SavesToJSON):
             return [inst for i, inst in enumerate(instrument_list) if word.lower() in inst.name.lower() and
                     (avoid is None or avoid.lower() not in inst.name.lower())]
         return None
+
+    def iter_presets(self):
+        for soundfont_id, soundfont_instrument_list in enumerate(self.soundfont_instrument_lists):
+            for sf2_preset in soundfont_instrument_list:
+                try:
+                    yield PlaycorderMidiPreset(sf2_preset.name, (sf2_preset.bank, sf2_preset.preset), soundfont_id)
+                except AttributeError:
+                    pass
+        raise StopIteration
 
     def print_all_soundfont_presets(self):
         for i in range(len(self.soundfonts)):
