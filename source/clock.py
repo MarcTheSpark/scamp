@@ -28,6 +28,9 @@ def sleep_precisely(secs):
 
 def current_clock():
     # utility for getting the clock we are currently using (we attach it to the thread when it's started)
+    current_thread = threading.current_thread()
+    if not hasattr(current_thread, '__clock__'):
+        return None
     return threading.current_thread().__clock__
 
 
