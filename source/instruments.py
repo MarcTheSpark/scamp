@@ -395,7 +395,10 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
             # since the release trail is still going. This avoids accidentally pitch-shifting the release trail
             def remove_from_active_midi_notes():
                 time.sleep(0.5)
-                self.active_midi_notes.remove(note_id)
+                try:
+                    self.active_midi_notes.remove(note_id)
+                except ValueError:
+                    pass
 
             if current_clock() is not None:
                 current_clock().fork_unsynchronized(process_function=remove_from_active_midi_notes)
