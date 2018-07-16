@@ -5,6 +5,7 @@ from playcorder.utilities import SavesToJSON
 from pythonosc import udp_client
 from itertools import count
 from playcorder.settings import playback_settings
+from playcorder.clock import current_clock
 import atexit
 
 
@@ -389,7 +390,18 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
         # Does the actual sonic implementation of ending a the note with the given note_id = channel, key pressed
         if note_id in self.active_midi_notes:
             self.midi_instrument.note_off(note_id[0], note_id[1])
-            self.active_midi_notes.remove(note_id)
+
+            # we need to consider this note active for an additional half second or so after the note_off
+            # since the release trail is still going. This avoids accidentally pitch-shifting the release trail
+            def remove_from_active_midi_notes():
+                time.sleep(0.5)
+                self.active_midi_notes.remove(note_id)
+
+            if current_clock() is not None:
+                current_clock().fork_unsynchronized(process_function=remove_from_active_midi_notes)
+            else:
+                threading.Thread(target=remove_from_active_midi_notes).start()
+
 
     def change_note_pitch(self, note_id, new_pitch):
         # Changes the pitch of the note started at channel
