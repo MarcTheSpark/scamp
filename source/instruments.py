@@ -2,11 +2,17 @@ import threading
 import time
 from playcorder.parameter_curve import ParameterCurve
 from playcorder.utilities import SavesToJSON
-from pythonosc import udp_client
 from itertools import count
 from playcorder.settings import playback_settings
 from playcorder.clock import current_clock
 import atexit
+import logging
+
+try:
+    from pythonosc import udp_client
+except ImportError:
+    udp_client = None
+    logging.warning("pythonosc was not found; OSCPlaycorderInstrument will not function.")
 
 
 class PlaycorderInstrument(SavesToJSON):
