@@ -5,14 +5,17 @@ from playcorder.utilities import SavesToJSON
 
 class ParameterCurve(SavesToJSON):
 
-    def __init__(self):
+    def __init__(self, segments=None):
         """
         Implements a parameter curve using exponential curve segments. Initialization happens outside
         of the constructor for smoother subclassing; this way all of the class methods work correctly
         on derived classes like TempoCurve.
         """
-        self._segments = None
-        self.initialize()
+        if segments is None:
+            self._segments = None
+            self.initialize()
+        else:
+            self._segments = segments
 
     def initialize(self, levels=(0, 0), durations=(0,), curve_shapes=None):
         """
@@ -361,6 +364,19 @@ class ParameterCurve(SavesToJSON):
             # just given levels
             return cls.from_levels(constructor_list)
 
+    def split_at(self, t):
+        copy = ParameterCurve([x.clone() for x in self._segments])
+        copy.insert_interpolated(t)
+        for i, segment in enumerate(copy._segments):
+            if segment.start_time == t:
+                second_half = ParameterCurve(copy._segments[i:])
+                copy._segments = copy._segments[:i]
+                for second_half_segment in second_half._segments:
+                    second_half_segment.start_time -= t
+                    second_half_segment.end_time -= t
+                break
+        return copy, second_half
+
     def _to_json(self):
         levels = self.levels
         durations = self.durations
@@ -558,10 +574,13 @@ class ParameterCurveSegment:
         self._calculate_coefficients()
         return self, new_segment
 
+    def clone(self):
+        return ParameterCurveSegment(self.start_time, self.end_time, self.start_level, self.end_level, self.curve_shape)
+
     def __contains__(self, t):
         # checks if the given time is contained within this parameter curve segment
         # maybe this is silly, but it seemed a little convenient
-        return self.start_time <= t <= self.end_time
+        return self.start_time <= t < self.end_time
 
     def __repr__(self):
         return "ParameterCurveSegment({}, {}, {}, {}, {})".format(self.start_time, self.end_time, self.start_level,
