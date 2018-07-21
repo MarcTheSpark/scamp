@@ -1,6 +1,7 @@
 import math
 from copy import deepcopy
 from playcorder.utilities import SavesToJSON
+import numbers
 
 
 class ParameterCurve(SavesToJSON):
@@ -397,6 +398,23 @@ class ParameterCurve(SavesToJSON):
     def _from_json(cls, json_list):
         return cls.from_list(json_list)
 
+    def shift_vertical(self, amount):
+        for segment in self._segments:
+            segment.shift_vertical(amount)
+
+    def __add__(self, other):
+        out = ParameterCurve([segment + other for segment in self._segments])
+        return out
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def __sub__(self, other):
+        return self.__add__(-other)
+
+    def __rsub__(self, other):
+        return self.__radd__(-other)
+
     def __repr__(self):
         return "ParameterCurve({}, {}, {})".format(self.levels, self.durations, self.curve_shapes)
 
@@ -576,6 +594,28 @@ class ParameterCurveSegment:
 
     def clone(self):
         return ParameterCurveSegment(self.start_time, self.end_time, self.start_level, self.end_level, self.curve_shape)
+
+    def shift_vertical(self, amount):
+        assert isinstance(amount, numbers.Number)
+        self._start_level += amount
+        self._end_level += amount
+        self._calculate_coefficients()
+
+    def __add__(self, other):
+        if not isinstance(other, numbers.Number):
+            raise TypeError("Can only add numerical constants to ParameterCurve or ParameterCurveSegment")
+        out = self.clone()
+        out.shift_vertical(other)
+        return out
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def __sub__(self, other):
+        return self.__add__(-other)
+
+    def __rsub__(self, other):
+        return self.__radd__(-other)
 
     def __contains__(self, t):
         # checks if the given time is contained within this parameter curve segment
