@@ -208,6 +208,10 @@ class PlaycorderInstrument(SavesToJSON):
             pc = self.host_ensemble.host_playcorder
             recorded_length = length / clock.absolute_rate() * \
                 (1 if pc._recording_clock == "absolute" else pc._recording_clock.absolute_rate())
+            if isinstance(pitch, ParameterCurve):
+                pitch.normalize_to_duration(recorded_length)
+            if isinstance(volume, ParameterCurve):
+                volume.normalize_to_duration(recorded_length)
             self._performance_part.new_note(pc.get_recording_beat(), recorded_length, pitch, volume, properties)
 
         # Note that, even if there's a clock involved we run _do_play_note in a simple thread rather than a sub-clock.
@@ -410,7 +414,6 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
                 current_clock().fork_unsynchronized(process_function=remove_from_active_midi_notes)
             else:
                 threading.Thread(target=remove_from_active_midi_notes).start()
-
 
     def change_note_pitch(self, note_id, new_pitch):
         # Changes the pitch of the note started at channel
