@@ -2,6 +2,7 @@ from fractions import Fraction
 from playcorder.utilities import indigestibility, is_multiple, is_x_pow_of_y, round_to_multiple, SavesToJSON
 from collections import namedtuple
 from playcorder.settings import quantization_settings
+from playcorder.parameter_curve import ParameterCurve
 import textwrap
 
 
@@ -163,6 +164,9 @@ def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="def
                     note.start_time -= division_length
                     note.length += division_length
 
+    for note in voice:
+        if isinstance(note.pitch, ParameterCurve):
+            note.pitch.normalize_to_duration(note.length)
     return _construct_quantization_record(beat_divisors, quantization_scheme)
 
 
@@ -174,7 +178,8 @@ def _collapse_chords(notes):
     """
     i = 1
     while i < len(notes):
-        # if same as the previous not in all but pitch
+        # if same as the previous note in all but pitch
+        # TODO: SOMEHOW DEAL WITH GLISSING CHORDS???
         if notes[i].start_time == notes[i - 1].start_time and notes[i].length == notes[i - 1].length \
                 and notes[i].volume == notes[i - 1].volume and notes[i].properties == notes[i - 1].properties:
             # if it's already a chord (represented by a tuple in pitch)
