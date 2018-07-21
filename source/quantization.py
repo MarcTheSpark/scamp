@@ -178,18 +178,36 @@ def _collapse_chords(notes):
     """
     i = 1
     while i < len(notes):
-        # if same as the previous note in all but pitch
-        # TODO: SOMEHOW DEAL WITH GLISSING CHORDS???
+        # check if this note is the same as the previous note in all but pitch
         if notes[i].start_time == notes[i - 1].start_time and notes[i].length == notes[i - 1].length \
                 and notes[i].volume == notes[i - 1].volume and notes[i].properties == notes[i - 1].properties:
-            # if it's already a chord (represented by a tuple in pitch)
-            if isinstance(notes[i].pitch, tuple):
-                notes[i-1].pitch += (notes[i].pitch,)
+            # since one or both of these notes might already be chords (i.e. have a tuple for pitch),
+            # let's make both pitches into tuples to simplify the logic tree
+            last_note_pitches = (notes[i - 1].pitch, ) if not isinstance(notes[i - 1].pitch, tuple) else notes[i - 1]
+            this_note_pitches = (notes[i].pitch, ) if not isinstance(notes[i].pitch, tuple) else notes[i]
+            all_pitches_together = last_note_pitches + this_note_pitches
+
+            # check if any of the pitches involved are parameter curves (glisses) rather than static pitches
+            if any(isinstance(x, ParameterCurve) for x in all_pitches_together):
+                # if we're dealing with any parameter curves, they all have to be shifted versions of one another
+                # otherwise, we keep them separate; a chord should gliss as a block if it glisses at all
+                if isinstance(all_pitches_together[0], ParameterCurve) and \
+                        all(isinstance(x, ParameterCurve) and x.is_shifted_version_of(all_pitches_together[0])
+                            for x in all_pitches_together[1:]):
+                    # it check out; they are all shifted versions of the first note's gliss
+                    notes[i - 1].pitch = all_pitches_together
+                    # remove the current note, since it has been merged into the previous.
+                    # No need to increment i, since popping at it has a similar effect
+                    notes.pop(i)
+                else:
+                    # not merging, since the pitch ParameterCurves are incompatible. Increment i.
+                    i += 1
             else:
-                notes[i-1].pitch = (notes[i-1].pitch, notes[i].pitch)
-            # remove the current note, since it has been merged into the previous. No need to increment i.
-            notes.pop(i)
+                # all pitches are static, so we just merge into a single chord and pop the latter entry
+                notes[i - 1].pitch = all_pitches_together
+                notes.pop(i)
         else:
+            # notes are different in rhythm or properties, so don't merge
             i += 1
 
 
