@@ -398,6 +398,10 @@ class ParameterCurve(SavesToJSON):
     def _from_json(cls, json_list):
         return cls.from_list(json_list)
 
+    def is_shifted_version_of(self, other):
+        assert isinstance(other, ParameterCurve)
+        return all(x.is_shifted_version_of(y) for x, y in zip(self._segments, other._segments))
+
     def shift_vertical(self, amount):
         for segment in self._segments:
             segment.shift_vertical(amount)
@@ -600,6 +604,12 @@ class ParameterCurveSegment:
         self._start_level += amount
         self._end_level += amount
         self._calculate_coefficients()
+
+    def is_shifted_version_of(self, other):
+        assert isinstance(other, ParameterCurveSegment)
+        return self.start_time == other.start_time and self.end_time == other.end_time and \
+               self._start_level - other._start_level == self._end_level - other._end_level and \
+               self._curve_shape == other._curve_shape
 
     def __add__(self, other):
         if not isinstance(other, numbers.Number):
