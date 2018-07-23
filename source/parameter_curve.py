@@ -365,18 +365,43 @@ class ParameterCurve(SavesToJSON):
             # just given levels
             return cls.from_levels(constructor_list)
 
-    def split_at(self, t):
-        copy = ParameterCurve([x.clone() for x in self._segments])
-        copy.insert_interpolated(t)
-        for i, segment in enumerate(copy._segments):
+    def split_at(self, t, change_original=False):
+        """
+        Splits the ParameterCurve at one or several points and returns a tuple of the pieces
+        :param t: either the time t or a tuple/list of times t at which to split the curve
+        :param change_original: if true, the original ParameterCurve gets turned into the first of the returned tuple
+        :return: tuple of ParameterCurves representing the pieces this has been split into
+        """
+        to_split = self if change_original else ParameterCurve([x.clone() for x in self._segments])
+
+        # if t is a tuple or list, we split at all of those times and return len(t) + 1 segments
+        # This is implemented recursively. If len(t) is 1, t is replaced by t[0]
+        # If len(t) > 1, then we sort and set aside t[1:] as remaining splits to do on the second half
+        # and set t to t[0]. Note that we subtract t[0] from each of t[1:] to shift it to start from 0
+        remaining_splits = None
+        if hasattr(t, "__len__"):
+            assert len(t) > 0
+            if len(t) > 1:
+                t = list(t)
+                t.sort()
+                remaining_splits = [x - t[0] for x in t[1:]]
+            t = t[0]
+
+        # Okay, now we go ahead with a single split at time t
+        to_split.insert_interpolated(t)
+        for i, segment in enumerate(to_split._segments):
             if segment.start_time == t:
-                second_half = ParameterCurve(copy._segments[i:])
-                copy._segments = copy._segments[:i]
+                second_half = ParameterCurve(to_split._segments[i:])
+                to_split._segments = to_split._segments[:i]
                 for second_half_segment in second_half._segments:
                     second_half_segment.start_time -= t
                     second_half_segment.end_time -= t
                 break
-        return copy, second_half
+
+        if remaining_splits is None:
+            return to_split, second_half
+        else:
+            return to_split, second_half.split_at(remaining_splits, change_original=True)
 
     def _to_json(self):
         levels = self.levels
