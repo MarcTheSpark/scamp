@@ -380,12 +380,22 @@ class ParameterCurve(SavesToJSON):
         # and set t to t[0]. Note that we subtract t[0] from each of t[1:] to shift it to start from 0
         remaining_splits = None
         if hasattr(t, "__len__"):
-            assert len(t) > 0
+            # ignore all split points that are outside this ParameterCurve's range
+            t = [x for x in t if 0 <= x <= to_split.length()]
+            if len(t) == 0:
+                # if no usable points are left we're done (note we always return a tuple for consistency)
+                return to_split,
+
             if len(t) > 1:
                 t = list(t)
                 t.sort()
                 remaining_splits = [x - t[0] for x in t[1:]]
             t = t[0]
+
+        # cover the case of trying to split outside of the ParameterCurve's range
+        # (note we always return a tuple for consistency)
+        if not 0 < t < to_split.length():
+            return to_split,
 
         # Okay, now we go ahead with a single split at time t
         to_split.insert_interpolated(t)
