@@ -6,6 +6,8 @@ import math
 from fractions import Fraction
 from itertools import permutations, accumulate
 from playcorder.utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y
+import textwrap
+import abjad
 
 # TODO: NoteLike needs a static method to take a PerformanceNote and a desired split of the lengths and produce
 # a list of tied NoteLikes. They'll also need to split up any pitch ParameterCurves into their chunks.
@@ -179,17 +181,8 @@ def _split_performance_note_at_beat(performance_note: PerformanceNote, split_bea
         performance_note.end_time = split_beat
         # if this isn't a rest, then we're going to need to keep track of ties that will be needed
         if performance_note.pitch is not None:
-            # assign the '_tie' property of the parts based on the tie property of the note being split
-            if "_tie" not in performance_note.properties:
-                performance_note.properties["_tie"] = "start"
-                second_part.properties["_tie"] = "end"
-            elif performance_note.properties["_tie"] == "start":
-                second_part.properties["_tie"] = "middle"
-            elif performance_note.properties["_tie"] == "middle":
-                second_part.properties["_tie"] = "middle"
-            elif performance_note.properties["_tie"] == "end":
-                performance_note.properties["_tie"] = "middle"
-                second_part.properties["_tie"] = "end"
+            performance_note.properties["_starts_tie"] = True
+            second_part.properties["_ends_tie"] = True
 
             if isinstance(performance_note.pitch, ParameterCurve):
                 # if the pitch is a parameter curve, then we split it appropriately
@@ -318,8 +311,7 @@ class Voice:
     def __init__(self, contents, length):
         self.contents = contents
         self.length = length
-        # print("THE VOICE:")
-        # print("[\n   " + "\n   ".join(str(x) for x in self.contents) + "\n]")
+        abjad.show(self.to_abjad())
 
     @classmethod
     def empty_voice(cls, length):
@@ -406,6 +398,8 @@ class Voice:
         division_indispensabilities = _get_beat_division_indispensabilities(beat_quantization.length,
                                                                             beat_quantization.divisor)
 
+        note_list = tuplet.contents if tuplet is not None else []
+
         for note in beat_notes:
             written_length = note.length * dilation_factor
             if is_single_note_length(written_length):
@@ -427,8 +421,23 @@ class Voice:
                     best_score = score
                     best_permutation = permutation
 
-            print(best_permutation)
-        return []
+            remainder = note
+            for segment_length in best_permutation:
+
+                split_note = _split_performance_note_at_beat(
+                    remainder, remainder.start_time + segment_length / dilation_factor
+                )
+                if len(split_note) > 1:
+                    this_segment, remainder = split_note
+                else:
+                    this_segment = split_note[0]
+
+                note_list.append(NoteLike(this_segment.pitch, segment_length, this_segment.properties))
+
+        return [tuplet] if tuplet is not None else note_list
+
+    def to_abjad(self):
+        return abjad.Voice([x.to_abjad() for x in self.contents])
 
     def get_XML(self):
         pass
@@ -448,10 +457,6 @@ class Tuplet:
 
     def dilation_factor(self):
         return self.tuplet_divisions / self.normal_divisions
-
-    def append(self, note_like_object):
-        assert isinstance(note_like_object, NoteLike)
-        self.contents.append(note_like_object)
 
     def length(self):
         return self.normal_divisions * self.division_length
@@ -485,9 +490,16 @@ class Tuplet:
             # otherwise, construct a tuplet from our answer
             return cls(divisor, normal_divisions, 4.0 / normal_type)
 
+    def to_abjad(self):
+        return abjad.Tuplet(abjad.Multiplier(self.normal_divisions, self.tuplet_divisions),
+                            [note_like.to_abjad() for note_like in self.contents])
+
     def __repr__(self):
-        return "Tuplet({}, {}, {})".format(self.tuplet_divisions, self.normal_divisions, self.division_length,
-                                           super().__repr__())
+        contents_string = ", contents=[\n{}\n]".format(
+            textwrap.indent(",\n".join(str(x) for x in self.contents), "   ")
+        ) if len(self.contents) > 0 else ""
+        return "Tuplet({}, {}, {}{})".format(self.tuplet_divisions, self.normal_divisions, self.division_length,
+                                             contents_string)
 
 
 class NoteLike:
@@ -500,3 +512,28 @@ class NoteLike:
         self.pitch = pitch
         self.written_length = written_length
         self.properties = properties
+
+    def __repr__(self):
+        return "NoteLike(pitch={}, written_length={}, properties={})".format(
+            self.pitch, self.written_length, self.properties
+        )
+
+    def to_abjad(self):
+        duration = Fraction(self.written_length / 4).limit_denominator()
+        if self.pitch is None:
+            abjad_object = abjad.Rest(duration)
+        elif isinstance(self.pitch, tuple):
+            chord = abjad.Chord()
+            chord.written_duration = duration
+            if isinstance(self.pitch[0], ParameterCurve):
+                chord.note_heads = [x.start_level() - 60 for x in self.pitch]
+            else:
+                chord.note_heads = [x - 60 for x in self.pitch]
+            abjad_object = chord
+        elif isinstance(self.pitch, ParameterCurve):
+            abjad_object = abjad.Note(self.pitch.start_level() - 60, duration)
+        else:
+            abjad_object = abjad.Note(self.pitch - 60, duration)
+        if "_starts_tie" in self.properties and self.properties["_starts_tie"]:
+            abjad.attach(abjad.Tie(), abjad_object)
+        return abjad_object
