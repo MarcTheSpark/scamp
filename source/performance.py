@@ -391,9 +391,8 @@ class Performance(SavesToJSON):
                                            termination_weighting=termination_weighting)
                             for part in self.parts], tempo_curve=self.tempo_curve)
 
-    @property
     def is_quantized(self):
-        return all(part.is_quantized for part in self.parts)
+        return all(part.is_quantized() for part in self.parts)
 
     def _to_json(self):
         return {"parts": [part._to_json() for part in self.parts], "tempo_curve": self.tempo_curve._to_json()}
