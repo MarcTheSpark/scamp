@@ -1,20 +1,30 @@
 from playcorder.performance import PerformancePart, PerformanceNote
 from playcorder.settings import engraving_settings
 from playcorder.parameter_curve import ParameterCurve
+from playcorder.quantization import QuantizationRecord
 from copy import deepcopy
 import math
 from fractions import Fraction
-from itertools import permutations, accumulate
+from itertools import permutations, accumulate, count
 from playcorder.utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y
 import textwrap
 import abjad
 
-# TODO: NoteLike needs a static method to take a PerformanceNote and a desired split of the lengths and produce
+
+# TODO: Voice processing rewrite:
+# 1) snip all voices into pieces: If there's a rest AND a measure break between two notes, then snip into two pieces.
+# consider each of these pieces to be a certain number of measures in length, starting in a given measure. Should be
+# a tuple of (start_measure, end_measure, notes_list, voice_number_or_average_pitch)
+# 2) Sort the pieces into their positions. Starting from the first measure, take all pieces that start in that measure
+# and first place all of the pieces with a numbered voice, then place all the pieces with named voices in order of
+# average pitch. Then go to the second measure, check which slots are still filled from pieces that started in the
+# first measure and are still going on, add in the numbered voice pieces, and then add the named voice pieces.
+# continue like that until done.
+
 # a list of tied NoteLikes. They'll also need to split up any pitch ParameterCurves into their chunks.
 # For now, we'll do this as gracenotes, but maybe there can be a setting that first splits a note into constituents
 # based on the key points of the param curve and then splits those constituents into reproducible notes?
 
-# TODO: fix old code in_process_and_convert_beat
 
 # ---------------------------------------------- Duration Utilities --------------------------------------------
 
@@ -95,14 +105,104 @@ def _get_beat_division_indispensabilities(beat_length, beat_divisor):
 
 def quantized_performance_part_to_staff_group(quantized_performance_part: PerformancePart):
     assert quantized_performance_part.is_quantized()
-    # gets us to list of measures, each of which is a dictionary from voice name to tuple of (notes list, quantization)
-    measures_voice_dictionaries = _separate_voices_into_measures(quantized_performance_part)
-    # gets us to list of measures, each of which is a list of ordered voices in the form (notes list, quantization)
-    measures_of_voices = [_voice_dictionary_to_list(x) for x in measures_voice_dictionaries]
-    # if a measure is empty, we need to give it a signifier of an empty voice of a particular length
-    # similarly if a voice is empty, we need to give it a signifier of the length of the rest
 
-    StaffGroup.from_measure_bins_of_voice_lists(measures_of_voices, quantized_performance_part.measure_lengths)
+    numbered_fragments, named_fragments = _separate_voices_into_labeled_fragments(quantized_performance_part)
+    print(numbered_fragments)
+    print(named_fragments)
+    print("\n\n\n")
+    for nf in named_fragments:
+        print([(note.start_time, note.end_time) for note in nf[0]])
+        print("Measures {} to {}".format(*nf[1:3]))
+        print([
+            (measure.start_time, measure.start_time + measure.measure_length) for measure in nf[3]
+        ])
+        print()
+    # # gets us to list of measures, each of which is a dictionary from voice name to tuple of (notes list, quantization)
+    # measures_voice_dictionaries = _separate_voices_into_measures(quantized_performance_part)
+    # # gets us to list of measures, each of which is a list of ordered voices in the form (notes list, quantization)
+    # measures_of_voices = [_voice_dictionary_to_list(x) for x in measures_voice_dictionaries]
+    # # if a measure is empty, we need to give it a signifier of an empty voice of a particular length
+    # # similarly if a voice is empty, we need to give it a signifier of the length of the rest
+    #
+    # StaffGroup.from_measure_bins_of_voice_lists(measures_of_voices, quantized_performance_part.measure_lengths)
+
+
+def _separate_voices_into_labeled_fragments(quantized_performance_part: PerformancePart):
+    """
+    Splits the part's voices into fragments where divisions occur whenever there is a measure break at a rest.
+    If there's a measure break but not a rest, we're probably in the middle of a melodic gesture, so don't want to
+    separate. If there's a rest but not a measure break then we should also probably keep the notes together in a
+    single voice, since they were specified to be in the same voice.
+    :param quantized_performance_part: a quantized PerformancePart
+    :return: a tuple of (numbered_fragments, named_fragments), where the numbered_fragments come from numbered voices
+    and are of the form (voice_num, notes_list, start_measure_num, end_measure_num, measure_quantization_schemes),
+    while the named_fragments are of the form (notes_list, start_measure_num, end_measure_num,
+    measure_quantization_schemes)
+    """
+    numbered_fragments = []
+    named_fragments = []
+
+    def save_fragment(voice, notes, start_measure_num, end_measure_num, measure_quantizations):
+        nonlocal numbered_fragments, named_fragments
+        try:
+            # numbered voice
+            voice_num = int(voice)
+            numbered_fragments.append((voice_num, notes, start_measure_num, end_measure_num, measure_quantizations))
+        except ValueError:
+            # not a numbered voice
+            named_fragments.append((notes, start_measure_num, end_measure_num, measure_quantizations))
+
+    for voice_name, note_list in quantized_performance_part.voices.items():
+        # first we make an enumeration iterator for the measures
+        quantization_record = quantized_performance_part.voice_quantization_records[voice_name]
+        assert isinstance(quantization_record, QuantizationRecord)
+        measure_quantization_iterator = enumerate(quantization_record.quantized_measures)
+
+        # the idea is that we build a current_fragment up until we encounter a rest at a barline
+        # when that happens, we save the old fragment and start a new one
+        current_fragment = []
+        fragment_measure_quantizations = []
+        current_measure_num, current_measure = next(measure_quantization_iterator)
+        fragment_start_measure = fragment_end_measure = 0
+
+        for performance_note in note_list:
+            # update so that current_measure is the measure that performance_note starts in
+            while performance_note.start_time >= current_measure.start_time + current_measure.measure_length:
+                # we're past the old measure, so increment to next measure
+                current_measure_num, current_measure = next(measure_quantization_iterator)
+                # if this measure break coincides with a rest, then we start a new fragment
+                if len(current_fragment) > 0 and current_fragment[-1].end_time < performance_note.start_time:
+                    save_fragment(voice_name, current_fragment, fragment_start_measure, fragment_end_measure,
+                                  fragment_measure_quantizations)
+                    # reset all the fragment-building variables
+                    current_fragment = []
+                    fragment_measure_quantizations = []
+                    fragment_start_measure = fragment_end_measure = current_measure_num
+                elif len(current_fragment) == 0:
+                    # don't mark the start measure until we actually have a note!
+                    fragment_start_measure = fragment_end_measure = current_measure_num
+
+            # add the new note to the current fragment
+            current_fragment.append(performance_note)
+
+            # make sure that fragment_measure_quantizations has a copy of the measure this note starts in
+            if len(fragment_measure_quantizations) == 0 or fragment_measure_quantizations[-1] != current_measure:
+                fragment_measure_quantizations.append(current_measure)
+
+            # now we move forward to the end of the note, and update the measure we're on
+            # (Note the > rather than a >= sign. For the end of the note, it has to actually cross the barline.)
+            while performance_note.end_time > current_measure.start_time + current_measure.measure_length:
+                current_measure_num, current_measure = next(measure_quantization_iterator)
+                # when we cross into a new measure, add it to the measure quantizations and update fragment_end_measure
+                fragment_measure_quantizations.append(current_measure)
+                fragment_end_measure = current_measure_num
+
+        # once we're done going through the voice, save the last fragment and move on
+        if len(current_fragment) > 0:
+            save_fragment(voice_name, current_fragment, fragment_start_measure, fragment_end_measure,
+                          fragment_measure_quantizations)
+
+    return numbered_fragments, named_fragments
 
 
 def _separate_voices_into_measures(quantized_performance_part: PerformancePart):
@@ -173,17 +273,17 @@ def _voice_dictionary_to_list(voice_dictionary):
     return voice_list
 
 
+_id_generator = count()
+
+
 def _split_performance_note_at_beat(performance_note: PerformanceNote, split_beat):
     if performance_note.start_time < split_beat < performance_note.end_time:
         second_part = deepcopy(performance_note)
         second_part.start_time = split_beat
         second_part.end_time = performance_note.end_time
         performance_note.end_time = split_beat
-        # if this isn't a rest, then we're going to need to keep track of ties that will be needed
-        if performance_note.pitch is not None:
-            performance_note.properties["_starts_tie"] = True
-            second_part.properties["_ends_tie"] = True
 
+        if performance_note.pitch is not None:
             if isinstance(performance_note.pitch, ParameterCurve):
                 # if the pitch is a parameter curve, then we split it appropriately
                 pitch_curve_start, pitch_curve_end = performance_note.pitch.split_at(performance_note.length)
@@ -200,6 +300,16 @@ def _split_performance_note_at_beat(performance_note: PerformanceNote, split_bea
                     second_part_chord.append(pitch_curve_end)
                 performance_note.pitch = tuple(first_part_chord)
                 second_part.pitch = tuple(second_part_chord)
+
+            # also, if this isn't a rest, then we're going to need to keep track of ties that will be needed
+            performance_note.properties["_starts_tie"] = True
+            second_part.properties["_ends_tie"] = True
+
+            # we also want to keep track of which notes came from the same original note for doing ties and such
+            if performance_note.properties["_source_id"] is not None:
+                second_part.properties["_source_id"] = performance_note.properties["_source_id"]
+            else:
+                second_part.properties["_source_id"] = performance_note.properties["_source_id"] = next(_id_generator)
 
         return performance_note, second_part
     else:
@@ -312,6 +422,7 @@ class Voice:
         self.contents = contents
         self.length = length
         abjad.show(self.to_abjad())
+        exit()
 
     @classmethod
     def empty_voice(cls, length):
@@ -421,6 +532,7 @@ class Voice:
                     best_score = score
                     best_permutation = permutation
 
+            note_parts = []
             remainder = note
             for segment_length in best_permutation:
 
@@ -432,7 +544,13 @@ class Voice:
                 else:
                     this_segment = split_note[0]
 
-                note_list.append(NoteLike(this_segment.pitch, segment_length, this_segment.properties))
+                note_parts.append(NoteLike(this_segment.pitch, segment_length, this_segment.properties))
+
+            note_list.extend(note_parts)
+
+            if len(note_list) > 1:
+                bob = abjad.Selection(note_parts)
+                abjad.attach(abjad.Glissando(), bob)
 
         return [tuplet] if tuplet is not None else note_list
 
@@ -537,3 +655,5 @@ class NoteLike:
         if "_starts_tie" in self.properties and self.properties["_starts_tie"]:
             abjad.attach(abjad.Tie(), abjad_object)
         return abjad_object
+
+
