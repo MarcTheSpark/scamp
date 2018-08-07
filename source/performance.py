@@ -121,8 +121,15 @@ class PerformancePart(SavesToJSON):
             # no voices specified; create a dictionary with the catch-all voice "_unspecified_"
             self.voices = {"_unspecified_": []}
         elif isinstance(voices, dict):
-            # a dict of voices is given
-            self.voices = voices
+            self.voices = {}
+            for key, value in voices.items():
+                # for each key, if it can be parsed as an integer, make sure it's doing so in only one way
+                # this prevents confusion from two voices called "01" and "1" for instance
+                try:
+                    self.voices[str(int(key))] = value
+                except ValueError:
+                    self.voices[key] = value
+
             # make sure that the dict contains the catch-all voice "_unspecified_"
             if "_unspecified_" not in self.voices:
                 self.voices["_unspecified_"] = []
@@ -132,7 +139,7 @@ class PerformancePart(SavesToJSON):
             # check if we were given a list of voices
             if hasattr(voices[0], "__len__"):
                 # if so, just assign them numbers 1, 2, 3, 4...
-                self.voices = {(i+1): voice for i, voice in enumerate(voices)}
+                self.voices = {str(i+1): voice for i, voice in enumerate(voices)}
                 # and add the unspecified voice
                 self.voices["_unspecified_"] = []
             else:
@@ -155,6 +162,12 @@ class PerformancePart(SavesToJSON):
         else:
             # otherwise, use the catch-all voice "_unspecified_"
             voice_name = "_unspecified_"
+
+        # make sure an integer voice is formatted in a unique way
+        try:
+            voice_name = str(int(voice_name))
+        except ValueError:
+            pass
 
         # make sure we have an entry for the desired voice, or create one if not
         if voice_name not in self.voices:
