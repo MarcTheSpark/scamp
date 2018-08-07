@@ -1,5 +1,5 @@
 {
-    "default_audio_driver": null,
+    "default_audio_driver": "pulseaudio",
     "default_midi_output_device": null,
     "default_soundfonts": {
         "default": "Merlin.sf2",
