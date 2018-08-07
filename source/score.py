@@ -9,6 +9,7 @@ from itertools import permutations, accumulate, count
 from playcorder.utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y
 import textwrap
 import abjad
+from collections import namedtuple
 
 
 # TODO: Voice processing rewrite:
@@ -100,177 +101,7 @@ def _get_beat_division_indispensabilities(beat_length, beat_divisor):
     return get_standard_indispensability_array(divisor_factors, normalize=True)
 
 
-# ---------------------------------------- Performance Part Conversion -----------------------------------------
-
-
-def quantized_performance_part_to_staff_group(quantized_performance_part: PerformancePart):
-    assert quantized_performance_part.is_quantized()
-
-    numbered_fragments, named_fragments = _separate_voices_into_labeled_fragments(quantized_performance_part)
-    print(numbered_fragments)
-    print(named_fragments)
-    print("\n\n\n")
-    for nf in named_fragments:
-        print([(note.start_time, note.end_time) for note in nf[0]])
-        print("Measures {} to {}".format(*nf[1:3]))
-        print([
-            (measure.start_time, measure.start_time + measure.measure_length) for measure in nf[3]
-        ])
-        print()
-    # # gets us to list of measures, each of which is a dictionary from voice name to tuple of (notes list, quantization)
-    # measures_voice_dictionaries = _separate_voices_into_measures(quantized_performance_part)
-    # # gets us to list of measures, each of which is a list of ordered voices in the form (notes list, quantization)
-    # measures_of_voices = [_voice_dictionary_to_list(x) for x in measures_voice_dictionaries]
-    # # if a measure is empty, we need to give it a signifier of an empty voice of a particular length
-    # # similarly if a voice is empty, we need to give it a signifier of the length of the rest
-    #
-    # StaffGroup.from_measure_bins_of_voice_lists(measures_of_voices, quantized_performance_part.measure_lengths)
-
-
-def _separate_voices_into_labeled_fragments(quantized_performance_part: PerformancePart):
-    """
-    Splits the part's voices into fragments where divisions occur whenever there is a measure break at a rest.
-    If there's a measure break but not a rest, we're probably in the middle of a melodic gesture, so don't want to
-    separate. If there's a rest but not a measure break then we should also probably keep the notes together in a
-    single voice, since they were specified to be in the same voice.
-    :param quantized_performance_part: a quantized PerformancePart
-    :return: a tuple of (numbered_fragments, named_fragments), where the numbered_fragments come from numbered voices
-    and are of the form (voice_num, notes_list, start_measure_num, end_measure_num, measure_quantization_schemes),
-    while the named_fragments are of the form (notes_list, start_measure_num, end_measure_num,
-    measure_quantization_schemes)
-    """
-    numbered_fragments = []
-    named_fragments = []
-
-    def save_fragment(voice, notes, start_measure_num, end_measure_num, measure_quantizations):
-        nonlocal numbered_fragments, named_fragments
-        try:
-            # numbered voice
-            voice_num = int(voice)
-            numbered_fragments.append((voice_num, notes, start_measure_num, end_measure_num, measure_quantizations))
-        except ValueError:
-            # not a numbered voice
-            named_fragments.append((notes, start_measure_num, end_measure_num, measure_quantizations))
-
-    for voice_name, note_list in quantized_performance_part.voices.items():
-        # first we make an enumeration iterator for the measures
-        quantization_record = quantized_performance_part.voice_quantization_records[voice_name]
-        assert isinstance(quantization_record, QuantizationRecord)
-        measure_quantization_iterator = enumerate(quantization_record.quantized_measures)
-
-        # the idea is that we build a current_fragment up until we encounter a rest at a barline
-        # when that happens, we save the old fragment and start a new one
-        current_fragment = []
-        fragment_measure_quantizations = []
-        current_measure_num, current_measure = next(measure_quantization_iterator)
-        fragment_start_measure = fragment_end_measure = 0
-
-        for performance_note in note_list:
-            # update so that current_measure is the measure that performance_note starts in
-            while performance_note.start_time >= current_measure.start_time + current_measure.measure_length:
-                # we're past the old measure, so increment to next measure
-                current_measure_num, current_measure = next(measure_quantization_iterator)
-                # if this measure break coincides with a rest, then we start a new fragment
-                if len(current_fragment) > 0 and current_fragment[-1].end_time < performance_note.start_time:
-                    save_fragment(voice_name, current_fragment, fragment_start_measure, fragment_end_measure,
-                                  fragment_measure_quantizations)
-                    # reset all the fragment-building variables
-                    current_fragment = []
-                    fragment_measure_quantizations = []
-                    fragment_start_measure = fragment_end_measure = current_measure_num
-                elif len(current_fragment) == 0:
-                    # don't mark the start measure until we actually have a note!
-                    fragment_start_measure = fragment_end_measure = current_measure_num
-
-            # add the new note to the current fragment
-            current_fragment.append(performance_note)
-
-            # make sure that fragment_measure_quantizations has a copy of the measure this note starts in
-            if len(fragment_measure_quantizations) == 0 or fragment_measure_quantizations[-1] != current_measure:
-                fragment_measure_quantizations.append(current_measure)
-
-            # now we move forward to the end of the note, and update the measure we're on
-            # (Note the > rather than a >= sign. For the end of the note, it has to actually cross the barline.)
-            while performance_note.end_time > current_measure.start_time + current_measure.measure_length:
-                current_measure_num, current_measure = next(measure_quantization_iterator)
-                # when we cross into a new measure, add it to the measure quantizations and update fragment_end_measure
-                fragment_measure_quantizations.append(current_measure)
-                fragment_end_measure = current_measure_num
-
-        # once we're done going through the voice, save the last fragment and move on
-        if len(current_fragment) > 0:
-            save_fragment(voice_name, current_fragment, fragment_start_measure, fragment_end_measure,
-                          fragment_measure_quantizations)
-
-    return numbered_fragments, named_fragments
-
-
-def _separate_voices_into_measures(quantized_performance_part: PerformancePart):
-    """
-    Separates the voices of a performance part into a list of measure bins containing chunks of those voices
-    :param quantized_performance_part: a PerformancePart that has been quantized
-    :return: a list of measure bins, each of which is a dictionary from voice names to tuples of
-    (notes in that measure for that voice, QuantizedMeasure for that measure for that voice)
-    """
-    # each entry is a dictionary of the form {voice name: voice notes in this measure}
-    measure_bins = []
-
-    # look within the start and end beat of each measure
-    for voice_name in quantized_performance_part.voices:
-        measure_start = 0
-        voice = deepcopy(quantized_performance_part.voices[voice_name])
-        voice_quantization_record = quantized_performance_part.voice_quantization_records[voice_name]
-        for measure_num, quantized_measure in enumerate(voice_quantization_record.quantized_measures):
-            measure_end = measure_start + quantized_measure.measure_length
-
-            # make sure we have a bin for this measure
-            while measure_num >= len(measure_bins):
-                measure_bins.append({})
-            this_measure_bin = measure_bins[measure_num]
-
-            # we wish to isolate just the notes of this voice that would fit in this measure
-            measure_voice = []
-            # for each note in the voice that starts in this measure
-            while len(voice) > 0 and voice[0].start_time < measure_end:
-                # if the end time of the note is after the end of the measure, we need to split it
-                if voice[0].end_time > measure_end:
-                    first_part, second_part = _split_performance_note_at_beat(voice[0], measure_end)
-                    measure_voice.append(first_part)
-                    voice[0] = second_part
-                else:
-                    measure_voice.append(voice.pop(0))
-            if len(measure_voice) > 0:
-                this_measure_bin[voice_name] = measure_voice, quantized_measure
-
-            measure_start = measure_end
-
-    return measure_bins
-
-
-def _voice_dictionary_to_list(voice_dictionary):
-    """
-    Takes a dictionary from voice name to (voice notes, voice quantization) tuples and returns a list of ordered voices.
-    Voices with numbers as names are assigned that voice number. Others are sorted by average pitch.
-    :rtype: list of voices, each of which is a tuple of (list of PerformanceNotes, quantization)
-    """
-    # start out by making a list of all of the named (not numbered) voices
-    voice_list = [voice_dictionary[voice_name] for voice_name in voice_dictionary if not voice_name.isdigit()]
-    # sort them by their average pitch. (Call average_pitch on each note, since it might be a gliss or chord)
-    # note that voice[0] is the first part of the (list of PerformanceNotes, quantization) tuple, so the notes
-    voice_list.sort(key=lambda voice: sum(n.average_pitch() for n in voice[0])/len(voice[0]))
-
-    # now we insert all the numbered voices in the correct spot in the list
-    numbered_voice_names = [x for x in voice_dictionary.keys() if x.isdigit()]
-    numbered_voice_names.sort(key=lambda name: int(name))
-    for numbered_voice_name in numbered_voice_names:
-        voice_number = int(numbered_voice_name)
-        if (voice_number - 1) < len(voice_list):
-            voice_list.insert(voice_number, voice_dictionary[numbered_voice_name])
-        else:
-            # insert dummy voices if necessary
-            voice_list.extend([None] * (voice_number - 1 - len(voice_list)))
-            voice_list.append(voice_dictionary[numbered_voice_name])
-    return voice_list
+# ---------------------------------------------- Other Utilities --------------------------------------------
 
 
 _id_generator = count()
@@ -306,7 +137,7 @@ def _split_performance_note_at_beat(performance_note: PerformanceNote, split_bea
             second_part.properties["_ends_tie"] = True
 
             # we also want to keep track of which notes came from the same original note for doing ties and such
-            if performance_note.properties["_source_id"] is not None:
+            if "_source_id" in performance_note.properties:
                 second_part.properties["_source_id"] = performance_note.properties["_source_id"]
             else:
                 second_part.properties["_source_id"] = performance_note.properties["_source_id"] = next(_id_generator)
@@ -318,13 +149,181 @@ def _split_performance_note_at_beat(performance_note: PerformanceNote, split_bea
         return performance_note,
 
 
+# ---------------------------------------- Performance Part Conversion -----------------------------------------
+
+
+def quantized_performance_part_to_staff_group(quantized_performance_part: PerformancePart):
+    assert quantized_performance_part.is_quantized()
+
+    fragments = _separate_voices_into_fragments(quantized_performance_part)
+    measure_voice_grid = _create_measure_voice_grid(fragments, len(quantized_performance_part.measure_lengths))
+    StaffGroup.from_measure_voice_grid(measure_voice_grid, quantized_performance_part.measure_lengths)
+
+
+_NumberedVoiceFragment = namedtuple("_NumberedVoiceFragment", "voice_num start_measure_num measures_with_quantizations")
+_NamedVoiceFragment = namedtuple("_NamedVoiceFragment", "average_pitch start_measure_num measures_with_quantizations")
+
+
+def _construct_voice_fragment(voice_name, notes, start_measure_num, measure_quantizations):
+    average_pitch = sum(note.average_pitch() for note in notes) / len(notes)
+
+    # split the notes into measures, breaking notes that span a barline in two
+    # save each to measures_with_quantizations, in a tuple along with the corresponding quantization
+    measures_with_quantizations = []
+    for measure_quantization in measure_quantizations:
+        measure_end_time = measure_quantization.start_time + measure_quantization.measure_length
+        this_measure_notes = []
+        remaining_notes = []
+        for note in notes:
+            # if the note starts in the measure
+            if measure_quantization.start_time <= note.start_time < measure_end_time:
+                # check if it straddles the following barline
+                if note.end_time > measure_end_time:
+                    first_half, second_half = _split_performance_note_at_beat(note, measure_end_time)
+                    this_measure_notes.append(first_half)
+                    remaining_notes.append(second_half)
+                else:
+                    # note is fully within the measure
+                    this_measure_notes.append(note)
+        notes = remaining_notes
+        measures_with_quantizations.append((this_measure_notes, measure_quantization))
+
+    # then decide based on the name of the voice whether it is from a numbered voice, which gets treated differently
+    try:
+        # numbered voice
+        voice_num = int(voice_name)
+        return _NumberedVoiceFragment(voice_num, start_measure_num, measures_with_quantizations)
+    except ValueError:
+        # not a numbered voice, so we want to order voices mostly by pitch
+        return _NamedVoiceFragment(average_pitch, start_measure_num, measures_with_quantizations)
+
+
+def _separate_voices_into_fragments(quantized_performance_part: PerformancePart):
+    """
+    Splits the part's voices into fragments where divisions occur whenever there is a measure break at a rest.
+    If there's a measure break but not a rest, we're probably in the middle of a melodic gesture, so don't want to
+    separate. If there's a rest but not a measure break then we should also probably keep the notes together in a
+    single voice, since they were specified to be in the same voice.
+    :param quantized_performance_part: a quantized PerformancePart
+    :return: a tuple of (numbered_fragments, named_fragments), where the numbered_fragments come from numbered voices
+    and are of the form (voice_num, notes_list, start_measure_num, end_measure_num, measure_quantization_schemes),
+    while the named_fragments are of the form (notes_list, start_measure_num, end_measure_num,
+    measure_quantization_schemes)
+    """
+    fragments = []
+
+    for voice_name, note_list in quantized_performance_part.voices.items():
+        # first we make an enumeration iterator for the measures
+        if len(note_list) == 0:
+            continue
+
+        quantization_record = quantized_performance_part.voice_quantization_records[voice_name]
+        assert isinstance(quantization_record, QuantizationRecord)
+        measure_quantization_iterator = enumerate(quantization_record.quantized_measures)
+
+        # the idea is that we build a current_fragment up until we encounter a rest at a barline
+        # when that happens, we save the old fragment and start a new one
+        current_fragment = []
+        fragment_measure_quantizations = []
+        current_measure_num, current_measure = next(measure_quantization_iterator)
+        fragment_start_measure = 0
+
+        for performance_note in note_list:
+            # update so that current_measure is the measure that performance_note starts in
+            while performance_note.start_time >= current_measure.start_time + current_measure.measure_length:
+                # we're past the old measure, so increment to next measure
+                current_measure_num, current_measure = next(measure_quantization_iterator)
+                # if this measure break coincides with a rest, then we start a new fragment
+                if len(current_fragment) > 0 and current_fragment[-1].end_time < performance_note.start_time:
+                    fragments.append(_construct_voice_fragment(voice_name, current_fragment,
+                                                               fragment_start_measure, fragment_measure_quantizations))
+                    # reset all the fragment-building variables
+                    current_fragment = []
+                    fragment_measure_quantizations = []
+                    fragment_start_measure = current_measure_num
+                elif len(current_fragment) == 0:
+                    # don't mark the start measure until we actually have a note!
+                    fragment_start_measure = current_measure_num
+
+            # add the new note to the current fragment
+            current_fragment.append(performance_note)
+
+            # make sure that fragment_measure_quantizations has a copy of the measure this note starts in
+            if len(fragment_measure_quantizations) == 0 or fragment_measure_quantizations[-1] != current_measure:
+                fragment_measure_quantizations.append(current_measure)
+
+            # now we move forward to the end of the note, and update the measure we're on
+            # (Note the > rather than a >= sign. For the end of the note, it has to actually cross the barline.)
+            while performance_note.end_time > current_measure.start_time + current_measure.measure_length:
+                current_measure_num, current_measure = next(measure_quantization_iterator)
+                # when we cross into a new measure, add it to the measure quantizations
+                fragment_measure_quantizations.append(current_measure)
+
+        # once we're done going through the voice, save the last fragment and move on
+        if len(current_fragment) > 0:
+            fragments.append(_construct_voice_fragment(voice_name, current_fragment,
+                                                       fragment_start_measure, fragment_measure_quantizations))
+
+    return fragments
+
+
+def _create_measure_voice_grid(fragments, num_measures):
+    numbered_fragments = []
+    named_fragments = []
+    while len(fragments) > 0:
+        fragment = fragments.pop()
+        if isinstance(fragment, _NumberedVoiceFragment):
+            numbered_fragments.append(fragment)
+        else:
+            named_fragments.append(fragment)
+
+    measure_grid = [[] for _ in range(num_measures)]
+
+    def is_cell_free(which_measure, which_voice):
+        return len(measure_grid[which_measure]) <= which_voice or measure_grid[which_measure][which_voice] is None
+
+    # sort by measure number (i.e. fragment[2]) then by voice number (i.e. fragment[0])
+    numbered_fragments.sort(key=lambda frag: (frag.start_measure_num, frag.voice_num))
+    # sort by measure number (i.e. fragment[2]) then inversely by average pitch (i.e. fragment[0])
+    named_fragments.sort(key=lambda frag: (frag.start_measure_num, -frag.average_pitch))
+
+    for fragment in numbered_fragments:
+        assert isinstance(fragment, _NumberedVoiceFragment)
+        measure_num = fragment.start_measure_num
+        for measure_with_quantization in fragment.measures_with_quantizations:
+            while len(measure_grid[measure_num]) <= fragment.voice_num:
+                measure_grid[measure_num].append(None)
+            measure_grid[measure_num][fragment.voice_num] = measure_with_quantization
+            measure_num += 1
+
+    for fragment in named_fragments:
+        assert isinstance(fragment, _NamedVoiceFragment)
+        measure_range = range(fragment.start_measure_num,
+                              fragment.start_measure_num + len(fragment.measures_with_quantizations))
+        voice_num = 0
+        while not all(is_cell_free(measure_num, voice_num) for measure_num in measure_range):
+            voice_num += 1
+
+        measure_num = fragment.start_measure_num
+        for measure_with_quantization in fragment.measures_with_quantizations:
+            while len(measure_grid[measure_num]) <= voice_num:
+                measure_grid[measure_num].append(None)
+            measure_grid[measure_num][voice_num] = measure_with_quantization
+            measure_num += 1
+
+    return measure_grid
+
+
+# ---------------------------------------------- Score Classes --------------------------------------------
+
+
 class StaffGroup:
 
     def __init__(self, staves):
         self.staves = staves
 
     @classmethod
-    def from_measure_bins_of_voice_lists(cls, measure_bins, measure_lengths):
+    def from_measure_voice_grid(cls, measure_bins, measure_lengths):
         """
         Creates a StaffGroup with Staves that accomidate engraving_settings.max_voices_per_part voices each
         :param measure_bins: a list of voice lists (can be many voices each)
@@ -547,10 +546,6 @@ class Voice:
                 note_parts.append(NoteLike(this_segment.pitch, segment_length, this_segment.properties))
 
             note_list.extend(note_parts)
-
-            if len(note_list) > 1:
-                bob = abjad.Selection(note_parts)
-                abjad.attach(abjad.Glissando(), bob)
 
         return [tuplet] if tuplet is not None else note_list
 
