@@ -22,11 +22,14 @@ _playback_settings_factory_defaults = {
 class PlaybackSettings(SavesToJSON):
 
     def __init__(self, **settings):
-        self.default_soundfonts = None if "default_soundfonts" not in settings else settings["default_soundfonts"]
-        self.default_audio_driver = None if "default_audio_driver" not in settings else settings["default_audio_driver"]
-        self.default_midi_output_device = None if "default_midi_output_device" not in settings \
-            else settings["default_midi_output_device"]
-        self.osc_message_defaults = None if "osc_message_defaults" not in settings else settings["osc_message_defaults"]
+        self.default_soundfonts = _playback_settings_factory_defaults["default_soundfonts"] \
+            if "default_soundfonts" not in settings else settings["default_soundfonts"]
+        self.default_audio_driver = _playback_settings_factory_defaults["default_audio_driver"] \
+            if "default_audio_driver" not in settings else settings["default_audio_driver"]
+        self.default_midi_output_device = _playback_settings_factory_defaults["default_midi_output_device"] \
+            if "default_midi_output_device" not in settings else settings["default_midi_output_device"]
+        self.osc_message_defaults = _playback_settings_factory_defaults["osc_message_defaults"] \
+            if "osc_message_defaults" not in settings else settings["osc_message_defaults"]
 
     def restore_factory_defaults(self):
         for key in _playback_settings_factory_defaults:
@@ -82,13 +85,16 @@ _quantization_settings_factory_defaults = {
 class QuantizationSettings(SavesToJSON):
 
     def __init__(self, **settings):
-        self.onset_weighting = None if "onset_weighting" not in settings else settings["onset_weighting"]
-        self.termination_weighting = None if "termination_weighting" not in settings \
-            else settings["termination_weighting"]
-        self.max_divisor = None if "max_divisor" not in settings else settings["max_divisor"]
-        self.max_indigestibility = None if "max_indigestibility" not in settings else settings["max_indigestibility"]
-        self.simplicity_preference = None if "simplicity_preference" not in settings \
-            else settings["simplicity_preference"]
+        self.onset_weighting = _quantization_settings_factory_defaults["onset_weighting"] \
+            if "onset_weighting" not in settings else settings["onset_weighting"]
+        self.termination_weighting = _quantization_settings_factory_defaults["termination_weighting"] \
+            if "termination_weighting" not in settings else settings["termination_weighting"]
+        self.max_divisor = _quantization_settings_factory_defaults["max_divisor"] \
+            if "max_divisor" not in settings else settings["max_divisor"]
+        self.max_indigestibility = _quantization_settings_factory_defaults["max_indigestibility"] \
+            if "max_indigestibility" not in settings else settings["max_indigestibility"]
+        self.simplicity_preference = _quantization_settings_factory_defaults["simplicity_preference"] \
+            if "simplicity_preference" not in settings else settings["simplicity_preference"]
 
     def restore_factory_defaults(self):
         for key in _quantization_settings_factory_defaults:
@@ -119,8 +125,21 @@ _engraving_settings_factory_defaults = {
 class EngravingSettings(SavesToJSON):
 
     def __init__(self, **settings):
-        self.max_voices_per_part = None if "max_voices_per_part" not in settings else settings["max_voices_per_part"]
-        self.max_dots_allowed = None if "max_dots_allowed" not in settings else settings["max_dots_allowed"]
+        self._max_voices_per_part = _engraving_settings_factory_defaults["max_voices_per_part"] \
+            if "max_voices_per_part" not in settings else settings["max_voices_per_part"]
+        assert isinstance(self._max_voices_per_part, int) and 0 <= self._max_voices_per_part < 5, \
+            "Max voices per part must be an integer from 1 to 4"
+        self.max_dots_allowed = _engraving_settings_factory_defaults["max_dots_allowed"] \
+            if "max_dots_allowed" not in settings else settings["max_dots_allowed"]
+
+    @property
+    def max_voices_per_part(self):
+        return self._max_voices_per_part
+
+    @max_voices_per_part.setter
+    def max_voices_per_part(self, value):
+        assert isinstance(value, int) and 0 <= value < 5, "Max voices per part must be an integer from 1 to 4"
+        self._max_voices_per_part = value
 
     def restore_factory_defaults(self):
         for key in _engraving_settings_factory_defaults:
