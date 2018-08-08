@@ -175,7 +175,7 @@ def _construct_voice_fragment(voice_name, notes, start_measure_num, measure_quan
         this_measure_notes = []
         remaining_notes = []
         for note in notes:
-            # if the note starts in the measure
+            # check if the note starts in the measure
             if measure_quantization.start_time <= note.start_time < measure_end_time:
                 # check if it straddles the following barline
                 if note.end_time > measure_end_time:
@@ -185,6 +185,9 @@ def _construct_voice_fragment(voice_name, notes, start_measure_num, measure_quan
                 else:
                     # note is fully within the measure
                     this_measure_notes.append(note)
+            else:
+                # if it happens in a later measure, save it for later
+                remaining_notes.append(note)
         notes = remaining_notes
         measures_with_quantizations.append((this_measure_notes, measure_quantization))
 
@@ -420,8 +423,6 @@ class Voice:
     def __init__(self, contents, length):
         self.contents = contents
         self.length = length
-        abjad.show(self.to_abjad())
-        exit()
 
     @classmethod
     def empty_voice(cls, length):
