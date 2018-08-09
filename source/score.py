@@ -280,8 +280,9 @@ def _create_measure_voice_grid(fragments, num_measures):
 
     # sort by measure number (i.e. fragment[2]) then by voice number (i.e. fragment[0])
     numbered_fragments.sort(key=lambda frag: (frag.start_measure_num, frag.voice_num))
-    # sort by measure number (i.e. fragment[2]) then inversely by average pitch (i.e. fragment[0])
-    named_fragments.sort(key=lambda frag: (frag.start_measure_num, -frag.average_pitch))
+    # sort by measure number, then by highest to lowest pitch, then by longest to shortest fragment
+    named_fragments.sort(key=lambda frag: (frag.start_measure_num, -frag.average_pitch,
+                                           -len(frag.measures_with_quantizations)))
 
     for fragment in numbered_fragments:
         assert isinstance(fragment, _NumberedVoiceFragment)
