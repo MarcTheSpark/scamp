@@ -4,6 +4,7 @@ from collections import namedtuple
 from playcorder.settings import quantization_settings
 from playcorder.parameter_curve import ParameterCurve
 import textwrap
+import abjad
 
 
 QuantizedBeat = namedtuple("QuantizedBeat", "start_time start_time_in_measure length divisor")
@@ -42,6 +43,14 @@ class QuantizationRecord(SavesToJSON):
             quantized_measure_as_dict["beats"] = quantized_beats
             quantized_measures.append(QuantizedMeasure(**quantized_measure_as_dict))
         return cls(quantized_measures)
+
+    @property
+    def measure_lengths(self):
+        return [quantized_measure.measure_length for quantized_measure in self.quantized_measures]
+
+    @property
+    def time_signatures(self):
+        return [quantized_measure.time_signature for quantized_measure in self.quantized_measures]
 
     def __repr__(self):
         return "QuantizationRecord([\n{}\n])".format(
@@ -427,6 +436,9 @@ class TimeSignature(SavesToJSON):
     @classmethod
     def _from_json(cls, json_object):
         return cls(*json_object)
+
+    def to_abjad(self):
+        return abjad.TimeSignature((self.numerator, self.denominator))
 
     def __repr__(self):
         return "TimeSignature({}, {})".format(self.numerator, self.denominator)

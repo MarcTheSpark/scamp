@@ -285,13 +285,17 @@ class PerformancePart(SavesToJSON):
     def is_quantized(self):
         return self.voice_quantization_records is not None
 
+    def get_longest_quantization_record(self):
+        # useful if we want to get a sense of all the measures involved and their quantization,
+        # since some voices may only last for a few measures and cut off early
+        return max(self.voice_quantization_records.values(),
+                   key=lambda quantization_record: len(quantization_record.quantized_measures))
+
     @property
     def measure_lengths(self):
         assert self.is_quantized(), "Performance must be quantized to have measure lengths!"
         # base it on the longest quantization record
-        longest_quantization_record = max(self.voice_quantization_records.values(),
-                                          key=lambda quantization_record: len(quantization_record.quantized_measures))
-        return [x.measure_length for x in longest_quantization_record.quantized_measures]
+        return self.get_longest_quantization_record().measure_lengths
 
     def __repr__(self):
         voice_strings = [

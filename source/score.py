@@ -1,7 +1,7 @@
 from playcorder.performance import PerformancePart, PerformanceNote
 from playcorder.settings import engraving_settings
 from playcorder.parameter_curve import ParameterCurve
-from playcorder.quantization import QuantizationRecord
+from playcorder.quantization import QuantizationRecord, TimeSignature
 from copy import deepcopy
 import math
 from fractions import Fraction
@@ -157,7 +157,9 @@ def quantized_performance_part_to_staff_group(quantized_performance_part: Perfor
 
     fragments = _separate_voices_into_fragments(quantized_performance_part)
     measure_voice_grid = _create_measure_voice_grid(fragments, len(quantized_performance_part.measure_lengths))
-    StaffGroup.from_measure_voice_grid(measure_voice_grid, quantized_performance_part.measure_lengths)
+    return StaffGroup.from_measure_voice_grid(
+        measure_voice_grid, quantized_performance_part.get_longest_quantization_record()
+    )
 
 
 _NumberedVoiceFragment = namedtuple("_NumberedVoiceFragment", "voice_num start_measure_num measures_with_quantizations")
@@ -326,13 +328,12 @@ class StaffGroup:
         self.staves = staves
 
     @classmethod
-    def from_measure_voice_grid(cls, measure_bins, measure_lengths):
+    def from_measure_voice_grid(cls, measure_bins, quantization_record):
         """
-        Creates a StaffGroup with Staves that accomidate engraving_settings.max_voices_per_part voices each
+        Creates a StaffGroup with Staves that accommodate engraving_settings.max_voices_per_part voices each
         :param measure_bins: a list of voice lists (can be many voices each)
-        :param measure_lengths: a list of the measure lengths (used for specifying bar rest lengths)
+        :param quantization_record: a QuantizationRecord
         """
-        engraving_settings.max_voices_per_part = 3
         num_staffs_required = int(max(math.ceil(len(x) / engraving_settings.max_voices_per_part) for x in measure_bins))
 
         # create a bunch of dummy bins for the different measures of each staff
@@ -341,33 +342,37 @@ class StaffGroup:
         #   [None, None, None, None, None, None, None, None] ]
         staves = [[None] * len(measure_bins) for _ in range(num_staffs_required)]
 
-        for measure_num, (measure_voices, measure_length) in enumerate(zip(measure_bins, measure_lengths)):
+        for measure_num, measure_voices in enumerate(measure_bins):
+            # this breaks up the measure's voices into groups of length max_voices_per_part
+            # (the last group might have fewer)
             voice_groups = [measure_voices[i:i + engraving_settings.max_voices_per_part]
                             for i in range(0, len(measure_voices), engraving_settings.max_voices_per_part)]
 
             for staff_num in range(len(staves)):
+                # for each staff, check if this measure has enough voices to even reach that staff
                 if staff_num < len(voice_groups):
+                    # if so, let's take a look at our voices for this measure
                     this_voice_group = voice_groups[staff_num]
                     if all(x is None for x in this_voice_group):
-                        # this staff is empty for this measure; put the length of the measure for making the bar rest
-                        staves[staff_num][measure_num] = measure_length
+                        # if all the voices are empty, this staff is empty for this measure. Put None to indicate that
+                        staves[staff_num][measure_num] = None
                     else:
-                        if this_voice_group[0] is None:
-                            # if the first voice is empty, it needs a measure length placeholder for making the bar rest
-                            this_voice_group[0] = measure_length
+                        # otherwise, there's something there, so put tne voice group in the slot
                         staves[staff_num][measure_num] = this_voice_group
                 else:
-                    # the active voices here don't extend to all staves
-                    staves[staff_num][measure_num] = measure_length
+                    # if not, put None there to indicate an empty measure
+                    staves[staff_num][measure_num] = None
 
         # At this point, each entry in the staves / measures matrix is either
-        #   (1) a number, in which case it is an empty measure of this length
+        #   (1) None, indicating an empty measure
         #   (2) a list of voices, each of which is either:
-        #       - a list of PerformanceNotes
-        #       - a number, in the case of an empty voice 1, which requires a bar rest
-        #       - None, in the case of an empty voice other than 1 which can be ignored
+        #       - a list of PerformanceNotes or
+        #       - None, in the case of an empty voice
 
-        return cls([Staff.from_measure_bins_of_voice_lists(x) for x in staves])
+        return cls([Staff.from_measure_bins_of_voice_lists(x, quantization_record.time_signatures) for x in staves])
+
+    def to_abjad(self):
+        return abjad.StaffGroup([staff.to_abjad() for staff in self.staves])
 
     def get_XML(self):
         pass
@@ -379,40 +384,70 @@ class Staff:
         self.measures = measures
 
     @classmethod
-    def from_measure_bins_of_voice_lists(cls, measure_bins):
-        # Espects a list of measure bins formatted as outputted by StaffGroup.from_measure_bins_of_voice_lists
-        # I.e. a list whose entries are either:
-        #   (1) a number, in which case it is an empty measure of this length
+    def from_measure_bins_of_voice_lists(cls, measure_bins, time_signatures):
+        # Expects a list of measure bins formatted as outputted by StaffGroup.from_measure_bins_of_voice_lists
+        #   (1) None, indicating an empty measure
         #   (2) a list of voices, each of which is either:
-        #       - a list of PerformanceNotes
-        #       - a number, in the case of an empty voice 1, which requires a bar rest
-        #       - None, in the case of an empty voice other than 1 which can be ignored
-        return cls([Measure.from_list_of_performance_voices(measure_content) if isinstance(measure_content, list)
-                    else Measure.empty_measure(measure_content) for measure_content in measure_bins])
+        #       - a list of PerformanceNotes or
+        #       - None, in the case of an empty voice
+        return cls([Measure.from_list_of_performance_voices(measure_content, time_signature)
+                    if measure_content is not None else Measure.empty_measure(time_signature)
+                    for measure_content, time_signature in zip(measure_bins, time_signatures)])
+
+    def to_abjad(self):
+        return abjad.Staff([measure.to_abjad() for measure in self.measures])
 
     def get_XML(self):
         pass
 
 
+_voice_names = [r'\voiceOne', r'\voiceTwo', r'\voiceThree', r'\voiceFour']
+
+
 class Measure:
 
-    # TODO: Probably needs time signatures!!!??!?
-    def __init__(self, voices):
+    def __init__(self, voices, time_signature):
         self.voices = voices
+        self.time_signature = time_signature
 
     @classmethod
-    def empty_measure(cls, length):
-        return cls([Voice.empty_voice(length)])
+    def empty_measure(cls, time_signature):
+        return cls([Voice.empty_voice(time_signature)], time_signature)
 
     @classmethod
-    def from_list_of_performance_voices(cls, voices_list):
+    def from_list_of_performance_voices(cls, voices_list, time_signature):
         # voices_list consists of elements each of which is either:
-        #   - a number, standing for the length of the empty measure, used for an empty voice 1
         #   - a (list of PerformanceNotes, measure quantization record) tuple for an active voice
-        #   - None, for a skipped voice (i.e. an empty voice other than voice 1)
-        return cls([Voice.from_performance_voice(*voice_content) if isinstance(voice_content, tuple)
-                    else Voice.empty_voice(voice_content) if voice_content is not None else None
-                    for voice_content in voices_list])
+        #   - None, for an empty voice
+        if all(voice_content is None for voice_content in voices_list):
+            # if all the voices are empty, just make an empty measure
+            return cls.empty_measure(time_signature)
+        else:
+            voices = []
+            for i, voice_content in enumerate(voices_list):
+                if voice_content is None:
+                    if i == 0:
+                        # an empty first voice should be expressed as a bar rest
+                        voices.append(Voice.empty_voice(time_signature))
+                    else:
+                        # an empty other voice can just be ignored. Put a placeholder of None
+                        voices.append(None)
+                else:
+                    # should be a (list of PerformanceNotes, measure quantization record) tuple
+                    voices.append(Voice.from_performance_voice(*voice_content))
+            return cls(voices, time_signature)
+
+    def to_abjad(self):
+        abjad_measure = abjad.Measure(self.time_signature.to_abjad())
+        for i, voice in enumerate(self.voices):
+            if voice is None:
+                continue
+            abjad_voice = self.voices[i].to_abjad()
+            literal = abjad.LilyPondLiteral(_voice_names[i+1])
+            abjad.attach(literal, abjad_voice)
+            abjad_measure.append(abjad_voice)
+        abjad_measure.is_simultaneous = True
+        return abjad_measure
 
     def get_XML(self):
         pass
@@ -420,13 +455,13 @@ class Measure:
 
 class Voice:
 
-    def __init__(self, contents, length):
+    def __init__(self, contents, time_signature):
         self.contents = contents
-        self.length = length
+        self.time_signature = time_signature
 
     @classmethod
-    def empty_voice(cls, length):
-        return cls(None, length)
+    def empty_voice(cls, time_signature):
+        return cls(None, time_signature)
 
     @classmethod
     def from_performance_voice(cls, notes, measure_quantization):
@@ -461,7 +496,7 @@ class Voice:
             processed_contents.extend(Voice._process_and_convert_beat(notes_from_this_beat, beat_quantization))
 
         # instantiate and return the constructed voice
-        return cls(processed_contents, length)
+        return cls(processed_contents, measure_quantization.time_signature)
 
     @staticmethod
     def _fill_in_rests(notes, total_length):
@@ -488,6 +523,8 @@ class Voice:
 
     @staticmethod
     def _process_and_convert_beat(beat_notes, beat_quantization):
+        beat_start_time = beat_notes[0].start_time
+
         if beat_quantization.divisor is None:
             # if there's no beat divisor, then it should just be a note or rest of the full length of the beat
             assert len(beat_notes) == 1
@@ -520,14 +557,19 @@ class Voice:
 
             # try every permutation of the length constituents. Get a score for it by multiplying the length of
             # each constituent with the indispensability of that pulse within the beat and summing them.
-            best_permutation = None
+            best_permutation = written_length_components
             best_score = 0
 
             for permutation in permutations(written_length_components):
+                accumulated_length = note.start_time - beat_start_time
+                division_indices = [int(round(accumulated_length / written_division_length))]
+                for component_length in permutation[:-1]:
+                    accumulated_length += component_length
+                    division_indices.append(int(round(accumulated_length / written_division_length)))
 
-                division_indices = [int(round(x / written_division_length)) for x in accumulate([0]+written_length_components)]
                 score = sum(segment_length * division_indispensabilities[division_index]
                             for division_index, segment_length in zip(division_indices, permutation))
+
                 if score > best_score:
                     best_score = score
                     best_permutation = permutation
@@ -551,7 +593,10 @@ class Voice:
         return [tuplet] if tuplet is not None else note_list
 
     def to_abjad(self):
-        return abjad.Voice([x.to_abjad() for x in self.contents])
+        if self.contents is None:
+            return abjad.Voice("{{R{}*{}}}".format(self.time_signature.denominator, self.time_signature.numerator))
+        else:
+            return abjad.Voice([x.to_abjad() for x in self.contents])
 
     def get_XML(self):
         pass
