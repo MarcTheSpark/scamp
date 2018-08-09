@@ -1,26 +1,17 @@
 from playcorder.performance import PerformancePart, PerformanceNote
 from playcorder.settings import engraving_settings
 from playcorder.parameter_curve import ParameterCurve
-from playcorder.quantization import QuantizationRecord, TimeSignature
+from playcorder.quantization import QuantizationRecord
 from copy import deepcopy
 import math
 from fractions import Fraction
-from itertools import permutations, accumulate, count
+from itertools import permutations, count
 from playcorder.utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y
 import textwrap
 import abjad
 from collections import namedtuple
 
-
-# TODO: Voice processing rewrite:
-# 1) snip all voices into pieces: If there's a rest AND a measure break between two notes, then snip into two pieces.
-# consider each of these pieces to be a certain number of measures in length, starting in a given measure. Should be
-# a tuple of (start_measure, end_measure, notes_list, voice_number_or_average_pitch)
-# 2) Sort the pieces into their positions. Starting from the first measure, take all pieces that start in that measure
-# and first place all of the pieces with a numbered voice, then place all the pieces with named voices in order of
-# average pitch. Then go to the second measure, check which slots are still filled from pieces that started in the
-# first measure and are still going on, add in the numbered voice pieces, and then add the named voice pieces.
-# continue like that until done.
+# TODO: FRAGMENTS ARE SOMEHOW GETTING ARRANGED IN DIFFERENT ORDERS. CLEARLY A DICT ITERATION THING
 
 # a list of tied NoteLikes. They'll also need to split up any pitch ParameterCurves into their chunks.
 # For now, we'll do this as gracenotes, but maybe there can be a setting that first splits a note into constituents
