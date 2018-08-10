@@ -387,7 +387,15 @@ class Staff:
                     for measure_content, time_signature in zip(measure_bins, time_signatures)])
 
     def to_abjad(self):
-        return abjad.Staff([measure.to_abjad() for measure in self.measures])
+        # from the point of view of the source_id_dict (which helps us connect tied notes), the staff is
+        # always going to be the top level call. There's no need to propagate the source_id_dict any further upward
+        source_id_dict = {}
+        contents = [measure.to_abjad(source_id_dict) for measure in self.measures]
+        for same_source_group in source_id_dict.values():
+            t = abjad.Tie()
+            abjad.attach(abjad.Tie(), abjad.Selection(same_source_group))
+
+        return abjad.Staff(contents)
 
     def get_XML(self):
         pass
@@ -429,16 +437,24 @@ class Measure:
                     voices.append(Voice.from_performance_voice(*voice_content))
             return cls(voices, time_signature)
 
-    def to_abjad(self):
+    def to_abjad(self, source_id_dict=None):
+        is_top_level_call = True if source_id_dict is None else False
+        source_id_dict = {} if source_id_dict is None else source_id_dict
         abjad_measure = abjad.Measure(self.time_signature.to_abjad())
         for i, voice in enumerate(self.voices):
             if voice is None:
                 continue
-            abjad_voice = self.voices[i].to_abjad()
-            literal = abjad.LilyPondLiteral(_voice_names[i+1])
+            abjad_voice = self.voices[i].to_abjad(source_id_dict)
+            literal = abjad.LilyPondLiteral(_voice_names[i])
             abjad.attach(literal, abjad_voice)
+            abjad_voice.name = _voice_names[i]
             abjad_measure.append(abjad_voice)
         abjad_measure.is_simultaneous = True
+
+        if is_top_level_call:
+            for same_source_group in source_id_dict.values():
+                abjad.attach(abjad.Tie(), abjad.Selection(same_source_group))
+
         return abjad_measure
 
     def get_XML(self):
@@ -584,11 +600,17 @@ class Voice:
 
         return [tuplet] if tuplet is not None else note_list
 
-    def to_abjad(self):
+    def to_abjad(self, source_id_dict=None):
         if self.contents is None:
             return abjad.Voice("{{R{}*{}}}".format(self.time_signature.denominator, self.time_signature.numerator))
         else:
-            return abjad.Voice([x.to_abjad() for x in self.contents])
+            is_top_level_call = True if source_id_dict is None else False
+            source_id_dict = {} if source_id_dict is None else source_id_dict
+            abjad_components = [x.to_abjad(source_id_dict) for x in self.contents]
+            if is_top_level_call:
+                for same_source_group in source_id_dict.values():
+                    abjad.attach(abjad.Tie(), abjad.Selection(same_source_group))
+            return abjad.Voice(abjad_components)
 
     def get_XML(self):
         pass
@@ -641,9 +663,14 @@ class Tuplet:
             # otherwise, construct a tuplet from our answer
             return cls(divisor, normal_divisions, 4.0 / normal_type)
 
-    def to_abjad(self):
-        return abjad.Tuplet(abjad.Multiplier(self.normal_divisions, self.tuplet_divisions),
-                            [note_like.to_abjad() for note_like in self.contents])
+    def to_abjad(self, source_id_dict=None):
+        is_top_level_call = True if source_id_dict is None else False
+        source_id_dict = {} if source_id_dict is None else source_id_dict
+        abjad_notes = [note_like.to_abjad(source_id_dict) for note_like in self.contents]
+        if is_top_level_call:
+            for same_source_group in source_id_dict.values():
+                abjad.attach(abjad.Tie(), abjad.Selection(same_source_group))
+        return abjad.Tuplet(abjad.Multiplier(self.normal_divisions, self.tuplet_divisions), abjad_notes)
 
     def __repr__(self):
         contents_string = ", contents=[\n{}\n]".format(
@@ -669,7 +696,7 @@ class NoteLike:
             self.pitch, self.written_length, self.properties
         )
 
-    def to_abjad(self):
+    def to_abjad(self, source_id_dict=None):
         duration = Fraction(self.written_length / 4).limit_denominator()
         if self.pitch is None:
             abjad_object = abjad.Rest(duration)
@@ -685,8 +712,16 @@ class NoteLike:
             abjad_object = abjad.Note(self.pitch.start_level() - 60, duration)
         else:
             abjad_object = abjad.Note(self.pitch - 60, duration)
-        if "_starts_tie" in self.properties and self.properties["_starts_tie"]:
-            abjad.attach(abjad.Tie(), abjad_object)
+
+        # If this note is part of a tie, we need to be able to connect it to it's other parts higher up the chain.
+        # The way we do this is by passing a note_id_dict down from the top level "to_abjad" call which keeps
+        # track of which leaves come from which source
+        if source_id_dict is not None and "_source_id" in self.properties:
+            if self.properties["_source_id"] in source_id_dict:
+                # this source_id is already associated with a leaf, so add it to the list
+                source_id_dict[self.properties["_source_id"]].append(abjad_object)
+            else:
+                # we don't yet have a record on this source_id, so start a list with this object under that key
+                source_id_dict[self.properties["_source_id"]] = [abjad_object]
+
         return abjad_object
-
-
