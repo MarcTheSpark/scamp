@@ -1,100 +1,14 @@
 import bisect
-from playcorder.parameter_curve import ParameterCurve
 from playcorder.quantization import quantize_performance_part, QuantizationRecord, QuantizationScheme
 from playcorder.settings import quantization_settings
 from playcorder.clock import Clock, TempoCurve
+from playcorder.performance_note import *
 from playcorder.score import Score, StaffGroup
-import logging
 from playcorder.utilities import SavesToJSON
-from functools import total_ordering
+import logging
 from copy import deepcopy
 import itertools
 import textwrap
-
-
-@total_ordering
-class PerformanceNote(SavesToJSON):
-
-    def __init__(self, start_time, length, pitch, volume, properties):
-        self.start_time = start_time
-        self.length = length
-        # if pitch is a tuple, this indicates a chord
-        self.pitch = pitch
-        self.volume = volume
-        self.properties = properties
-
-    @property
-    def end_time(self):
-        return self.start_time + self.length
-
-    @end_time.setter
-    def end_time(self, new_end_time):
-        self.length = new_end_time - self.start_time
-
-    def average_pitch(self):
-        if isinstance(self.pitch, tuple):
-            # it's a chord, so take the average of its members
-            return sum(x.average_level() if isinstance(x, ParameterCurve) else x for x in self.pitch) / len(self.pitch)
-        else:
-            return self.pitch.average_level() if isinstance(self.pitch, ParameterCurve) else self.pitch
-
-    def play(self, instrument, clock=None, blocking=True):
-        if isinstance(self.pitch, tuple):
-            instrument.play_chord(self.pitch, self.volume, self.length, self.properties, clock=clock, blocking=blocking)
-        else:
-            instrument.play_note(self.pitch, self.volume, self.length, self.properties, clock=clock, blocking=blocking)
-
-    def __lt__(self, other):
-        # this allows it to be compared with numbers. I use that below to bisect a list of notes
-        if isinstance(other, PerformanceNote):
-            return self.start_time < other.start_time
-        else:
-            return self.start_time < other
-
-    def __eq__(self, other):
-        if isinstance(other, PerformanceNote):
-            return self.start_time == other.start_time
-        else:
-            return self.start_time == other
-
-    def _to_json(self):
-        if isinstance(self.pitch, tuple):
-            # if this is a chord
-            json_pitch = [p._to_json() if isinstance(p, ParameterCurve) else p for p in self.pitch]
-            json_pitch.insert(0, "chord")  # indicates that it's a chord, since json can't distinguish tuples from lists
-        elif isinstance(self.pitch, ParameterCurve):
-            json_pitch = self.pitch._to_json()
-        else:
-            json_pitch = self.pitch
-
-        return {
-            "start_time": self.start_time,
-            "length": self.length,
-            "pitch": json_pitch,
-            "volume": self.volume._to_json() if isinstance(self.volume, ParameterCurve) else self.volume,
-            "properties": self.properties
-        }
-
-    @classmethod
-    def _from_json(cls, json_object):
-        # if pitch is an array starting with "chord"
-        if hasattr(json_object["pitch"], "__len__") and json_object["pitch"][0] == "chord":
-            pitches = []
-            for pitch in json_object["pitch"][1:]:  # ignore the "chord" indicator
-                pitches.append(ParameterCurve._from_json(pitch) if hasattr(pitch, "__len__") else pitch)
-            json_object["pitch"] = tuple(pitches)
-        # otherwise check if it's a ParameterCurve
-        elif hasattr(json_object["pitch"], "__len__"):
-            json_object["pitch"] = ParameterCurve._from_json(json_object["pitch"])
-
-        if hasattr(json_object["volume"], "__len__"):
-            json_object["volume"] = ParameterCurve._from_json(json_object["volume"])
-        return PerformanceNote(**json_object)
-
-    def __repr__(self):
-        return "PerformanceNote(start_time={}, length={}, pitch={}, volume={}, properties={})".format(
-            self.start_time, self.length, self.pitch, self.volume, self.properties
-        )
 
 
 class PerformancePart(SavesToJSON):

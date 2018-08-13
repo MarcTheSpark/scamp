@@ -1,11 +1,11 @@
 from playcorder.settings import engraving_settings
 from playcorder.parameter_curve import ParameterCurve
 from playcorder.quantization import QuantizationRecord
-from copy import deepcopy
+from playcorder.performance_note import PerformanceNote
+from playcorder.utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y
 import math
 from fractions import Fraction
-from itertools import permutations, count
-from playcorder.utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y
+from itertools import permutations
 import textwrap
 import abjad
 from collections import namedtuple
@@ -95,59 +95,6 @@ def _get_beat_division_indispensabilities(beat_length, beat_divisor):
     return get_standard_indispensability_array(divisor_factors, normalize=True)
 
 
-# ---------------------------------------------- Other Utilities --------------------------------------------
-
-
-_id_generator = count()
-
-
-def _split_performance_note_at_beat(performance_note, split_beat):
-    if performance_note.start_time < split_beat < performance_note.end_time:
-        second_part = deepcopy(performance_note)
-        second_part.start_time = split_beat
-        second_part.end_time = performance_note.end_time
-        performance_note.end_time = split_beat
-
-        if performance_note.pitch is not None:
-            if isinstance(performance_note.pitch, ParameterCurve):
-                # if the pitch is a parameter curve, then we split it appropriately
-                pitch_curve_start, pitch_curve_end = performance_note.pitch.split_at(performance_note.length)
-                performance_note.pitch = pitch_curve_start
-                second_part.pitch = pitch_curve_end
-            elif isinstance(performance_note.pitch, tuple) and isinstance(performance_note.pitch[0], ParameterCurve):
-                # if the pitch is a tuple of parameter curve (glissing chord) then same idea
-                first_part_chord = []
-                second_part_chord = []
-                for pitch_curve in performance_note.pitch:
-                    assert isinstance(pitch_curve, ParameterCurve)
-                    pitch_curve_start, pitch_curve_end = pitch_curve.split_at(performance_note.length)
-                    first_part_chord.append(pitch_curve_start)
-                    second_part_chord.append(pitch_curve_end)
-                performance_note.pitch = tuple(first_part_chord)
-                second_part.pitch = tuple(second_part_chord)
-
-            # also, if this isn't a rest, then we're going to need to keep track of ties that will be needed
-            performance_note.properties["_starts_tie"] = True
-            second_part.properties["_ends_tie"] = True
-
-            # we also want to keep track of which notes came from the same original note for doing ties and such
-            if "_source_id" in performance_note.properties:
-                second_part.properties["_source_id"] = performance_note.properties["_source_id"]
-            else:
-                second_part.properties["_source_id"] = performance_note.properties["_source_id"] = next(_id_generator)
-
-        return performance_note, second_part
-    else:
-        # since the expectation is a tuple as return value, in the event that the split does
-        # nothing we return the note unaltered in a length-1 tuple
-        return performance_note,
-
-
-# used in arranging voices in a part
-_NumberedVoiceFragment = namedtuple("_NumberedVoiceFragment", "voice_num start_measure_num measures_with_quantizations")
-_NamedVoiceFragment = namedtuple("_NamedVoiceFragment", "average_pitch start_measure_num measures_with_quantizations")
-
-
 # ---------------------------------------------- Score Classes --------------------------------------------
 
 class Score:
@@ -165,6 +112,11 @@ class Score:
 
     def get_XML(self):
         pass
+
+
+# used in arranging voices in a part
+_NumberedVoiceFragment = namedtuple("_NumberedVoiceFragment", "voice_num start_measure_num measures_with_quantizations")
+_NamedVoiceFragment = namedtuple("_NamedVoiceFragment", "average_pitch start_measure_num measures_with_quantizations")
 
 
 class StaffGroup:
@@ -198,7 +150,7 @@ class StaffGroup:
                 if measure_quantization.start_time <= note.start_time < measure_end_time:
                     # check if it straddles the following barline
                     if note.end_time > measure_end_time:
-                        first_half, second_half = _split_performance_note_at_beat(note, measure_end_time)
+                        first_half, second_half = note.split_at_beat(measure_end_time)
                         this_measure_notes.append(first_half)
                         remaining_notes.append(second_half)
                     else:
@@ -525,42 +477,18 @@ class Voice:
         # instantiate and return the constructed voice
         return cls(processed_contents, measure_quantization.time_signature)
 
-    # this is an ugly solution to the problem of not being able to import PerformanceNote and use that
-    # due to circular import issues that arise.
-    class DummyPerformanceNote:
-        def __init__(self, start_time, length, pitch, volume, properties):
-            self.start_time = start_time
-            self.length = length
-            # if pitch is a tuple, this indicates a chord
-            self.pitch = pitch
-            self.volume = volume
-            self.properties = properties
-
-        @property
-        def end_time(self):
-            return self.start_time + self.length
-
-        @end_time.setter
-        def end_time(self, new_end_time):
-            self.length = new_end_time - self.start_time
-
-        def __repr__(self):
-            return "DummyPerformanceNote(start_time={}, length={}, pitch={}, volume={}, properties={})".format(
-                self.start_time, self.length, self.pitch, self.volume, self.properties
-            )
-
     @staticmethod
     def _fill_in_rests(notes, total_length):
         notes_and_rests = []
         t = 0
         for note in notes:
             if t < note.start_time:
-                notes_and_rests.append(Voice.DummyPerformanceNote(t, note.start_time - t, None, None, {}))
+                notes_and_rests.append(PerformanceNote(t, note.start_time - t, None, None, {}))
             notes_and_rests.append(note)
             t = note.end_time
 
         if t < total_length:
-            notes_and_rests.append(Voice.DummyPerformanceNote(t, total_length - t, None, None, {}))
+            notes_and_rests.append(PerformanceNote(t, total_length - t, None, None, {}))
         return notes_and_rests
 
     @staticmethod
@@ -568,7 +496,7 @@ class Voice:
         for beat in beats:
             split_notes = []
             for note in notes:
-                split_notes.extend(_split_performance_note_at_beat(note, beat))
+                split_notes.extend(note.split_at_beat(beat))
             notes = split_notes
         return notes
 
@@ -629,9 +557,7 @@ class Voice:
             remainder = note
             for segment_length in best_permutation:
 
-                split_note = _split_performance_note_at_beat(
-                    remainder, remainder.start_time + segment_length / dilation_factor
-                )
+                split_note = remainder.split_at_beat(remainder.start_time + segment_length / dilation_factor)
                 if len(split_note) > 1:
                     this_segment, remainder = split_note
                 else:
