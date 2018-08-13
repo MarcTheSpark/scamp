@@ -78,7 +78,8 @@ _quantization_settings_factory_defaults = {
     "termination_weighting": 0.5,
     "max_divisor": 8,
     "max_indigestibility": None,
-    "simplicity_preference": 2.0
+    "simplicity_preference": 2.0,
+    "default_time_signature": "4/4"
 }
 
 
@@ -95,6 +96,8 @@ class QuantizationSettings(SavesToJSON):
             if "max_indigestibility" not in settings else settings["max_indigestibility"]
         self.simplicity_preference = _quantization_settings_factory_defaults["simplicity_preference"] \
             if "simplicity_preference" not in settings else settings["simplicity_preference"]
+        self.default_time_signature = _quantization_settings_factory_defaults["default_time_signature"] \
+            if "default_time_signature" not in settings else settings["default_time_signature"]
 
     def restore_factory_defaults(self):
         for key in _quantization_settings_factory_defaults:

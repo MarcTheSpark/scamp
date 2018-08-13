@@ -1,7 +1,9 @@
 import bisect
 from playcorder.parameter_curve import ParameterCurve
-from playcorder.quantization import quantize_performance_part, QuantizationRecord
+from playcorder.quantization import quantize_performance_part, QuantizationRecord, QuantizationScheme
+from playcorder.settings import quantization_settings
 from playcorder.clock import Clock, TempoCurve
+from playcorder.score import Score, StaffGroup
 import logging
 from playcorder.utilities import SavesToJSON
 from functools import total_ordering
@@ -264,18 +266,26 @@ class PerformancePart(SavesToJSON):
             logging.warning("No matching instrument could be found for part {}.".format(self.name))
         return self
 
-    def quantize(self, quantization_scheme, onset_weighting="default", termination_weighting="default"):
+    def quantize(self, quantization_scheme="default", onset_weighting="default", termination_weighting="default"):
         """
         Quantizes this PerformancePart according to the quantization_scheme, returning the QuantizationRecord
         """
+        if quantization_scheme == "default":
+            logging.warning("No quantization scheme given; quantizing according to default time signature.")
+            quantization_scheme = QuantizationScheme.from_time_signature(quantization_settings.default_time_signature)
+
         quantize_performance_part(self, quantization_scheme, onset_weighting=onset_weighting,
                                   termination_weighting=termination_weighting)
-        return self.voice_quantization_records
+        return self
 
-    def quantized(self, quantization_scheme, onset_weighting="default", termination_weighting="default"):
+    def quantized(self, quantization_scheme="default", onset_weighting="default", termination_weighting="default"):
         """
         Returns a quantized copy of this PerformancePart, leaving the original unchanged
         """
+        if quantization_scheme == "default":
+            logging.warning("No quantization scheme given; quantizing according to default time signature.")
+            quantization_scheme = QuantizationScheme.from_time_signature(quantization_settings.default_time_signature)
+
         copy = PerformancePart(instrument=self.instrument, name=self.name, voices=deepcopy(self.voices),
                                instrument_id=self._instrument_id)
         quantize_performance_part(copy, quantization_scheme, onset_weighting=onset_weighting,
@@ -296,6 +306,18 @@ class PerformancePart(SavesToJSON):
         assert self.is_quantized(), "Performance must be quantized to have measure lengths!"
         # base it on the longest quantization record
         return self.get_longest_quantization_record().measure_lengths
+
+    def num_measures(self):
+        assert self.is_quantized(), "Performance must be quantized to have a number of measures"
+        return len(self.get_longest_quantization_record().quantized_measures)
+
+    def to_staff_group(self):
+        if not self.is_quantized():
+            logging.warning("PerformancePart was not quantized before calling to_staff_group(); "
+                            "quantizing according to default quantization time_signature")
+            quantization_scheme = QuantizationScheme.from_time_signature(quantization_settings.default_time_signature)
+            return self.quantized(quantization_scheme).to_staff_group()
+        return StaffGroup.from_quantized_performance_part(self)
 
     def __repr__(self):
         voice_strings = [
@@ -392,24 +414,45 @@ class Performance(SavesToJSON):
             part.set_instrument_from_ensemble(ensemble)
         return self
 
-    def quantize(self, quantization_scheme, onset_weighting="default", termination_weighting="default"):
+    def quantize(self, quantization_scheme="default", onset_weighting="default", termination_weighting="default"):
         """
-        Quantizes all parts according to the given quantization_scheme
+        Quantizes all parts according to the given quantization_scheme.
+        By default uses the default quantization time signature and settings as defined in QuantizationSettings
         """
+        if quantization_scheme == "default":
+            logging.warning("No quantization scheme given; quantizing according to default time signature.")
+            quantization_scheme = QuantizationScheme.from_time_signature(quantization_settings.default_time_signature)
+
         for part in self.parts:
             part.quantize(quantization_scheme, onset_weighting=onset_weighting,
                           termination_weighting=termination_weighting)
+        return self
 
-    def quantized(self, quantization_scheme, onset_weighting="default", termination_weighting="default"):
+    def quantized(self, quantization_scheme="default", onset_weighting="default", termination_weighting="default"):
         """
         Returns a quantized copy of this Performance, leaving the original unchanged
         """
+        if quantization_scheme == "default":
+            logging.warning("No quantization scheme given; quantizing according to default time signature.")
+            quantization_scheme = QuantizationScheme.from_time_signature(quantization_settings.default_time_signature)
+
         return Performance([part.quantized(quantization_scheme, onset_weighting=onset_weighting,
                                            termination_weighting=termination_weighting)
                             for part in self.parts], tempo_curve=self.tempo_curve)
 
     def is_quantized(self):
         return all(part.is_quantized() for part in self.parts)
+
+    def num_measures(self):
+        return max(part.num_measures() for part in self.parts)
+
+    def to_score(self):
+        if not self.is_quantized():
+            logging.warning("Performance was not quantized before calling to_score(); "
+                            "quantizing according to default quantization time_signature")
+            quantization_scheme = QuantizationScheme.from_time_signature(quantization_settings.default_time_signature)
+            return self.quantized(quantization_scheme).to_score()
+        return Score.from_quantized_performance(self)
 
     def _to_json(self):
         return {"parts": [part._to_json() for part in self.parts], "tempo_curve": self.tempo_curve._to_json()}
