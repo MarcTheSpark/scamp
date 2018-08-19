@@ -341,6 +341,23 @@ class StaffGroup:
         pass
 
 
+def _join_same_source_abjad_note_group(same_source_group):
+    # look pairwise to see if we need to tie or gliss
+    # sometimes a note will gliss, then sit at a static pitch
+    gliss_present = False
+    for note_pair in zip(same_source_group[:-1], same_source_group[1:]):
+        if isinstance(note_pair[0], abjad.Note) and note_pair[0].written_pitch == note_pair[1].written_pitch or \
+                isinstance(note_pair[0], abjad.Chord) and note_pair[0].written_pitches == note_pair[1].written_pitches:
+            abjad.attach(abjad.Tie(), abjad.Selection(note_pair))
+        else:
+            abjad.attach(abjad.Glissando(), abjad.Selection(note_pair))
+            gliss_present = True
+
+    if gliss_present:
+        # if any of the segments gliss, we might attach a slur
+        abjad.attach(abjad.Slur(), abjad.Selection(same_source_group))
+
+
 class Staff:
 
     def __init__(self, measures):
@@ -363,7 +380,7 @@ class Staff:
         source_id_dict = {}
         contents = [measure.to_abjad(source_id_dict) for measure in self.measures]
         for same_source_group in source_id_dict.values():
-            abjad.attach(abjad.Tie(), abjad.Selection(same_source_group))
+            _join_same_source_abjad_note_group(same_source_group)
 
         return abjad.Staff(contents)
 
@@ -424,7 +441,7 @@ class Measure:
 
         if is_top_level_call:
             for same_source_group in source_id_dict.values():
-                abjad.attach(abjad.Tie(), abjad.Selection(same_source_group))
+                _join_same_source_abjad_note_group(same_source_group)
 
         return abjad_measure
 
@@ -578,7 +595,7 @@ class Voice:
             abjad_components = [x.to_abjad(source_id_dict) for x in self.contents]
             if is_top_level_call:
                 for same_source_group in source_id_dict.values():
-                    abjad.attach(abjad.Tie(), abjad.Selection(same_source_group))
+                    _join_same_source_abjad_note_group(same_source_group)
             return abjad.Voice(abjad_components)
 
     def get_XML(self):
@@ -638,7 +655,7 @@ class Tuplet:
         abjad_notes = [note_like.to_abjad(source_id_dict) for note_like in self.contents]
         if is_top_level_call:
             for same_source_group in source_id_dict.values():
-                abjad.attach(abjad.Tie(), abjad.Selection(same_source_group))
+                _join_same_source_abjad_note_group(same_source_group)
         return abjad.Tuplet(abjad.Multiplier(self.normal_divisions, self.tuplet_divisions), abjad_notes)
 
     def __repr__(self):
@@ -678,6 +695,7 @@ class NoteLike:
                 chord.note_heads = [x - 60 for x in self.pitch]
             abjad_object = chord
         elif isinstance(self.pitch, ParameterCurve):
+            grace_notes = [abjad.Note(self.pitch.value_at(t)-60, 1/16) for t in self.pitch.inflection_points()]
             abjad_object = abjad.Note(self.pitch.start_level() - 60, duration)
         else:
             abjad_object = abjad.Note(self.pitch - 60, duration)
