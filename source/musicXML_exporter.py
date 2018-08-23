@@ -1,16 +1,20 @@
-__author__ = 'mpevans'
-
-
-import xml.etree.ElementTree as ET
+from xml.etree import ElementTree
 import math
 from datetime import date
 import numbers
 import random
+from playcorder.settings import engraving_settings
+
+
+# TODO: Accidental key preference
+# TODO: Key Signature
+# TODO: Performances record score hints? E.g. key signature.
+# TODO: Articulations, slurs
+# TODO: Barlines
 
 #  -------------------------------------------------- GLOBALS ----------------------------------------------------- #
 
 num_beat_divisions = 10080
-max_dots_allowed = 4
 
 #  -------------------------------------------------- PITCH ----------------------------------------------------- #
 
@@ -47,17 +51,17 @@ def get_pitch_step_alter_and_octave(pitch, accidental_preference="standard"):
     return step, alteration, octave, rounded_pitch
 
 
-class Pitch(ET.Element):
+class Pitch(ElementTree.Element):
 
     def __init__(self, midi_val, accidental_preference="standard"):
         super(Pitch, self).__init__("pitch")
         self.step, self.alter, self.octave, self.rounded_pitch = \
             get_pitch_step_alter_and_octave(midi_val, accidental_preference=accidental_preference)
-        step_el = ET.Element("step")
+        step_el = ElementTree.Element("step")
         step_el.text = self.step
-        alter_el = ET.Element("alter")
+        alter_el = ElementTree.Element("alter")
         alter_el.text = str(self.alter)
-        octave_el = ET.Element("octave")
+        octave_el = ElementTree.Element("octave")
         octave_el.text = str(self.octave)
         self.append(step_el)
         self.append(alter_el)
@@ -91,7 +95,7 @@ def get_basic_length_and_num_dots(length):
         while length / dots_multiplier not in length_to_note_type:
             dots += 1
             dots_multiplier = (2.0 ** (dots + 1) - 1) / 2.0 ** dots
-            if dots > max_dots_allowed:
+            if dots > engraving_settings.max_dots_allowed:
                 raise ValueError("Duration length of {} does not resolve to "
                                  "single note type.".format(length))
         return length / dots_multiplier, dots
@@ -122,13 +126,13 @@ class Duration:
             raise err
 
         if tuplet is not None:
-            self.time_modification = ET.Element("time-modification")
-            ET.SubElement(self.time_modification, "actual-notes").text = str(tuplet[0])
-            ET.SubElement(self.time_modification, "normal-notes").text = str(tuplet[1])
+            self.time_modification = ElementTree.Element("time-modification")
+            ElementTree.SubElement(self.time_modification, "actual-notes").text = str(tuplet[0])
+            ElementTree.SubElement(self.time_modification, "normal-notes").text = str(tuplet[1])
             if len(tuplet) > 2:
                 if tuplet[2] not in length_to_note_type:
                     ValueError("Tuplet normal note type is not a standard power of two length.")
-                ET.SubElement(self.time_modification, "normal-type").text = length_to_note_type[tuplet[2]]
+                ElementTree.SubElement(self.time_modification, "normal-type").text = length_to_note_type[tuplet[2]]
         else:
             self.time_modification = None
 
@@ -136,7 +140,7 @@ class Duration:
 #  -------------------------------------------------- NOTATIONS ----------------------------------------------------- #
 
 
-class Tuplet(ET.Element):
+class Tuplet(ElementTree.Element):
     def __init__(self, start_or_end, number=1, placement="above"):
         self.start_or_end = start_or_end
         super(Tuplet, self).__init__("tuplet", {"type": start_or_end, "number": str(number), "placement": placement})
@@ -148,7 +152,7 @@ class Tuplet(ET.Element):
 #  ---------------------------------------------------- NOTE ------------------------------------------------------- #
 
 
-class Note(ET.Element):
+class Note(ElementTree.Element):
     # represents notes, or rests by setting pitch to 0
     # to build a chord include several Notes, and set is_chord_member to True on all but the first
 
@@ -161,11 +165,11 @@ class Note(ET.Element):
             # a duration object, since that requires a note expressible as a single note head, and
             # we might be dealing with a bar of length, say 2.5
             duration = float(duration)
-            self.append(ET.Element("rest", {"measure": "yes"}))
-            duration_el = ET.Element("duration")
+            self.append(ElementTree.Element("rest", {"measure": "yes"}))
+            duration_el = ElementTree.Element("duration")
             duration_el.text = str(int(round(duration * num_beat_divisions)))
             self.append(duration_el)
-            type_el = ET.Element("type")
+            type_el = ElementTree.Element("type")
             type_el.text = "whole"
             self.append(type_el)
             # okay, no need for the rest of this stuff, so return now
@@ -175,41 +179,41 @@ class Note(ET.Element):
 
         notations, articulations = list(notations), list(articulations)
         if pitch is None:
-            self.append(ET.Element("rest"))
+            self.append(ElementTree.Element("rest"))
         else:
             assert isinstance(pitch, Pitch)
             self.pitch = pitch
             self.append(pitch)
-        duration_el = ET.Element("duration")
+        duration_el = ElementTree.Element("duration")
         duration_el.text = str(int(round(duration.actual_length * num_beat_divisions)))
         self.append(duration_el)
 
         if is_chord_member:
-            self.append(ET.Element("chord"))
+            self.append(ElementTree.Element("chord"))
 
         if voice is not None:
-            voice_el = ET.Element("voice")
+            voice_el = ElementTree.Element("voice")
             voice_el.text = str(voice)
             self.append(voice_el)
 
         if staff is not None:
-            staff_el = ET.Element("staff")
+            staff_el = ElementTree.Element("staff")
             staff_el.text = str(staff)
             self.append(staff_el)
 
         if ties is not None:
             if ties.lower() == "start" or ties.lower() == "continue":
-                self.append(ET.Element("tie", {"type": "start"}))
-                notations.append(ET.Element("tied", {"type": "start"}))
+                self.append(ElementTree.Element("tie", {"type": "start"}))
+                notations.append(ElementTree.Element("tied", {"type": "start"}))
             if ties.lower() == "stop" or ties.lower() == "continue":
-                self.append(ET.Element("tie", {"type": "stop"}))
-                notations.append(ET.Element("tied", {"type": "stop"}))
+                self.append(ElementTree.Element("tie", {"type": "stop"}))
+                notations.append(ElementTree.Element("tied", {"type": "stop"}))
 
-        type_el = ET.Element("type")
+        type_el = ElementTree.Element("type")
         type_el.text = duration.type
         self.append(type_el)
         for _ in range(duration.dots):
-            self.append(ET.Element("dot"))
+            self.append(ElementTree.Element("dot"))
 
         if notehead is not None:
             self.append(notehead)
@@ -220,25 +224,25 @@ class Note(ET.Element):
         if beams is not None:
             for beam_num in beams:
                 beam_text = beams[beam_num]
-                beam_el = ET.Element("beam", {"number": str(beam_num)})
+                beam_el = ElementTree.Element("beam", {"number": str(beam_num)})
                 beam_el.text = beam_text
                 self.append(beam_el)
 
         if len(notations) + len(articulations) > 0:
             # there is either a notation or an articulation, so we'll add a notations tag
-            notations_el = ET.Element("notations")
+            notations_el = ElementTree.Element("notations")
             for notation in notations:
-                if isinstance(notation, ET.Element):
+                if isinstance(notation, ElementTree.Element):
                     notations_el.append(notation)
                 else:
-                    notations_el.append(ET.Element(notation))
+                    notations_el.append(ElementTree.Element(notation))
             if len(articulations) > 0:
-                articulations_el = ET.SubElement(notations_el, "articulations")
+                articulations_el = ElementTree.SubElement(notations_el, "articulations")
                 for articulation in articulations:
-                    if isinstance(articulation, ET.Element):
+                    if isinstance(articulation, ElementTree.Element):
                         articulations_el.append(articulation)
                     else:
-                        articulations_el.append(ET.Element(articulation))
+                        articulations_el.append(ElementTree.Element(articulation))
             self.append(notations_el)
 
     @classmethod
@@ -260,6 +264,7 @@ class Note(ET.Element):
 
 #  -------------------------------------------------- MEASURE ------------------------------------------------------ #
 
+
 clef_name_to_letter_and_line = {
     "treble": ("G", 2),
     "bass": ("F", 4),
@@ -273,23 +278,23 @@ barline_name_to_xml_name = {
 }
 
 
-class Measure(ET.Element):
+class Measure(ElementTree.Element):
 
     def __init__(self, number, time_signature=None, clef=None, barline=None, staves=None):
         super(Measure, self).__init__("measure", {"number": str(number)})
 
         self.has_barline = False
 
-        attributes_el = ET.Element("attributes")
+        attributes_el = ElementTree.Element("attributes")
         self.append(attributes_el)
-        divisions_el = ET.SubElement(attributes_el, "divisions")
+        divisions_el = ElementTree.SubElement(attributes_el, "divisions")
         divisions_el.text = str(num_beat_divisions)
 
         if time_signature is not None:
             # time_signature is expressed as a tuple
-            time_el = ET.SubElement(attributes_el, "time")
-            ET.SubElement(time_el, "beats").text = str(time_signature[0])
-            ET.SubElement(time_el, "beat-type").text = str(time_signature[1])
+            time_el = ElementTree.SubElement(attributes_el, "time")
+            ElementTree.SubElement(time_el, "beats").text = str(time_signature[0])
+            ElementTree.SubElement(time_el, "beat-type").text = str(time_signature[1])
 
         if clef is not None:
             # clef is a tuple: the first element is the sign ("G" clef of "F" clef)
@@ -298,23 +303,23 @@ class Measure(ET.Element):
             # however, we also take words like "treble" and convert them
             if clef in clef_name_to_letter_and_line:
                 clef = clef_name_to_letter_and_line[clef]
-            clef_el = ET.SubElement(attributes_el, "clef")
-            ET.SubElement(clef_el, "sign").text = clef[0]
-            ET.SubElement(clef_el, "line").text = str(clef[1])
+            clef_el = ElementTree.SubElement(attributes_el, "clef")
+            ElementTree.SubElement(clef_el, "sign").text = clef[0]
+            ElementTree.SubElement(clef_el, "line").text = str(clef[1])
             if len(clef) > 2:
-                ET.SubElement(clef_el, "clef-octave-change").text = str(clef[2])
+                ElementTree.SubElement(clef_el, "clef-octave-change").text = str(clef[2])
 
         if staves is not None:
-            staves_el = ET.SubElement(attributes_el, "staves")
+            staves_el = ElementTree.SubElement(attributes_el, "staves")
             staves_el.text = str(staves)
 
         if barline is not None:
-            barline_el = ET.Element("barline", {"location": "right"})
+            barline_el = ElementTree.Element("barline", {"location": "right"})
             self.append(barline_el)
             self.has_barline = True
             if barline in barline_name_to_xml_name:
                 barline = barline_name_to_xml_name[barline]
-            ET.SubElement(barline_el, "bar-style").text = barline
+            ElementTree.SubElement(barline_el, "bar-style").text = barline
 
     def append(self, element):
         if self.has_barline:
@@ -335,17 +340,17 @@ class PartGroup:
         self.has_group_bar_line = has_group_bar_line
 
     def get_start_element(self):
-        start_element = ET.Element("part-group", {"number": str(self.number), "type": "start"})
+        start_element = ElementTree.Element("part-group", {"number": str(self.number), "type": "start"})
         if self.has_bracket:
-            ET.SubElement(start_element, "group-symbol").text = "bracket"
-        ET.SubElement(start_element, "group-barline").text = "yes" if self.has_group_bar_line else "no"
+            ElementTree.SubElement(start_element, "group-symbol").text = "bracket"
+        ElementTree.SubElement(start_element, "group-barline").text = "yes" if self.has_group_bar_line else "no"
         return start_element
 
     def get_stop_element(self):
-        return ET.Element("part-group", {"number": str(self.number), "type": "stop"})
+        return ElementTree.Element("part-group", {"number": str(self.number), "type": "stop"})
 
 
-class Part(ET.Element):
+class Part(ElementTree.Element):
     next_available_number = 1
 
     def __init__(self, part_name, manual_part_id=None):
@@ -356,34 +361,30 @@ class Part(ET.Element):
         self.part_name = part_name
 
     def get_part_list_entry(self):
-        score_part_el = ET.Element("score-part", {"id": str(self.part_id)})
-        ET.SubElement(score_part_el, "part-name").text = self.part_name
+        score_part_el = ElementTree.Element("score-part", {"id": str(self.part_id)})
+        ElementTree.SubElement(score_part_el, "part-name").text = self.part_name
         return score_part_el
 
 #  ------------------------------------------------- Score ------------------------------------------------------ #
 
 
-fake_composers = ["D. Drumpf", "50 Cent", "Eric Whitacre", "J. Bieber", "Honey Boo Boo", "Rebecca Black"]
-fake_titles = ["My First Orgasm", "Album Twig", "Sonata No.5, Op. 27", "Things that Go Boom", "My Deepest Feelings"]
-
-
-class Score(ET.Element):
+class Score(ElementTree.Element):
 
     def __init__(self, title=None, composer=None):
         super(Score, self).__init__("score-partwise")
-        title = random.choice(fake_titles) if title is None else title
-        composer = random.choice(fake_composers) if composer is None else composer
+        title = random.choice(engraving_settings.default_titles) if title is None else title
+        composer = random.choice(engraving_settings.default_composers) if composer is None else composer
         str(date.today())
-        work_el = ET.Element("work")
+        work_el = ElementTree.Element("work")
         self.append(work_el)
-        ET.SubElement(work_el, "work-title").text = title
-        id_el = ET.Element("identification")
+        ElementTree.SubElement(work_el, "work-title").text = title
+        id_el = ElementTree.Element("identification")
         self.append(id_el)
-        ET.SubElement(id_el, "creator", {"type": "composer"}).text = composer
-        encoding_el = ET.SubElement(id_el, "encoding")
-        ET.SubElement(encoding_el, "encoding-date").text = str(date.today())
-        ET.SubElement(encoding_el, "software").text = "marcpy"
-        self.part_list = ET.Element("part-list")
+        ElementTree.SubElement(id_el, "creator", {"type": "composer"}).text = composer
+        encoding_el = ElementTree.SubElement(id_el, "encoding")
+        ElementTree.SubElement(encoding_el, "encoding-date").text = str(date.today())
+        ElementTree.SubElement(encoding_el, "software").text = "marcpy"
+        self.part_list = ElementTree.Element("part-list")
         self.append(self.part_list)
 
     def add_part(self, part):
@@ -399,51 +400,51 @@ class Score(ET.Element):
 
     def save_to_file(self, file_name):
         file_ = open(file_name, 'w')
-        file_.write(ET.tostring(self, encoding="unicode"))
+        file_.write(ElementTree.tostring(self, encoding="unicode"))
         file_.close()
 
 #  ----------------------------------------------- Other Elements --------------------------------------------------- #
 
 
-class MetronomeMark(ET.Element):
+class MetronomeMark(ElementTree.Element):
 
     def __init__(self, unit_type, bpm, voice=1, staff=1, offset=0):
         super(MetronomeMark, self).__init__("direction")
-        d_type_el = ET.Element("direction-type")
+        d_type_el = ElementTree.Element("direction-type")
         self.append(d_type_el)
 
-        metronome_el = ET.SubElement(d_type_el, "metronome")
+        metronome_el = ElementTree.SubElement(d_type_el, "metronome")
         if isinstance(unit_type, numbers.Number):
             if float(unit_type) not in length_to_note_type:
                 raise ValueError("Unit type not valid")
             unit_type = length_to_note_type[float(unit_type)]
-        ET.SubElement(metronome_el, "beat-unit").text = unit_type
-        ET.SubElement(metronome_el, "per-minute").text = str(bpm)
+        ElementTree.SubElement(metronome_el, "beat-unit").text = unit_type
+        ElementTree.SubElement(metronome_el, "per-minute").text = str(bpm)
 
         if offset != 0:
-            offset_el = ET.Element("offset", {"sound": "no"})
+            offset_el = ElementTree.Element("offset", {"sound": "no"})
             offset_el.text = str(int(offset * num_beat_divisions))
             self.append(offset_el)
 
-        voice_el = ET.Element("voice")
+        voice_el = ElementTree.Element("voice")
         voice_el.text = str(voice)
         self.append(voice_el)
-        staff_el = ET.Element("staff")
+        staff_el = ElementTree.Element("staff")
         staff_el.text = str(staff)
         self.append(staff_el)
 
 
-class Text(ET.Element):
+class Text(ElementTree.Element):
     def __init__(self, text, voice=1, staff=1, **kwargs):
         super(Text, self).__init__("direction")
-        type_el = ET.Element("direction-type")
+        type_el = ElementTree.Element("direction-type")
         self.append(type_el)
-        words_el = ET.Element("words", kwargs)
+        words_el = ElementTree.Element("words", kwargs)
         words_el.text = text
         type_el.append(words_el)
-        self.voice_el = ET.Element("voice")
+        self.voice_el = ElementTree.Element("voice")
         self.voice_el.text = str(voice)
-        self.staff_el = ET.Element("staff")
+        self.staff_el = ElementTree.Element("staff")
         self.staff_el.text = str(staff)
         self.append(self.voice_el)
         self.append(self.staff_el)
@@ -455,11 +456,11 @@ class Text(ET.Element):
         self.staff_el.text = str(staff)
 
 
-class Backup(ET.Element):
+class Backup(ElementTree.Element):
 
     def __init__(self, quarters_length):
         super(Backup, self).__init__("backup")
-        duration_el = ET.Element("duration")
+        duration_el = ElementTree.Element("duration")
         self.append(duration_el)
         duration_el.text = str(num_beat_divisions * quarters_length)
 
@@ -470,21 +471,21 @@ class Backup(ET.Element):
 # violin_part = Part("Violin")
 # measure = Measure(1, (3, 4), "treble")
 # measure.append(Note(Pitch(58.5), Duration(1.5, (3, 2, 1)), notations=[Tuplet("start")],
-#                     articulations=[ET.Element("staccato"), ET.Element("tenuto")]))
-# measure.append(Note(Pitch(63), Duration(0.5, (3, 2, 1)), articulations=[ET.Element("tenuto")]))
+#                     articulations=[ElementTree.Element("staccato"), ElementTree.Element("tenuto")]))
+# measure.append(Note(Pitch(63), Duration(0.5, (3, 2, 1)), articulations=[ElementTree.Element("tenuto")]))
 # measure.append(Note(Pitch(61), Duration(1.0, (3, 2, 1)), notations=[Tuplet("end")], ties="start"))
 # measure.append(Note(Pitch(61), Duration(0.5), ties="thru"))
 # measure.append(Note(Pitch(61), Duration(0.25), ties="end", articulations=["staccatissimo"]))
 # measure.append(Note(None, Duration(0.25)))
 # violin_part.append(measure)
 # measure = Measure(2, (5, 8))
-# measure.append(Note(Pitch(70), Duration(1.5), articulations=[ET.Element("tenuto")]))
+# measure.append(Note(Pitch(70), Duration(1.5), articulations=[ElementTree.Element("tenuto")]))
 # measure.append(MetronomeMark(2, 100))
 # measure.append(Note(Pitch(65), Duration(1.0), ties="start"))
 # violin_part.append(measure)
 # measure = Measure(3, barline="end")
 # measure.append(Note(Pitch(65), Duration(0.5, (4, 3, 0.5)), notations=[Tuplet("start")], ties="end"))
-# measure.append(Note(Pitch(66), Duration(1, (4, 3, 0.5)), articulations=[ET.Element("tenuto")]))
+# measure.append(Note(Pitch(66), Duration(1, (4, 3, 0.5)), articulations=[ElementTree.Element("tenuto")]))
 # measure.append(Note(Pitch(67), Duration(0.5, (4, 3, 0.5)), notations=[Tuplet("end")], ties="start"))
 # measure.append(Note(Pitch(67), Duration(0.5), notations=[Tuplet("end")], ties="end"))
 # measure.append(Note(None, Duration(0.5)))
@@ -493,8 +494,8 @@ class Backup(ET.Element):
 # viola_part = Part("Viola")
 # measure = Measure(1, (3, 4), "alto")
 # measure.append(Note(Pitch(58.5), Duration(1.5, (3, 2, 1)), notations=[Tuplet("start")],
-#                     articulations=[ET.Element("staccato"), ET.Element("tenuto")]))
-# measure.append(Note(Pitch(53), Duration(0.5, (3, 2, 1)), articulations=[ET.Element("tenuto")]))
+#                     articulations=[ElementTree.Element("staccato"), ElementTree.Element("tenuto")]))
+# measure.append(Note(Pitch(53), Duration(0.5, (3, 2, 1)), articulations=[ElementTree.Element("tenuto")]))
 # measure.append(Note(Pitch(51), Duration(1.0, (3, 2, 1)), notations=[Tuplet("end")], ties="start"))
 # measure.append(Note(Pitch(51), Duration(0.5), ties="thru"))
 # measure.append(Note(Pitch(51), Duration(0.25), ties="end", articulations=["staccatissimo"]))
@@ -503,12 +504,12 @@ class Backup(ET.Element):
 # measure = Measure(2, (5, 8))
 # measure.append(Note(None, Duration(1.0)))
 # measure.append(Note(Pitch(55), Duration(0.5, (4, 3, 0.5)), notations=[Tuplet("start")], ties="end"))
-# measure.append(Note(Pitch(56), Duration(1, (4, 3, 0.5)), articulations=[ET.Element("tenuto")]))
+# measure.append(Note(Pitch(56), Duration(1, (4, 3, 0.5)), articulations=[ElementTree.Element("tenuto")]))
 # measure.append(Note(Pitch(57), Duration(0.5, (4, 3, 0.5)), notations=[Tuplet("end")]))
 # viola_part.append(measure)
 # measure = Measure(3, barline="end")
 # measure.append(Note(Pitch(60), Duration(1.5)))
-# measure.append(Note(Pitch(60), Duration(0.5), articulations=[ET.Element("tenuto")]))
+# measure.append(Note(Pitch(60), Duration(0.5), articulations=[ElementTree.Element("tenuto")]))
 # measure.append(Note(Pitch(60), Duration(0.5)))
 # viola_part.append(measure)
 #
@@ -519,7 +520,7 @@ class Backup(ET.Element):
 #
 # measure = Measure(2, (5, 8))
 # measure.extend(Note.make_chord([Pitch(41), Pitch(45), Pitch(48)], Duration(1.5)))
-# measure.append(Note(Pitch(40), Duration(0.5), articulations=[ET.Element("tenuto")]))
+# measure.append(Note(Pitch(40), Duration(0.5), articulations=[ElementTree.Element("tenuto")]))
 # measure.append(Note(Pitch(40), Duration(0.5)))
 # cello_part.append(measure)
 #
