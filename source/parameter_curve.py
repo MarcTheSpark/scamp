@@ -442,8 +442,7 @@ class ParameterCurve(SavesToJSON):
             segment.shift_vertical(amount)
 
     def __add__(self, other):
-        out = ParameterCurve([segment + other for segment in self._segments])
-        return out
+        return ParameterCurve([segment + other for segment in self._segments])
 
     def __radd__(self, other):
         return self.__add__(other)
@@ -453,6 +452,15 @@ class ParameterCurve(SavesToJSON):
 
     def __rsub__(self, other):
         return self.__radd__(-other)
+
+    def __mul__(self, other):
+        return ParameterCurve([segment * other for segment in self._segments])
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+    def __truediv__(self, other):
+        return self.__mul__(1/other)
 
     def __repr__(self):
         return "ParameterCurve({}, {}, {})".format(self.levels, self.durations, self.curve_shapes)
@@ -640,6 +648,12 @@ class ParameterCurveSegment:
         self._end_level += amount
         self._calculate_coefficients()
 
+    def scale_vertical(self, amount):
+        assert isinstance(amount, numbers.Number)
+        self._start_level *= amount
+        self._end_level *= amount
+        self._calculate_coefficients()
+
     def is_shifted_version_of(self, other):
         assert isinstance(other, ParameterCurveSegment)
         return self.start_time == other.start_time and self.end_time == other.end_time and \
@@ -661,6 +675,19 @@ class ParameterCurveSegment:
 
     def __rsub__(self, other):
         return self.__radd__(-other)
+
+    def __mul__(self, other):
+        if not isinstance(other, numbers.Number):
+            raise TypeError("Can only add numerical constants to ParameterCurve or ParameterCurveSegment")
+        out = self.clone()
+        out.scale_vertical(other)
+        return out
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+    def __truediv__(self, other):
+        return self.__mul__(1/other)
 
     def __contains__(self, t):
         # checks if the given time is contained within this parameter curve segment
