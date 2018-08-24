@@ -1,4 +1,15 @@
 {
+    "adjustments": {
+        "articulations": {
+            "staccato": {
+                "length_adjustment": {
+                    "add": 0,
+                    "multiply": 0.5
+                }
+            }
+        },
+        "noteheads": {}
+    },
     "default_audio_driver": "pulseaudio",
     "default_midi_output_device": null,
     "default_soundfonts": {

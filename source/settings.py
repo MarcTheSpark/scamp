@@ -1,4 +1,6 @@
 from playcorder.utilities import resolve_relative_path, SavesToJSON
+from playcorder.playback_adjustments import PlaybackDictionary, NotePlaybackAdjustment
+import json
 import logging
 
 
@@ -15,7 +17,10 @@ _playback_settings_factory_defaults = {
         "change_pitch_message_string": "change_pitch",
         "change_volume_message_string": "change_volume",
         "change_quality_message_string": "change_quality"
-    }
+    },
+    "adjustments": PlaybackDictionary(articulations={
+        "staccato": NotePlaybackAdjustment.scale_params(length_scale=0.5)
+    })
 }
 
 
@@ -30,6 +35,8 @@ class PlaybackSettings(SavesToJSON):
             if "default_midi_output_device" not in settings else settings["default_midi_output_device"]
         self.osc_message_defaults = _playback_settings_factory_defaults["osc_message_defaults"] \
             if "osc_message_defaults" not in settings else settings["osc_message_defaults"]
+        self.adjustments = _playback_settings_factory_defaults["adjustments"] \
+            if "adjustments" not in settings else settings["adjustments"]
 
     def restore_factory_defaults(self):
         for key in _playback_settings_factory_defaults:
@@ -66,10 +73,12 @@ class PlaybackSettings(SavesToJSON):
         return cls().restore_factory_defaults()
 
     def _to_json(self):
-        return self.__dict__
+        return {key: value._to_json() if hasattr(value, "_to_json") else value for key, value in self.__dict__.items()}
 
     @classmethod
     def _from_json(cls, json_object):
+        if "adjustments" in json_object:
+            json_object["adjustments"] = PlaybackDictionary._from_json(json_object["adjustments"])
         return cls(**json_object)
 
 
@@ -175,23 +184,34 @@ class EngravingSettings(SavesToJSON):
 try:
     playback_settings = PlaybackSettings.load_from_json(resolve_relative_path("settings/playbackSettings.json"))
 except FileNotFoundError:
+    logging.warning("Playback settings not found; generating defaults.")
     playback_settings = PlaybackSettings.factory_default()
     playback_settings.make_persistent()
+except (TypeError, json.decoder.JSONDecodeError):
+    logging.warning("Error loading playback settings; falling back to defaults.")
+    playback_settings = PlaybackSettings.factory_default()
 
 
 try:
     quantization_settings = \
         QuantizationSettings.load_from_json(resolve_relative_path("settings/quantizationSettings.json"))
 except FileNotFoundError:
+    logging.warning("Quantization settings not found; generating defaults.")
     quantization_settings = QuantizationSettings.factory_default()
     quantization_settings.make_persistent()
-
+except (TypeError, json.decoder.JSONDecodeError):
+    logging.warning("Error loading quantization settings; falling back to defaults.")
+    quantization_settings = QuantizationSettings.factory_default()
 
 try:
     engraving_settings = EngravingSettings.load_from_json(resolve_relative_path("settings/engravingSettings.json"))
-except FileNotFoundError:
+except (FileNotFoundError, json.decoder.JSONDecodeError):
+    logging.warning("Engraving settings not found; generating defaults.")
     engraving_settings = EngravingSettings.factory_default()
     engraving_settings.make_persistent()
+except (TypeError, json.decoder.JSONDecodeError):
+    logging.warning("Error loading engraving settings; falling back to defaults.")
+    engraving_settings = EngravingSettings.factory_default()
 
 
 def restore_all_factory_defaults(persist=False):

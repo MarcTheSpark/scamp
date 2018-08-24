@@ -4,6 +4,7 @@ from playcorder.parameter_curve import ParameterCurve
 from playcorder.utilities import SavesToJSON
 from itertools import count
 from playcorder.settings import playback_settings
+from playcorder.playback_adjustments import NotePlaybackAdjustment, PlaybackDictionary
 from playcorder.clock import current_clock
 import atexit
 import logging
@@ -176,10 +177,57 @@ class PlaycorderInstrument(SavesToJSON):
 
     @staticmethod
     def _make_properties_dict(properties):
-        # TODO: can take a string, a list, or a dict and turn it into a standardized dict of note properties
-        if properties is None:
-            return {}
-        return properties
+        # the properties keyword argument when playing a note can be a string, a NotePlaybackAdjustment,
+        # a list, or a dict. If it's a string, we split it by commas and treat it as a list from then on.
+        # And if it's a NotePlaybackAdjustment, we just enclose it in a list
+        if isinstance(properties, str):
+            properties = properties.split(",")
+        elif isinstance(properties, NotePlaybackAdjustment):
+            properties = [properties]
+
+        # if it's a list, we look at each element and see if it has a colon (making it a key / value pair)
+        # if not, we try to check and see whether it's an articulation, notehead, etc.
+        if isinstance(properties, list):
+            properties_dict = {"articulations": [], "noteheads": [], "text": [], "playback adjustments": []}
+            for note_property in properties:
+                if isinstance(note_property, NotePlaybackAdjustment):
+                    properties_dict["playback adjustments"].append(note_property)
+                elif isinstance(note_property, str):
+                    # if there's a colon, it represents a key / value pair, e.g. "articulation: staccato"
+                    if ":" in note_property:
+                        colon_index = note_property.index(":")
+                        key, value = note_property[:colon_index] + note_property[colon_index:]
+                        if "articulation" in key:
+                            if value in PlaybackDictionary.all_articulations:
+                                properties_dict["articulations"].append(value)
+                            else:
+                                logging.warning("Articulation {} not understood".format(value))
+
+                        if "notehead" in key or "note head" in key:
+                            if value in PlaybackDictionary.all_noteheads:
+                                properties_dict["noteheads"].append(value)
+                            else:
+                                logging.warning("Notehead {} not understood".format(value))
+
+                    else:
+                        # otherwise, we try to figure out what kind of property we're dealing with
+                        if note_property in PlaybackDictionary.all_articulations:
+                            properties_dict["articulations"].append(note_property)
+                        elif note_property in PlaybackDictionary.all_noteheads:
+                            properties_dict["noteheads"].append(note_property)
+            return properties_dict
+        elif isinstance(properties, dict):
+            if "articulations" not in properties:
+                properties["articulations"] = []
+            if "noteheads" not in properties:
+                properties["noteheads"] = []
+            if "text" not in properties:
+                properties["text"] = []
+            if "playback adjustments" not in properties:
+                properties["playback adjustments"] = []
+            return properties
+        else:
+            return {"articulations": [], "noteheads": [], "text": [], "playback adjustments": []}
 
     def play_note(self, pitch, volume, length, properties=None, blocking=True, clock=None):
         """
