@@ -413,7 +413,7 @@ class ParameterCurve(SavesToJSON):
         else:
             return to_split, second_half.split_at(remaining_splits, change_original=True)
 
-    def _to_json(self):
+    def to_json(self):
         levels = self.levels
         durations = self.durations
         curve_shapes = self.curve_shapes
@@ -430,7 +430,7 @@ class ParameterCurve(SavesToJSON):
             return [levels, durations, curve_shapes]
 
     @classmethod
-    def _from_json(cls, json_list):
+    def from_json(cls, json_list):
         return cls.from_list(json_list)
 
     def is_shifted_version_of(self, other):

@@ -72,13 +72,13 @@ class PlaybackSettings(SavesToJSON):
     def factory_default(cls):
         return cls().restore_factory_defaults()
 
-    def _to_json(self):
-        return {key: value._to_json() if hasattr(value, "_to_json") else value for key, value in self.__dict__.items()}
+    def to_json(self):
+        return {key: value.to_json() if hasattr(value, "to_json") else value for key, value in self.__dict__.items()}
 
     @classmethod
-    def _from_json(cls, json_object):
+    def from_json(cls, json_object):
         if "adjustments" in json_object:
-            json_object["adjustments"] = PlaybackDictionary._from_json(json_object["adjustments"])
+            json_object["adjustments"] = PlaybackDictionary.from_json(json_object["adjustments"])
         return cls(**json_object)
 
 
@@ -120,11 +120,11 @@ class QuantizationSettings(SavesToJSON):
     def factory_default(cls):
         return cls().restore_factory_defaults()
 
-    def _to_json(self):
+    def to_json(self):
         return self.__dict__
 
     @classmethod
-    def _from_json(cls, json_object):
+    def from_json(cls, json_object):
         return cls(**json_object)
 
 
@@ -173,11 +173,11 @@ class EngravingSettings(SavesToJSON):
     def factory_default(cls):
         return cls().restore_factory_defaults()
 
-    def _to_json(self):
+    def to_json(self):
         return self.__dict__
 
     @classmethod
-    def _from_json(cls, json_object):
+    def from_json(cls, json_object):
         return cls(**json_object)
 
 

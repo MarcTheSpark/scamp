@@ -71,7 +71,7 @@ class PlaycorderInstrument(SavesToJSON):
         # Changes the expression of the note with the given id
         pass
 
-    def _to_json(self):
+    def to_json(self):
         return {
             "type": "PlaycorderInstrument",
             "name": self.name,
@@ -80,7 +80,7 @@ class PlaycorderInstrument(SavesToJSON):
     # -------------- Reconstruct from JSON (doesn't need subclass reimplementation) ---------------
 
     @staticmethod
-    def _from_json(json_dict, host_ensemble=None):
+    def from_json(json_dict, host_ensemble=None):
         # the 'type' argument of the json_dict tells us which kind of PlaycorderInstrument constructor to use
         type_to_create = None
         for instrument_type in PlaycorderInstrument.__subclasses__():
@@ -480,7 +480,7 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
     def set_max_pitch_bend(self, semitones):
         self.midi_instrument.set_max_pitch_bend(semitones)
 
-    def _to_json(self):
+    def to_json(self):
         return {
             "type": "MidiPlaycorderInstrument",
             "name": self.name,
@@ -623,7 +623,7 @@ class OSCPlaycorderInstrument(PlaycorderInstrument):
         self.client.send_message("/{}/{}/{}".format(self.message_prefix, self._change_quality_message_string, quality),
                                  [note_id, value])
 
-    def _to_json(self):
+    def to_json(self):
         return {
             "type": "OSCPlaycorderInstrument",
             "name": self.name,

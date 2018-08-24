@@ -185,7 +185,7 @@ class Playcorder:
     def save_ensemble_to_json(self, filepath):
         import json
         with open(filepath, "w") as file:
-            json.dump(self._ensemble._to_json(), file)
+            json.dump(self._ensemble.to_json(), file)
 
     def load_ensemble_from_json(self, filepath):
         import json

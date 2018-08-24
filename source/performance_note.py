@@ -100,13 +100,13 @@ class PerformanceNote(SavesToJSON):
         else:
             return self.start_time == other
 
-    def _to_json(self):
+    def to_json(self):
         if isinstance(self.pitch, tuple):
             # if this is a chord
-            json_pitch = [p._to_json() if isinstance(p, ParameterCurve) else p for p in self.pitch]
+            json_pitch = [p.to_json() if isinstance(p, ParameterCurve) else p for p in self.pitch]
             json_pitch.insert(0, "chord")  # indicates that it's a chord, since json can't distinguish tuples from lists
         elif isinstance(self.pitch, ParameterCurve):
-            json_pitch = self.pitch._to_json()
+            json_pitch = self.pitch.to_json()
         else:
             json_pitch = self.pitch
 
@@ -114,24 +114,24 @@ class PerformanceNote(SavesToJSON):
             "start_time": self.start_time,
             "length": self.length,
             "pitch": json_pitch,
-            "volume": self.volume._to_json() if isinstance(self.volume, ParameterCurve) else self.volume,
+            "volume": self.volume.to_json() if isinstance(self.volume, ParameterCurve) else self.volume,
             "properties": self.properties
         }
 
     @classmethod
-    def _from_json(cls, json_object):
+    def from_json(cls, json_object):
         # if pitch is an array starting with "chord"
         if hasattr(json_object["pitch"], "__len__") and json_object["pitch"][0] == "chord":
             pitches = []
             for pitch in json_object["pitch"][1:]:  # ignore the "chord" indicator
-                pitches.append(ParameterCurve._from_json(pitch) if hasattr(pitch, "__len__") else pitch)
+                pitches.append(ParameterCurve.from_json(pitch) if hasattr(pitch, "__len__") else pitch)
             json_object["pitch"] = tuple(pitches)
         # otherwise check if it's a ParameterCurve
         elif hasattr(json_object["pitch"], "__len__"):
-            json_object["pitch"] = ParameterCurve._from_json(json_object["pitch"])
+            json_object["pitch"] = ParameterCurve.from_json(json_object["pitch"])
 
         if hasattr(json_object["volume"], "__len__"):
-            json_object["volume"] = ParameterCurve._from_json(json_object["volume"])
+            json_object["volume"] = ParameterCurve.from_json(json_object["volume"])
         return PerformanceNote(**json_object)
 
     def __repr__(self):

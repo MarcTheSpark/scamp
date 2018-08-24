@@ -246,28 +246,28 @@ class PerformancePart(SavesToJSON):
             if self.voice_quantization_records is not None else ")"
         )
 
-    def _to_json(self):
+    def to_json(self):
         return {
             "name": self.name,
             "instrument_id": self._instrument_id,
             "voices": {
-                voice_name: [n._to_json() for n in voice] for voice_name, voice in self.voices.items()
+                voice_name: [n.to_json() for n in voice] for voice_name, voice in self.voices.items()
             },
             "voice_quantization_records": {
-                voice_name: self.voice_quantization_records[voice_name]._to_json()
+                voice_name: self.voice_quantization_records[voice_name].to_json()
                 for voice_name in self.voice_quantization_records
             } if self.voice_quantization_records is not None else None
         }
 
     @classmethod
-    def _from_json(cls, json_dict):
+    def from_json(cls, json_dict):
         performance_part = cls(name=json_dict["name"])
         performance_part._instrument_id = json_dict["instrument_id"]
         for voice in json_dict["voices"]:
             for note in json_dict["voices"][voice]:
-                performance_part.add_note(PerformanceNote._from_json(note), voice=voice)
+                performance_part.add_note(PerformanceNote.from_json(note), voice=voice)
         performance_part.voice_quantization_records = {
-            voice_name: QuantizationRecord._from_json(json_dict["voice_quantization_records"][voice_name])
+            voice_name: QuantizationRecord.from_json(json_dict["voice_quantization_records"][voice_name])
             for voice_name in json_dict["voice_quantization_records"]
         } if json_dict["voice_quantization_records"] is not None else None
 
@@ -368,12 +368,12 @@ class Performance(SavesToJSON):
             return self.quantized(quantization_scheme).to_score()
         return Score.from_quantized_performance(self)
 
-    def _to_json(self):
-        return {"parts": [part._to_json() for part in self.parts], "tempo_curve": self.tempo_curve._to_json()}
+    def to_json(self):
+        return {"parts": [part.to_json() for part in self.parts], "tempo_curve": self.tempo_curve.to_json()}
 
     @classmethod
-    def _from_json(cls, json_dict):
-        return cls([PerformancePart._from_json(part_json) for part_json in json_dict["parts"]],
+    def from_json(cls, json_dict):
+        return cls([PerformancePart.from_json(part_json) for part_json in json_dict["parts"]],
                    TempoCurve.from_list(json_dict["tempo_curve"]))
 
     def __repr__(self):

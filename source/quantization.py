@@ -18,7 +18,7 @@ class QuantizationRecord(SavesToJSON):
         assert all(isinstance(x, QuantizedMeasure) for x in quantized_measures)
         self.quantized_measures = quantized_measures
 
-    def _to_json(self):
+    def to_json(self):
         quantized_measures_json_friendly = []
         for quantized_measure in self.quantized_measures:
             quantized_measure_as_dict = quantized_measure._asdict()
@@ -26,15 +26,15 @@ class QuantizationRecord(SavesToJSON):
             for beat in quantized_measure.beats:
                 quantized_beats_as_dicts.append(beat._asdict())
             quantized_measure_as_dict["beats"] = quantized_beats_as_dicts
-            quantized_measure_as_dict["time_signature"] = quantized_measure_as_dict["time_signature"]._to_json()
+            quantized_measure_as_dict["time_signature"] = quantized_measure_as_dict["time_signature"].to_json()
             quantized_measures_json_friendly.append(quantized_measure_as_dict)
         return quantized_measures_json_friendly
 
     @classmethod
-    def _from_json(cls, json_object):
+    def from_json(cls, json_object):
         quantized_measures = []
         for quantized_measure_as_dict in json_object:
-            quantized_measure_as_dict["time_signature"] = TimeSignature._from_json(
+            quantized_measure_as_dict["time_signature"] = TimeSignature.from_json(
                 quantized_measure_as_dict["time_signature"]
             )
             quantized_beats = []
@@ -430,11 +430,11 @@ class TimeSignature(SavesToJSON):
         else:
             return 4 * self.numerator / self.denominator
 
-    def _to_json(self):
+    def to_json(self):
         return self.numerator, self.denominator
 
     @classmethod
-    def _from_json(cls, json_object):
+    def from_json(cls, json_object):
         return cls(*json_object)
 
     def to_abjad(self):
