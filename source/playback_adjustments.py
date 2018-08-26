@@ -1,6 +1,9 @@
 from playcorder.utilities import SavesToJSON
 
 
+# TODO: would be great if this included preset switches
+
+
 class ParamPlaybackAdjustment(SavesToJSON):
 
     def __init__(self, multiply=1, add=0):
@@ -86,7 +89,7 @@ class NotePlaybackAdjustment(SavesToJSON):
 
 class PlaybackDictionary(dict, SavesToJSON):
 
-    all_articulations = ["staccato", "staccatissimo", "martellato", "marcato", "tenuto"]
+    all_articulations = ["staccato", "staccatissimo", "marcato", "tenuto", "accent"]
     all_noteheads = ["slash", "triangle", "diamond", "square", "cross", "x", "circle-x", "inverted triangle",
                      "arrow down", "arrow up", "circled", "slashed", "back slashed", "normal", "cluster", "circle dot",
                      "left triangle", "rectangle", "none", "do", "re", "mi", "fa", "fa up", "so", "la", "ti"]

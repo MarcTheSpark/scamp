@@ -9,6 +9,12 @@ from playcorder.clock import current_clock
 import atexit
 import logging
 
+# TODO: Stretch goal: allow MIDIPlaycorderInstrument to have multiple presets
+# Maybe create a method "add_alternate_preset(name, preset, soundfont_index, num_channels, triggers)"
+# that sets aside extra channels for it. Triggers could be of the form "articulation:staccato" or something
+# like that. But also if properties contains an entry for "preset:{preset name}" that could trigger it
+# as well.
+
 try:
     from pythonosc import udp_client
 except ImportError:
@@ -188,7 +194,7 @@ class PlaycorderInstrument(SavesToJSON):
         # if it's a list, we look at each element and see if it has a colon (making it a key / value pair)
         # if not, we try to check and see whether it's an articulation, notehead, etc.
         if isinstance(properties, list):
-            properties_dict = {"articulations": [], "noteheads": [], "text": [], "playback adjustments": []}
+            properties_dict = {"articulations": [], "notehead": "normal", "text": [], "playback adjustments": []}
             for note_property in properties:
                 if isinstance(note_property, NotePlaybackAdjustment):
                     properties_dict["playback adjustments"].append(note_property)
@@ -203,9 +209,9 @@ class PlaycorderInstrument(SavesToJSON):
                             else:
                                 logging.warning("Articulation {} not understood".format(value))
 
-                        if "notehead" in key or "note head" in key:
+                        if "notehead" in key.replace(" ", ""):
                             if value in PlaybackDictionary.all_noteheads:
-                                properties_dict["noteheads"].append(value)
+                                properties_dict["notehead"] = value
                             else:
                                 logging.warning("Notehead {} not understood".format(value))
 
@@ -214,20 +220,20 @@ class PlaycorderInstrument(SavesToJSON):
                         if note_property in PlaybackDictionary.all_articulations:
                             properties_dict["articulations"].append(note_property)
                         elif note_property in PlaybackDictionary.all_noteheads:
-                            properties_dict["noteheads"].append(note_property)
+                            properties_dict["notehead"] = note_property
             return properties_dict
         elif isinstance(properties, dict):
             if "articulations" not in properties:
                 properties["articulations"] = []
             if "noteheads" not in properties:
-                properties["noteheads"] = []
+                properties["noteheads"] = "normal"
             if "text" not in properties:
                 properties["text"] = []
             if "playback adjustments" not in properties:
                 properties["playback adjustments"] = []
             return properties
         else:
-            return {"articulations": [], "noteheads": [], "text": [], "playback adjustments": []}
+            return {"articulations": [], "notehead": "regular", "text": [], "playback adjustments": []}
 
     def play_note(self, pitch, volume, length, properties=None, blocking=True, clock=None):
         """

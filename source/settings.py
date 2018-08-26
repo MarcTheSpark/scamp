@@ -19,7 +19,11 @@ _playback_settings_factory_defaults = {
         "change_quality_message_string": "change_quality"
     },
     "adjustments": PlaybackDictionary(articulations={
-        "staccato": NotePlaybackAdjustment.scale_params(length_scale=0.5)
+        "staccato": NotePlaybackAdjustment.scale_params(length_scale=0.5),
+        "staccatissimo": NotePlaybackAdjustment.scale_params(length_scale=0.3),
+        "tenuto": NotePlaybackAdjustment.scale_params(length_scale=1.2),
+        "accent": NotePlaybackAdjustment.scale_params(volume_scale=1.2),
+        "marcato": NotePlaybackAdjustment.scale_params(volume_scale=1.5),
     })
 }
 

@@ -4,6 +4,10 @@ from playcorder.utilities import SavesToJSON
 import numbers
 
 
+# TODO: Would really like to implement multiply and add between Parameter curves. This way, for instance, the
+# playback adjustment for a tenuto could involve a swell by multiplying by a param curve
+
+
 class ParameterCurve(SavesToJSON):
 
     def __init__(self, segments=None):
