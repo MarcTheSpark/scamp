@@ -194,7 +194,8 @@ class PlaycorderInstrument(SavesToJSON):
         # if it's a list, we look at each element and see if it has a colon (making it a key / value pair)
         # if not, we try to check and see whether it's an articulation, notehead, etc.
         if isinstance(properties, list):
-            properties_dict = {"articulations": [], "notehead": "normal", "text": [], "playback adjustments": []}
+            properties_dict = {"articulations": [], "notehead": "normal",
+                               "notations": [], "text": [], "playback adjustments": []}
             for note_property in properties:
                 if isinstance(note_property, NotePlaybackAdjustment):
                     properties_dict["playback adjustments"].append(note_property)
@@ -202,18 +203,25 @@ class PlaycorderInstrument(SavesToJSON):
                     # if there's a colon, it represents a key / value pair, e.g. "articulation: staccato"
                     if ":" in note_property:
                         colon_index = note_property.index(":")
-                        key, value = note_property[:colon_index] + note_property[colon_index:]
+                        key, value = note_property[:colon_index].replace(" ", ""), \
+                                     note_property[colon_index:].replace(" ", "")
                         if "articulation" in key:
                             if value in PlaybackDictionary.all_articulations:
                                 properties_dict["articulations"].append(value)
                             else:
                                 logging.warning("Articulation {} not understood".format(value))
 
-                        if "notehead" in key.replace(" ", ""):
+                        if "notehead" in key:
                             if value in PlaybackDictionary.all_noteheads:
                                 properties_dict["notehead"] = value
                             else:
                                 logging.warning("Notehead {} not understood".format(value))
+
+                        if "notation" in key:
+                            if value in PlaybackDictionary.all_notations:
+                                properties_dict["notations"].append(value)
+                            else:
+                                logging.warning("Notation {} not understood".format(value))
 
                     else:
                         # otherwise, we try to figure out what kind of property we're dealing with
@@ -221,19 +229,23 @@ class PlaycorderInstrument(SavesToJSON):
                             properties_dict["articulations"].append(note_property)
                         elif note_property in PlaybackDictionary.all_noteheads:
                             properties_dict["notehead"] = note_property
+                        elif note_property in PlaybackDictionary.all_notations:
+                            properties_dict["notations"] = note_property
             return properties_dict
         elif isinstance(properties, dict):
             if "articulations" not in properties:
                 properties["articulations"] = []
             if "noteheads" not in properties:
                 properties["noteheads"] = "normal"
+            if "notations" not in properties:
+                properties["notations"] = []
             if "text" not in properties:
                 properties["text"] = []
             if "playback adjustments" not in properties:
                 properties["playback adjustments"] = []
             return properties
         else:
-            return {"articulations": [], "notehead": "regular", "text": [], "playback adjustments": []}
+            return {"articulations": [], "notehead": "normal", "notations": [], "text": [], "playback adjustments": []}
 
     def play_note(self, pitch, volume, length, properties=None, blocking=True, clock=None):
         """
