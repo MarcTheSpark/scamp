@@ -1,5 +1,4 @@
 import time
-from sortedcontainers import SortedListWithKey
 from collections import namedtuple
 import threading
 from multiprocessing.pool import ThreadPool
@@ -65,7 +64,7 @@ class Clock:
         self._children = []
 
         # queue of WakeUpCalls for child clocks
-        self._queue = SortedListWithKey(key=lambda x: x.t)
+        self._queue = []
         # how long have I been around, in seconds since I was created
         self._tempo_curve = TempoCurve(initial_rate)
 
@@ -307,6 +306,7 @@ class Clock:
                     time.sleep(max(0, stop_sleeping_time - time.time()))
         else:
             self.parent._queue.add(WakeUpCall(self.parent.beats() + dt, self))
+            self.parent._queue.sort(key=lambda x: x.t)
             self._ready_and_waiting = True
             self._wait_event.wait()
             self._wait_event.clear()
