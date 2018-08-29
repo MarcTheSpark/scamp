@@ -305,7 +305,7 @@ class Clock:
                     # the max is just in case we got behind in the microsecond it took before the elif check above
                     time.sleep(max(0, stop_sleeping_time - time.time()))
         else:
-            self.parent._queue.add(WakeUpCall(self.parent.beats() + dt, self))
+            self.parent._queue.append(WakeUpCall(self.parent.beats() + dt, self))
             self.parent._queue.sort(key=lambda x: x.t)
             self._ready_and_waiting = True
             self._wait_event.wait()

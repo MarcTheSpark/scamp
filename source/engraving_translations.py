@@ -91,7 +91,7 @@ def get_notehead_xml_filled_attribute(notehead_string: str):
         return None  # meaning, don't use the filled attribute
 
 
-articulation_to_xml_articulation = {
+articulation_to_xml_element_name = {
     "staccato": "staccato",
     "staccatissimo": "staccatissimo",
     "marcato": "strong-accent",
@@ -117,7 +117,7 @@ def generate_nested_element(*args):
     return out
 
 
-notations_to_xml_element = {
+notations_to_xml_notations_element = {
     "tremolo1": generate_nested_element("ornaments", ("tremolo", {"type": "single"}, "1")),
     "tremolo2": generate_nested_element("ornaments", ("tremolo", {"type": "single"}, "2")),
     "tremolo3": generate_nested_element("ornaments", ("tremolo", {"type": "single"}, "3")),

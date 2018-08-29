@@ -135,6 +135,13 @@ class QuantizationSettings(SavesToJSON):
 _engraving_settings_factory_defaults = {
     "max_voices_per_part": 4,
     "max_dots_allowed": 3,
+    "articulation_split_protocols": {  # can be first, last, or both
+        "staccato": "last",
+        "staccatissimo": "last",
+        "marcato": "first",
+        "tenuto": "last",
+        "accent": "first"
+    },
     "default_titles": ["Digging Deep", "I Like Fruit", "My Soup is Too Cold", "Woe is Me", "Dope Soundscapes",
                        "Black and White Life", "Pistol-Whipped Gyrations In A Petri Dish", "Carry on, Carrion",
                        "Color Me Blue", "Atomic Cucumbers", "If My Cat Could Smoke"],
@@ -151,6 +158,8 @@ class EngravingSettings(SavesToJSON):
             "Max voices per part must be an integer from 1 to 4"
         self.max_dots_allowed = _engraving_settings_factory_defaults["max_dots_allowed"] \
             if "max_dots_allowed" not in settings else settings["max_dots_allowed"]
+        self.articulation_split_protocols = _engraving_settings_factory_defaults["articulation_split_protocols"] \
+            if "articulation_split_protocols" not in settings else settings["articulation_split_protocols"]
         self.default_titles = _engraving_settings_factory_defaults["default_titles"] \
             if "default_titles" not in settings else settings["default_titles"]
         self.default_composers = _engraving_settings_factory_defaults["default_composers"] \
