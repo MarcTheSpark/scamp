@@ -345,17 +345,31 @@ def _join_same_source_abjad_note_group(same_source_group):
     # look pairwise to see if we need to tie or gliss
     # sometimes a note will gliss, then sit at a static pitch
     gliss_present = False
-    for note_pair in zip(same_source_group[:-1], same_source_group[1:]):
-        if isinstance(note_pair[0], abjad.Note) and note_pair[0].written_pitch == note_pair[1].written_pitch or \
-                isinstance(note_pair[0], abjad.Chord) and note_pair[0].written_pitches == note_pair[1].written_pitches:
-            abjad.attach(abjad.Tie(), abjad.Selection(note_pair))
-        else:
-            abjad.attach(abjad.Glissando(), abjad.Selection(note_pair))
-            gliss_present = True
+    last_object = None
+    for abjad_object in same_source_group:
+        if last_object is None:
+            last_object = abjad_object
+            continue
+        if isinstance(abjad_object, abjad.AfterGraceContainer):
+            print(abjad.inspect(last_object).parentage().logical_voice)
+            print(abjad.inspect(abjad_object).parentage().logical_voice)
 
-    if gliss_present:
-        # if any of the segments gliss, we might attach a slur
-        abjad.attach(abjad.Slur(), abjad.Selection(same_source_group))
+            abjad.attach(abjad.Glissando(), abjad.Selection([last_object] + abjad_object.components))
+    #     if current_gliss is None:
+    #         current_gliss = [note]
+    #     else:
+    #         isinstance(note_pair[0], abjad.Note) and note_pair[0].written_pitch == note_pair[1].written_pitch
+    # for note_pair in zip(same_source_group[:-1], same_source_group[1:]):
+    #     if isinstance(note_pair[0], abjad.Note) and note_pair[0].written_pitch == note_pair[1].written_pitch or \
+    #             isinstance(note_pair[0], abjad.Chord) and note_pair[0].written_pitches == note_pair[1].written_pitches:
+    #         abjad.attach(abjad.Tie(), abjad.Selection(note_pair))
+    #     else:
+    #         abjad.attach(abjad.Glissando(), abjad.Selection(note_pair))
+    #         gliss_present = True
+    #
+    # if gliss_present:
+    #     # if any of the segments gliss, we might attach a slur
+    #     abjad.attach(abjad.Slur(), abjad.Selection(same_source_group))
 
 
 class Staff:
@@ -432,9 +446,6 @@ class Measure:
             if voice is None:
                 continue
             abjad_voice = self.voices[i].to_abjad(source_id_dict)
-            literal = abjad.LilyPondLiteral(_voice_names[i])
-            # TODO: do we need this to make the stems work? it seems to screw them up
-            # abjad.attach(literal, abjad_voice)
             abjad_voice.name = _voice_names[i]
             abjad_measure.append(abjad_voice)
         abjad_measure.is_simultaneous = True
@@ -684,21 +695,38 @@ class NoteLike:
 
     def to_abjad(self, source_id_dict=None):
         duration = Fraction(self.written_length / 4).limit_denominator()
+        grace_notes = []
         if self.pitch is None:
             abjad_object = abjad.Rest(duration)
         elif isinstance(self.pitch, tuple):
-            chord = abjad.Chord()
-            chord.written_duration = duration
+            abjad_object = abjad.Chord()
+            abjad_object.written_duration = duration
             if isinstance(self.pitch[0], ParameterCurve):
-                chord.note_heads = [x.start_level() - 60 for x in self.pitch]
+                abjad_object.note_heads = [x.start_level() - 60 for x in self.pitch]
+
+                for t in self.pitch[0].inflection_points():
+                    grace_chord = abjad.Chord()
+                    grace_chord.written_duration = 1/16
+                    grace_chord.note_heads = [x.value_at(t) - 60 for x in self.pitch]
+                    grace_notes.append(grace_chord)
             else:
-                chord.note_heads = [x - 60 for x in self.pitch]
-            abjad_object = chord
+                abjad_object.note_heads = [x - 60 for x in self.pitch]
+
         elif isinstance(self.pitch, ParameterCurve):
-            grace_notes = [abjad.Note(self.pitch.value_at(t)-60, 1/16) for t in self.pitch.inflection_points()]
             abjad_object = abjad.Note(self.pitch.start_level() - 60, duration)
+            grace_notes.extend(abjad.Note(self.pitch.value_at(t) - 60, 1 / 16) for t in self.pitch.inflection_points())
         else:
             abjad_object = abjad.Note(self.pitch - 60, duration)
+
+        if len(grace_notes) > 0:
+            for note in grace_notes:
+                abjad.override(note).Stem.stencil = "##f"
+                abjad.override(note).Flag.stencil = "##f"
+                abjad.override(note).Beam.stencil = "##f"
+            grace_container = abjad.AfterGraceContainer(grace_notes)
+            abjad.attach(grace_container, abjad_object)
+        else:
+            grace_container = None
 
         # If this note is part of a tie, we need to be able to connect it to it's other parts higher up the chain.
         # The way we do this is by passing a note_id_dict down from the top level "to_abjad" call which keeps
@@ -710,5 +738,7 @@ class NoteLike:
             else:
                 # we don't yet have a record on this source_id, so start a list with this object under that key
                 source_id_dict[self.properties["_source_id"]] = [abjad_object]
+            if grace_container is not None:
+                source_id_dict[self.properties["_source_id"]].append(grace_container)
 
         return abjad_object
