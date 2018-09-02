@@ -42,7 +42,6 @@ WakeUpCall = namedtuple("WakeUpCall", "t clock")
 
 class Clock:
 
-
     def __init__(self, name=None, parent=None, initial_rate=1.0, pool_size=200, timing_policy=0.98):
         """
         Recursively nestable clock class. Clocks can fork child-clocks, which can in turn fork their own child-clock.

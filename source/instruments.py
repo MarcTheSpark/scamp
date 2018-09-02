@@ -247,6 +247,24 @@ class PlaycorderInstrument(SavesToJSON):
         else:
             return {"articulations": [], "notehead": "normal", "notations": [], "text": [], "playback adjustments": []}
 
+    @staticmethod
+    def _apply_playback_adjustments(pitch, volume, length, properties):
+        # first apply all of the explicit playback adjustments
+        for adjustment in properties["playback adjustments"]:
+            assert isinstance(adjustment, NotePlaybackAdjustment)
+            pitch, volume, length = adjustment.adjust_parameters(pitch, volume, length)
+
+        for notation_category in ["articulations", "noteheads", "notations"]:
+            if notation_category not in properties:
+                continue
+            for applied_notation in properties[notation_category]:
+                notation_derived_adjustment = playback_settings.adjustments.get(applied_notation)
+                if notation_derived_adjustment is not None:
+                    assert isinstance(notation_derived_adjustment, NotePlaybackAdjustment)
+                    pitch, volume, length = notation_derived_adjustment.adjust_parameters(pitch, volume, length)
+
+        return pitch, volume, length
+
     def play_note(self, pitch, volume, length, properties=None, blocking=True, clock=None):
         """
         Play a note
@@ -280,8 +298,12 @@ class PlaycorderInstrument(SavesToJSON):
                 volume.normalize_to_duration(recorded_length)
             self._performance_part.new_note(pc.get_recording_beat(), recorded_length, pitch, volume, properties)
 
+        # apply explicit playback adjustments, as well as those implied by articulations and other notations
+        unaltered_length = length
+        pitch, volume, length = PlaycorderInstrument._apply_playback_adjustments(pitch, volume, length, properties)
+
         # Note that, even if there's a clock involved we run _do_play_note in a simple thread rather than a sub-clock.
-        # That is because the overhead of running in a clock is high small sleep values like animation ot pitch and
+        # That is because the overhead of running in a clock is high for small sleep values like animation of pitch and
         # volume, and it gets way behind. Better to just use a parallel Thread and adjust the length
         if clock is not None:
             if not clock.is_fast_forwarding():
@@ -290,12 +312,11 @@ class PlaycorderInstrument(SavesToJSON):
                 clock.fork_unsynchronized(process_function=self._do_play_note,
                                           args=(pitch, volume, length / clock.absolute_rate(), properties, clock))
             if blocking:
-                clock.wait(length)
+                clock.wait(unaltered_length)
         else:
+            threading.Thread(target=self._do_play_note, args=(pitch, volume, length, properties)).start()
             if blocking:
-                self._do_play_note(pitch, volume, length, properties)
-            else:
-                threading.Thread(target=self._do_play_note, args=(pitch, volume, length, properties)).start()
+                time.sleep(unaltered_length)
 
     def play_chord(self, pitches, volume, length, properties=None, blocking=True, clock=None):
         """

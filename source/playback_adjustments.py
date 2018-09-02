@@ -150,4 +150,10 @@ class PlaybackDictionary(dict, SavesToJSON):
 
     @classmethod
     def from_json(cls, json_object):
+        # convert all adjustments from dictionaries to NotePlaybackAdjustments
+        for notation_category in json_object:
+            for notation_name in json_object[notation_category]:
+                if json_object[notation_category][notation_name] is not None:
+                    json_object[notation_category][notation_name] = \
+                        NotePlaybackAdjustment.from_json(json_object[notation_category][notation_name])
         return cls(**json_object)
