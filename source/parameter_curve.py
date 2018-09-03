@@ -445,6 +445,25 @@ class ParameterCurve(SavesToJSON):
         for segment in self._segments:
             segment.shift_vertical(amount)
 
+    def get_graphable_point_pairs(self, resolution=25):
+        x_values = []
+        y_values = []
+        for i, segment in enumerate(self._segments):
+            # only include the endpoint on the very last segment, since otherwise there would be repeats
+            segment_x_values, segment_y_values = segment.get_graphable_point_pairs(
+                resolution=resolution, endpoint=(i == len(self._segments) - 1)
+            )
+            x_values.extend(segment_x_values)
+            y_values.extend(segment_y_values)
+        return x_values, y_values
+
+    def show_plot(self, resolution=25):
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        ax.plot(*self.get_graphable_point_pairs(resolution))
+        ax.set_title('Graph of ParameterCurve')
+        plt.show()
+
     def __add__(self, other):
         return ParameterCurve([segment + other for segment in self._segments])
 
@@ -663,6 +682,19 @@ class ParameterCurveSegment:
         return self.start_time == other.start_time and self.end_time == other.end_time and \
                self._start_level - other._start_level == self._end_level - other._end_level and \
                self._curve_shape == other._curve_shape
+
+    def get_graphable_point_pairs(self, resolution=25, endpoint=True):
+        x_values = [self.start_time + x / resolution * self.duration
+                    for x in range(resolution + 1 if endpoint else resolution)]
+        y_values = [self.value_at(x) for x in x_values]
+        return x_values, y_values
+
+    def show_plot(self, resolution=25):
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        ax.plot(*self.get_graphable_point_pairs(resolution))
+        ax.set_title('Graph of ParameterCurve')
+        plt.show()
 
     def __add__(self, other):
         if not isinstance(other, numbers.Number):
