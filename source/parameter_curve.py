@@ -519,6 +519,14 @@ class ParameterCurveSegment:
 
         self._A = self._B = None
 
+    @classmethod
+    def from_endpoints_and_halfway_level(cls, start_time, end_time, start_level, end_level, halfway_level):
+        # class method that allows us to give a guide point half way through instead of giving
+        # the curve_shape directly. This lets us try to match a curve that's not perfectly the right type.
+        halfway_level_normalized = (halfway_level - start_level) / (end_level - start_level)
+        curve_shape = 2 * math.log(1 / halfway_level_normalized - 1)
+        return cls(start_time, end_time, start_level, end_level, curve_shape)
+
     def _calculate_coefficients(self):
         # A and _B are constants used in integration, and it's more efficient to just calculate them once.
         if abs(self._curve_shape) < 0.000001:
@@ -713,11 +721,21 @@ class ParameterCurveSegment:
         return self.__radd__(-other)
 
     def __mul__(self, other):
-        if not isinstance(other, numbers.Number):
-            raise TypeError("Can only add numerical constants to ParameterCurve or ParameterCurveSegment")
-        out = self.clone()
-        out.scale_vertical(other)
-        return out
+        if isinstance(other, ParameterCurveSegment):
+            pass
+        if isinstance(other, numbers.Number):
+            out = self.clone()
+            out.scale_vertical(other)
+            return out
+        elif isinstance(other, ParameterCurveSegment):
+            if other.start_time == self.start_time and other.end_time == self.end_time:
+                pass
+            else:
+                pass
+        else:
+            raise TypeError("Can only add multiply ParameterCurveSegment with a "
+                            "constant or another ParameterCurveSegment")
+
 
     def __rmul__(self, other):
         return self.__mul__(other)
