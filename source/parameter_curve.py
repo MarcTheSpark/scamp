@@ -4,8 +4,8 @@ from playcorder.utilities import SavesToJSON
 import numbers
 
 
-# TODO: Would really like to implement multiply and add between Parameter curves. This way, for instance, the
-# playback adjustment for a tenuto could involve a swell by multiplying by a param curve
+# TODO: implement multiplicative inverse. Implement adding / subtracting / multiplying, etc. of ParameterCurves
+# TODO: Maybe give Parameter curve a "shift" property to account for ones that don't start at 0
 
 
 class ParameterCurve(SavesToJSON):
@@ -127,7 +127,7 @@ class ParameterCurve(SavesToJSON):
                     segment.curve_shape = curve_shape_in
                     segment.end_level = level
                     new_segment = ParameterCurveSegment(t, end_time, level, end_level, curve_shape_out)
-                    self._segments.insert(i+1, new_segment)
+                    self._segments.insert(i + 1, new_segment)
                     break
                 else:
                     if t == segment.start_time:
@@ -152,7 +152,7 @@ class ParameterCurve(SavesToJSON):
             if t in segment:
                 # this is the case that matters; t is within one of the segments
                 part1, part2 = segment.split_at(t)
-                self._segments.insert(i+1, part2)
+                self._segments.insert(i + 1, part2)
 
     # ----------------------- Appending / removing segments --------------------------
 
@@ -483,7 +483,7 @@ class ParameterCurve(SavesToJSON):
         return self.__mul__(other)
 
     def __truediv__(self, other):
-        return self.__mul__(1/other)
+        return self.__mul__(1 / other)
 
     def __repr__(self):
         return "ParameterCurve({}, {}, {})".format(self.levels, self.durations, self.curve_shapes)
@@ -521,8 +521,13 @@ class ParameterCurveSegment:
 
     @classmethod
     def from_endpoints_and_halfway_level(cls, start_time, end_time, start_level, end_level, halfway_level):
+        assert min(start_level, end_level) < halfway_level < max(start_level, end_level), \
+            "Halfway level must be between start and end levels"
         # class method that allows us to give a guide point half way through instead of giving
         # the curve_shape directly. This lets us try to match a curve that's not perfectly the right type.
+        if end_level == start_level:
+            # if the end_level equals the start_level, then the best we can do is a straight line
+            return cls(start_time, end_time, start_level, end_level, 0)
         halfway_level_normalized = (halfway_level - start_level) / (end_level - start_level)
         curve_shape = 2 * math.log(1 / halfway_level_normalized - 1)
         return cls(start_time, end_time, start_level, end_level, curve_shape)
@@ -704,12 +709,78 @@ class ParameterCurveSegment:
         ax.set_title('Graph of ParameterCurve')
         plt.show()
 
+    @staticmethod
+    def _split_binary_function_applied_pair(input1, input2, binary_function, resolution=60):
+        if input2.start_time == input1.start_time and input2.end_time == input1.end_time:
+            split_points = []
+            value = None
+            first_difference = None
+            second_difference = None
+            for x in range(0, resolution):
+                t = input1.start_time + (x / resolution) * input1.duration
+                this_value = binary_function(input1.value_at(t),  input2.value_at(t))
+
+                if value is not None:
+                    this_difference = this_value - value
+                    if first_difference is not None:
+                        # check if first difference changes sign in the first derivative
+                        if this_difference * first_difference < 0:
+                            # there's been a change of sign, so it's a local min or max. split here
+                            split_points.append(t)
+
+                        this_second_difference = this_difference - first_difference
+
+                        if second_difference is not None:
+                            # check if second difference changes sign
+                            if this_second_difference * second_difference < 0:
+                                # there's been a change of sign, so it's an inflection point. split here
+                                if t not in split_points:
+                                    split_points.append(t)
+                        second_difference = this_second_difference
+                    first_difference = this_difference
+                value = this_value
+
+            key_points = [input1.start_time] + split_points + [input1.end_time]
+            segments = []
+            i = 0
+            while i < len(key_points) - 1:
+                segment_start = key_points[i]
+                segment_end = key_points[i + 1]
+                halfway_point = (segment_start + segment_end) / 2
+                segment_start_value = binary_function(input1.value_at(segment_start), input2.value_at(segment_start))
+                segment_end_value = binary_function(input1.value_at(segment_end), input2.value_at(segment_end))
+                segment_halfway_value = binary_function(input1.value_at(halfway_point), input2.value_at(halfway_point))
+
+                # this probably won't happen, since we're trying to split at the min / max locations, but
+                # just in case it happens, due to imprecision, that that this segment would not be monotonic,
+                # we can just split it straight down the middle
+                if not min(segment_start_value, segment_end_value) < segment_halfway_value < \
+                       max(segment_start_value, segment_end_value):
+                    key_points.insert(i + 1, halfway_point)
+                    continue
+
+                segments.append(ParameterCurveSegment.from_endpoints_and_halfway_level(
+                    segment_start, segment_end,
+                    segment_start_value, segment_end_value, segment_halfway_value
+                ))
+                i += 1
+
+            if len(segments) == 1:
+                return segments[0]
+            else:
+                return ParameterCurve(segments)
+        else:
+            raise ValueError("ParameterCurveSegments can only be added if they have the same time range.")
+
     def __add__(self, other):
-        if not isinstance(other, numbers.Number):
-            raise TypeError("Can only add numerical constants to ParameterCurve or ParameterCurveSegment")
-        out = self.clone()
-        out.shift_vertical(other)
-        return out
+        if isinstance(other, numbers.Number):
+            out = self.clone()
+            out.shift_vertical(other)
+            return out
+        elif isinstance(other, ParameterCurveSegment):
+            return ParameterCurveSegment._split_binary_function_applied_pair(self, other, lambda a, b: a + b)
+        else:
+            raise TypeError("Can only add ParameterCurveSegment to a constant or another ParameterCurveSegment")
 
     def __radd__(self, other):
         return self.__add__(other)
@@ -721,32 +792,29 @@ class ParameterCurveSegment:
         return self.__radd__(-other)
 
     def __mul__(self, other):
-        if isinstance(other, ParameterCurveSegment):
-            pass
         if isinstance(other, numbers.Number):
             out = self.clone()
             out.scale_vertical(other)
             return out
         elif isinstance(other, ParameterCurveSegment):
-            if other.start_time == self.start_time and other.end_time == self.end_time:
-                pass
-            else:
-                pass
+            return ParameterCurveSegment._split_binary_function_applied_pair(self, other, lambda a, b: a * b)
         else:
-            raise TypeError("Can only add multiply ParameterCurveSegment with a "
-                            "constant or another ParameterCurveSegment")
-
+            raise TypeError("Can only multiply ParameterCurveSegment with a constant or another ParameterCurveSegment")
 
     def __rmul__(self, other):
         return self.__mul__(other)
 
     def __truediv__(self, other):
-        return self.__mul__(1/other)
+        return self.__mul__(1 / other)
 
     def __contains__(self, t):
         # checks if the given time is contained within this parameter curve segment
         # maybe this is silly, but it seemed a little convenient
         return self.start_time <= t < self.end_time
+
+    def __neg__(self):
+        return ParameterCurveSegment(self.start_time, self.end_time,
+                                     -self.start_level, -self.end_level, self.curve_shape)
 
     def __repr__(self):
         return "ParameterCurveSegment({}, {}, {}, {}, {})".format(self.start_time, self.end_time, self.start_level,
