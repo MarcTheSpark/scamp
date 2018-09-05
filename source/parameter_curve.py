@@ -5,7 +5,6 @@ import numbers
 
 
 # TODO: implement multiplicative inverse. Implement adding / subtracting / multiplying, etc. of ParameterCurves
-# TODO: Maybe give Parameter curve a "shift" property to account for ones that don't start at 0
 
 
 class ParameterCurve(SavesToJSON):
@@ -22,7 +21,7 @@ class ParameterCurve(SavesToJSON):
         else:
             self._segments = segments
 
-    def initialize(self, levels=(0, 0), durations=(0,), curve_shapes=None):
+    def initialize(self, levels=(0, 0), durations=(0,), curve_shapes=None, offset=0):
         """
         A curve shape of zero is linear, > 0 changes late, and < 0 changes early. Strings containing "exp" will also be
         evaluated, with "exp" standing for the shape that will produce constant proportional change per unit time.
@@ -31,6 +30,7 @@ class ParameterCurve(SavesToJSON):
         to be the start and end level of the one segment of the curve)
         :param durations: there should be one fewer duration than level given
         :param curve_shapes: there should be one fewer than the number of levels. If None, all segments are linear
+        :param offset: starts ParameterCurve from somewhere other than zero
         """
         if not hasattr(levels, "__len__"):
             levels = (levels,)
@@ -43,25 +43,76 @@ class ParameterCurve(SavesToJSON):
         if curve_shapes is None:
             curve_shapes = [0] * (len(levels) - 1)
 
-        self._segments = ParameterCurve._construct_segments_list(levels, durations, curve_shapes)
+        self._segments = ParameterCurve._construct_segments_list(levels, durations, curve_shapes, offset)
         return self
 
     @staticmethod
-    def _construct_segments_list(levels, durations, curve_shapes):
-        if len(levels) == 0:
-            return [ParameterCurveSegment(0, 0, levels[0], levels[0], 0)]
+    def _construct_segments_list(levels, durations, curve_shapes, offset=0):
         segments = []
-        t = 0
+        t = offset
         for i in range(len(levels) - 1):
             segments.append(ParameterCurveSegment(t, t + durations[i], levels[i], levels[i + 1], curve_shapes[i]))
             t += durations[i]
         return segments
+
+    # ---------------------------- Class methods --------------------------------
+
+    @classmethod
+    def from_levels_and_durations(cls, levels=(0, 0), durations=(0,), curve_shapes=None, offset=0):
+        return cls().initialize(levels, durations, curve_shapes, offset)
+
+    @classmethod
+    def from_levels(cls, levels, length=1.0, offset=0):
+        """
+        Construct a parameter curve from levels alone, normalized to the given length
+        :param levels: the levels of the curve
+        :param length: the total length of the curve, divided evenly amongst the levels
+        :param offset: starts curve from somewhere other than zero
+        :return: a ParameterCurve
+        """
+        assert len(levels) > 0, "At least one level is needed to construct a parameter curve."
+        if len(levels) == 1:
+            levels = list(levels) * 2
+        # just given levels, so we linearly interpolate segments of equal length
+        durations = [length / (len(levels) - 1)] * (len(levels) - 1)
+        curves = [0.0] * (len(levels) - 1)
+        return cls.from_levels_and_durations(levels, durations, curves, offset)
+
+    @classmethod
+    def from_list(cls, constructor_list):
+        # converts from a list that may contain just levels, may have levels and durations, and may have everything
+        # a input of [1, 0.5, 0.3] is interpreted as evenly spaced levels with a total duration of 1
+        # an input of [[1, 0.5, 0.3], 3.0] is interpreted as levels and durations with a total duration of e.g. 3.0
+        # an input of [[1, 0.5, 0.3], [0.2, 0.8]] is interpreted as levels and durations
+        # an input of [[1, 0.5, 0.3], [0.2, 0.8], [2, 0.5]] is interpreted as levels, durations, and curvatures
+        if hasattr(constructor_list[0], "__len__"):
+            # we were given levels and durations, and possibly curvature values
+            if len(constructor_list) == 2:
+                if hasattr(constructor_list[1], "__len__"):
+                    # given levels and durations
+                    return cls.from_levels_and_durations(constructor_list[0], constructor_list[1])
+                else:
+                    # given levels and the total length
+                    return cls.from_levels(constructor_list[0], length=constructor_list[1])
+
+            elif len(constructor_list) >= 3:
+                # given levels, durations, and curvature values
+                return cls.from_levels_and_durations(constructor_list[0], constructor_list[1], constructor_list[2])
+        else:
+            # just given levels
+            return cls.from_levels(constructor_list)
 
     # ---------------------------- Various Properties --------------------------------
 
     def length(self):
         if len(self._segments) == 0:
             return 0
+        return self._segments[-1].end_time - self._segments[0].start_time
+
+    def start_time(self):
+        return self.offset
+
+    def end_time(self):
         return self._segments[-1].end_time
 
     def start_level(self):
@@ -87,7 +138,7 @@ class ParameterCurve(SavesToJSON):
             return max(points_to_check)
 
     def average_level(self):
-        return self.integrate_interval(0, self.length()) / self.length()
+        return self.integrate_interval(self.start_time(), self.start_time() + self.length()) / self.length()
 
     def max_absolute_slope(self):
         return max(segment.max_absolute_slope() for segment in self._segments)
@@ -104,16 +155,21 @@ class ParameterCurve(SavesToJSON):
     def curve_shapes(self):
         return tuple([segment.curve_shape for segment in self._segments])
 
+    @property
+    def offset(self):
+        return self._segments[0].start_time
+
     # ----------------------- Insertion of new control points --------------------------
 
     def insert(self, t, level, curve_shape_in=0, curve_shape_out=0):
         """
         Insert a curve point at time t, and set the shape of the curve into and out of it
         """
-        assert t >= 0, "ParameterCurve is only defined for positive values"
-        if t > self.length():
+        if t < self.start_time():
+            self.prepend_segment(level, self.start_time() - t, curve_shape_out)
+        if t > self.end_time():
             # adding a point after the curve
-            self.append_segment(level, t - self.length(), curve_shape_in)
+            self.append_segment(level, t - self.end_time(), curve_shape_in)
             return
         else:
             for i, segment in enumerate(self._segments):
@@ -142,9 +198,8 @@ class ParameterCurve(SavesToJSON):
         """
         insert another curve point at the given time, without changing the shape of the curve
         """
-        assert t >= 0, "ParameterCurve is only defined for positive values."
-        assert t <= self.length(), "Cannot interpolate after end of curve."
-        if t == self.length():
+        assert self.start_time() <= t <= self.end_time(), "Cannot interpolate outside of curve range."
+        if t == self.start_time() or t == self.end_time():
             return
         for i, segment in enumerate(self._segments):
             if t == segment.start_time:
@@ -173,22 +228,58 @@ class ParameterCurve(SavesToJSON):
                 # did the previous segment actually change the level?
                 if self._segments[-1].end_level != self._segments[-1].start_level:
                     # If so we keep it and add a new one
-                    self._segments.append(ParameterCurveSegment(self.length(), self.length() + duration,
+                    self._segments.append(ParameterCurveSegment(self.end_time(), self.end_time() + duration,
                                                                 self.end_level(), level, curve_shape))
                 else:
                     # if not, just modify the previous segment into what we want
                     self._segments[-1].end_level = level
-                    self._segments[-1].end_time = self.length() + duration
+                    self._segments[-1].end_time = self.end_time() + duration
                     self._segments[-1].curve_shape = curve_shape
         elif self._segments[-1].curve_shape == 0 and curve_shape == 0 and \
-                abs(self._segments[-1].value_at(self.length() + duration, clip_at_boundary=False) - level) <= tolerance:
+                abs(self._segments[-1].value_at(self.end_time() + duration,
+                                                clip_at_boundary=False) - level) <= tolerance:
             # we're adding a point that would be a perfect continuation of the previous linear segment
             # (could do this for non-linear, but it's probably not worth the effort)
             self._segments[-1].end_time = self.length() + duration
             self._segments[-1].end_level = level
         else:
-            self._segments.append(ParameterCurveSegment(self.length(), self.length() + duration,
+            self._segments.append(ParameterCurveSegment(self.end_time(), self.end_time() + duration,
                                                         self.end_level(), level, curve_shape))
+
+    def prepend_segment(self, level, duration, curve_shape=0.0, tolerance=0):
+        """
+        Prepend a segment to the beginning of the curve, starting at level and lasting for duration.
+        If we're adding a linear segment to a linear segment, then we extend the last linear segment
+        instead of adding a new one if the level is within tolerance of where the last one was headed
+        :return:
+        """
+        if self._segments[0].duration == 0:
+            # the first segment has no length. Are we also prepending a segment with no length?
+            if duration == 0:
+                # If so, replace the start level of the existing zero-length segment
+                self._segments[0].start_level = level
+            else:
+                # okay, we're adding a segment with length
+                # does the first segment actually change the level?
+                if self._segments[-1].end_level != self._segments[-1].start_level:
+                    # If so we keep it and add a new one before it
+                    self._segments.insert(0, ParameterCurveSegment(self.start_time() - duration, self.start_time(),
+                                                                   level, self.start_level(), curve_shape))
+                else:
+                    # if not, just modify the previous segment into what we want
+                    self._segments[0].start_level = level
+                    self._segments[0].start_time = self.start_time() - duration
+                    self._segments[0].curve_shape = curve_shape
+        elif self._segments[0].curve_shape == 0 and curve_shape == 0 and \
+                abs(self._segments[0].value_at(self.start_time() - duration,
+                                               clip_at_boundary=False) - level) <= tolerance:
+            # we're adding a point that would be a perfect extrapolation of the initial linear segment
+            # (could do this for non-linear, but it's probably not worth the effort)
+            self._segments[0].start_time = self.start_time() - duration
+            self._segments[0].start_level = level
+        else:
+            self._segments.insert(0, ParameterCurveSegment(self.start_time()- duration, self.start_time(),
+                                                           level, self.start_level(), curve_shape))
 
     def pop_segment(self):
         if len(self._segments) == 1:
@@ -201,29 +292,57 @@ class ParameterCurve(SavesToJSON):
                 raise IndexError("pop from empty ParameterCurve")
         return self._segments.pop()
 
+    def pop_segment_from_start(self):
+        if len(self._segments) == 1:
+            if self._segments[0].end_time != self._segments[0].start_time or \
+                    self._segments[0].end_level != self._segments[0].start_level:
+                self._segments[0].start_time = self._segments[0].end_time
+                self._segments[0].start_level = self._segments[0].end_level
+                return
+            else:
+                raise IndexError("pop from empty ParameterCurve")
+        return self._segments.pop(0)
+
     def remove_segments_after(self, t):
-        if t < 0:
+        if t < self.start_time():
             while True:
                 try:
                     self.pop_segment()
                 except IndexError:
                     break
-        for i in range(len(self._segments)):
-            this_segment = self._segments[i]
-            if t == this_segment.start_time:
-                while self.length() > t:
+        for segment in self._segments:
+            if t == segment.start_time:
+                while self.end_time() > t:
                     self.pop_segment()
                 return
-            elif this_segment.start_time < t < this_segment.end_time:
+            elif segment.start_time < t < segment.end_time:
                 self.insert_interpolated(t)
-                while self.length() > t:
+                while self.end_time() > t:
                     self.pop_segment()
+                return
+
+    def remove_segments_before(self, t):
+        if t > self.end_time():
+            while True:
+                try:
+                    self.pop_segment_from_start()
+                except IndexError:
+                    break
+        for segment in reversed(self._segments):
+            if t == segment.end_time:
+                while self.start_time() < t:
+                    self.pop_segment_from_start()
+                return
+            elif segment.start_time < t < segment.end_time:
+                self.insert_interpolated(t)
+                while self.start_time() < t:
+                    self.pop_segment_from_start()
                 return
 
     # ------------------------ Interpolation, Integration --------------------------
 
     def value_at(self, t):
-        if t < 0:
+        if t < self.start_time():
             return self.start_level()
         for segment in reversed(self._segments):
             # we start at the end in case of zero_length segments; it's best that they return their end level
@@ -236,10 +355,11 @@ class ParameterCurve(SavesToJSON):
             return 0
         if t2 < t1:
             return -self.integrate_interval(t2, t1)
-        if t1 < 0:
-            return -t1 * self._segments[0].start_level + self.integrate_interval(0, t2)
-        if t2 > self.length():
-            return (t2 - self.length()) * self.end_level() + self.integrate_interval(t1, self.length())
+        if t1 < self.start_time():
+            return (self.start_time() - t1) * self._segments[0].start_level + \
+                   self.integrate_interval(self.start_time(), t2)
+        if t2 > self.end_time():
+            return (t2 - self.end_time()) * self.end_level() + self.integrate_interval(t1, self.end_time())
         # now that the edge conditions are covered, we just add up the segment integrals
         integral = 0
 
@@ -294,15 +414,15 @@ class ParameterCurve(SavesToJSON):
                 conservative_guess, desired_area - self.integrate_interval(t1, conservative_guess), max_error=max_error
             )
 
-    # -------------------------- Utilities, classmethods ----------------------------
+    # -------------------------------- Utilities --------------------------------
 
     def normalize_to_duration(self, desired_duration, in_place=True):
         out = self if in_place else deepcopy(self)
         if self.length() != desired_duration:
             ratio = desired_duration / self.length()
             for segment in out._segments:
-                segment.start_time *= ratio
-                segment.end_time *= ratio
+                segment.start_time = (segment.start_time - self.start_time()) * ratio + self.start_time()
+                segment.end_time = (segment.end_time - self.start_time()) * ratio + self.start_time()
         return out
 
     def inflection_points(self):
@@ -325,50 +445,6 @@ class ParameterCurve(SavesToJSON):
             last_direction = direction
         return inflection_points
 
-    @classmethod
-    def from_levels_and_durations(cls, levels=(0, 0), durations=(0,), curve_shapes=None):
-        return cls().initialize(levels, durations, curve_shapes)
-
-    @classmethod
-    def from_levels(cls, levels, length=1.0):
-        """
-        Construct a parameter curve from levels alone, normalized to the given length
-        :param levels: the levels of the curve
-        :param length: the total length of the curve, divided evenly amongst the levels
-        :return: a ParameterCurve
-        """
-        assert len(levels) > 0, "At least one level is needed to construct a parameter curve."
-        if len(levels) == 1:
-            levels = list(levels) * 2
-        # just given levels, so we linearly interpolate segments of equal length
-        durations = [length / (len(levels) - 1)] * (len(levels) - 1)
-        curves = [0.0] * (len(levels) - 1)
-        return cls.from_levels_and_durations(levels, durations, curves)
-
-    @classmethod
-    def from_list(cls, constructor_list):
-        # converts from a list that may contain just levels, may have levels and durations, and may have everything
-        # a input of [1, 0.5, 0.3] is interpreted as evenly spaced levels with a total duration of 1
-        # an input of [[1, 0.5, 0.3], 3.0] is interpreted as levels and durations with a total duration of e.g. 3.0
-        # an input of [[1, 0.5, 0.3], [0.2, 0.8]] is interpreted as levels and durations
-        # an input of [[1, 0.5, 0.3], [0.2, 0.8], [2, 0.5]] is interpreted as levels, durations, and curvatures
-        if hasattr(constructor_list[0], "__len__"):
-            # we were given levels and durations, and possibly curvature values
-            if len(constructor_list) == 2:
-                if hasattr(constructor_list[1], "__len__"):
-                    # given levels and durations
-                    return cls.from_levels_and_durations(constructor_list[0], constructor_list[1])
-                else:
-                    # given levels and the total length
-                    return cls.from_levels(constructor_list[0], length=constructor_list[1])
-
-            elif len(constructor_list) >= 3:
-                # given levels, durations, and curvature values
-                return cls.from_levels_and_durations(constructor_list[0], constructor_list[1], constructor_list[2])
-        else:
-            # just given levels
-            return cls.from_levels(constructor_list)
-
     def split_at(self, t, change_original=False):
         """
         Splits the ParameterCurve at one or several points and returns a tuple of the pieces
@@ -385,7 +461,7 @@ class ParameterCurve(SavesToJSON):
         remaining_splits = None
         if hasattr(t, "__len__"):
             # ignore all split points that are outside this ParameterCurve's range
-            t = [x for x in t if 0 <= x <= to_split.length()]
+            t = [x for x in t if to_split.start_time() <= x <= to_split.end_time()]
             if len(t) == 0:
                 # if no usable points are left we're done (note we always return a tuple for consistency)
                 return to_split,
@@ -398,7 +474,7 @@ class ParameterCurve(SavesToJSON):
 
         # cover the case of trying to split outside of the ParameterCurve's range
         # (note we always return a tuple for consistency)
-        if not 0 < t < to_split.length():
+        if not to_split.start_time() < t < to_split.end_time():
             return to_split,
 
         # Okay, now we go ahead with a single split at time t
@@ -418,24 +494,30 @@ class ParameterCurve(SavesToJSON):
             return to_split, second_half.split_at(remaining_splits, change_original=True)
 
     def to_json(self):
-        levels = self.levels
-        durations = self.durations
-        curve_shapes = self.curve_shapes
-        even_durations = all(x == durations[0] for x in durations)
-        curvature_unnecessary = all(x == 0 for x in curve_shapes)
-        if even_durations and curvature_unnecessary:
-            if self.length() == 1:
-                return levels
-            else:
-                return [levels, self.length()]
-        elif curvature_unnecessary:
-            return [levels, durations]
+        json_dict = {'levels': self.levels}
+
+        if all(x == self.durations[0] for x in self.durations):
+            json_dict['length'] = self.length()
         else:
-            return [levels, durations, curve_shapes]
+            json_dict['durations'] = self.durations
+
+        if any(x != 0 for x in self.curve_shapes):
+            json_dict['curve_shapes'] = self.curve_shapes
+
+        if self.offset != 0:
+            json_dict['offset'] = self.offset
+
+        return json_dict
 
     @classmethod
-    def from_json(cls, json_list):
-        return cls.from_list(json_list)
+    def from_json(cls, json_dict):
+        curve_shapes = None if 'curve_shapes' not in json_dict else json_dict['curve_shapes']
+        offset = 0 if 'offset' not in json_dict else json_dict['offset']
+        if 'length' in json_dict:
+            return cls.from_levels(json_dict['levels'], json_dict['length'], offset)
+        else:
+            return cls.from_levels_and_durations(json_dict['levels'], json_dict['durations'],
+                                                 curve_shapes, offset)
 
     def is_shifted_version_of(self, other):
         assert isinstance(other, ParameterCurve)
@@ -444,6 +526,18 @@ class ParameterCurve(SavesToJSON):
     def shift_vertical(self, amount):
         for segment in self._segments:
             segment.shift_vertical(amount)
+
+    def scale_vertical(self, amount):
+        for segment in self._segments:
+            segment.scale_vertical(amount)
+
+    def shift_horizontal(self, amount):
+        for segment in self._segments:
+            segment.shift_horizontal(amount)
+
+    def scale_horizontal(self, amount):
+        for segment in self._segments:
+            segment.scale_horizontal(amount)
 
     def get_graphable_point_pairs(self, resolution=25):
         x_values = []
@@ -486,7 +580,7 @@ class ParameterCurve(SavesToJSON):
         return self.__mul__(1 / other)
 
     def __repr__(self):
-        return "ParameterCurve({}, {}, {})".format(self.levels, self.durations, self.curve_shapes)
+        return "ParameterCurve({}, {}, {}, {})".format(self.levels, self.durations, self.curve_shapes, self.offset)
 
 
 class ParameterCurveSegment:
@@ -689,6 +783,14 @@ class ParameterCurveSegment:
         self._start_level *= amount
         self._end_level *= amount
         self._calculate_coefficients()
+
+    def shift_horizontal(self, amount):
+        self.start_time += amount
+        self.end_time += amount
+
+    def scale_horizontal(self, amount):
+        self.start_time *= amount
+        self.end_time *= amount
 
     def is_shifted_version_of(self, other):
         assert isinstance(other, ParameterCurveSegment)
