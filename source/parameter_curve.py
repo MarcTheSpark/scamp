@@ -102,6 +102,17 @@ class ParameterCurve(SavesToJSON):
             # just given levels
             return cls.from_levels(constructor_list)
 
+    @classmethod
+    def from_points(cls, *points):
+        assert all(len(point) >= 2 for point in points)
+        if all(len(point) == 2 for point in points):
+            curve_shapes = None
+        else:
+            curve_shapes = tuple(points[i][2] if len(points[i]) > 2 else 0 for i in range(len(points)))
+        return cls.from_levels_and_durations(tuple(point[1] for point in points),
+                                             tuple(points[i + 1][0] - points[i][0] for i in range(len(points) - 1)),
+                                             curve_shapes=curve_shapes, offset=points[0][0])
+
     # ---------------------------- Various Properties --------------------------------
 
     def length(self):
