@@ -1,5 +1,5 @@
 from playcorder.settings import engraving_settings
-from playcorder.parameter_curve import ParameterCurve
+from playcorder.envelope import Envelope
 from playcorder.quantization import QuantizationRecord
 from playcorder.performance_note import PerformanceNote
 from playcorder.utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y
@@ -16,7 +16,7 @@ from collections import namedtuple
 # -Voice directions in abjad
 # -gracenotes on glisses
 
-# a list of tied NoteLikes. They'll also need to split up any pitch ParameterCurves into their chunks.
+# a list of tied NoteLikes. They'll also need to split up any pitch Envelopes into their chunks.
 # For now, we'll do this as gracenotes, but maybe there can be a setting that first splits a note into constituents
 # based on the key points of the param curve and then splits those constituents into reproducible notes?
 
@@ -701,7 +701,7 @@ class NoteLike:
         elif isinstance(self.pitch, tuple):
             abjad_object = abjad.Chord()
             abjad_object.written_duration = duration
-            if isinstance(self.pitch[0], ParameterCurve):
+            if isinstance(self.pitch[0], Envelope):
                 abjad_object.note_heads = [x.start_level() - 60 for x in self.pitch]
 
                 for t in self.pitch[0].inflection_points():
@@ -712,7 +712,7 @@ class NoteLike:
             else:
                 abjad_object.note_heads = [x - 60 for x in self.pitch]
 
-        elif isinstance(self.pitch, ParameterCurve):
+        elif isinstance(self.pitch, Envelope):
             abjad_object = abjad.Note(self.pitch.start_level() - 60, duration)
             grace_notes.extend(abjad.Note(self.pitch.value_at(t) - 60, 1 / 16) for t in self.pitch.inflection_points())
         else:

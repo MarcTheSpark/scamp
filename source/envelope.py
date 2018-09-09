@@ -4,16 +4,16 @@ from playcorder.utilities import SavesToJSON
 import numbers
 
 
-# TODO: implement multiplicative inverse. Implement adding / subtracting / multiplying, etc. of ParameterCurves
+# TODO: implement multiplicative inverse. Implement adding / subtracting / multiplying, etc. of Envelopes
 
 
-class ParameterCurve(SavesToJSON):
+class Envelope(SavesToJSON):
 
     def __init__(self, segments=None):
         """
-        Implements a parameter curve using exponential curve segments. Initialization happens outside
+        Implements an envelope using exponential curve segments. Initialization happens outside
         of the constructor for smoother subclassing; this way all of the class methods work correctly
-        on derived classes like TempoCurve.
+        on derived classes like TempoEnvelope.
         """
         if segments is None:
             self._segments = None
@@ -30,20 +30,20 @@ class ParameterCurve(SavesToJSON):
         to be the start and end level of the one segment of the curve)
         :param durations: there should be one fewer duration than level given
         :param curve_shapes: there should be one fewer than the number of levels. If None, all segments are linear
-        :param offset: starts ParameterCurve from somewhere other than zero
+        :param offset: starts Envelope from somewhere other than zero
         """
         if not hasattr(levels, "__len__"):
             levels = (levels,)
         assert hasattr(levels, "__len__") and hasattr(durations, "__len__") \
             and (curve_shapes is None or hasattr(curve_shapes, "__len__"))
-        assert len(levels) > 0, "At least one level is needed to construct a parameter curve."
+        assert len(levels) > 0, "At least one level is needed to construct an envelope."
         if len(levels) == 1:
             levels = levels + levels
         assert len(durations) == len(levels) - 1, "Inconsistent number of levels and durations given."
         if curve_shapes is None:
             curve_shapes = [0] * (len(levels) - 1)
 
-        self._segments = ParameterCurve._construct_segments_list(levels, durations, curve_shapes, offset)
+        self._segments = Envelope._construct_segments_list(levels, durations, curve_shapes, offset)
         return self
 
     @staticmethod
@@ -51,7 +51,7 @@ class ParameterCurve(SavesToJSON):
         segments = []
         t = offset
         for i in range(len(levels) - 1):
-            segments.append(ParameterCurveSegment(t, t + durations[i], levels[i], levels[i + 1], curve_shapes[i]))
+            segments.append(EnvelopeSegment(t, t + durations[i], levels[i], levels[i + 1], curve_shapes[i]))
             t += durations[i]
         return segments
 
@@ -64,13 +64,13 @@ class ParameterCurve(SavesToJSON):
     @classmethod
     def from_levels(cls, levels, length=1.0, offset=0):
         """
-        Construct a parameter curve from levels alone, normalized to the given length
+        Construct an envelope from levels alone, normalized to the given length
         :param levels: the levels of the curve
         :param length: the total length of the curve, divided evenly amongst the levels
         :param offset: starts curve from somewhere other than zero
-        :return: a ParameterCurve
+        :return: an Envelope
         """
-        assert len(levels) > 0, "At least one level is needed to construct a parameter curve."
+        assert len(levels) > 0, "At least one level is needed to construct an envelope."
         if len(levels) == 1:
             levels = list(levels) * 2
         # just given levels, so we linearly interpolate segments of equal length
@@ -193,7 +193,7 @@ class ParameterCurve(SavesToJSON):
                     segment.end_time = t
                     segment.curve_shape = curve_shape_in
                     segment.end_level = level
-                    new_segment = ParameterCurveSegment(t, end_time, level, end_level, curve_shape_out)
+                    new_segment = EnvelopeSegment(t, end_time, level, end_level, curve_shape_out)
                     self._segments.insert(i + 1, new_segment)
                     break
                 else:
@@ -239,8 +239,8 @@ class ParameterCurve(SavesToJSON):
                 # did the previous segment actually change the level?
                 if self._segments[-1].end_level != self._segments[-1].start_level:
                     # If so we keep it and add a new one
-                    self._segments.append(ParameterCurveSegment(self.end_time(), self.end_time() + duration,
-                                                                self.end_level(), level, curve_shape))
+                    self._segments.append(EnvelopeSegment(self.end_time(), self.end_time() + duration,
+                                                          self.end_level(), level, curve_shape))
                 else:
                     # if not, just modify the previous segment into what we want
                     self._segments[-1].end_level = level
@@ -254,8 +254,8 @@ class ParameterCurve(SavesToJSON):
             self._segments[-1].end_time = self.length() + duration
             self._segments[-1].end_level = level
         else:
-            self._segments.append(ParameterCurveSegment(self.end_time(), self.end_time() + duration,
-                                                        self.end_level(), level, curve_shape))
+            self._segments.append(EnvelopeSegment(self.end_time(), self.end_time() + duration,
+                                                  self.end_level(), level, curve_shape))
 
     def prepend_segment(self, level, duration, curve_shape=0.0, tolerance=0):
         """
@@ -274,8 +274,8 @@ class ParameterCurve(SavesToJSON):
                 # does the first segment actually change the level?
                 if self._segments[-1].end_level != self._segments[-1].start_level:
                     # If so we keep it and add a new one before it
-                    self._segments.insert(0, ParameterCurveSegment(self.start_time() - duration, self.start_time(),
-                                                                   level, self.start_level(), curve_shape))
+                    self._segments.insert(0, EnvelopeSegment(self.start_time() - duration, self.start_time(),
+                                                             level, self.start_level(), curve_shape))
                 else:
                     # if not, just modify the previous segment into what we want
                     self._segments[0].start_level = level
@@ -289,8 +289,8 @@ class ParameterCurve(SavesToJSON):
             self._segments[0].start_time = self.start_time() - duration
             self._segments[0].start_level = level
         else:
-            self._segments.insert(0, ParameterCurveSegment(self.start_time()- duration, self.start_time(),
-                                                           level, self.start_level(), curve_shape))
+            self._segments.insert(0, EnvelopeSegment(self.start_time() - duration, self.start_time(),
+                                                     level, self.start_level(), curve_shape))
 
     def pop_segment(self):
         if len(self._segments) == 1:
@@ -300,7 +300,7 @@ class ParameterCurve(SavesToJSON):
                 self._segments[0].end_level = self._segments[0].start_level
                 return
             else:
-                raise IndexError("pop from empty ParameterCurve")
+                raise IndexError("pop from empty Envelope")
         return self._segments.pop()
 
     def pop_segment_from_start(self):
@@ -311,7 +311,7 @@ class ParameterCurve(SavesToJSON):
                 self._segments[0].start_level = self._segments[0].end_level
                 return
             else:
-                raise IndexError("pop from empty ParameterCurve")
+                raise IndexError("pop from empty Envelope")
         return self._segments.pop(0)
 
     def remove_segments_after(self, t):
@@ -458,12 +458,12 @@ class ParameterCurve(SavesToJSON):
 
     def split_at(self, t, change_original=False):
         """
-        Splits the ParameterCurve at one or several points and returns a tuple of the pieces
+        Splits the Envelope at one or several points and returns a tuple of the pieces
         :param t: either the time t or a tuple/list of times t at which to split the curve
-        :param change_original: if true, the original ParameterCurve gets turned into the first of the returned tuple
-        :return: tuple of ParameterCurves representing the pieces this has been split into
+        :param change_original: if true, the original Envelope gets turned into the first of the returned tuple
+        :return: tuple of Envelopes representing the pieces this has been split into
         """
-        to_split = self if change_original else ParameterCurve([x.clone() for x in self._segments])
+        to_split = self if change_original else Envelope([x.clone() for x in self._segments])
 
         # if t is a tuple or list, we split at all of those times and return len(t) + 1 segments
         # This is implemented recursively. If len(t) is 1, t is replaced by t[0]
@@ -471,7 +471,7 @@ class ParameterCurve(SavesToJSON):
         # and set t to t[0]. Note that we subtract t[0] from each of t[1:] to shift it to start from 0
         remaining_splits = None
         if hasattr(t, "__len__"):
-            # ignore all split points that are outside this ParameterCurve's range
+            # ignore all split points that are outside this Envelope's range
             t = [x for x in t if to_split.start_time() <= x <= to_split.end_time()]
             if len(t) == 0:
                 # if no usable points are left we're done (note we always return a tuple for consistency)
@@ -483,7 +483,7 @@ class ParameterCurve(SavesToJSON):
                 remaining_splits = [x - t[0] for x in t[1:]]
             t = t[0]
 
-        # cover the case of trying to split outside of the ParameterCurve's range
+        # cover the case of trying to split outside of the Envelope's range
         # (note we always return a tuple for consistency)
         if not to_split.start_time() < t < to_split.end_time():
             return to_split,
@@ -492,7 +492,7 @@ class ParameterCurve(SavesToJSON):
         to_split.insert_interpolated(t)
         for i, segment in enumerate(to_split._segments):
             if segment.start_time == t:
-                second_half = ParameterCurve(to_split._segments[i:])
+                second_half = Envelope(to_split._segments[i:])
                 to_split._segments = to_split._segments[:i]
                 for second_half_segment in second_half._segments:
                     second_half_segment.start_time -= t
@@ -531,7 +531,7 @@ class ParameterCurve(SavesToJSON):
                                                  curve_shapes, offset)
 
     def is_shifted_version_of(self, other):
-        assert isinstance(other, ParameterCurve)
+        assert isinstance(other, Envelope)
         return all(x.is_shifted_version_of(y) for x, y in zip(self._segments, other._segments))
 
     def shift_vertical(self, amount):
@@ -566,11 +566,11 @@ class ParameterCurve(SavesToJSON):
         import matplotlib.pyplot as plt
         fig, ax = plt.subplots()
         ax.plot(*self.get_graphable_point_pairs(resolution))
-        ax.set_title('Graph of ParameterCurve')
+        ax.set_title('Graph of Envelope')
         plt.show()
 
     def __add__(self, other):
-        return ParameterCurve([segment + other for segment in self._segments])
+        return Envelope([segment + other for segment in self._segments])
 
     def __radd__(self, other):
         return self.__add__(other)
@@ -582,7 +582,7 @@ class ParameterCurve(SavesToJSON):
         return self.__radd__(-other)
 
     def __mul__(self, other):
-        return ParameterCurve([segment * other for segment in self._segments])
+        return Envelope([segment * other for segment in self._segments])
 
     def __rmul__(self, other):
         return self.__mul__(other)
@@ -591,14 +591,14 @@ class ParameterCurve(SavesToJSON):
         return self.__mul__(1 / other)
 
     def __repr__(self):
-        return "ParameterCurve({}, {}, {}, {})".format(self.levels, self.durations, self.curve_shapes, self.offset)
+        return "Envelope({}, {}, {}, {})".format(self.levels, self.durations, self.curve_shapes, self.offset)
 
 
-class ParameterCurveSegment:
+class EnvelopeSegment:
 
     def __init__(self, start_time, end_time, start_level, end_level, curve_shape):
         """
-        A segment of a parameter curve, with the ability to perform interpolation and integration
+        A segment of an envelope, with the ability to perform interpolation and integration
         :param curve_shape: 0 is linear, > 0 changes late, < 0 changes early, also, string expressions involving "exp"
         can be given where "exp" stands for the shape that will produce constant proportional change per unit time.
         """
@@ -620,7 +620,7 @@ class ParameterCurveSegment:
         else:
             self._curve_shape = curve_shape
         # we avoid calculating the constants until necessary for the calculations so that this
-        # class is lightweight and can freely be created and discarded by a ParameterCurve object
+        # class is lightweight and can freely be created and discarded by an Envelope object
 
         self._A = self._B = None
 
@@ -762,7 +762,7 @@ class ParameterCurveSegment:
 
     def split_at(self, t):
         """
-        Split this segment into two ParameterCurveSegment's without altering the curve shape and return them.
+        Split this segment into two EnvelopeSegment's without altering the curve shape and return them.
         This segment is altered in the process.
         :param t: where to split it (t is absolute time)
         :return: a tuple of this segment modified to be only the first part, and a new segment for the second part
@@ -772,7 +772,7 @@ class ParameterCurveSegment:
         # since the curve shape represents how much of the curve e^x we go through, you simply split proportionally
         curve_shape_1 = (t - self.start_time) / (self.end_time - self.start_time) * self.curve_shape
         curve_shape_2 = self.curve_shape - curve_shape_1
-        new_segment = ParameterCurveSegment(t, self.end_time, middle_level, self.end_level, curve_shape_2)
+        new_segment = EnvelopeSegment(t, self.end_time, middle_level, self.end_level, curve_shape_2)
 
         self.end_time = t
         self._end_level = middle_level
@@ -781,7 +781,7 @@ class ParameterCurveSegment:
         return self, new_segment
 
     def clone(self):
-        return ParameterCurveSegment(self.start_time, self.end_time, self.start_level, self.end_level, self.curve_shape)
+        return EnvelopeSegment(self.start_time, self.end_time, self.start_level, self.end_level, self.curve_shape)
 
     def shift_vertical(self, amount):
         assert isinstance(amount, numbers.Number)
@@ -804,7 +804,7 @@ class ParameterCurveSegment:
         self.end_time *= amount
 
     def is_shifted_version_of(self, other):
-        assert isinstance(other, ParameterCurveSegment)
+        assert isinstance(other, EnvelopeSegment)
         return self.start_time == other.start_time and self.end_time == other.end_time and \
                self._start_level - other._start_level == self._end_level - other._end_level and \
                self._curve_shape == other._curve_shape
@@ -819,7 +819,7 @@ class ParameterCurveSegment:
         import matplotlib.pyplot as plt
         fig, ax = plt.subplots()
         ax.plot(*self.get_graphable_point_pairs(resolution))
-        ax.set_title('Graph of ParameterCurve')
+        ax.set_title('Graph of Envelope')
         plt.show()
 
     @staticmethod
@@ -872,7 +872,7 @@ class ParameterCurveSegment:
                     key_points.insert(i + 1, halfway_point)
                     continue
 
-                segments.append(ParameterCurveSegment.from_endpoints_and_halfway_level(
+                segments.append(EnvelopeSegment.from_endpoints_and_halfway_level(
                     segment_start, segment_end,
                     segment_start_value, segment_end_value, segment_halfway_value
                 ))
@@ -881,19 +881,19 @@ class ParameterCurveSegment:
             if len(segments) == 1:
                 return segments[0]
             else:
-                return ParameterCurve(segments)
+                return Envelope(segments)
         else:
-            raise ValueError("ParameterCurveSegments can only be added if they have the same time range.")
+            raise ValueError("EnvelopeSegments can only be added if they have the same time range.")
 
     def __add__(self, other):
         if isinstance(other, numbers.Number):
             out = self.clone()
             out.shift_vertical(other)
             return out
-        elif isinstance(other, ParameterCurveSegment):
-            return ParameterCurveSegment._split_binary_function_applied_pair(self, other, lambda a, b: a + b)
+        elif isinstance(other, EnvelopeSegment):
+            return EnvelopeSegment._split_binary_function_applied_pair(self, other, lambda a, b: a + b)
         else:
-            raise TypeError("Can only add ParameterCurveSegment to a constant or another ParameterCurveSegment")
+            raise TypeError("Can only add EnvelopeSegment to a constant or another EnvelopeSegment")
 
     def __radd__(self, other):
         return self.__add__(other)
@@ -909,10 +909,10 @@ class ParameterCurveSegment:
             out = self.clone()
             out.scale_vertical(other)
             return out
-        elif isinstance(other, ParameterCurveSegment):
-            return ParameterCurveSegment._split_binary_function_applied_pair(self, other, lambda a, b: a * b)
+        elif isinstance(other, EnvelopeSegment):
+            return EnvelopeSegment._split_binary_function_applied_pair(self, other, lambda a, b: a * b)
         else:
-            raise TypeError("Can only multiply ParameterCurveSegment with a constant or another ParameterCurveSegment")
+            raise TypeError("Can only multiply EnvelopeSegment with a constant or another EnvelopeSegment")
 
     def __rmul__(self, other):
         return self.__mul__(other)
@@ -921,14 +921,14 @@ class ParameterCurveSegment:
         return self.__mul__(1 / other)
 
     def __contains__(self, t):
-        # checks if the given time is contained within this parameter curve segment
+        # checks if the given time is contained within this envelope segment
         # maybe this is silly, but it seemed a little convenient
         return self.start_time <= t < self.end_time
 
     def __neg__(self):
-        return ParameterCurveSegment(self.start_time, self.end_time,
-                                     -self.start_level, -self.end_level, self.curve_shape)
+        return EnvelopeSegment(self.start_time, self.end_time,
+                               -self.start_level, -self.end_level, self.curve_shape)
 
     def __repr__(self):
-        return "ParameterCurveSegment({}, {}, {}, {}, {})".format(self.start_time, self.end_time, self.start_level,
+        return "EnvelopeSegment({}, {}, {}, {}, {})".format(self.start_time, self.end_time, self.start_level,
                                                                   self.end_level, self.curve_shape)

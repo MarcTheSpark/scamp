@@ -1,4 +1,4 @@
-from playcorder.parameter_curve import ParameterCurve
+from playcorder.envelope import Envelope
 from functools import total_ordering
 from playcorder.utilities import SavesToJSON
 import itertools
@@ -32,9 +32,9 @@ class PerformanceNote(SavesToJSON):
     def average_pitch(self):
         if isinstance(self.pitch, tuple):
             # it's a chord, so take the average of its members
-            return sum(x.average_level() if isinstance(x, ParameterCurve) else x for x in self.pitch) / len(self.pitch)
+            return sum(x.average_level() if isinstance(x, Envelope) else x for x in self.pitch) / len(self.pitch)
         else:
-            return self.pitch.average_level() if isinstance(self.pitch, ParameterCurve) else self.pitch
+            return self.pitch.average_level() if isinstance(self.pitch, Envelope) else self.pitch
 
     def play(self, instrument, clock=None, blocking=True):
         if isinstance(self.pitch, tuple):
@@ -52,18 +52,17 @@ class PerformanceNote(SavesToJSON):
             self.length = split_beat - self.start_time
 
             if self.pitch is not None:
-                if isinstance(self.pitch, ParameterCurve):
-                    # if the pitch is a parameter curve, then we split it appropriately
+                if isinstance(self.pitch, Envelope):
+                    # if the pitch is a envelope, then we split it appropriately
                     pitch_curve_start, pitch_curve_end = self.pitch.split_at(self.length)
                     self.pitch = pitch_curve_start
                     second_part.pitch = pitch_curve_end
-                elif isinstance(self.pitch, tuple) and isinstance(self.pitch[0],
-                                                                  ParameterCurve):
-                    # if the pitch is a tuple of parameter curve (glissing chord) then same idea
+                elif isinstance(self.pitch, tuple) and isinstance(self.pitch[0], Envelope):
+                    # if the pitch is a tuple of envelopes (glissing chord) then same idea
                     first_part_chord = []
                     second_part_chord = []
                     for pitch_curve in self.pitch:
-                        assert isinstance(pitch_curve, ParameterCurve)
+                        assert isinstance(pitch_curve, Envelope)
                         pitch_curve_start, pitch_curve_end = pitch_curve.split_at(self.length)
                         first_part_chord.append(pitch_curve_start)
                         second_part_chord.append(pitch_curve_end)
@@ -103,9 +102,9 @@ class PerformanceNote(SavesToJSON):
     def to_json(self):
         if isinstance(self.pitch, tuple):
             # if this is a chord
-            json_pitch = [p.to_json() if isinstance(p, ParameterCurve) else p for p in self.pitch]
+            json_pitch = [p.to_json() if isinstance(p, Envelope) else p for p in self.pitch]
             json_pitch.insert(0, "chord")  # indicates that it's a chord, since json can't distinguish tuples from lists
-        elif isinstance(self.pitch, ParameterCurve):
+        elif isinstance(self.pitch, Envelope):
             json_pitch = self.pitch.to_json()
         else:
             json_pitch = self.pitch
@@ -114,7 +113,7 @@ class PerformanceNote(SavesToJSON):
             "start_time": self.start_time,
             "length": self.length,
             "pitch": json_pitch,
-            "volume": self.volume.to_json() if isinstance(self.volume, ParameterCurve) else self.volume,
+            "volume": self.volume.to_json() if isinstance(self.volume, Envelope) else self.volume,
             "properties": self.properties
         }
 
@@ -124,14 +123,14 @@ class PerformanceNote(SavesToJSON):
         if hasattr(json_object["pitch"], "__len__") and json_object["pitch"][0] == "chord":
             pitches = []
             for pitch in json_object["pitch"][1:]:  # ignore the "chord" indicator
-                pitches.append(ParameterCurve.from_json(pitch) if hasattr(pitch, "__len__") else pitch)
+                pitches.append(Envelope.from_json(pitch) if hasattr(pitch, "__len__") else pitch)
             json_object["pitch"] = tuple(pitches)
-        # otherwise check if it's a ParameterCurve
+        # otherwise check if it's a Envelope
         elif hasattr(json_object["pitch"], "__len__"):
-            json_object["pitch"] = ParameterCurve.from_json(json_object["pitch"])
+            json_object["pitch"] = Envelope.from_json(json_object["pitch"])
 
         if hasattr(json_object["volume"], "__len__"):
-            json_object["volume"] = ParameterCurve.from_json(json_object["volume"])
+            json_object["volume"] = Envelope.from_json(json_object["volume"])
         return PerformanceNote(**json_object)
 
     def __repr__(self):

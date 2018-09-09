@@ -10,7 +10,6 @@ from playcorder.instruments import PlaycorderInstrument
 from playcorder.clock import Clock
 
 from playcorder.midi_listener import *
-# TODO: give the "properties" a playlength proportion, figure out how to make default playback properties of things like staccato, tenuto, slurs
 
 
 class Playcorder:
@@ -237,10 +236,10 @@ class Playcorder:
         else:
             return self._recording_clock.beats() - self._recording_start_time
 
-    def stop_recording(self, tempo_curve_tolerance=0.001):
+    def stop_recording(self, tempo_envelope_tolerance=0.001):
         """
         Stop recording and save the recording as a Performance
-        :type tempo_curve_tolerance: when we record on a child clock and we extract the absolute tempo curve,
+        :type tempo_envelope_tolerance: when we record on a child clock and we extract the absolute tempo curve,
         this is the degree of error in tempo that we allow in simplifying the curve. You should probably
         not be worrying about this, honestly.
         """
@@ -249,8 +248,8 @@ class Playcorder:
             instrument.end_all_notes()
             instrument._performance_part = None
         if isinstance(self._recording_clock, Clock):
-            self.performance.tempo_curve = self._recording_clock.extract_absolute_tempo_curve(
-                self._recording_start_time, tolerance=tempo_curve_tolerance
+            self.performance.tempo_envelope = self._recording_clock.extract_absolute_tempo_envelope(
+                self._recording_start_time, tolerance=tempo_envelope_tolerance
             )
         self._recording_start_time = None
         return self.performance

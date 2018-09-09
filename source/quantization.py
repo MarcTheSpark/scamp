@@ -2,7 +2,7 @@ from fractions import Fraction
 from playcorder.utilities import indigestibility, is_multiple, is_x_pow_of_y, round_to_multiple, SavesToJSON
 from collections import namedtuple
 from playcorder.settings import quantization_settings
-from playcorder.parameter_curve import ParameterCurve
+from playcorder.envelope import Envelope
 import textwrap
 import abjad
 
@@ -174,7 +174,7 @@ def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="def
                     note.length += division_length
 
     for note in voice:
-        if isinstance(note.pitch, ParameterCurve):
+        if isinstance(note.pitch, Envelope):
             note.pitch.normalize_to_duration(note.length)
     return _construct_quantization_record(beat_divisors, quantization_scheme)
 
@@ -196,12 +196,12 @@ def _collapse_chords(notes):
             this_note_pitches = (notes[i].pitch, ) if not isinstance(notes[i].pitch, tuple) else notes[i]
             all_pitches_together = last_note_pitches + this_note_pitches
 
-            # check if any of the pitches involved are parameter curves (glisses) rather than static pitches
-            if any(isinstance(x, ParameterCurve) for x in all_pitches_together):
-                # if we're dealing with any parameter curves, they all have to be shifted versions of one another
+            # check if any of the pitches involved are envelopes (glisses) rather than static pitches
+            if any(isinstance(x, Envelope) for x in all_pitches_together):
+                # if we're dealing with any envelopes, they all have to be shifted versions of one another
                 # otherwise, we keep them separate; a chord should gliss as a block if it glisses at all
-                if isinstance(all_pitches_together[0], ParameterCurve) and \
-                        all(isinstance(x, ParameterCurve) and x.is_shifted_version_of(all_pitches_together[0])
+                if isinstance(all_pitches_together[0], Envelope) and \
+                        all(isinstance(x, Envelope) and x.is_shifted_version_of(all_pitches_together[0])
                             for x in all_pitches_together[1:]):
                     # it check out; they are all shifted versions of the first note's gliss
                     notes[i - 1].pitch = all_pitches_together
@@ -209,7 +209,7 @@ def _collapse_chords(notes):
                     # No need to increment i, since popping at it has a similar effect
                     notes.pop(i)
                 else:
-                    # not merging, since the pitch ParameterCurves are incompatible. Increment i.
+                    # not merging, since the pitch Envelopes are incompatible. Increment i.
                     i += 1
             else:
                 # all pitches are static, so we just merge into a single chord and pop the latter entry

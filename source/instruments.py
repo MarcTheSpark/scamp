@@ -1,6 +1,6 @@
 import threading
 import time
-from playcorder.parameter_curve import ParameterCurve
+from playcorder.envelope import Envelope
 from playcorder.utilities import SavesToJSON
 from itertools import count
 from playcorder.settings import playback_settings
@@ -105,13 +105,13 @@ class PlaycorderInstrument(SavesToJSON):
     def _do_play_note(self, pitch, volume, length, properties, clock=None):
         # Does the actual sonic implementation of playing a note; used as a thread by the public method "play_note"
         note_start_time = time.time()
-        # convert lists to ParameterCurves
-        is_animating_volume = isinstance(volume, ParameterCurve)
-        is_animating_pitch = isinstance(pitch, ParameterCurve)
+        # convert lists to Envelopes
+        is_animating_volume = isinstance(volume, Envelope)
+        is_animating_pitch = isinstance(pitch, Envelope)
         # the starting volume (velocity) of the note needs to be as loud as the note is ever going to get
-        start_volume = volume.max_level() if isinstance(volume, ParameterCurve) else volume
+        start_volume = volume.max_level() if isinstance(volume, Envelope) else volume
         # the starting pitch should just be whatever it is
-        start_pitch = pitch.value_at(0) if isinstance(pitch, ParameterCurve) else pitch
+        start_pitch = pitch.value_at(0) if isinstance(pitch, Envelope) else pitch
 
         note_id = self._do_start_note(start_pitch, start_volume, properties)
         if is_animating_volume or is_animating_pitch:
@@ -157,24 +157,24 @@ class PlaycorderInstrument(SavesToJSON):
         self._do_end_note(note_id)
 
     @staticmethod
-    def get_good_pitch_bend_temporal_resolution(pitch_param_curve):
+    def get_good_pitch_bend_temporal_resolution(pitch_envelope):
         """
         Returns a reasonable temporal resolution
-        :type pitch_param_curve: ParameterCurve
+        :type pitch_envelope: Envelope
         """
-        max_cents_per_second = pitch_param_curve.max_absolute_slope() * 100
+        max_cents_per_second = pitch_envelope.max_absolute_slope() * 100
         # cents / update * updates / sec = cents / sec   =>  updates_freq = cents_per_second / cents_per_update
         # we'll aim for 4 cents per update, since some say the JND is 5-6 cents
         update_freq = max_cents_per_second / 4.0
         return 1 / update_freq
 
     @staticmethod
-    def get_good_volume_temporal_resolution(volume_param_curve):
+    def get_good_volume_temporal_resolution(volume_envelope):
         """
         Returns a reasonable temporal resolution
-        :type volume_param_curve: ParameterCurve
+        :type volume_envelope: Envelope
         """
-        max_volume_per_second = volume_param_curve.max_absolute_slope()
+        max_volume_per_second = volume_envelope.max_absolute_slope()
         # no point in updating faster than the number of ticks per second
         update_freq = max_volume_per_second * 127
         return 1 / update_freq
@@ -268,8 +268,8 @@ class PlaycorderInstrument(SavesToJSON):
     def play_note(self, pitch, volume, length, properties=None, blocking=True, clock=None):
         """
         Play a note
-        :param pitch: The midi pitch of the note. Can be floating-point, can be a list or Parameter curve.
-        :param volume: The volume, in a normalized range 0 to 1. Can be a list or Parameter curve.
+        :param pitch: The midi pitch of the note. Can be floating-point, can be a list or Envelope.
+        :param volume: The volume, in a normalized range 0 to 1. Can be a list or Envelope.
         :param length: The length of the note with respect to the clock used (seconds if no clock is used).
         :param properties: A dictionary of properties about this note
         :param blocking: blocks the current thread until done playing
@@ -282,8 +282,8 @@ class PlaycorderInstrument(SavesToJSON):
             clock = threading.current_thread().__clock__
 
         properties = PlaycorderInstrument._make_properties_dict(properties)
-        volume = ParameterCurve.from_list(volume) if hasattr(volume, "__len__") else volume
-        pitch = ParameterCurve.from_list(pitch) if hasattr(pitch, "__len__") else pitch
+        volume = Envelope.from_list(volume) if hasattr(volume, "__len__") else volume
+        pitch = Envelope.from_list(pitch) if hasattr(pitch, "__len__") else pitch
 
         # record the note in the hosting playcorder, if it's recording
         if self._performance_part is not None:
@@ -292,9 +292,9 @@ class PlaycorderInstrument(SavesToJSON):
             pc = self.host_ensemble.host_playcorder
             recorded_length = length / clock.absolute_rate() * \
                 (1 if pc._recording_clock == "absolute" else pc._recording_clock.absolute_rate())
-            if isinstance(pitch, ParameterCurve):
+            if isinstance(pitch, Envelope):
                 pitch.normalize_to_duration(recorded_length)
-            if isinstance(volume, ParameterCurve):
+            if isinstance(volume, Envelope):
                 volume.normalize_to_duration(recorded_length)
             self._performance_part.new_note(pc.get_recording_beat(), recorded_length, pitch, volume, properties)
 
@@ -429,7 +429,7 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
         # be placed on separate channels. We'll pass along that info by placing it in the properties
         # dictionary, but we make a copy first so as not to alter the dictionary we're given
         altered_properties = dict(properties)
-        altered_properties["pitch changes"] = isinstance(pitch, ParameterCurve)
+        altered_properties["pitch changes"] = isinstance(pitch, Envelope)
         super()._do_play_note(pitch, volume, length, altered_properties, clock)
 
     def start_note(self, pitch, volume, properties=None, pitch_might_change=True):
@@ -591,17 +591,17 @@ class OSCPlaycorderInstrument(PlaycorderInstrument):
 
     def _do_play_note(self, pitch, volume, length, properties, clock=None):
         # This extra bit of implementation for _do_play_note allows us to animate extra qualities that are
-        # defined by ParameterCurve values in properties["qualities"]. It's kind of ugly, but it works.
+        # defined by Envelope values in properties["qualities"]. It's kind of ugly, but it works.
 
         if "qualities" in properties and isinstance(properties["qualities"], dict):
             start_time = time.time()
             qualities_being_animated = {}
             for quality in properties["qualities"]:
-                # if we're given a parameter curve in the form of a list, convert it to a ParameterCurve object
+                # if we're given an Envelope in the form of a list, convert it to a Envelope object
                 if isinstance(properties["qualities"][quality], list):
-                    properties["qualities"][quality] = ParameterCurve.from_list(properties["qualities"][quality])
+                    properties["qualities"][quality] = Envelope.from_list(properties["qualities"][quality])
                 value = properties["qualities"][quality]
-                if isinstance(value, ParameterCurve):
+                if isinstance(value, Envelope):
                     qualities_being_animated[quality] = value.normalize_to_duration(length, False)
             if len(qualities_being_animated) > 0:
                 properties["_osc_note_id"] = next(_note_id_generator)
@@ -637,7 +637,7 @@ class OSCPlaycorderInstrument(PlaycorderInstrument):
         if "qualities" in properties and isinstance(properties["qualities"], dict):
             for quality in properties["qualities"]:
                 value = properties["qualities"][quality]
-                if isinstance(value, ParameterCurve):
+                if isinstance(value, Envelope):
                     self.change_note_quality(note_id, quality, value.value_at(0))
                 else:
                     self.change_note_quality(note_id, quality, value)

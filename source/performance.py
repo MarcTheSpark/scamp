@@ -1,7 +1,7 @@
 import bisect
 from playcorder.quantization import quantize_performance_part, QuantizationRecord, QuantizationScheme
 from playcorder.settings import quantization_settings
-from playcorder.clock import Clock, TempoCurve
+from playcorder.clock import Clock, TempoEnvelope
 from playcorder.performance_note import *
 from playcorder.score import Score, StaffGroup
 from playcorder.utilities import SavesToJSON
@@ -125,7 +125,7 @@ class PerformancePart(SavesToJSON):
         return iterator()
 
     def play(self, start_time=0, stop_time=None, instrument=None, clock=None, blocking=True,
-             tempo_curve=None, selected_voices=None):
+             tempo_envelope=None, selected_voices=None):
         instrument = self.instrument if instrument is None else instrument
         from playcorder.instruments import PlaycorderInstrument
         if not isinstance(instrument, PlaycorderInstrument):
@@ -135,8 +135,8 @@ class PerformancePart(SavesToJSON):
             raise ValueError("PerformancePart was given an invalid clock.")
         stop_time = self.end_time if stop_time is None else stop_time
         assert stop_time >= start_time
-        if tempo_curve is not None:
-            assert isinstance(tempo_curve, TempoCurve)
+        if tempo_envelope is not None:
+            assert isinstance(tempo_envelope, TempoEnvelope)
 
         def _play_thread(child_clock):
             note_iterator = self.get_note_iterator(start_time, stop_time, selected_voices)
@@ -164,14 +164,14 @@ class PerformancePart(SavesToJSON):
 
         if blocking:
             # clock blocked ;-)
-            if tempo_curve is not None:
-                clock.apply_tempo_curve(tempo_curve)
+            if tempo_envelope is not None:
+                clock.apply_tempo_envelope(tempo_envelope)
             _play_thread(clock)
             return clock
         else:
             sub_clock = clock.fork(_play_thread)
-            if tempo_curve is not None:
-                sub_clock.apply_tempo_curve(tempo_curve)
+            if tempo_envelope is not None:
+                sub_clock.apply_tempo_envelope(tempo_envelope)
             return sub_clock
 
     def set_instrument_from_ensemble(self, ensemble):
@@ -276,9 +276,9 @@ class PerformancePart(SavesToJSON):
 
 class Performance(SavesToJSON):
 
-    def __init__(self, parts=None, tempo_curve=None):
+    def __init__(self, parts=None, tempo_envelope=None):
         self.parts = [] if parts is None else parts
-        self.tempo_curve = TempoCurve() if tempo_curve is None else tempo_curve
+        self.tempo_envelope = TempoEnvelope() if tempo_envelope is None else tempo_envelope
         assert isinstance(self.parts, list) and all(isinstance(x, PerformancePart) for x in self.parts)
 
     def new_part(self, instrument=None):
@@ -302,7 +302,7 @@ class Performance(SavesToJSON):
     def length(self):
         return self.end_time
 
-    def play(self, start_time=0, stop_time=None, ensemble=None, clock=None, blocking=True, use_tempo_curve=True):
+    def play(self, start_time=0, stop_time=None, ensemble=None, clock=None, blocking=True, use_tempo_envelope=True):
         if ensemble is not None:
             self.set_instruments_from_ensemble(ensemble)
 
@@ -310,13 +310,13 @@ class Performance(SavesToJSON):
         if not isinstance(clock, Clock):
             clock = Clock()
 
-        tempo_curve = self.tempo_curve if use_tempo_curve else None
+        tempo_envelope = self.tempo_envelope if use_tempo_envelope else None
 
         if stop_time is None:
             stop_time = max(p.end_time for p in self.parts)
 
         for p in self.parts:
-            p.play(start_time, stop_time, clock=clock, blocking=False, tempo_curve=tempo_curve)
+            p.play(start_time, stop_time, clock=clock, blocking=False, tempo_envelope=tempo_envelope)
 
         if blocking:
             clock.wait_for_children_to_finish()
@@ -352,7 +352,7 @@ class Performance(SavesToJSON):
 
         return Performance([part.quantized(quantization_scheme, onset_weighting=onset_weighting,
                                            termination_weighting=termination_weighting)
-                            for part in self.parts], tempo_curve=self.tempo_curve)
+                            for part in self.parts], tempo_envelope=self.tempo_envelope)
 
     def is_quantized(self):
         return all(part.is_quantized() for part in self.parts)
@@ -369,12 +369,12 @@ class Performance(SavesToJSON):
         return Score.from_quantized_performance(self)
 
     def to_json(self):
-        return {"parts": [part.to_json() for part in self.parts], "tempo_curve": self.tempo_curve.to_json()}
+        return {"parts": [part.to_json() for part in self.parts], "tempo_envelope": self.tempo_envelope.to_json()}
 
     @classmethod
     def from_json(cls, json_dict):
         return cls([PerformancePart.from_json(part_json) for part_json in json_dict["parts"]],
-                   TempoCurve.from_list(json_dict["tempo_curve"]))
+                   TempoEnvelope.from_list(json_dict["tempo_envelope"]))
 
     def __repr__(self):
         return "Performance([\n{}\n])".format(

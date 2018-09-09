@@ -20,9 +20,9 @@ class ParamPlaybackAdjustment(SavesToJSON):
         return cls(value)
 
     def adjust_value(self, param_value):
-        # in case the param value is a ParameterCurve, it's best to leave out the multiply if it's zero
-        # for instance, if param_value is a ParameterCurve, multiply is zero and add is a ParameterCurve,
-        # you would end up trying to add two ParameterCurves, which we don't allow
+        # in case the param value is a Envelope, it's best to leave out the multiply if it's zero
+        # for instance, if param_value is a Envelope, multiply is zero and add is a Envelope,
+        # you would end up trying to add two Envelopes, which we don't allow
         return self.add if self.multiply == 0 else param_value * self.multiply + self.add
 
     def to_json(self):
