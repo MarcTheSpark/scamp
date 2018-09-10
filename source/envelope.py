@@ -59,6 +59,14 @@ class Envelope(SavesToJSON):
 
     @classmethod
     def from_levels_and_durations(cls, levels=(0, 0), durations=(0,), curve_shapes=None, offset=0):
+        """
+        Construct an envelope from levels, durations, and optionally curve shapes
+        :param levels: the levels of the curve
+        :param durations: the durations of the curve
+        :param curve_shapes: the curve shape values (optional)
+        :param offset: starts curve from somewhere other than zero
+        :return: an Envelope constructed accordingly
+        """
         return cls().initialize(levels, durations, curve_shapes, offset)
 
     @classmethod
@@ -68,7 +76,7 @@ class Envelope(SavesToJSON):
         :param levels: the levels of the curve
         :param length: the total length of the curve, divided evenly amongst the levels
         :param offset: starts curve from somewhere other than zero
-        :return: an Envelope
+        :return: an Envelope constructed accordingly
         """
         assert len(levels) > 0, "At least one level is needed to construct an envelope."
         if len(levels) == 1:
@@ -80,11 +88,18 @@ class Envelope(SavesToJSON):
 
     @classmethod
     def from_list(cls, constructor_list):
-        # converts from a list that may contain just levels, may have levels and durations, and may have everything
-        # a input of [1, 0.5, 0.3] is interpreted as evenly spaced levels with a total duration of 1
-        # an input of [[1, 0.5, 0.3], 3.0] is interpreted as levels and durations with a total duration of e.g. 3.0
-        # an input of [[1, 0.5, 0.3], [0.2, 0.8]] is interpreted as levels and durations
-        # an input of [[1, 0.5, 0.3], [0.2, 0.8], [2, 0.5]] is interpreted as levels, durations, and curvatures
+        """
+        Construct an envelope from a list that can take a number of formats
+        :param constructor_list: either a flat list that just contains levels, or a list of lists either of the form
+         [levels_list, total_duration], [levels_list, durations_list] or [levels_list, durations_list, curve_shape_list]
+         for example:
+         - an input of [1, 0.5, 0.3] is interpreted as evenly spaced levels with a total duration of 1
+         - an input of [[1, 0.5, 0.3], 3.0] is interpreted as levels and durations with a total duration of e.g. 3.0
+         - an input of [[1, 0.5, 0.3], [0.2, 0.8]] is interpreted as levels and durations
+         - an input of [[1, 0.5, 0.3], [0.2, 0.8], [2, 0.5]] is interpreted as levels, durations, and curvatures
+        :return: an Envelope constructed accordingly
+        """
+        assert hasattr(constructor_list, "__len__")
         if hasattr(constructor_list[0], "__len__"):
             # we were given levels and durations, and possibly curvature values
             if len(constructor_list) == 2:
@@ -104,7 +119,13 @@ class Envelope(SavesToJSON):
 
     @classmethod
     def from_points(cls, *points):
+        """
+        Construct an envelope from points, each of which is of the form (time, value) or (time, value, curve_shape)
+        :param points: list of points
+        :return an Envelope constructed accordingly
+        """
         assert all(len(point) >= 2 for point in points)
+        points = tuple(sorted(points, key=lambda point: point[0]))
         if all(len(point) == 2 for point in points):
             curve_shapes = None
         else:
@@ -112,6 +133,75 @@ class Envelope(SavesToJSON):
         return cls.from_levels_and_durations(tuple(point[1] for point in points),
                                              tuple(points[i + 1][0] - points[i][0] for i in range(len(points) - 1)),
                                              curve_shapes=curve_shapes, offset=points[0][0])
+
+    @classmethod
+    def release(cls, duration, start_level=1, curve_shape=None):
+        """
+        Construct an simple decaying envelope
+        :param duration: total decay length
+        :param start_level: level decayed from
+        :param curve_shape: shape of the curve
+        :return: an Envelope constructed accordingly
+        """
+        curve_shapes = (curve_shape,) if curve_shape is not None else None
+        return cls.from_levels_and_durations((start_level, 0), (duration, ), curve_shapes=curve_shapes)
+
+    @classmethod
+    def ar(cls, attack_length, release_length, peak_level=1, attack_shape=None, release_shape=None):
+        """
+        Construct an attack/release envelope
+        :param attack_length: rise time
+        :param release_length: release time
+        :param peak_level: level reached after attack and before release
+        :param attack_shape: sets curve shape for attack portion of the curve
+        :param release_shape: sets curve shape for release portion of the curve
+        :return: an Envelope constructed accordingly
+       """
+        curve_shapes = None if attack_shape is release_shape is None else \
+            (0 if attack_shape is None else attack_shape, 0 if release_shape is None else release_shape)
+        return cls.from_levels_and_durations((0, peak_level, 0), (attack_length, release_length),
+                                             curve_shapes=curve_shapes)
+
+    @classmethod
+    def asr(cls, attack_length, sustain_level, sustain_length, release_length, attack_shape=None, release_shape=None):
+        """
+        Construct an attack/sustain/release envelope
+        :param attack_length: rise time
+        :param sustain_level: sustain level reached after attack and before release
+        :param sustain_length: length of sustain portion of curve
+        :param release_length: release time
+        :param attack_shape: sets curve shape for attack portion of the curve
+        :param release_shape: sets curve shape for release portion of the curve
+        :return: an Envelope constructed accordingly
+       """
+        curve_shapes = None if attack_shape is release_shape is None else \
+            (0 if attack_shape is None else attack_shape, 0, 0 if release_shape is None else release_shape)
+        return cls.from_levels_and_durations((0, sustain_level, sustain_level, 0),
+                                             (attack_length, sustain_length, release_length),
+                                             curve_shapes=curve_shapes)
+
+    @classmethod
+    def adsr(cls, attack_length, attack_level, decay_length, sustain_level, sustain_length, release_length,
+             attack_shape=None, decay_shape=None, release_shape=None):
+        """
+        Construct a standard attack/decay/sustain/release envelope
+        :param attack_length: rise time
+        :param attack_level: level reached after attack before decay
+        :param decay_length: length of decay portion of the curve
+        :param sustain_level: sustain level reached after decay and before release
+        :param sustain_length: length of sustain portion of curve
+        :param release_length: release time
+        :param attack_shape: sets curve shape for attack portion of the curve
+        :param decay_shape: sets curve shape for decay portion of the curve
+        :param release_shape: sets curve shape for release portion of the curve
+        :return: an Envelope constructed accordingly
+       """
+        curve_shapes = None if attack_shape is decay_shape is release_shape is None else \
+            (0 if attack_shape is None else attack_shape, 0 if decay_shape is None else decay_shape,
+             0, 0 if release_shape is None else release_shape)
+        return cls.from_levels_and_durations((0, attack_level, sustain_level, sustain_level, 0),
+                                             (attack_length, decay_length, sustain_length, release_length),
+                                             curve_shapes=curve_shapes)
 
     # ---------------------------- Various Properties --------------------------------
 
