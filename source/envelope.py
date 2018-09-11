@@ -16,10 +16,10 @@ class Envelope(SavesToJSON):
         on derived classes like TempoEnvelope.
         """
         if segments is None:
-            self._segments = None
+            self.segments = None
             self.initialize()
         else:
-            self._segments = segments
+            self.segments = segments
 
     def initialize(self, levels=(0, 0), durations=(0,), curve_shapes=None, offset=0):
         """
@@ -35,7 +35,7 @@ class Envelope(SavesToJSON):
         if not hasattr(levels, "__len__"):
             levels = (levels,)
         assert hasattr(levels, "__len__") and hasattr(durations, "__len__") \
-            and (curve_shapes is None or hasattr(curve_shapes, "__len__"))
+               and (curve_shapes is None or hasattr(curve_shapes, "__len__"))
         assert len(levels) > 0, "At least one level is needed to construct an envelope."
         if len(levels) == 1:
             levels = levels + levels
@@ -43,7 +43,7 @@ class Envelope(SavesToJSON):
         if curve_shapes is None:
             curve_shapes = [0] * (len(levels) - 1)
 
-        self._segments = Envelope._construct_segments_list(levels, durations, curve_shapes, offset)
+        self.segments = Envelope._construct_segments_list(levels, durations, curve_shapes, offset)
         return self
 
     @staticmethod
@@ -144,7 +144,7 @@ class Envelope(SavesToJSON):
         :return: an Envelope constructed accordingly
         """
         curve_shapes = (curve_shape,) if curve_shape is not None else None
-        return cls.from_levels_and_durations((start_level, 0), (duration, ), curve_shapes=curve_shapes)
+        return cls.from_levels_and_durations((start_level, 0), (duration,), curve_shapes=curve_shapes)
 
     @classmethod
     def ar(cls, attack_length, release_length, peak_level=1, attack_shape=None, release_shape=None):
@@ -206,32 +206,32 @@ class Envelope(SavesToJSON):
     # ---------------------------- Various Properties --------------------------------
 
     def length(self):
-        if len(self._segments) == 0:
+        if len(self.segments) == 0:
             return 0
-        return self._segments[-1].end_time - self._segments[0].start_time
+        return self.segments[-1].end_time - self.segments[0].start_time
 
     def start_time(self):
         return self.offset
 
     def end_time(self):
-        return self._segments[-1].end_time
+        return self.segments[-1].end_time
 
     def start_level(self):
-        return self._segments[0].start_level
+        return self.segments[0].start_level
 
     def end_level(self):
-        return self._segments[-1].end_level
+        return self.segments[-1].end_level
 
     def max_level(self, t_range=None):
         if t_range is None:
             # checking over the entire range, so that's easy
-            return max(segment.max_level() for segment in self._segments)
+            return max(segment.max_level() for segment in self.segments)
         else:
             # checking over the range (t1, t2), so look at the values at those endpoints and any anchor points between
             assert hasattr(t_range, "__len__") and len(t_range) == 2 and t_range[0] < t_range[1]
             t1, t2 = t_range
             points_to_check = [self.value_at(t1), self.value_at(t2)]
-            for segment in self._segments:
+            for segment in self.segments:
                 if t1 <= segment.start_time <= t2:
                     points_to_check.append(segment.start_level)
                 if t1 <= segment.end_time <= t2:
@@ -242,23 +242,27 @@ class Envelope(SavesToJSON):
         return self.integrate_interval(self.start_time(), self.start_time() + self.length()) / self.length()
 
     def max_absolute_slope(self):
-        return max(segment.max_absolute_slope() for segment in self._segments)
+        return max(segment.max_absolute_slope() for segment in self.segments)
 
     @property
     def levels(self):
-        return tuple([segment.start_level for segment in self._segments] + [self.end_level()])
+        return tuple(segment.start_level for segment in self.segments) + (self.end_level(),)
 
     @property
     def durations(self):
-        return tuple([segment.duration for segment in self._segments])
+        return tuple(segment.duration for segment in self.segments)
+
+    @property
+    def times(self):
+        return tuple(segment.start_time for segment in self.segments) + (self.end_time(),)
 
     @property
     def curve_shapes(self):
-        return tuple([segment.curve_shape for segment in self._segments])
+        return tuple(segment.curve_shape for segment in self.segments)
 
     @property
     def offset(self):
-        return self._segments[0].start_time
+        return self.segments[0].start_time
 
     # ----------------------- Insertion of new control points --------------------------
 
@@ -273,7 +277,7 @@ class Envelope(SavesToJSON):
             self.append_segment(level, t - self.end_time(), curve_shape_in)
             return
         else:
-            for i, segment in enumerate(self._segments):
+            for i, segment in enumerate(self.segments):
                 if segment.start_time < t < segment.end_time:
                     # we are inside an existing segment, so we break it in two
                     # save the old segment end time and level, since these will be the end of the second half
@@ -284,7 +288,7 @@ class Envelope(SavesToJSON):
                     segment.curve_shape = curve_shape_in
                     segment.end_level = level
                     new_segment = EnvelopeSegment(t, end_time, level, end_level, curve_shape_out)
-                    self._segments.insert(i + 1, new_segment)
+                    self.segments.insert(i + 1, new_segment)
                     break
                 else:
                     if t == segment.start_time:
@@ -297,18 +301,26 @@ class Envelope(SavesToJSON):
 
     def insert_interpolated(self, t):
         """
-        insert another curve point at the given time, without changing the shape of the curve
+        Insert another curve point at the given time, without changing the shape of the curve
         """
-        assert self.start_time() <= t <= self.end_time(), "Cannot interpolate outside of curve range."
+        if t < self.start_time():
+            # we set tolerance to -1 here to ensure that the initial segement doesn't simply get extended
+            # we actually want an extra control point, redundant or not
+            self.prepend_segment(self.start_level(), self.start_time() - t, tolerance=-1)
+            return
+        if t > self.end_time():
+            # tolerance set to -1 for same reason as above
+            self.append_segment(self.end_level(), t - self.end_time(), tolerance=-1)
+            return
         if t == self.start_time() or t == self.end_time():
             return
-        for i, segment in enumerate(self._segments):
+        for i, segment in enumerate(self.segments):
             if t == segment.start_time:
                 return
             if t in segment:
                 # this is the case that matters; t is within one of the segments
                 part1, part2 = segment.split_at(t)
-                self._segments.insert(i + 1, part2)
+                self.segments.insert(i + 1, part2)
 
     # ----------------------- Appending / removing segments --------------------------
 
@@ -319,33 +331,33 @@ class Envelope(SavesToJSON):
         instead of adding a new one if the level is within tolerance of where the last one was headed
         :return:
         """
-        if self._segments[-1].duration == 0:
+        if self.segments[-1].duration == 0:
             # the previous segment has no length. Are we also adding a segment with no length?
             if duration == 0:
                 # If so, replace the end level of the existing zero-length segment
-                self._segments[-1].end_level = level
+                self.segments[-1].end_level = level
             else:
                 # okay, we're adding a segment with length
                 # did the previous segment actually change the level?
-                if self._segments[-1].end_level != self._segments[-1].start_level:
+                if self.segments[-1].end_level != self.segments[-1].start_level:
                     # If so we keep it and add a new one
-                    self._segments.append(EnvelopeSegment(self.end_time(), self.end_time() + duration,
-                                                          self.end_level(), level, curve_shape))
+                    self.segments.append(EnvelopeSegment(self.end_time(), self.end_time() + duration,
+                                                         self.end_level(), level, curve_shape))
                 else:
                     # if not, just modify the previous segment into what we want
-                    self._segments[-1].end_level = level
-                    self._segments[-1].end_time = self.end_time() + duration
-                    self._segments[-1].curve_shape = curve_shape
-        elif self._segments[-1].curve_shape == 0 and curve_shape == 0 and \
-                abs(self._segments[-1].value_at(self.end_time() + duration,
-                                                clip_at_boundary=False) - level) <= tolerance:
+                    self.segments[-1].end_level = level
+                    self.segments[-1].end_time = self.end_time() + duration
+                    self.segments[-1].curve_shape = curve_shape
+        elif self.segments[-1].curve_shape == 0 and curve_shape == 0 and \
+                abs(self.segments[-1].value_at(self.end_time() + duration,
+                                               clip_at_boundary=False) - level) <= tolerance:
             # we're adding a point that would be a perfect continuation of the previous linear segment
             # (could do this for non-linear, but it's probably not worth the effort)
-            self._segments[-1].end_time = self.length() + duration
-            self._segments[-1].end_level = level
+            self.segments[-1].end_time = self.length() + duration
+            self.segments[-1].end_level = level
         else:
-            self._segments.append(EnvelopeSegment(self.end_time(), self.end_time() + duration,
-                                                  self.end_level(), level, curve_shape))
+            self.segments.append(EnvelopeSegment(self.end_time(), self.end_time() + duration,
+                                                 self.end_level(), level, curve_shape))
 
     def prepend_segment(self, level, duration, curve_shape=0.0, tolerance=0):
         """
@@ -354,55 +366,55 @@ class Envelope(SavesToJSON):
         instead of adding a new one if the level is within tolerance of where the last one was headed
         :return:
         """
-        if self._segments[0].duration == 0:
+        if self.segments[0].duration == 0:
             # the first segment has no length. Are we also prepending a segment with no length?
             if duration == 0:
                 # If so, replace the start level of the existing zero-length segment
-                self._segments[0].start_level = level
+                self.segments[0].start_level = level
             else:
                 # okay, we're adding a segment with length
                 # does the first segment actually change the level?
-                if self._segments[-1].end_level != self._segments[-1].start_level:
+                if self.segments[-1].end_level != self.segments[-1].start_level:
                     # If so we keep it and add a new one before it
-                    self._segments.insert(0, EnvelopeSegment(self.start_time() - duration, self.start_time(),
-                                                             level, self.start_level(), curve_shape))
+                    self.segments.insert(0, EnvelopeSegment(self.start_time() - duration, self.start_time(),
+                                                            level, self.start_level(), curve_shape))
                 else:
                     # if not, just modify the previous segment into what we want
-                    self._segments[0].start_level = level
-                    self._segments[0].start_time = self.start_time() - duration
-                    self._segments[0].curve_shape = curve_shape
-        elif self._segments[0].curve_shape == 0 and curve_shape == 0 and \
-                abs(self._segments[0].value_at(self.start_time() - duration,
-                                               clip_at_boundary=False) - level) <= tolerance:
+                    self.segments[0].start_level = level
+                    self.segments[0].start_time = self.start_time() - duration
+                    self.segments[0].curve_shape = curve_shape
+        elif self.segments[0].curve_shape == 0 and curve_shape == 0 and \
+                abs(self.segments[0].value_at(self.start_time() - duration,
+                                              clip_at_boundary=False) - level) <= tolerance:
             # we're adding a point that would be a perfect extrapolation of the initial linear segment
             # (could do this for non-linear, but it's probably not worth the effort)
-            self._segments[0].start_time = self.start_time() - duration
-            self._segments[0].start_level = level
+            self.segments[0].start_time = self.start_time() - duration
+            self.segments[0].start_level = level
         else:
-            self._segments.insert(0, EnvelopeSegment(self.start_time() - duration, self.start_time(),
-                                                     level, self.start_level(), curve_shape))
+            self.segments.insert(0, EnvelopeSegment(self.start_time() - duration, self.start_time(),
+                                                    level, self.start_level(), curve_shape))
 
     def pop_segment(self):
-        if len(self._segments) == 1:
-            if self._segments[0].end_time != self._segments[0].start_time or \
-                    self._segments[0].end_level != self._segments[0].start_level:
-                self._segments[0].end_time = self._segments[0].start_time
-                self._segments[0].end_level = self._segments[0].start_level
+        if len(self.segments) == 1:
+            if self.segments[0].end_time != self.segments[0].start_time or \
+                    self.segments[0].end_level != self.segments[0].start_level:
+                self.segments[0].end_time = self.segments[0].start_time
+                self.segments[0].end_level = self.segments[0].start_level
                 return
             else:
-                raise IndexError("pop from empty Envelope")
-        return self._segments.pop()
+                raise IndexError("Cannot pop from empty Envelope")
+        return self.segments.pop()
 
     def pop_segment_from_start(self):
-        if len(self._segments) == 1:
-            if self._segments[0].end_time != self._segments[0].start_time or \
-                    self._segments[0].end_level != self._segments[0].start_level:
-                self._segments[0].start_time = self._segments[0].end_time
-                self._segments[0].start_level = self._segments[0].end_level
+        if len(self.segments) == 1:
+            if self.segments[0].end_time != self.segments[0].start_time or \
+                    self.segments[0].end_level != self.segments[0].start_level:
+                self.segments[0].start_time = self.segments[0].end_time
+                self.segments[0].start_level = self.segments[0].end_level
                 return
             else:
-                raise IndexError("pop from empty Envelope")
-        return self._segments.pop(0)
+                raise IndexError("Cannot pop from empty Envelope")
+        return self.segments.pop(0)
 
     def remove_segments_after(self, t):
         if t < self.start_time():
@@ -411,7 +423,7 @@ class Envelope(SavesToJSON):
                     self.pop_segment()
                 except IndexError:
                     break
-        for segment in self._segments:
+        for segment in self.segments:
             if t == segment.start_time:
                 while self.end_time() > t:
                     self.pop_segment()
@@ -429,7 +441,7 @@ class Envelope(SavesToJSON):
                     self.pop_segment_from_start()
                 except IndexError:
                     break
-        for segment in reversed(self._segments):
+        for segment in reversed(self.segments):
             if t == segment.end_time:
                 while self.start_time() < t:
                     self.pop_segment_from_start()
@@ -445,7 +457,7 @@ class Envelope(SavesToJSON):
     def value_at(self, t):
         if t < self.start_time():
             return self.start_level()
-        for segment in reversed(self._segments):
+        for segment in reversed(self.segments):
             # we start at the end in case of zero_length segments; it's best that they return their end level
             if t in segment:
                 return segment.value_at(t)
@@ -457,7 +469,7 @@ class Envelope(SavesToJSON):
         if t2 < t1:
             return -self.integrate_interval(t2, t1)
         if t1 < self.start_time():
-            return (self.start_time() - t1) * self._segments[0].start_level + \
+            return (self.start_time() - t1) * self.segments[0].start_level + \
                    self.integrate_interval(self.start_time(), t2)
         if t2 > self.end_time():
             return (t2 - self.end_time()) * self.end_level() + self.integrate_interval(t1, self.end_time())
@@ -467,13 +479,13 @@ class Envelope(SavesToJSON):
         # if there are a lot of segments, we bisect the list repeatedly until we get close t
         start_index = 0
         while True:
-            new_start_index = start_index + (len(self._segments) - start_index) // 2
-            if self._segments[new_start_index].end_time < t1 and len(self._segments) - new_start_index > 3:
+            new_start_index = start_index + (len(self.segments) - start_index) // 2
+            if self.segments[new_start_index].end_time < t1 and len(self.segments) - new_start_index > 3:
                 start_index = new_start_index
             else:
                 break
 
-        for segment in self._segments[start_index:]:
+        for segment in self.segments[start_index:]:
             if t1 < segment.start_time:
                 if t2 > segment.start_time:
                     if t2 <= segment.end_time:
@@ -521,7 +533,7 @@ class Envelope(SavesToJSON):
         out = self if in_place else deepcopy(self)
         if self.length() != desired_duration:
             ratio = desired_duration / self.length()
-            for segment in out._segments:
+            for segment in out.segments:
                 segment.start_time = (segment.start_time - self.start_time()) * ratio + self.start_time()
                 segment.end_time = (segment.end_time - self.start_time()) * ratio + self.start_time()
         return out
@@ -532,7 +544,7 @@ class Envelope(SavesToJSON):
         """
         inflection_points = []
         last_direction = 0
-        for segment in self._segments:
+        for segment in self.segments:
             if segment.end_level > segment.start_level:
                 direction = 1
             elif segment.end_level < segment.start_level:
@@ -553,7 +565,7 @@ class Envelope(SavesToJSON):
         :param change_original: if true, the original Envelope gets turned into the first of the returned tuple
         :return: tuple of Envelopes representing the pieces this has been split into
         """
-        to_split = self if change_original else Envelope([x.clone() for x in self._segments])
+        to_split = self if change_original else Envelope([x.clone() for x in self.segments])
 
         # if t is a tuple or list, we split at all of those times and return len(t) + 1 segments
         # This is implemented recursively. If len(t) is 1, t is replaced by t[0]
@@ -580,11 +592,11 @@ class Envelope(SavesToJSON):
 
         # Okay, now we go ahead with a single split at time t
         to_split.insert_interpolated(t)
-        for i, segment in enumerate(to_split._segments):
+        for i, segment in enumerate(to_split.segments):
             if segment.start_time == t:
-                second_half = Envelope(to_split._segments[i:])
-                to_split._segments = to_split._segments[:i]
-                for second_half_segment in second_half._segments:
+                second_half = Envelope(to_split.segments[i:])
+                to_split.segments = to_split.segments[:i]
+                for second_half_segment in second_half.segments:
                     second_half_segment.start_time -= t
                     second_half_segment.end_time -= t
                 break
@@ -622,48 +634,92 @@ class Envelope(SavesToJSON):
 
     def is_shifted_version_of(self, other):
         assert isinstance(other, Envelope)
-        return all(x.is_shifted_version_of(y) for x, y in zip(self._segments, other._segments))
+        return all(x.is_shifted_version_of(y) for x, y in zip(self.segments, other.segments))
 
     def shift_vertical(self, amount):
-        for segment in self._segments:
+        assert isinstance(amount, numbers.Number)
+        for segment in self.segments:
             segment.shift_vertical(amount)
+        return self
 
     def scale_vertical(self, amount):
-        for segment in self._segments:
+        assert isinstance(amount, numbers.Number)
+        for segment in self.segments:
             segment.scale_vertical(amount)
+        return self
 
     def shift_horizontal(self, amount):
-        for segment in self._segments:
+        assert isinstance(amount, numbers.Number)
+        for segment in self.segments:
             segment.shift_horizontal(amount)
+        return self
 
     def scale_horizontal(self, amount):
-        for segment in self._segments:
+        assert isinstance(amount, numbers.Number)
+        for segment in self.segments:
             segment.scale_horizontal(amount)
+        return self
 
     def get_graphable_point_pairs(self, resolution=25):
         x_values = []
         y_values = []
-        for i, segment in enumerate(self._segments):
+        for i, segment in enumerate(self.segments):
             # only include the endpoint on the very last segment, since otherwise there would be repeats
             segment_x_values, segment_y_values = segment.get_graphable_point_pairs(
-                resolution=resolution, endpoint=(i == len(self._segments) - 1)
+                resolution=resolution, endpoint=(i == len(self.segments) - 1)
             )
             x_values.extend(segment_x_values)
             y_values.extend(segment_y_values)
         return x_values, y_values
 
-    def show_plot(self, resolution=25):
+    def show_plot(self, resolution=25, show_segment_divisions=True):
         import matplotlib.pyplot as plt
         fig, ax = plt.subplots()
         ax.plot(*self.get_graphable_point_pairs(resolution))
+        if show_segment_divisions:
+            ax.plot(self.times, self.levels, 'o')
         ax.set_title('Graph of Envelope')
         plt.show()
 
+    @staticmethod
+    def _apply_binary_operation_to_pair(envelope1, envelope2, binary_function):
+        envelope1 = deepcopy(envelope1)
+        envelope2 = deepcopy(envelope2)
+        for t in set(envelope1.times + envelope2.times):
+            envelope1.insert_interpolated(t)
+            envelope2.insert_interpolated(t)
+        result_segments = []
+        for s1, s2 in zip(envelope1.segments, envelope2.segments):
+            this_segment_result = binary_function(s1, s2)
+            # when we add or multiply two EnvelopeSegments, we might get an EnvelopeSegment if it's simple
+            # or we might get an Envelope if the result is best represented by multiple segments
+            if isinstance(this_segment_result, Envelope):
+                # if it's an envelope, append all of it's segments
+                result_segments.extend(this_segment_result.segments)
+            else:
+                # otherwise, it should just be a segment
+                assert isinstance(this_segment_result, EnvelopeSegment)
+                result_segments.append(this_segment_result)
+        return Envelope(result_segments)
+
+    def _reciprocal(self):
+        assert all(x > 0 for x in self.levels) or all(x < 0 for x in self.levels), \
+            "Cannot divide by Envelope that crosses zero"
+        return Envelope([segment._reciprocal() for segment in self.segments])
+
     def __add__(self, other):
-        return Envelope([segment + other for segment in self._segments])
+        if isinstance(other, numbers.Number):
+            return Envelope([segment + other for segment in self.segments])
+        elif isinstance(other, Envelope):
+            return Envelope._apply_binary_operation_to_pair(self, other, lambda a, b: a + b)
+        else:
+            raise ValueError("Envelope can only be added to a constant or another envelope")
 
     def __radd__(self, other):
         return self.__add__(other)
+
+    def __neg__(self):
+        return Envelope([-segment for segment in self.segments])
 
     def __sub__(self, other):
         return self.__add__(-other)
@@ -672,13 +728,21 @@ class Envelope(SavesToJSON):
         return self.__radd__(-other)
 
     def __mul__(self, other):
-        return Envelope([segment * other for segment in self._segments])
+        if isinstance(other, numbers.Number):
+            return Envelope([segment * other for segment in self.segments])
+        elif isinstance(other, Envelope):
+            return Envelope._apply_binary_operation_to_pair(self, other, lambda a, b: a * b)
+        else:
+            raise ValueError("Envelope can only be multiplied by a constant or another envelope")
 
     def __rmul__(self, other):
         return self.__mul__(other)
 
     def __truediv__(self, other):
-        return self.__mul__(1 / other)
+        return self * (1 / other)
+
+    def __rtruediv__(self, other):
+        return self._reciprocal() * other
 
     def __repr__(self):
         return "Envelope({}, {}, {}, {})".format(self.levels, self.durations, self.curve_shapes, self.offset)
@@ -716,8 +780,10 @@ class EnvelopeSegment:
 
     @classmethod
     def from_endpoints_and_halfway_level(cls, start_time, end_time, start_level, end_level, halfway_level):
+        if start_level == halfway_level == end_level:
+            return cls(start_time, end_time, start_level, end_level, 0)
         assert min(start_level, end_level) < halfway_level < max(start_level, end_level), \
-            "Halfway level must be between start and end levels"
+            "Halfway level must be strictly between start and end levels, or equal to both."
         # class method that allows us to give a guide point half way through instead of giving
         # the curve_shape directly. This lets us try to match a curve that's not perfectly the right type.
         if end_level == start_level:
@@ -791,7 +857,7 @@ class EnvelopeSegment:
             # it's essentially linear, so just return the average slope
             return abs(self._end_level - self._start_level) / self.duration
         return math.exp(abs(self._curve_shape)) * abs(self._end_level - self._start_level) / self.duration * \
-            abs(self._curve_shape) / (math.exp(abs(self._curve_shape)) - 1)
+               abs(self._curve_shape) / (math.exp(abs(self._curve_shape)) - 1)
 
     def value_at(self, t, clip_at_boundary=True):
         """
@@ -817,7 +883,7 @@ class EnvelopeSegment:
             return self._start_level + norm_t * (self._end_level - self._start_level)
 
         return self._start_level + (self._end_level - self._start_level) / \
-            (math.exp(self._curve_shape) - 1) * (math.exp(self._curve_shape * norm_t) - 1)
+               (math.exp(self._curve_shape) - 1) * (math.exp(self._curve_shape * norm_t) - 1)
 
     def _segment_antiderivative(self, normalized_t):
         # the antiderivative of the interpolation curve y(t) = y1 + (y2 - y1) / (e^S - 1) * (e^(S*t) - 1)
@@ -878,20 +944,26 @@ class EnvelopeSegment:
         self._start_level += amount
         self._end_level += amount
         self._calculate_coefficients()
+        return self
 
     def scale_vertical(self, amount):
         assert isinstance(amount, numbers.Number)
         self._start_level *= amount
         self._end_level *= amount
         self._calculate_coefficients()
+        return self
 
     def shift_horizontal(self, amount):
+        assert isinstance(amount, numbers.Number)
         self.start_time += amount
         self.end_time += amount
+        return self
 
     def scale_horizontal(self, amount):
+        assert isinstance(amount, numbers.Number)
         self.start_time *= amount
         self.end_time *= amount
+        return self
 
     def is_shifted_version_of(self, other):
         assert isinstance(other, EnvelopeSegment)
@@ -909,7 +981,7 @@ class EnvelopeSegment:
         import matplotlib.pyplot as plt
         fig, ax = plt.subplots()
         ax.plot(*self.get_graphable_point_pairs(resolution))
-        ax.set_title('Graph of Envelope')
+        ax.set_title('Graph of Envelope Segment')
         plt.show()
 
     @staticmethod
@@ -921,17 +993,18 @@ class EnvelopeSegment:
             second_difference = None
             for x in range(0, resolution):
                 t = input1.start_time + (x / resolution) * input1.duration
-                this_value = binary_function(input1.value_at(t),  input2.value_at(t))
+                this_value = binary_function(input1.value_at(t), input2.value_at(t))
 
                 if value is not None:
-                    this_difference = this_value - value
+                    # some rounding is necessary to avoid floating point inaccuracies from creating false sign changes
+                    this_difference = round(this_value - value, 10)
                     if first_difference is not None:
                         # check if first difference changes sign in the first derivative
                         if this_difference * first_difference < 0:
                             # there's been a change of sign, so it's a local min or max. split here
                             split_points.append(t)
 
-                        this_second_difference = this_difference - first_difference
+                        this_second_difference = round(this_difference - first_difference, 10)
 
                         if second_difference is not None:
                             # check if second difference changes sign
@@ -954,11 +1027,13 @@ class EnvelopeSegment:
                 segment_end_value = binary_function(input1.value_at(segment_end), input2.value_at(segment_end))
                 segment_halfway_value = binary_function(input1.value_at(halfway_point), input2.value_at(halfway_point))
 
-                # this probably won't happen, since we're trying to split at the min / max locations, but
-                # just in case it happens, due to imprecision, that that this segment would not be monotonic,
+                # we're trying to split at the min / max locations to get monotonic segments
+                # in case we get a segment that is neither strictly monotonic not constant,
                 # we can just split it straight down the middle
-                if not min(segment_start_value, segment_end_value) < segment_halfway_value < \
-                       max(segment_start_value, segment_end_value):
+                is_strictly_monotonic = min(segment_start_value, segment_end_value) < segment_halfway_value < \
+                                        max(segment_start_value, segment_end_value)
+                is_constant = segment_start_value == segment_halfway_value == segment_end_value
+                if not (is_strictly_monotonic or is_constant):
                     key_points.insert(i + 1, halfway_point)
                     continue
 
@@ -974,6 +1049,16 @@ class EnvelopeSegment:
                 return Envelope(segments)
         else:
             raise ValueError("EnvelopeSegments can only be added if they have the same time range.")
+
+    def _reciprocal(self):
+        assert self.start_level * self.end_level > 0, "Cannot divide by EnvelopeSegment that crosses zero"
+        return self.from_endpoints_and_halfway_level(self.start_time, self.end_time,
+                                                     1 / self.start_level, 1 / self.end_level,
+                                                     1 / self.value_at((self.start_time + self.end_time) / 2))
+
+    def __neg__(self):
+        return EnvelopeSegment(self.start_time, self.end_time,
+                               -self.start_level, -self.end_level, self.curve_shape)
 
     def __add__(self, other):
         if isinstance(other, numbers.Number):
@@ -1008,17 +1093,16 @@ class EnvelopeSegment:
         return self.__mul__(other)
 
     def __truediv__(self, other):
-        return self.__mul__(1 / other)
+        return self * (1 / other)
+
+    def __rtruediv__(self, other):
+        return self._reciprocal() * other
 
     def __contains__(self, t):
         # checks if the given time is contained within this envelope segment
         # maybe this is silly, but it seemed a little convenient
         return self.start_time <= t < self.end_time
 
-    def __neg__(self):
-        return EnvelopeSegment(self.start_time, self.end_time,
-                               -self.start_level, -self.end_level, self.curve_shape)
-
     def __repr__(self):
         return "EnvelopeSegment({}, {}, {}, {}, {})".format(self.start_time, self.end_time, self.start_level,
-                                                                  self.end_level, self.curve_shape)
+                                                            self.end_level, self.curve_shape)
