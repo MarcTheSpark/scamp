@@ -290,13 +290,20 @@ class PlaycorderInstrument(SavesToJSON):
             from .performance import PerformancePart
             assert isinstance(self._performance_part, PerformancePart)
             pc = self.host_ensemble.host_playcorder
-            recorded_length = length / clock.absolute_rate() * \
-                (1 if pc._recording_clock == "absolute" else pc._recording_clock.absolute_rate())
+            length_factor = (1 if pc._recording_clock == "absolute" else pc._recording_clock.absolute_rate()) / \
+                            clock.absolute_rate()
+            recorded_length = tuple(x * length_factor for x in length) \
+                if hasattr(length, "__len__") else length * length_factor
+            recorded_length_sum = sum(recorded_length) if hasattr(recorded_length, "__len__") else recorded_length
+
             if isinstance(pitch, Envelope):
-                pitch.normalize_to_duration(recorded_length)
+                pitch.normalize_to_duration(recorded_length_sum)
             if isinstance(volume, Envelope):
-                volume.normalize_to_duration(recorded_length)
+                volume.normalize_to_duration(recorded_length_sum)
             self._performance_part.new_note(pc.get_recording_beat(), recorded_length, pitch, volume, properties)
+
+        # now that we've notated the length, we collapse it if it's a tuple
+        length = sum(length) if hasattr(length, "__len__") else length
 
         # apply explicit playback adjustments, as well as those implied by articulations and other notations
         unaltered_length = length

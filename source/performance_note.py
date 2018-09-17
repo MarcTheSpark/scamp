@@ -1,8 +1,9 @@
-from playcorder.envelope import Envelope
-from functools import total_ordering
-from playcorder.utilities import SavesToJSON
 import itertools
 from copy import deepcopy
+from functools import total_ordering
+
+from playcorder.envelope import Envelope
+from playcorder.utilities import SavesToJSON
 
 """
 Note: This is a separate file from performance.py, since it is used both in performance.py and score.py,
@@ -15,19 +16,28 @@ class PerformanceNote(SavesToJSON):
 
     def __init__(self, start_time, length, pitch, volume, properties):
         self.start_time = start_time
+        # if length is a tuple, this indicates that the note is to be split before quantization into tied segments
         self.length = length
         # if pitch is a tuple, this indicates a chord
         self.pitch = pitch
         self.volume = volume
         self.properties = properties
 
+    def length_sum(self):
+        return sum(self.length) if hasattr(self.length, "__len__") else self.length
+
     @property
     def end_time(self):
-        return self.start_time + self.length
+        return self.start_time + self.length_sum()
 
     @end_time.setter
     def end_time(self, new_end_time):
-        self.length = new_end_time - self.start_time
+        new_length = new_end_time - self.start_time
+        if hasattr(self.length, "__len__"):
+            ratio = new_length / self.length_sum()
+            self.length = tuple(segment_length * ratio for segment_length in self.length)
+        else:
+            self.length = new_length
 
     def average_pitch(self):
         if isinstance(self.pitch, tuple):
@@ -44,12 +54,37 @@ class PerformanceNote(SavesToJSON):
 
     _id_generator = itertools.count()
 
+    @staticmethod
+    def _split_length(length, split_point):
+        if hasattr(length, "__len__"):
+            # tuple length
+            part_sum = 0
+            for i, segment_length in enumerate(length):
+                if part_sum + segment_length < split_point:
+                    part_sum += segment_length
+                elif part_sum + segment_length == split_point:
+                    first_part = length[:i + 1]
+                    second_part = length[i + 1:]
+                    return first_part if len(first_part) > 1 else first_part[0], \
+                           second_part if len(second_part) > 1 else second_part[0]
+                else:
+                    first_part = length[:i] + (split_point - part_sum,)
+                    second_part = (part_sum + segment_length - split_point,) + length[i + 1:]
+                    return first_part if len(first_part) > 1 else first_part[0], \
+                           second_part if len(second_part) > 1 else second_part[0]
+            raise ValueError("Split point outside of length tuple.")
+        else:
+            # simple length, not a tuple
+            if not 0 < split_point < length:
+                raise ValueError("Split point outside of length tuple.")
+            else:
+                return split_point, length - split_point
+
     def split_at_beat(self, split_beat):
         if self.start_time < split_beat < self.end_time:
             second_part = deepcopy(self)
             second_part.start_time = split_beat
-            second_part.end_time = self.end_time
-            self.length = split_beat - self.start_time
+            self.length, second_part.length = PerformanceNote._split_length(self.length, split_beat - self.start_time)
 
             if self.pitch is not None:
                 if isinstance(self.pitch, Envelope):
@@ -131,6 +166,10 @@ class PerformanceNote(SavesToJSON):
 
         if hasattr(json_object["volume"], "__len__"):
             json_object["volume"] = Envelope.from_json(json_object["volume"])
+
+        if hasattr(json_object["length"], "__len__"):
+            json_object["length"] = tuple(json_object["length"])
+
         return PerformanceNote(**json_object)
 
     def __repr__(self):
