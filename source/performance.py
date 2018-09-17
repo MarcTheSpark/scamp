@@ -374,7 +374,7 @@ class Performance(SavesToJSON):
     @classmethod
     def from_json(cls, json_dict):
         return cls([PerformancePart.from_json(part_json) for part_json in json_dict["parts"]],
-                   TempoEnvelope.from_list(json_dict["tempo_envelope"]))
+                   TempoEnvelope.from_json(json_dict["tempo_envelope"]))
 
     def __repr__(self):
         return "Performance([\n{}\n])".format(
