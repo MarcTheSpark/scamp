@@ -179,6 +179,23 @@ def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="def
     return _construct_quantization_record(beat_divisors, quantization_scheme)
 
 
+def _merge_property_dictionaries(property_dict1, property_dict2):
+    # {"articulations": [], "noteheads": ["normal"], "notations": [], "text": [], "playback adjustments": []}
+    if property_dict1["articulations"] == property_dict2["articulations"] and \
+            property_dict1["notations"] == property_dict2["notations"] and \
+            property_dict1["playback adjustments"] == property_dict2["playback adjustments"] and \
+            property_dict1["text"] == property_dict2["text"]:
+        return {
+            "articulations": property_dict1["articulations"],
+            "noteheads": property_dict1["noteheads"] + property_dict2["noteheads"],
+            "notations": property_dict1["notations"],
+            "text": property_dict1["text"],
+            "playback adjustments": property_dict1["playback adjustments"]
+        }
+    else:
+        return None
+
+
 def _collapse_chords(notes):
     """
     Modifies a list of PerformanceNotes in place so that simultaneous notes become chords
@@ -187,9 +204,11 @@ def _collapse_chords(notes):
     """
     i = 1
     while i < len(notes):
-        # check if this note is the same as the previous note in all but pitch
+        # check if this note is the same as the previous note in all but pitch and compatible in properties
+        merged_properties = _merge_property_dictionaries(notes[i].properties, notes[i - 1].properties)
+
         if notes[i].start_time == notes[i - 1].start_time and notes[i].length == notes[i - 1].length \
-                and notes[i].volume == notes[i - 1].volume and notes[i].properties == notes[i - 1].properties:
+                and notes[i].volume == notes[i - 1].volume and merged_properties is not None:
             # since one or both of these notes might already be chords (i.e. have a tuple for pitch),
             # let's make both pitches into tuples to simplify the logic tree
             last_note_pitches = (notes[i - 1].pitch, ) if not isinstance(notes[i - 1].pitch, tuple) else notes[i - 1]
@@ -205,6 +224,7 @@ def _collapse_chords(notes):
                             for x in all_pitches_together[1:]):
                     # it check out; they are all shifted versions of the first note's gliss
                     notes[i - 1].pitch = all_pitches_together
+                    notes[i - 1].properties = merged_properties
                     # remove the current note, since it has been merged into the previous.
                     # No need to increment i, since popping at it has a similar effect
                     notes.pop(i)
@@ -214,6 +234,7 @@ def _collapse_chords(notes):
             else:
                 # all pitches are static, so we just merge into a single chord and pop the latter entry
                 notes[i - 1].pitch = all_pitches_together
+                notes[i - 1].properties = merged_properties
                 notes.pop(i)
         else:
             # notes are different in rhythm or properties, so don't merge
