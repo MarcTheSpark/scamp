@@ -12,7 +12,7 @@ random.seed(0)
 pc.start_recording()
 
 while pc.time() < 12:
-    gliss = ParameterCurve.from_levels_and_durations(
+    gliss = Envelope.from_levels_and_durations(
         [random.random() * 20 + 60, random.random() * 20 + 60, random.random() * 20 + 60, random.random() * 20 + 60],
         [random.random(), random.random(), random.random()]
     )

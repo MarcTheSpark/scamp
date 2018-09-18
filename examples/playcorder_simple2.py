@@ -1,4 +1,4 @@
-from playcorder import Playcorder, Clock, ParameterCurve
+from playcorder import Playcorder, Clock, Envelope
 import random
 import math
 
@@ -21,7 +21,7 @@ def shaku_part(clock):
     while True:
         if random.random() < 0.5:
             shaku.play_note(66 + random.choice(pentatonic) + 12*random.randint(0, 2),
-                            ParameterCurve.from_levels_and_durations([1.0, 0.2, 1.0, 1.0], [0.15, 0.85, 0.15], [0, 2, 0]),
+                            Envelope.from_levels_and_durations([1.0, 0.2, 1.0, 1.0], [0.15, 0.85, 0.15], [0, 2, 0]),
                             2.5, blocking=True)
             clock.wait(0.5 + random.choice([0, 0.5]))
         else:
@@ -37,10 +37,12 @@ pc.master_clock.set_tempo_target(300, 30, duration_units="time")
 
 pc.wait(15)
 pc.start_recording()
+print("Starting recording...")
 pc.wait(15)
 performance = pc.stop_recording()
+print("Finished. Saving recording.")
 
-# performance.save_to_json("perfShakoboe.json")
+performance.save_to_json("perfShakoboe.json")
 # pc.master_clock.wait(2)
 
 pc.wait_forever()
