@@ -4,7 +4,8 @@ from playcorder.envelope import Envelope
 from playcorder.utilities import SavesToJSON
 from itertools import count
 from playcorder.settings import playback_settings
-from playcorder.playback_adjustments import NotePlaybackAdjustment, PlaybackDictionary
+from copy import deepcopy
+from playcorder.note_properties import NotePropertiesDictionary
 from playcorder.clock import current_clock
 import atexit
 import logging
@@ -181,90 +182,6 @@ class PlaycorderInstrument(SavesToJSON):
 
     # ------------------------- "Public" Playback Methods -------------------------
 
-    @staticmethod
-    def _make_properties_dict(properties):
-        # the properties keyword argument when playing a note can be a string, a NotePlaybackAdjustment,
-        # a list, or a dict. If it's a string, we split it by commas and treat it as a list from then on.
-        # And if it's a NotePlaybackAdjustment, we just enclose it in a list
-        if isinstance(properties, str):
-            properties = properties.split(",")
-        elif isinstance(properties, NotePlaybackAdjustment):
-            properties = [properties]
-
-        # if it's a list, we look at each element and see if it has a colon (making it a key / value pair)
-        # if not, we try to check and see whether it's an articulation, notehead, etc.
-        if isinstance(properties, list):
-            properties_dict = {"articulations": [], "noteheads": ["normal"],
-                               "notations": [], "text": [], "playback adjustments": []}
-            for note_property in properties:
-                if isinstance(note_property, NotePlaybackAdjustment):
-                    properties_dict["playback adjustments"].append(note_property)
-                elif isinstance(note_property, str):
-                    # if there's a colon, it represents a key / value pair, e.g. "articulation: staccato"
-                    if ":" in note_property:
-                        colon_index = note_property.index(":")
-                        key, value = note_property[:colon_index].replace(" ", ""), \
-                                     note_property[colon_index:].replace(" ", "")
-                        if "articulation" in key:
-                            if value in PlaybackDictionary.all_articulations:
-                                properties_dict["articulations"].append(value)
-                            else:
-                                logging.warning("Articulation {} not understood".format(value))
-
-                        if "notehead" in key:
-                            if value in PlaybackDictionary.all_noteheads:
-                                properties_dict["noteheads"] = [value]
-                            else:
-                                logging.warning("Notehead {} not understood".format(value))
-
-                        if "notation" in key:
-                            if value in PlaybackDictionary.all_notations:
-                                properties_dict["notations"].append(value)
-                            else:
-                                logging.warning("Notation {} not understood".format(value))
-
-                    else:
-                        # otherwise, we try to figure out what kind of property we're dealing with
-                        if note_property in PlaybackDictionary.all_articulations:
-                            properties_dict["articulations"].append(note_property)
-                        elif note_property in PlaybackDictionary.all_noteheads:
-                            properties_dict["noteheads"] = [note_property]
-                        elif note_property in PlaybackDictionary.all_notations:
-                            properties_dict["notations"].append(note_property)
-            return properties_dict
-        elif isinstance(properties, dict):
-            if "articulations" not in properties:
-                properties["articulations"] = []
-            if "noteheads" not in properties:
-                properties["noteheads"] = ["normal"]
-            if "notations" not in properties:
-                properties["notations"] = []
-            if "text" not in properties:
-                properties["text"] = []
-            if "playback adjustments" not in properties:
-                properties["playback adjustments"] = []
-            return properties
-        else:
-            return {"articulations": [], "noteheads": ["normal"], "notations": [], "text": [], "playback adjustments": []}
-
-    @staticmethod
-    def _apply_playback_adjustments(pitch, volume, length, properties):
-        # first apply all of the explicit playback adjustments
-        for adjustment in properties["playback adjustments"]:
-            assert isinstance(adjustment, NotePlaybackAdjustment)
-            pitch, volume, length = adjustment.adjust_parameters(pitch, volume, length)
-
-        for notation_category in ["articulations", "noteheads", "notations"]:
-            if notation_category not in properties:
-                continue
-            for applied_notation in properties[notation_category]:
-                notation_derived_adjustment = playback_settings.adjustments.get(applied_notation)
-                if notation_derived_adjustment is not None:
-                    assert isinstance(notation_derived_adjustment, NotePlaybackAdjustment)
-                    pitch, volume, length = notation_derived_adjustment.adjust_parameters(pitch, volume, length)
-
-        return pitch, volume, length
-
     def play_note(self, pitch, volume, length, properties=None, blocking=True, clock=None):
         """
         Play a note
@@ -281,7 +198,8 @@ class PlaycorderInstrument(SavesToJSON):
         if clock is None and hasattr(threading.current_thread(), "__clock__"):
             clock = threading.current_thread().__clock__
 
-        properties = PlaycorderInstrument._make_properties_dict(properties)
+        properties = NotePropertiesDictionary.from_unknown_format(properties) \
+            if not isinstance(properties, NotePropertiesDictionary) else properties
         volume = Envelope.from_list(volume) if hasattr(volume, "__len__") else volume
         pitch = Envelope.from_list(pitch) if hasattr(pitch, "__len__") else pitch
 
@@ -307,7 +225,7 @@ class PlaycorderInstrument(SavesToJSON):
 
         # apply explicit playback adjustments, as well as those implied by articulations and other notations
         unaltered_length = length
-        pitch, volume, length = PlaycorderInstrument._apply_playback_adjustments(pitch, volume, length, properties)
+        pitch, volume, length = properties.apply_playback_adjustments(pitch, volume, length)
 
         # Note that, even if there's a clock involved we run _do_play_note in a simple thread rather than a sub-clock.
         # That is because the overhead of running in a clock is high for small sleep values like animation of pitch and
@@ -331,10 +249,26 @@ class PlaycorderInstrument(SavesToJSON):
         Takes a list of pitches, and passes them to play_note
         """
         assert hasattr(pitches, "__len__")
-        for pitch in pitches[:-1]:
+
+        properties = NotePropertiesDictionary.from_unknown_format(properties) \
+            if not isinstance(properties, NotePropertiesDictionary) else properties
+
+        # we should either be given a number of noteheads equal to the number of pitches or just one notehead for all
+        assert len(properties.noteheads) == len(pitches) or len(properties.noteheads) == 1, \
+            "Wrong number of noteheads for chord."
+
+        for i, pitch in enumerate(pitches[:-1]):
             # for all but the last pitch, play it without blocking, so we can start all the others
-            self.play_note(pitch, volume, length, properties=properties, blocking=False, clock=clock)
+            # also copy the properties dictionary, and pick out the correct notehead if we've been given several
+            properties_copy = deepcopy(properties)
+            if len(properties.noteheads) > 1:
+                properties_copy.noteheads = [properties_copy.noteheads[i]]
+            self.play_note(pitch, volume, length, properties=properties_copy, blocking=False, clock=clock)
+
         # for the last pitch, block or not based on the blocking parameter
+        # also, if we've been given a list of noteheads, pick out the last one
+        if len(properties.noteheads) > 1:
+            properties.noteheads = [properties.noteheads[-1]]
         self.play_note(pitches[-1], volume, length, properties=properties, blocking=blocking, clock=clock)
 
     def start_note(self, pitch, volume, properties=None):
@@ -342,7 +276,8 @@ class PlaycorderInstrument(SavesToJSON):
         Starts a note 'manually', meaning that its length is not predetermined, and that it has to be manually ended
         later by calling 'end_note' or 'end_all_notes'
         """
-        properties = PlaycorderInstrument._make_properties_dict(properties)
+        properties = NotePropertiesDictionary.from_unknown_format(properties) \
+            if not isinstance(properties, NotePropertiesDictionary) else properties
         note_id = self._do_start_note(pitch, volume, properties)
         self._notes_started.append((note_id, pitch, volume, self.time(), properties))
         # returns the note_id as a reference, in case we want to change pitch mid-playback
@@ -435,24 +370,24 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
         # _do_start_note needs to know whether or not the pitch changes, since pitch bends need to
         # be placed on separate channels. We'll pass along that info by placing it in the properties
         # dictionary, but we make a copy first so as not to alter the dictionary we're given
-        altered_properties = dict(properties)
-        altered_properties["pitch changes"] = isinstance(pitch, Envelope)
-        super()._do_play_note(pitch, volume, length, altered_properties, clock)
+        properties["temp"]["pitch changes"] = isinstance(pitch, Envelope)
+        super()._do_play_note(pitch, volume, length, properties, clock)
 
     def start_note(self, pitch, volume, properties=None, pitch_might_change=True):
         # Same as with _do_play_note, we need to set the "pitch changes" key in the properties dictionary
         # since we don't know if the pitch will change, the default is to assume it does. If the user knows it
         # won't change pitch, then they can set pitch_might_change to false for more efficient MIDI channel use
-        altered_properties = dict(properties) if properties is not None else {}
-        altered_properties["pitch changes"] = pitch_might_change
-        return super().start_note(pitch, volume, altered_properties)
+        properties = NotePropertiesDictionary.from_unknown_format(properties) \
+            if not isinstance(properties, NotePropertiesDictionary) else properties
+        properties["temp"]["pitch changes"] = isinstance(pitch, Envelope)
+        return super().start_note(pitch, volume, properties)
 
     def _do_start_note(self, pitch, volume, properties):
         # Does the actual sonic implementation of starting a note
         # in this case the note_id returned will be a tuple consisting of
         # the channel, the midi key pressed, the start time, and whether or not pitch bend is used
         int_pitch = int(round(pitch))
-        uses_pitch_bend = (pitch != int_pitch) or properties['pitch changes']
+        uses_pitch_bend = (pitch != int_pitch) or properties["temp"]["pitch changes"]
 
         with self.note_start_lock:
             channel = self._find_channel_for_note(int_pitch, new_note_uses_bend=uses_pitch_bend)

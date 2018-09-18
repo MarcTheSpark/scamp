@@ -121,6 +121,48 @@ class PerformanceNote(SavesToJSON):
             # nothing we return the note unaltered in a length-1 tuple
             return self,
 
+    def attempt_chord_merger_with(self, other):
+        """
+        Try to merge this note with another note to form a chord.
+        :param other: another PerformanceNote
+        :return: True if the merger works, False otherwise
+        """
+        assert isinstance(other, PerformanceNote)
+        # to merge, the start time, length, and volume must match and the properties need to be compatible
+        if self.start_time != other.start_time or self.length != other.length \
+                or self.volume != other.volume or not self.properties.mergeable_with(other.properties):
+            return False
+
+        # since one or both of these notes might already be chords (i.e. have a tuple for pitch),
+        # let's make both pitches into tuples to simplify the logic
+        self_pitches = (self.pitch,) if not isinstance(self.pitch, tuple) else self.pitch
+        other_pitches = (other.pitch,) if not isinstance(other.pitch, tuple) else other.pitch
+        all_pitches_together = self_pitches + other_pitches
+
+        # check if any of the pitches involved are envelopes (glisses) rather than static pitches
+        if any(isinstance(x, Envelope) for x in all_pitches_together):
+            # if so, then they had all better be envelopes
+            if not all(isinstance(x, Envelope) for x in all_pitches_together):
+                return False
+            # and moreover, they should all be a shifted version of the first pitch
+            # otherwise, we keep them separate; a chord should gliss as a block if it glisses at all
+            if not all(x.is_shifted_version_of(all_pitches_together[0]) for x in all_pitches_together[1:]):
+                return False
+
+        # if we've made it to here, then the notes are fit to be merged
+        # the one wrinkle is that the notes may not be in pitch order. Let's put them in pitch order,
+        # and sort the noteheads at the same time so that they match up
+        all_noteheads_together = self.properties.noteheads + other.properties.noteheads
+        sorted_pitches_and_noteheads = sorted(
+            zip(all_pitches_together, all_noteheads_together),
+            key=lambda pair: pair[0].start_level() if isinstance(pair[0], Envelope) else pair[0]
+        )
+        # now we can set this note's pitches and noteheads accordingly
+        self.pitch = tuple(pitch for pitch, notehead in sorted_pitches_and_noteheads)
+        self.properties["noteheads"] = [notehead for pitch, notehead in sorted_pitches_and_noteheads]
+        # and return true because we succeeded
+        return True
+
     def __lt__(self, other):
         # this allows it to be compared with numbers. I use that below to bisect a list of notes
         if isinstance(other, PerformanceNote):
@@ -149,7 +191,7 @@ class PerformanceNote(SavesToJSON):
             "length": self.length,
             "pitch": json_pitch,
             "volume": self.volume.to_json() if isinstance(self.volume, Envelope) else self.volume,
-            "properties": self.properties
+            "properties": self.properties.to_json()
         }
 
     @classmethod

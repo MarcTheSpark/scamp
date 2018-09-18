@@ -93,7 +93,7 @@ class PlaybackDictionary(dict, SavesToJSON):
     all_articulations = list(articulation_to_xml_element_name.keys())
     all_noteheads = list(notehead_name_to_xml_type.keys())
     all_noteheads.extend(["filled " + notehead_name for notehead_name in all_noteheads])
-    all_noteheads.extend(["hollow " + notehead_name for notehead_name in all_noteheads
+    all_noteheads.extend(["open " + notehead_name for notehead_name in all_noteheads
                           if not notehead_name.startswith("filled")])
     all_notations = list(notations_to_xml_notations_element.keys())
 
