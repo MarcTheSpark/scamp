@@ -721,29 +721,32 @@ class NoteLike:
         )
 
     @staticmethod
-    def _get_relevant_gliss_extrema(pitch_envelope):
+    def _get_relevant_gliss_control_points(pitch_envelope):
         """
-        The idea here is that the extrema that matter are the ones  that aren't near other extrema or an endpoint
+        The idea here is that the control points that matter are the ones that aren't near others or an endpoint
         (temporal_relevance) and are a significant deviation in pitch from the assumed interpolated pitch if we
         didn't notate them (pitch_deviation).
         :param pitch_envelope: a pitch Envelope (gliss)
-        :return: a list of the important extrema
+        :return: a list of the important control points
         """
         assert isinstance(pitch_envelope, Envelope)
-        relevant_extrema = []
+        controls_to_check = pitch_envelope.times[1:-1] \
+            if engraving_settings.glissandi.consider_non_extrema_control_points else pitch_envelope.local_extrema()
+
+        relevant_controls = []
         left_bound = pitch_envelope.start_time()
         last_pitch = pitch_envelope.start_level()
-        for extremum in pitch_envelope.local_extrema():
-            progress_to_endpoint = (extremum - left_bound) / (pitch_envelope.end_time() - left_bound)
+        for control_point in controls_to_check:
+            progress_to_endpoint = (control_point - left_bound) / (pitch_envelope.end_time() - left_bound)
             temporal_relevance = 1 - abs(0.5 - progress_to_endpoint) * 2
-            # figure out how much the pitch at this extremum deviates from just linear interpolation
+            # figure out how much the pitch at this control point deviates from just linear interpolation
             linear_interpolated_pitch = last_pitch + (pitch_envelope.end_level() - last_pitch) * progress_to_endpoint
-            pitch_deviation = abs(pitch_envelope.value_at(extremum) - linear_interpolated_pitch)
+            pitch_deviation = abs(pitch_envelope.value_at(control_point) - linear_interpolated_pitch)
             if temporal_relevance * pitch_deviation > engraving_settings.glissandi.inner_grace_relevance_threshold:
-                relevant_extrema.append(extremum)
-                left_bound = extremum
-                last_pitch = pitch_envelope.value_at(extremum)
-        return relevant_extrema
+                relevant_controls.append(control_point)
+                left_bound = control_point
+                last_pitch = pitch_envelope.value_at(control_point)
+        return relevant_controls
 
     def to_abjad(self, source_id_dict=None):
         """
@@ -775,16 +778,16 @@ class NoteLike:
 
                 # if the glissando engraving settings say to do so, we'll include
                 # relevant inner turn around points as headless grace notes
-                key_moments = NoteLike._get_relevant_gliss_extrema(self.pitch[0]) \
+                control_points = NoteLike._get_relevant_gliss_control_points(self.pitch[0]) \
                     if engraving_settings.glissandi.include_inner_grace_notes else []
 
                 # also, if this is the last segment of a quantized and split PerformanceNote, and if the glissando
                 # engraving settings say to do so, we include the final pitch reached as a headless grace note
                 if not self.properties.starts_tie() and engraving_settings.glissandi.include_end_grace_note:
-                    key_moments += [self.pitch[0].end_time()]
+                    control_points += [self.pitch[0].end_time()]
 
                 # add a grace chord for each important turn around point in the gliss
-                for t in key_moments:
+                for t in control_points:
                     grace_chord = abjad.Chord()
                     grace_chord.written_duration = 1/16
                     grace_chord.note_heads = [x.value_at(t) - 60 for x in self.pitch]
@@ -803,15 +806,15 @@ class NoteLike:
 
             # if the glissando engraving settings say to do so, we'll include
             # relevant inner turn around points as headless grace notes
-            key_moments = NoteLike._get_relevant_gliss_extrema(self.pitch) \
+            control_points = NoteLike._get_relevant_gliss_control_points(self.pitch) \
                 if engraving_settings.glissandi.include_inner_grace_notes else []
 
             # also, if this is the last segment of a quantized and split PerformanceNote, and if the glissando
             # engraving settings say to do so, we include the final pitch reached as a headless grace note
             if not self.properties.starts_tie() and engraving_settings.glissandi.include_end_grace_note:
-                key_moments += [self.pitch.end_time()]
+                control_points += [self.pitch.end_time()]
 
-            for t in key_moments:
+            for t in control_points:
                 grace = abjad.Note(self.pitch.value_at(t) - 60, 1 / 16)
                 # but first check that we're not just repeating the last grace note pitch
                 if last_pitch != grace.written_pitch:

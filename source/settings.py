@@ -129,18 +129,24 @@ class QuantizationSettings(SavesToJSON):
 
 
 _glissandi_engraving_factory_defaults = {
+    # if true, we consider all control points in the engraving process. If false, we only consider local extrema.
+    "consider_non_extrema_control_points": False,
     "include_inner_grace_notes": False,
     "include_end_grace_note": True,
     # this threshold helps determine which gliss control points are worth expressing in notation
     # the further a control point is from its neighbors, and the further it deviates from
     # the linearly interpolated pitch at that point, the higher its relevance score.
-    "inner_grace_relevance_threshold": 2.0,
+    "inner_grace_relevance_threshold": 4.0,
 }
 
 
 class GlissandiEngravingSettings(SavesToJSON):
 
     def __init__(self, **settings):
+        self.consider_non_extrema_control_points = \
+            _glissandi_engraving_factory_defaults["consider_non_extrema_control_points"] \
+            if "consider_non_extrema_control_points" not in settings \
+                else settings["consider_non_extrema_control_points"]
         self.include_inner_grace_notes = _glissandi_engraving_factory_defaults["include_inner_grace_notes"] \
             if "include_inner_grace_notes" not in settings else settings["include_inner_grace_notes"]
         self.include_end_grace_note = _glissandi_engraving_factory_defaults["include_end_grace_note"] \

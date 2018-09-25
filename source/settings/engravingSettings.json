@@ -1,8 +1,38 @@
 {
-    "max_dots_allowed": 3,
-    "max_voices_per_part": 4,
-    "default_titles": ["Digging Deep", "I Like Fruit", "My Soup is Too Cold", "Woe is Me", "Dope Soundscapes",
-      "Black and White Life", "Pistol-Whipped Gyrations In A Petri Dish", "Carry on, Carrion", "Color Me Blue",
-      "Atomic Cucumbers", "If My Cat Could Smoke"],
-    "default_composers": ["Gold-E-Lox", "50 Cent", "Eric Whitacre", "J. Bieber", "Honey Boo Boo", "Rebecca Black"]
+    "_max_voices_per_part": 4,
+    "articulation_split_protocols": {
+        "accent": "first",
+        "marcato": "first",
+        "staccatissimo": "last",
+        "staccato": "last",
+        "tenuto": "last"
+    },
+    "default_composers": [
+        "Gold-E-Lox",
+        "50 Cent",
+        "Eric Whitacre",
+        "J. Bieber",
+        "Honey Boo Boo",
+        "Rebecca Black"
+    ],
+    "default_titles": [
+        "Digging Deep",
+        "I Like Fruit",
+        "My Soup is Too Cold",
+        "Woe is Me",
+        "Dope Soundscapes",
+        "Black and White Life",
+        "Pistol-Whipped Gyrations In A Petri Dish",
+        "Carry on, Carrion",
+        "Color Me Blue",
+        "Atomic Cucumbers",
+        "If My Cat Could Smoke"
+    ],
+    "glissandi": {
+        "consider_non_extrema_control_points": false,
+        "include_end_grace_note": true,
+        "include_inner_grace_notes": false,
+        "inner_grace_relevance_threshold": 4.0
+    },
+    "max_dots_allowed": 3
 }
