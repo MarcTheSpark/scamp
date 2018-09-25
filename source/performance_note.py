@@ -57,6 +57,10 @@ class PerformanceNote(SavesToJSON):
     _id_generator = itertools.count()
 
     @staticmethod
+    def next_id():
+        return next(PerformanceNote._id_generator)
+
+    @staticmethod
     def _split_length(length, split_point):
         if hasattr(length, "__len__"):
             # tuple length
@@ -114,8 +118,7 @@ class PerformanceNote(SavesToJSON):
                 if "_source_id" in self.properties:
                     second_part.properties["_source_id"] = self.properties["_source_id"]
                 else:
-                    second_part.properties["_source_id"] = self.properties["_source_id"] = \
-                        next(PerformanceNote._id_generator)
+                    second_part.properties["_source_id"] = self.properties["_source_id"] = PerformanceNote.next_id()
 
             return self, second_part
         else:
