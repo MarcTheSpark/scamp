@@ -107,7 +107,6 @@ def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="def
     :return: QuantizationRecord, detailing all of the time signatures, beat divisions selected, etc.
     """
     assert isinstance(quantization_scheme, QuantizationScheme)
-
     if onset_weighting == "default":
         onset_weighting = quantization_settings.onset_weighting
     if termination_weighting == "default":
@@ -432,6 +431,9 @@ class TimeSignature(SavesToJSON):
 
     def to_abjad(self):
         return abjad.TimeSignature((self.numerator, self.denominator))
+
+    def __eq__(self, other):
+        return self.numerator == other.numerator and self.denominator == other.denominator
 
     def __repr__(self):
         return "TimeSignature({}, {})".format(self.numerator, self.denominator)
