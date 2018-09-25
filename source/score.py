@@ -352,7 +352,10 @@ class StaffGroup:
         return cls([Staff.from_measure_bins_of_voice_lists(x, quantization_record.time_signatures) for x in staves])
 
     def to_abjad(self):
-        return abjad.StaffGroup([staff.to_abjad() for staff in self.staves])
+        if len(self.staves) == 1:
+            return self.staves[0].to_abjad()
+        else:
+            return abjad.StaffGroup([staff.to_abjad() for staff in self.staves])
 
     def get_XML(self):
         pass
