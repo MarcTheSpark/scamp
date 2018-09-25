@@ -4,6 +4,7 @@ from functools import total_ordering
 
 from playcorder.envelope import Envelope
 from playcorder.utilities import SavesToJSON
+from playcorder.note_properties import NotePropertiesDictionary
 
 """
 Note: This is a separate file from performance.py, since it is used both in performance.py and score.py,
@@ -21,7 +22,8 @@ class PerformanceNote(SavesToJSON):
         # if pitch is a tuple, this indicates a chord
         self.pitch = pitch
         self.volume = volume
-        self.properties = properties
+        self.properties = properties if isinstance(properties, NotePropertiesDictionary) \
+            else NotePropertiesDictionary.from_unknown_format(properties)
 
     def length_sum(self):
         return sum(self.length) if hasattr(self.length, "__len__") else self.length
