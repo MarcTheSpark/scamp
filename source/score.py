@@ -717,50 +717,112 @@ class NoteLike:
             self.pitch, self.written_length, self.properties
         )
 
+    @staticmethod
+    def _get_relevant_gliss_extrema(pitch_envelope):
+        """
+        The idea here is that the extrema that matter are the ones  that aren't near other extrema or an endpoint
+        (temporal_relevance) and are a significant deviation in pitch from the assumed interpolated pitch if we
+        didn't notate them (pitch_deviation).
+        :param pitch_envelope: a pitch Envelope (gliss)
+        :return: a list of the important extrema
+        """
+        assert isinstance(pitch_envelope, Envelope)
+        relevant_extrema = []
+        left_bound = pitch_envelope.start_time()
+        last_pitch = pitch_envelope.start_level()
+        for extremum in pitch_envelope.local_extrema():
+            progress_to_endpoint = (extremum - left_bound) / (pitch_envelope.end_time() - left_bound)
+            temporal_relevance = 1 - abs(0.5 - progress_to_endpoint) * 2
+            # figure out how much the pitch at this extremum deviates from just linear interpolation
+            linear_interpolated_pitch = last_pitch + (pitch_envelope.end_level() - last_pitch) * progress_to_endpoint
+            pitch_deviation = abs(pitch_envelope.value_at(extremum) - linear_interpolated_pitch)
+            if temporal_relevance * pitch_deviation > engraving_settings.glissandi.inner_grace_relevance_threshold:
+                relevant_extrema.append(extremum)
+                left_bound = extremum
+                last_pitch = pitch_envelope.value_at(extremum)
+        return relevant_extrema
+
     def to_abjad(self, source_id_dict=None):
+        """
+        Convert this NoteLike to an abjad note, chord, or rest, along with possibly some headless grace notes to
+        represent important changes of direction in a glissando, if the glissando engraving setting are set to do so
+        :param source_id_dict: a dictionary keeping track of which abjad notes come from the same original
+        PerformanceNote. This is populated here when the abjad notes are generated, and then later, once a whole
+        staff of notes has been generated, ties and glissandi are added accordingly.
+        :return: an abjad note, chord, or rest, possibly with an attached AfterGraceContainer
+        """
+        # abjad duration
         duration = Fraction(self.written_length / 4).limit_denominator()
+        # list of gliss grace notes, if applicable
         grace_notes = []
+
         if self.pitch is None:
+            # Just a rest
             abjad_object = abjad.Rest(duration)
         elif isinstance(self.pitch, tuple):
+            # This is a chord
             abjad_object = abjad.Chord()
             abjad_object.written_duration = duration
+
+            # Now, is it a glissing chord?
             if isinstance(self.pitch[0], Envelope):
+                # if so, its noteheads are based on the start level
                 abjad_object.note_heads = [x.start_level() - 60 for x in self.pitch]
+                last_pitches = abjad_object.written_pitches
 
-                key_moments = self.pitch[0].local_extrema()
+                # if the glissando engraving settings say to do so, we'll include
+                # relevant inner turn around points as headless grace notes
+                key_moments = NoteLike._get_relevant_gliss_extrema(self.pitch[0]) \
+                    if engraving_settings.glissandi.include_inner_grace_notes else []
 
-                # if this is the last segments of the same source group, we should include its destination
-                if not self.properties.starts_tie():
+                # also, if this is the last segment of a quantized and split PerformanceNote, and if the glissando
+                # engraving settings say to do so, we include the final pitch reached as a headless grace note
+                if not self.properties.starts_tie() and engraving_settings.glissandi.include_end_grace_note:
                     key_moments += [self.pitch[0].end_time()]
 
+                # add a grace chord for each important turn around point in the gliss
                 for t in key_moments:
                     grace_chord = abjad.Chord()
                     grace_chord.written_duration = 1/16
                     grace_chord.note_heads = [x.value_at(t) - 60 for x in self.pitch]
-                    grace_notes.append(grace_chord)
+                    # but first check that we're not just repeating the last grace chord
+                    if grace_chord.written_pitches != last_pitches:
+                        grace_notes.append(grace_chord)
+                        last_pitches = grace_chord.written_pitches
             else:
+                # if not, our job is simple
                 abjad_object.note_heads = [x - 60 for x in self.pitch]
 
         elif isinstance(self.pitch, Envelope):
+            # This is a note doing a glissando
             abjad_object = abjad.Note(self.pitch.start_level() - 60, duration)
             last_pitch = abjad_object.written_pitch
 
-            key_moments = self.pitch.inflection_points()
+            # if the glissando engraving settings say to do so, we'll include
+            # relevant inner turn around points as headless grace notes
+            key_moments = NoteLike._get_relevant_gliss_extrema(self.pitch) \
+                if engraving_settings.glissandi.include_inner_grace_notes else []
 
-            # if this is the last segments of the same source group, we should include its destination
-            if not self.properties.starts_tie():
+            # also, if this is the last segment of a quantized and split PerformanceNote, and if the glissando
+            # engraving settings say to do so, we include the final pitch reached as a headless grace note
+            if not self.properties.starts_tie() and engraving_settings.glissandi.include_end_grace_note:
                 key_moments += [self.pitch.end_time()]
 
             for t in key_moments:
                 grace = abjad.Note(self.pitch.value_at(t) - 60, 1 / 16)
+                # but first check that we're not just repeating the last grace note pitch
                 if last_pitch != grace.written_pitch:
                     grace_notes.append(grace)
+                    last_pitch = grace.written_pitch
         else:
+            # This is a simple note
             abjad_object = abjad.Note(self.pitch - 60, duration)
 
+        # Now we make, fill, and attach the abjad AfterGraceContainer, if applicable
         if len(grace_notes) > 0:
             for note in grace_notes:
+                # this signifier, \stemless, is not standard lilypond, and is defined with
+                # an override at the start of the score
                 abjad.attach(abjad.LilyPondLiteral("\stemless"), note)
             grace_container = abjad.AfterGraceContainer(grace_notes)
             abjad.attach(grace_container, abjad_object)
@@ -770,16 +832,17 @@ class NoteLike:
         else:
             grace_container = None
 
-        # If this note is part of a tie, we need to be able to connect it to it's other parts higher up the chain.
-        # The way we do this is by passing a note_id_dict down from the top level "to_abjad" call which keeps
-        # track of which leaves come from which source
+        # this is where we populate the source_id_dict passed down to us from the top level "to_abjad()" call
         if source_id_dict is not None:
+            # sometimes a note will not have a _source_id property defined, since it never gets broken into tied
+            # components. However, if it's a glissando and there's stemless grace notes involved, we're going to
+            # have to give it a _source_id so that it can share it with its grace notes
             if grace_container is not None and "_source_id" not in self.properties:
-                # if we're attaching grace notes as part of a gliss, we need to create a _source_id for this note
-                # if it doesn't have one already so that the grace notes can be given that as well
                 self.properties["_source_id"] = PerformanceNote.next_id()
 
             if "_source_id" in self.properties:
+                # here we take the new note that we're creating and add it to the bin in source_id_dict that
+                # contains all the notes of the same source, so that they can be tied / joined by glissandi
                 if self.properties["_source_id"] in source_id_dict:
                     # this source_id is already associated with a leaf, so add it to the list
                     source_id_dict[self.properties["_source_id"]].append(abjad_object)
@@ -787,8 +850,8 @@ class NoteLike:
                     # we don't yet have a record on this source_id, so start a list with this object under that key
                     source_id_dict[self.properties["_source_id"]] = [abjad_object]
 
+                # add any grace notes to the same bin as their parent
                 if grace_container is not None:
-                    # now that the original note has been added to the source_id group, we can add the grace notes
                     source_id_dict[self.properties["_source_id"]].extend(grace_container)
 
         return abjad_object

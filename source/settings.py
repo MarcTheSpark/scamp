@@ -131,12 +131,10 @@ class QuantizationSettings(SavesToJSON):
 _glissandi_engraving_factory_defaults = {
     "include_inner_grace_notes": False,
     "include_end_grace_note": True,
-    # inner_grace_note_relevance = percentage of the way to the center of the note time pitch difference
-    # so if the local extremum occurs at 20% of the way through the note and it's 6 half steps away from
-    # the starting pitch, its relevance is 0.4 * 6 = 2.4 (20% through is 40% of the way to the center)
-    # if it occurs 70% of the way through the note and it's 2 half steps aways from the _ending_ pitch, then
-    # the value is 0.6 * 2 = 1.2, since it's 60% of the way from the end back to the center
-    "inner_grace_note_relevance_threshold": 2.0,
+    # this threshold helps determine which gliss control points are worth expressing in notation
+    # the further a control point is from its neighbors, and the further it deviates from
+    # the linearly interpolated pitch at that point, the higher its relevance score.
+    "inner_grace_relevance_threshold": 2.0,
 }
 
 
@@ -147,10 +145,8 @@ class GlissandiEngravingSettings(SavesToJSON):
             if "include_inner_grace_notes" not in settings else settings["include_inner_grace_notes"]
         self.include_end_grace_note = _glissandi_engraving_factory_defaults["include_end_grace_note"] \
             if "include_end_grace_note" not in settings else settings["include_end_grace_note"]
-        self.inner_grace_note_relevance_threshold = \
-            _glissandi_engraving_factory_defaults["inner_grace_note_relevance_threshold"] \
-            if "inner_grace_note_relevance_threshold" not in settings \
-                else settings["inner_grace_note_relevance_threshold"]
+        self.inner_grace_relevance_threshold = _glissandi_engraving_factory_defaults["inner_grace_relevance_threshold"] \
+            if "inner_grace_relevance_threshold" not in settings else settings["inner_grace_relevance_threshold"]
 
     def to_json(self):
         return self.__dict__
@@ -227,11 +223,12 @@ try:
     playback_settings = PlaybackSettings.load_from_json(resolve_relative_path("settings/playbackSettings.json"))
 except FileNotFoundError:
     logging.warning("Playback settings not found; generating defaults.")
-    playback_settings = PlaybackSettings.factory_default()
+    playback_settings = PlaybackSettings()
     playback_settings.make_persistent()
 except (TypeError, json.decoder.JSONDecodeError):
     logging.warning("Error loading playback settings; falling back to defaults.")
-    playback_settings = PlaybackSettings.factory_default()
+    playback_settings = PlaybackSettings()
+assert isinstance(playback_settings, PlaybackSettings)
 
 
 try:
@@ -243,7 +240,9 @@ except FileNotFoundError:
     quantization_settings.make_persistent()
 except (TypeError, json.decoder.JSONDecodeError):
     logging.warning("Error loading quantization settings; falling back to defaults.")
-    quantization_settings = QuantizationSettings.factory_default()
+    quantization_settings = QuantizationSettings()
+assert isinstance(quantization_settings, QuantizationSettings)
+
 
 try:
     engraving_settings = EngravingSettings.load_from_json(resolve_relative_path("settings/engravingSettings.json"))
@@ -254,6 +253,7 @@ except FileNotFoundError:
 except (TypeError, json.decoder.JSONDecodeError):
     logging.warning("Error loading engraving settings; falling back to defaults.")
     engraving_settings = EngravingSettings()
+assert isinstance(engraving_settings, EngravingSettings)
 
 
 def restore_all_factory_defaults(persist=False):
