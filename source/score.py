@@ -728,7 +728,7 @@ class NoteLike:
             if isinstance(self.pitch[0], Envelope):
                 abjad_object.note_heads = [x.start_level() - 60 for x in self.pitch]
 
-                key_moments = self.pitch[0].inflection_points()
+                key_moments = self.pitch[0].local_extrema()
 
                 # if this is the last segments of the same source group, we should include its destination
                 if not self.properties.starts_tie():

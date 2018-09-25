@@ -538,11 +538,11 @@ class Envelope(SavesToJSON):
                 segment.end_time = (segment.end_time - self.start_time()) * ratio + self.start_time()
         return out
 
-    def inflection_points(self):
+    def local_extrema(self):
         """
         Returns a list of the times where the curve changes direction.
         """
-        inflection_points = []
+        local_extrema = []
         last_direction = 0
         for segment in self.segments:
             if segment.end_level > segment.start_level:
@@ -554,9 +554,9 @@ class Envelope(SavesToJSON):
                 direction = last_direction
             if last_direction * direction < 0:
                 # we changed sign, since
-                inflection_points.append(segment.start_time)
+                local_extrema.append(segment.start_time)
             last_direction = direction
-        return inflection_points
+        return local_extrema
 
     def split_at(self, t, change_original=False):
         """
