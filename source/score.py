@@ -769,7 +769,6 @@ class NoteLike:
                 abjad.attach(abjad.LilyPondLiteral(r"\afterGrace"), abjad_object)
         else:
             grace_container = None
-        # grace_container = None
 
         # If this note is part of a tie, we need to be able to connect it to it's other parts higher up the chain.
         # The way we do this is by passing a note_id_dict down from the top level "to_abjad" call which keeps
