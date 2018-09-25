@@ -965,11 +965,12 @@ class EnvelopeSegment:
         self.end_time *= amount
         return self
 
-    def is_shifted_version_of(self, other):
+    def is_shifted_version_of(self, other, tolerance=1e-10):
         assert isinstance(other, EnvelopeSegment)
-        return self.start_time == other.start_time and self.end_time == other.end_time and \
-               self._start_level - other._start_level == self._end_level - other._end_level and \
-               self._curve_shape == other._curve_shape
+        return abs(self.start_time - other.start_time) < tolerance and \
+               abs(self.end_time - other.end_time) < tolerance and \
+               ((self._start_level - other._start_level) - (self._end_level - other._end_level)) < tolerance and \
+               (self._curve_shape - other._curve_shape) < tolerance
 
     def get_graphable_point_pairs(self, resolution=25, endpoint=True):
         x_values = [self.start_time + x / resolution * self.duration
