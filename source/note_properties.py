@@ -147,6 +147,12 @@ class NotePropertiesDictionary(dict, SavesToJSON):
     def playback_adjustments(self, value):
         self["playback_adjustments"] = value
 
+    def starts_tie(self):
+        return "_starts_tie" in self and self["_starts_tie"]
+
+    def ends_tie(self):
+        return "_ends_tie" in self and self["_ends_tie"]
+
     def apply_playback_adjustments(self, pitch, volume, length, include_notation_derived=True):
         """
         Applies both explicit and (if flag is set) derived playback adjustments to the given pitch, volume, and length
