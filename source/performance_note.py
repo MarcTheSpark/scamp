@@ -177,10 +177,9 @@ class PerformanceNote(SavesToJSON):
             return self.start_time == other
 
     def to_json(self):
-        if isinstance(self.pitch, tuple):
+        if isinstance(self.pitch, (tuple, list)):
             # if this is a chord
             json_pitch = [p.to_json() if isinstance(p, Envelope) else p for p in self.pitch]
-            json_pitch.insert(0, "chord")  # indicates that it's a chord, since json can't distinguish tuples from lists
         elif isinstance(self.pitch, Envelope):
             json_pitch = self.pitch.to_json()
         else:
@@ -196,17 +195,15 @@ class PerformanceNote(SavesToJSON):
 
     @classmethod
     def from_json(cls, json_object):
-        # if pitch is an array starting with "chord"
-        if hasattr(json_object["pitch"], "__len__") and json_object["pitch"][0] == "chord":
-            pitches = []
-            for pitch in json_object["pitch"][1:]:  # ignore the "chord" indicator
-                pitches.append(Envelope.from_json(pitch) if hasattr(pitch, "__len__") else pitch)
-            json_object["pitch"] = tuple(pitches)
-        # otherwise check if it's a Envelope
-        elif hasattr(json_object["pitch"], "__len__"):
+        if isinstance(json_object["pitch"], (tuple, list)):
+            # a tuple or list (should be a list since it's json) indicates a chord
+            json_object["pitch"] = tuple(Envelope.from_json(pitch) if isinstance(pitch, dict) else pitch
+                                         for pitch in json_object["pitch"])
+        elif isinstance(json_object["pitch"], dict):
+            # a dict indicates it's an envelope
             json_object["pitch"] = Envelope.from_json(json_object["pitch"])
 
-        if hasattr(json_object["volume"], "__len__"):
+        if isinstance(json_object["volume"], dict):
             json_object["volume"] = Envelope.from_json(json_object["volume"])
 
         if hasattr(json_object["length"], "__len__"):
