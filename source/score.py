@@ -97,6 +97,21 @@ def _get_beat_division_indispensabilities(beat_length, beat_divisor):
 
 # ---------------------------------------------- Score Classes --------------------------------------------
 
+stemless_note_override = r"""% Definitions to improve score readability
+        #(define stemless 
+          (define-music-function (parser location)
+            ()
+              #{
+                \once \override Beam.stencil = ##f
+                \once \override Flag.stencil = ##f
+                \once \override Stem.stencil = ##f
+              #})
+            )
+        \override Score.Glissando.minimum-length = #3
+        \override Score.Glissando.springs-and-rods = #ly:spanner::set-spacing-rods
+        \override Score.Glissando.thickness = #2"""
+
+
 class Score:
 
     def __init__(self, staff_groups):
@@ -108,7 +123,9 @@ class Score:
         return cls([StaffGroup.from_quantized_performance_part(part) for part in performance.parts])
 
     def to_abjad(self):
-        return abjad.Score([staff_group.to_abjad() for staff_group in self.staff_groups])
+        score = abjad.Score([staff_group.to_abjad() for staff_group in self.staff_groups])
+        abjad.attach(abjad.LilyPondLiteral(stemless_note_override), score)
+        return score
 
     def get_XML(self):
         pass
@@ -344,32 +361,24 @@ class StaffGroup:
 def _join_same_source_abjad_note_group(same_source_group):
     # look pairwise to see if we need to tie or gliss
     # sometimes a note will gliss, then sit at a static pitch
-    gliss_present = False
-    last_object = None
-    for abjad_object in same_source_group:
-        if last_object is None:
-            last_object = abjad_object
-            continue
-        if isinstance(abjad_object, abjad.AfterGraceContainer):
-            print(abjad.inspect(last_object).parentage().logical_voice)
-            print(abjad.inspect(abjad_object).parentage().logical_voice)
 
-            abjad.attach(abjad.Glissando(), abjad.Selection([last_object] + abjad_object.components))
-    #     if current_gliss is None:
-    #         current_gliss = [note]
-    #     else:
-    #         isinstance(note_pair[0], abjad.Note) and note_pair[0].written_pitch == note_pair[1].written_pitch
-    # for note_pair in zip(same_source_group[:-1], same_source_group[1:]):
-    #     if isinstance(note_pair[0], abjad.Note) and note_pair[0].written_pitch == note_pair[1].written_pitch or \
-    #             isinstance(note_pair[0], abjad.Chord) and note_pair[0].written_pitches == note_pair[1].written_pitches:
-    #         abjad.attach(abjad.Tie(), abjad.Selection(note_pair))
-    #     else:
-    #         abjad.attach(abjad.Glissando(), abjad.Selection(note_pair))
-    #         gliss_present = True
-    #
-    # if gliss_present:
-    #     # if any of the segments gliss, we might attach a slur
-    #     abjad.attach(abjad.Slur(), abjad.Selection(same_source_group))
+    gliss_present = False
+    for note_pair in zip(same_source_group[:-1], same_source_group[1:]):
+        if isinstance(note_pair[0], abjad.Note) and note_pair[0].written_pitch == note_pair[1].written_pitch or \
+                isinstance(note_pair[0], abjad.Chord) and note_pair[0].written_pitches == note_pair[1].written_pitches:
+            abjad.tie(abjad.Selection(note_pair))
+            # abjad.attach(abjad.Tie(), abjad.Selection(note_pair))
+        else:
+            # abjad.glissando(abjad.Selection(note_pair))
+            abjad.attach(abjad.LilyPondLiteral("\glissando", "after"), note_pair[0])
+
+            # abjad.attach(abjad.Glissando(), abjad.Selection(note_pair))
+            gliss_present = True
+
+    if gliss_present:
+        # if any of the segments gliss, we might attach a slur
+        abjad.slur(abjad.Selection(same_source_group))
+        # abjad.attach(abjad.Slur(), abjad.Selection(same_source_group))
 
 
 class Staff:
@@ -384,9 +393,12 @@ class Staff:
         #   (2) a list of voices, each of which is either:
         #       - a list of PerformanceNotes or
         #       - None, in the case of an empty voice
-        return cls([Measure.from_list_of_performance_voices(measure_content, time_signature)
-                    if measure_content is not None else Measure.empty_measure(time_signature)
-                    for measure_content, time_signature in zip(measure_bins, time_signatures)])
+        time_signature_changes = [True] + [time_signatures[i - 1] != time_signatures[i]
+                                           for i in range(1, len(time_signatures))]
+        return cls([Measure.from_list_of_performance_voices(measure_content, time_signature, show_time_signature)
+                    if measure_content is not None else Measure.empty_measure(time_signature, show_time_signature)
+                    for measure_content, time_signature, show_time_signature in zip(measure_bins, time_signatures,
+                                                                                    time_signature_changes)])
 
     def to_abjad(self):
         # from the point of view of the source_id_dict (which helps us connect tied notes), the staff is
@@ -402,27 +414,29 @@ class Staff:
         pass
 
 
-_voice_names = [r'\voiceOne', r'\voiceTwo', r'\voiceThree', r'\voiceFour']
+_voice_names = [r'voiceOne', r'voiceTwo', r'voiceThree', r'voiceFour']
+_voice_literals= [r'\voiceOne', r'\voiceTwo', r'\voiceThree', r'\voiceFour']
 
 
 class Measure:
 
-    def __init__(self, voices, time_signature):
+    def __init__(self, voices, time_signature, show_time_signature=True):
         self.voices = voices
         self.time_signature = time_signature
+        self.show_time_signature = show_time_signature
 
     @classmethod
-    def empty_measure(cls, time_signature):
-        return cls([Voice.empty_voice(time_signature)], time_signature)
+    def empty_measure(cls, time_signature, show_time_signature=True):
+        return cls([Voice.empty_voice(time_signature)], time_signature, show_time_signature=show_time_signature)
 
     @classmethod
-    def from_list_of_performance_voices(cls, voices_list, time_signature):
+    def from_list_of_performance_voices(cls, voices_list, time_signature, show_time_signature=True):
         # voices_list consists of elements each of which is either:
         #   - a (list of PerformanceNotes, measure quantization record) tuple for an active voice
         #   - None, for an empty voice
         if all(voice_content is None for voice_content in voices_list):
             # if all the voices are empty, just make an empty measure
-            return cls.empty_measure(time_signature)
+            return cls.empty_measure(time_signature, show_time_signature=show_time_signature)
         else:
             voices = []
             for i, voice_content in enumerate(voices_list):
@@ -436,16 +450,24 @@ class Measure:
                 else:
                     # should be a (list of PerformanceNotes, measure quantization record) tuple
                     voices.append(Voice.from_performance_voice(*voice_content))
-            return cls(voices, time_signature)
+            return cls(voices, time_signature, show_time_signature=show_time_signature)
 
     def to_abjad(self, source_id_dict=None):
         is_top_level_call = True if source_id_dict is None else False
         source_id_dict = {} if source_id_dict is None else source_id_dict
-        abjad_measure = abjad.Measure(self.time_signature.to_abjad())
+        abjad_measure = abjad.Container()
         for i, voice in enumerate(self.voices):
             if voice is None:
                 continue
             abjad_voice = self.voices[i].to_abjad(source_id_dict)
+
+            if i == 0 and self.show_time_signature:
+                # TODO: THIS SEEMS BROKEN IN ABJAD, SO I HAVE A KLUGEY FIX WITH A LITERAL
+                # abjad.attach(self.time_signature.to_abjad(), abjad_voice[0])
+                abjad.attach(abjad.LilyPondLiteral(r"\time {}".format(self.time_signature.as_string()), "before"),
+                             abjad_voice[0])
+
+            abjad.attach(abjad.LilyPondLiteral(_voice_literals[i]), abjad_voice)
             abjad_voice.name = _voice_names[i]
             abjad_measure.append(abjad_voice)
         abjad_measure.is_simultaneous = True
@@ -532,7 +554,11 @@ class Voice:
     def _process_and_convert_beat(beat_notes, beat_quantization):
         beat_start_time = beat_notes[0].start_time
 
-        if beat_quantization.divisor is None:
+        # this covers the case in which a single voice was quantized, some notes overlapped so it had to be split in
+        # two, the two voices were forced to share the same divisor, and one of them ended up empty for that voice
+        divisor = None if all(note.pitch is None for note in beat_notes) else beat_quantization.divisor
+
+        if divisor is None:
             # if there's no beat divisor, then it should just be a note or rest of the full length of the beat
             assert len(beat_notes) == 1
             pitch, length, properties = beat_notes[0].pitch, beat_notes[0].length, beat_notes[0].properties
@@ -544,14 +570,12 @@ class Voice:
                 return [NoteLike(pitch, l, properties) for l in constituent_lengths]
 
         # if the divisor requires a tuplet, we construct it
-        tuplet = Tuplet.from_length_and_divisor(beat_quantization.length, beat_quantization.divisor) \
-            if beat_quantization.divisor is not None else None
+        tuplet = Tuplet.from_length_and_divisor(beat_quantization.length, divisor) if divisor is not None else None
 
         dilation_factor = 1 if tuplet is None else tuplet.dilation_factor()
-        written_division_length = beat_quantization.length / beat_quantization.divisor * dilation_factor
+        written_division_length = beat_quantization.length / divisor * dilation_factor
 
-        division_indispensabilities = _get_beat_division_indispensabilities(beat_quantization.length,
-                                                                            beat_quantization.divisor)
+        division_indispensabilities = _get_beat_division_indispensabilities(beat_quantization.length, divisor)
 
         note_list = tuplet.contents if tuplet is not None else []
 
@@ -704,7 +728,13 @@ class NoteLike:
             if isinstance(self.pitch[0], Envelope):
                 abjad_object.note_heads = [x.start_level() - 60 for x in self.pitch]
 
-                for t in self.pitch[0].inflection_points():
+                key_moments = self.pitch[0].inflection_points()
+
+                # if this is the last segments of the same source group, we should include its destination
+                if not self.properties.starts_tie():
+                    key_moments += [self.pitch[0].end_time()]
+
+                for t in key_moments:
                     grace_chord = abjad.Chord()
                     grace_chord.written_duration = 1/16
                     grace_chord.note_heads = [x.value_at(t) - 60 for x in self.pitch]
@@ -714,31 +744,52 @@ class NoteLike:
 
         elif isinstance(self.pitch, Envelope):
             abjad_object = abjad.Note(self.pitch.start_level() - 60, duration)
-            grace_notes.extend(abjad.Note(self.pitch.value_at(t) - 60, 1 / 16) for t in self.pitch.inflection_points())
+            last_pitch = abjad_object.written_pitch
+
+            key_moments = self.pitch.inflection_points()
+
+            # if this is the last segments of the same source group, we should include its destination
+            if not self.properties.starts_tie():
+                key_moments += [self.pitch.end_time()]
+
+            for t in key_moments:
+                grace = abjad.Note(self.pitch.value_at(t) - 60, 1 / 16)
+                if last_pitch != grace.written_pitch:
+                    grace_notes.append(grace)
         else:
             abjad_object = abjad.Note(self.pitch - 60, duration)
 
         if len(grace_notes) > 0:
             for note in grace_notes:
-                abjad.override(note).Stem.stencil = "##f"
-                abjad.override(note).Flag.stencil = "##f"
-                abjad.override(note).Beam.stencil = "##f"
+                abjad.attach(abjad.LilyPondLiteral("\stemless"), note)
             grace_container = abjad.AfterGraceContainer(grace_notes)
             abjad.attach(grace_container, abjad_object)
+            # TODO: THE FOLLOWING SHOULDN'T BE NECESSARY ONCE ABJAD FIXES THE AfterGraceContainer PROBLEM
+            if isinstance(grace_notes[0], abjad.Chord):
+                abjad.attach(abjad.LilyPondLiteral(r"\afterGrace"), abjad_object)
         else:
             grace_container = None
+        # grace_container = None
 
         # If this note is part of a tie, we need to be able to connect it to it's other parts higher up the chain.
         # The way we do this is by passing a note_id_dict down from the top level "to_abjad" call which keeps
         # track of which leaves come from which source
-        if source_id_dict is not None and "_source_id" in self.properties:
-            if self.properties["_source_id"] in source_id_dict:
-                # this source_id is already associated with a leaf, so add it to the list
-                source_id_dict[self.properties["_source_id"]].append(abjad_object)
-            else:
-                # we don't yet have a record on this source_id, so start a list with this object under that key
-                source_id_dict[self.properties["_source_id"]] = [abjad_object]
-            if grace_container is not None:
-                source_id_dict[self.properties["_source_id"]].append(grace_container)
+        if source_id_dict is not None:
+            if grace_container is not None and "_source_id" not in self.properties:
+                # if we're attaching grace notes as part of a gliss, we need to create a _source_id for this note
+                # if it doesn't have one already so that the grace notes can be given that as well
+                self.properties["_source_id"] = PerformanceNote.next_id()
+
+            if "_source_id" in self.properties:
+                if self.properties["_source_id"] in source_id_dict:
+                    # this source_id is already associated with a leaf, so add it to the list
+                    source_id_dict[self.properties["_source_id"]].append(abjad_object)
+                else:
+                    # we don't yet have a record on this source_id, so start a list with this object under that key
+                    source_id_dict[self.properties["_source_id"]] = [abjad_object]
+
+                if grace_container is not None:
+                    # now that the original note has been added to the source_id group, we can add the grace notes
+                    source_id_dict[self.properties["_source_id"]].extend(grace_container)
 
         return abjad_object
