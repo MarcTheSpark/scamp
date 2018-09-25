@@ -72,10 +72,6 @@ class PlaybackSettings(SavesToJSON):
     def make_persistent(self):
         self.save_to_json(resolve_relative_path("settings/playbackSettings.json"))
 
-    @classmethod
-    def factory_default(cls):
-        return cls().restore_factory_defaults()
-
     def to_json(self):
         return {key: value.to_json() if hasattr(value, "to_json") else value for key, value in self.__dict__.items()}
 
@@ -122,7 +118,39 @@ class QuantizationSettings(SavesToJSON):
 
     @classmethod
     def factory_default(cls):
-        return cls().restore_factory_defaults()
+        return cls()
+
+    def to_json(self):
+        return self.__dict__
+
+    @classmethod
+    def from_json(cls, json_object):
+        return cls(**json_object)
+
+
+_glissandi_engraving_factory_defaults = {
+    "include_inner_grace_notes": False,
+    "include_end_grace_note": True,
+    # inner_grace_note_relevance = percentage of the way to the center of the note time pitch difference
+    # so if the local extremum occurs at 20% of the way through the note and it's 6 half steps away from
+    # the starting pitch, its relevance is 0.4 * 6 = 2.4 (20% through is 40% of the way to the center)
+    # if it occurs 70% of the way through the note and it's 2 half steps aways from the _ending_ pitch, then
+    # the value is 0.6 * 2 = 1.2, since it's 60% of the way from the end back to the center
+    "inner_grace_note_relevance_threshold": 2.0,
+}
+
+
+class GlissandiEngravingSettings(SavesToJSON):
+
+    def __init__(self, **settings):
+        self.include_inner_grace_notes = _glissandi_engraving_factory_defaults["include_inner_grace_notes"] \
+            if "include_inner_grace_notes" not in settings else settings["include_inner_grace_notes"]
+        self.include_end_grace_note = _glissandi_engraving_factory_defaults["include_end_grace_note"] \
+            if "include_end_grace_note" not in settings else settings["include_end_grace_note"]
+        self.inner_grace_note_relevance_threshold = \
+            _glissandi_engraving_factory_defaults["inner_grace_note_relevance_threshold"] \
+            if "inner_grace_note_relevance_threshold" not in settings \
+                else settings["inner_grace_note_relevance_threshold"]
 
     def to_json(self):
         return self.__dict__
@@ -145,7 +173,8 @@ _engraving_settings_factory_defaults = {
     "default_titles": ["Digging Deep", "I Like Fruit", "My Soup is Too Cold", "Woe is Me", "Dope Soundscapes",
                        "Black and White Life", "Pistol-Whipped Gyrations In A Petri Dish", "Carry on, Carrion",
                        "Color Me Blue", "Atomic Cucumbers", "If My Cat Could Smoke"],
-    "default_composers": ["Gold-E-Lox", "50 Cent", "Eric Whitacre", "J. Bieber", "Honey Boo Boo", "Rebecca Black"]
+    "default_composers": ["Gold-E-Lox", "50 Cent", "Eric Whitacre", "J. Bieber", "Honey Boo Boo", "Rebecca Black"],
+    "glissandi": GlissandiEngravingSettings()
 }
 
 
@@ -164,6 +193,9 @@ class EngravingSettings(SavesToJSON):
             if "default_titles" not in settings else settings["default_titles"]
         self.default_composers = _engraving_settings_factory_defaults["default_composers"] \
             if "default_composers" not in settings else settings["default_composers"]
+        self.glissandi = GlissandiEngravingSettings(**_glissandi_engraving_factory_defaults) \
+            if "glissandi" not in settings else GlissandiEngravingSettings(**settings["glissandi"]) \
+            if isinstance(settings["glissandi"], dict) else settings["glissandi"]
 
     @property
     def max_voices_per_part(self):
@@ -182,12 +214,9 @@ class EngravingSettings(SavesToJSON):
     def make_persistent(self):
         self.save_to_json(resolve_relative_path("settings/engravingSettings.json"))
 
-    @classmethod
-    def factory_default(cls):
-        return cls().restore_factory_defaults()
-
     def to_json(self):
-        return self.__dict__
+        return {x: (self.__dict__[x].to_json() if hasattr(self.__dict__[x], "to_json")
+                    else self.__dict__[x]) for x in self.__dict__}
 
     @classmethod
     def from_json(cls, json_object):
@@ -210,7 +239,7 @@ try:
         QuantizationSettings.load_from_json(resolve_relative_path("settings/quantizationSettings.json"))
 except FileNotFoundError:
     logging.warning("Quantization settings not found; generating defaults.")
-    quantization_settings = QuantizationSettings.factory_default()
+    quantization_settings = QuantizationSettings()
     quantization_settings.make_persistent()
 except (TypeError, json.decoder.JSONDecodeError):
     logging.warning("Error loading quantization settings; falling back to defaults.")
@@ -218,13 +247,13 @@ except (TypeError, json.decoder.JSONDecodeError):
 
 try:
     engraving_settings = EngravingSettings.load_from_json(resolve_relative_path("settings/engravingSettings.json"))
-except (FileNotFoundError, json.decoder.JSONDecodeError):
+except FileNotFoundError:
     logging.warning("Engraving settings not found; generating defaults.")
-    engraving_settings = EngravingSettings.factory_default()
+    engraving_settings = EngravingSettings()
     engraving_settings.make_persistent()
 except (TypeError, json.decoder.JSONDecodeError):
     logging.warning("Error loading engraving settings; falling back to defaults.")
-    engraving_settings = EngravingSettings.factory_default()
+    engraving_settings = EngravingSettings()
 
 
 def restore_all_factory_defaults(persist=False):
