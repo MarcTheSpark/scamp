@@ -17,7 +17,7 @@ class PerformanceNote(SavesToJSON):
 
     def __init__(self, start_time, length, pitch, volume, properties):
         self.start_time = start_time
-        # if length is a tuple, this indicates that the note is to be split before quantization into tied segments
+        # if length is a tuple, this indicates that the note is to be split into tied segments
         self.length = length
         # if pitch is a tuple, this indicates a chord
         self.pitch = pitch
@@ -62,6 +62,13 @@ class PerformanceNote(SavesToJSON):
 
     @staticmethod
     def _split_length(length, split_point):
+        """
+        Utility method for splitting a note length into two pieces, including the case that the length is a tuple
+        For instance, if length = (3, 2, 4) and the split_point = 4.5, this gives us the tuple (3, 1.5) and (0.5, 4)
+        :param length: a note length, either a number or a tuple of numbers representing tied segments
+        :param split_point: where to split the length
+        :return: tuple of (first half length, second half length)
+        """
         if hasattr(length, "__len__"):
             # tuple length
             part_sum = 0
@@ -87,6 +94,12 @@ class PerformanceNote(SavesToJSON):
                 return split_point, length - split_point
 
     def split_at_beat(self, split_beat):
+        """
+        Splits this note at the given beat, returning a tuple of the pieces created
+        :param split_beat: where to split (relative to the performance start time, not the note start time)
+        :return: tuple of (first half note, second half note) if split beat is within the note.
+        Otherwise just return the unchanged note in a length-1 tuple.
+        """
         if self.start_time < split_beat < self.end_time:
             second_part = deepcopy(self)
             second_part.start_time = split_beat
@@ -95,7 +108,7 @@ class PerformanceNote(SavesToJSON):
             if self.pitch is not None:
                 if isinstance(self.pitch, Envelope):
                     # if the pitch is a envelope, then we split it appropriately
-                    pitch_curve_start, pitch_curve_end = self.pitch.split_at(self.length)
+                    pitch_curve_start, pitch_curve_end = self.pitch.split_at(self.length_sum())
                     self.pitch = pitch_curve_start
                     second_part.pitch = pitch_curve_end
                 elif isinstance(self.pitch, tuple) and isinstance(self.pitch[0], Envelope):
@@ -104,7 +117,7 @@ class PerformanceNote(SavesToJSON):
                     second_part_chord = []
                     for pitch_curve in self.pitch:
                         assert isinstance(pitch_curve, Envelope)
-                        pitch_curve_start, pitch_curve_end = pitch_curve.split_at(self.length)
+                        pitch_curve_start, pitch_curve_end = pitch_curve.split_at(self.length_sum())
                         first_part_chord.append(pitch_curve_start)
                         second_part_chord.append(pitch_curve_end)
                     self.pitch = tuple(first_part_chord)
