@@ -505,6 +505,9 @@ class Voice:
         """
         length = measure_quantization.measure_length
 
+        # split any notes that have a tuple length into segments of those lengths
+        notes = [segment for note in notes for segment in note.split_at_length_divisions()]
+
         # change each PerformanceNote to have a start_time relative to the start of the measure
         for note in notes:
             note.start_time -= measure_quantization.start_time

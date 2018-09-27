@@ -85,6 +85,7 @@ class PlaybackSettings(SavesToJSON):
 _quantization_settings_factory_defaults = {
     "onset_weighting": 1.0,
     "termination_weighting": 0.5,
+    "inner_split_weighting": 0.75,
     "max_divisor": 8,
     "max_indigestibility": None,
     "simplicity_preference": 2.0,
@@ -99,6 +100,8 @@ class QuantizationSettings(SavesToJSON):
             if "onset_weighting" not in settings else settings["onset_weighting"]
         self.termination_weighting = _quantization_settings_factory_defaults["termination_weighting"] \
             if "termination_weighting" not in settings else settings["termination_weighting"]
+        self.inner_split_weighting = _quantization_settings_factory_defaults["inner_split_weighting"] \
+            if "inner_split_weighting" not in settings else settings["inner_split_weighting"]
         self.max_divisor = _quantization_settings_factory_defaults["max_divisor"] \
             if "max_divisor" not in settings else settings["max_divisor"]
         self.max_indigestibility = _quantization_settings_factory_defaults["max_indigestibility"] \

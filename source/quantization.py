@@ -97,7 +97,8 @@ def quantize_performance_part(part, quantization_scheme, onset_weighting="defaul
             part.voice_quantization_records[new_voice_name] = quantization_record
 
 
-def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="default", termination_weighting="default"):
+def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="default", termination_weighting="default",
+                                inner_split_weighting="default"):
     """
     Quantizes a voice (modifying notes in place) and returns a QuantizationRecord
     :param voice: a single voice (list of PerformanceNotes) from a PerformancePart
@@ -111,21 +112,31 @@ def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="def
         onset_weighting = quantization_settings.onset_weighting
     if termination_weighting == "default":
         termination_weighting = quantization_settings.termination_weighting
+    if inner_split_weighting == "default":
+        inner_split_weighting = quantization_settings.inner_split_weighting
 
     # make list of (note onset time, note) tuples
     raw_onsets = [(performance_note.start_time, performance_note) for performance_note in voice]
     # make list of (note termination time, note) tuples
-    raw_terminations = [(performance_note.start_time + performance_note.length, performance_note)
+    raw_terminations = [(performance_note.start_time + performance_note.length_sum(), performance_note)
                         for performance_note in voice]
+    # make list of (inner split time, note) tuples
+    raw_inner_splits = []
+    for performance_note in voice:
+        if hasattr(performance_note.length, "__len__"):
+            raw_inner_splits.extend((performance_note.start_time + x, performance_note)
+                                    for x in performance_note.length[:-1])
+
     # sort them
     raw_onsets.sort(key=lambda x: x[0])
     raw_terminations.sort(key=lambda x: x[0])
+    raw_inner_splits.sort(key=lambda x: x[0])
 
     beat_scheme_iterator = quantization_scheme.beat_scheme_iterator()
     beat_divisors = []
 
-    while len(raw_onsets) + len(raw_terminations) > 0:
-        # First, use all the onsets and terminations in this beat to determin the best divisor
+    while len(raw_onsets) + len(raw_inner_splits) + len(raw_terminations) > 0:
+        # First, use all the onsets, inner splits, and terminations in this beat to determine the best divisor
         beat_scheme, beat_start_time = next(beat_scheme_iterator)
         assert isinstance(beat_scheme, BeatQuantizationScheme)
         beat_end_time = beat_start_time + beat_scheme.length
@@ -140,14 +151,19 @@ def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="def
         while len(raw_terminations) > 0 and raw_terminations[0][0] < beat_end_time:
             terminations_in_this_beat.append(raw_terminations.pop(0))
 
-        if len(onsets_in_this_beat) + len(terminations_in_this_beat) == 0:
+        # find the inner splits in this beat
+        inner_splits_in_this_beat = []
+        while len(raw_inner_splits) > 0 and raw_inner_splits[0][0] < beat_end_time:
+            inner_splits_in_this_beat.append(raw_inner_splits.pop(0))
+
+        if len(onsets_in_this_beat) + len(terminations_in_this_beat) + len(inner_splits_in_this_beat) == 0:
             # an empty beat, nothing to see here
             beat_divisors.append(None)
             continue
 
         best_divisor = _get_best_divisor_for_beat(
-            beat_scheme, beat_start_time, onsets_in_this_beat, terminations_in_this_beat,
-            onset_weighting, termination_weighting
+            beat_scheme, beat_start_time, onsets_in_this_beat, terminations_in_this_beat, inner_splits_in_this_beat,
+            onset_weighting, termination_weighting, inner_split_weighting
         )
         beat_divisors.append(best_divisor)
 
@@ -161,7 +177,7 @@ def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="def
             divisions_after_beat_start = round((termination - beat_start_time) / division_length)
             note.end_time = beat_start_time + divisions_after_beat_start * division_length
 
-            if note.length <= 0:
+            if note.length_sum() <= 0:
                 # if the quantization collapses the start and end times of a note to the same point,
                 # adjust so the the note is a single division_length long.
                 if note.end_time + division_length <= beat_end_time:
@@ -172,27 +188,34 @@ def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="def
                     note.start_time -= division_length
                     note.length += division_length
 
+        # we take note of where all the inner splits quantize to, and then once all of the start
+        # and end times for the notes are adjusted, we go ahead and put them it.
+        for inner_split, note in inner_splits_in_this_beat:
+            divisions_after_beat_start = round((inner_split - beat_start_time) / division_length)
+            quantized_split_time = beat_start_time + divisions_after_beat_start * division_length
+            if "split_points" in note.properties.temp:
+                note.properties.temp["split_points"].append(quantized_split_time)
+            else:
+                note.properties.temp["split_points"] = [quantized_split_time]
+
     for note in voice:
+        # now that all the start and end points have been adjusted,
+        # we implement the quantized split points where applicable
+        if "split_points" in note.properties.temp:
+            last_split_point = note.start_time
+            new_lengths = []
+            for split_point in sorted(note.properties.temp["split_points"]):
+                if round(split_point - last_split_point, 10) > 0:
+                    new_lengths.append(split_point - last_split_point)
+                last_split_point = split_point
+            if round(note.end_time - last_split_point, 10) > 0:
+                new_lengths.append(note.end_time - last_split_point)
+            note.length = tuple(new_lengths)
+
+        # also normalize the pitch envelopes
         if isinstance(note.pitch, Envelope):
-            note.pitch.normalize_to_duration(note.length)
+            note.pitch.normalize_to_duration(note.length_sum())
     return _construct_quantization_record(beat_divisors, quantization_scheme)
-
-
-def _merge_property_dictionaries(property_dict1, property_dict2):
-    # {"articulations": [], "noteheads": ["normal"], "notations": [], "text": [], "playback adjustments": []}
-    if property_dict1["articulations"] == property_dict2["articulations"] and \
-            property_dict1["notations"] == property_dict2["notations"] and \
-            property_dict1["playback adjustments"] == property_dict2["playback adjustments"] and \
-            property_dict1["text"] == property_dict2["text"]:
-        return {
-            "articulations": property_dict1["articulations"],
-            "noteheads": property_dict1["noteheads"] + property_dict2["noteheads"],
-            "notations": property_dict1["notations"],
-            "text": property_dict1["text"],
-            "playback adjustments": property_dict1["playback adjustments"]
-        }
-    else:
-        return None
 
 
 def _collapse_chords(notes):
@@ -212,7 +235,7 @@ def _collapse_chords(notes):
             i += 1
 
 
-def _separate_into_non_overlapping_voices(notes):
+def _separate_into_non_overlapping_voices(notes, max_overlap=1e-10):
     """
     Takes a list of PerformanceNotes and breaks it up into separate voices that don't overlap more than max_overlap
     :param notes: a list of PerformanceNotes
@@ -225,7 +248,7 @@ def _separate_into_non_overlapping_voices(notes):
         voice_to_add_to = None
         for voice in voices:
             # check each voice to see if its last note ends before the note we want to add
-            if voice[-1].end_time <= note.start_time:
+            if voice[-1].end_time <= note.start_time + max_overlap:
                 voice_to_add_to = voice
                 break
         if voice_to_add_to is None:
@@ -236,8 +259,8 @@ def _separate_into_non_overlapping_voices(notes):
     return voices
 
 
-def _get_best_divisor_for_beat(beat_scheme, beat_start_time, onsets_in_beat, terminations_in_beat,
-                               onset_weighting, termination_weighting):
+def _get_best_divisor_for_beat(beat_scheme, beat_start_time, onsets_in_beat, terminations_in_beat, inner_splits_in_beat,
+                               onset_weighting, termination_weighting, inner_split_weighting):
     # try out each quantization division of a beat and return the best fit
     best_divisor = None
     best_error = float("inf")
@@ -246,6 +269,7 @@ def _get_best_divisor_for_beat(beat_scheme, beat_start_time, onsets_in_beat, ter
         division_length = beat_scheme.length / divisor
         total_squared_onset_error = 0
         total_squared_termination_error = 0
+        total_squared_inner_split_error = 0
 
         for onset in onsets_in_beat:
             time_since_beat_start = onset[0] - beat_start_time
@@ -259,8 +283,15 @@ def _get_best_divisor_for_beat(beat_scheme, beat_start_time, onsets_in_beat, ter
             total_squared_termination_error += \
                 (time_since_beat_start - round_to_multiple(time_since_beat_start, division_length)) ** 2
 
+        for inner_split in inner_splits_in_beat:
+            time_since_beat_start = inner_split[0] - beat_start_time
+            # squared distance from closest division of the beat
+            total_squared_inner_split_error += \
+                (time_since_beat_start - round_to_multiple(time_since_beat_start, division_length)) ** 2
+
         this_div_error_score = undesirability * (termination_weighting * total_squared_termination_error +
-                                                 onset_weighting * total_squared_onset_error)
+                                                 onset_weighting * total_squared_onset_error +
+                                                 inner_split_weighting * total_squared_inner_split_error)
 
         if this_div_error_score < best_error:
             best_divisor = divisor

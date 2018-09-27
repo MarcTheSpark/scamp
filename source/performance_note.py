@@ -139,6 +139,20 @@ class PerformanceNote(SavesToJSON):
             # nothing we return the note unaltered in a length-1 tuple
             return self,
 
+    def split_at_length_divisions(self):
+        """
+        If the self.length is a tuple, indicating a set of tied constituents, splits this into separate PerformanceNotes
+        :return: a list of pieces
+        """
+
+        if not hasattr(self.length, "__len__") or len(self.length) == 1:
+            return self,
+        pieces = [self]
+        for piece_length in self.length:
+            last_piece = pieces.pop()
+            pieces.extend(last_piece.split_at_beat(last_piece.start_time + piece_length))
+        return pieces
+
     def attempt_chord_merger_with(self, other):
         """
         Try to merge this note with another note to form a chord.
