@@ -469,8 +469,8 @@ class Measure:
                 # abjad.attach(self.time_signature.to_abjad(), abjad_voice[0])
                 abjad.attach(abjad.LilyPondLiteral(r"\time {}".format(self.time_signature.as_string()), "before"),
                              abjad_voice[0])
-
-            abjad.attach(abjad.LilyPondLiteral(_voice_literals[i]), abjad_voice)
+            if len(self.voices) > 1:
+                abjad.attach(abjad.LilyPondLiteral(_voice_literals[i]), abjad_voice)
             abjad_voice.name = _voice_names[i]
             abjad_measure.append(abjad_voice)
         abjad_measure.is_simultaneous = True
