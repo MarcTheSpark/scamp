@@ -1,7 +1,7 @@
 from fractions import Fraction
 from playcorder.utilities import indigestibility, is_multiple, is_x_pow_of_y, round_to_multiple, SavesToJSON
 from collections import namedtuple
-from playcorder.settings import quantization_settings
+from playcorder.settings import quantization_settings, engraving_settings
 from playcorder.envelope import Envelope
 import textwrap
 import abjad
@@ -58,13 +58,15 @@ class QuantizationRecord(SavesToJSON):
         )
 
 
-def quantize_performance_part(part, quantization_scheme, onset_weighting="default", termination_weighting="default"):
+def quantize_performance_part(part, quantization_scheme, onset_weighting="default", termination_weighting="default",
+                              inner_split_weighting="default"):
     """
     Quantizes a performance part (in place) and sets its voice_quantization_records
     :param part: a PerformancePart
     :param quantization_scheme: a QuantizationScheme
     :param onset_weighting: How much do we care about accurate onsets
     :param termination_weighting: How much do we care about accurate terminations
+    :param inner_split_weighting: How much do we care about inner segmentation timing (e.g. tuple note lengths)
     :return: a QuantizationRecord, detailing all of the time signatures, beat divisions selected, etc.
     """
     assert isinstance(quantization_scheme, QuantizationScheme)
@@ -73,7 +75,7 @@ def quantize_performance_part(part, quantization_scheme, onset_weighting="defaul
 
     for voice_name, voice in list(part.voices.items()):
         quantization_record = _quantize_performance_voice(voice, quantization_scheme,
-                                                          onset_weighting, termination_weighting)
+                                                          onset_weighting, termination_weighting, inner_split_weighting)
         # make any simultaneous notes in the part chords
         _collapse_chords(voice)
         # break the voice into a list of non-overlapping voices. If there was no overlap, this has length 1
@@ -124,8 +126,10 @@ def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="def
     raw_inner_splits = []
     for performance_note in voice:
         if hasattr(performance_note.length, "__len__"):
-            raw_inner_splits.extend((performance_note.start_time + x, performance_note)
-                                    for x in performance_note.length[:-1])
+            t = performance_note.start_time
+            for length_segment in performance_note.length[:-1]:
+                t += length_segment
+                raw_inner_splits.append((t, performance_note))
 
     # sort them
     raw_onsets.sort(key=lambda x: x[0])
