@@ -30,8 +30,8 @@
     ],
     "glissandi": {
         "consider_non_extrema_control_points": false,
+        "control_point_policy": "split",
         "include_end_grace_note": true,
-        "include_inner_grace_notes": false,
         "inner_grace_relevance_threshold": 4.0
     },
     "max_dots_allowed": 3

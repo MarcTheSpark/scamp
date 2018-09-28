@@ -5,6 +5,7 @@ from functools import total_ordering
 from playcorder.envelope import Envelope
 from playcorder.utilities import SavesToJSON
 from playcorder.note_properties import NotePropertiesDictionary
+from playcorder.settings import engraving_settings
 
 """
 Note: This is a separate file from performance.py, since it is used both in performance.py and score.py,
@@ -59,6 +60,16 @@ class PerformanceNote(SavesToJSON):
     @staticmethod
     def next_id():
         return next(PerformanceNote._id_generator)
+
+    def divide_length_at_gliss_control_points(self):
+        if not isinstance(self.pitch, Envelope):
+            return
+        control_points = self.pitch.times[1:-1] if engraving_settings.glissandi.consider_non_extrema_control_points \
+            else self.pitch.local_extrema()
+        for control_point in control_points:
+            first_part, second_part = PerformanceNote._split_length(self.length, control_point)
+            self.length = (first_part if isinstance(first_part, tuple) else (first_part, )) + \
+                          (second_part if isinstance(second_part, tuple) else (second_part, ))
 
     @staticmethod
     def _split_length(length, split_point):

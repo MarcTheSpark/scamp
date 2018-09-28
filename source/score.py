@@ -107,9 +107,10 @@ stemless_note_override = r"""% Definitions to improve score readability
                 \once \override Stem.stencil = ##f
               #})
             )
-        \override Score.Glissando.minimum-length = #3
+        \override Score.Glissando.minimum-length = #4
         \override Score.Glissando.springs-and-rods = #ly:spanner::set-spacing-rods
-        \override Score.Glissando.thickness = #2"""
+        \override Score.Glissando.thickness = #2
+        \override Score.Glissando #'breakable = ##t"""
 
 
 class Score:
@@ -781,16 +782,16 @@ class NoteLike:
 
                 # if the glissando engraving settings say to do so, we'll include
                 # relevant inner turn around points as headless grace notes
-                control_points = NoteLike._get_relevant_gliss_control_points(self.pitch[0]) \
-                    if engraving_settings.glissandi.include_inner_grace_notes else []
+                grace_points = NoteLike._get_relevant_gliss_control_points(self.pitch[0]) \
+                    if engraving_settings.glissandi.control_point_policy == "grace" else []
 
                 # also, if this is the last segment of a quantized and split PerformanceNote, and if the glissando
                 # engraving settings say to do so, we include the final pitch reached as a headless grace note
                 if not self.properties.starts_tie() and engraving_settings.glissandi.include_end_grace_note:
-                    control_points += [self.pitch[0].end_time()]
+                    grace_points += [self.pitch[0].end_time()]
 
                 # add a grace chord for each important turn around point in the gliss
-                for t in control_points:
+                for t in grace_points:
                     grace_chord = abjad.Chord()
                     grace_chord.written_duration = 1/16
                     grace_chord.note_heads = [x.value_at(t) - 60 for x in self.pitch]
@@ -809,15 +810,15 @@ class NoteLike:
 
             # if the glissando engraving settings say to do so, we'll include
             # relevant inner turn around points as headless grace notes
-            control_points = NoteLike._get_relevant_gliss_control_points(self.pitch) \
-                if engraving_settings.glissandi.include_inner_grace_notes else []
+            grace_points = NoteLike._get_relevant_gliss_control_points(self.pitch) \
+                if engraving_settings.glissandi.control_point_policy == "grace" else []
 
             # also, if this is the last segment of a quantized and split PerformanceNote, and if the glissando
             # engraving settings say to do so, we include the final pitch reached as a headless grace note
             if not self.properties.starts_tie() and engraving_settings.glissandi.include_end_grace_note:
-                control_points += [self.pitch.end_time()]
+                grace_points += [self.pitch.end_time()]
 
-            for t in control_points:
+            for t in grace_points:
                 grace = abjad.Note(self.pitch.value_at(t) - 60, 1 / 16)
                 # but first check that we're not just repeating the last grace note pitch
                 if last_pitch != grace.written_pitch:

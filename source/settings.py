@@ -132,9 +132,14 @@ class QuantizationSettings(SavesToJSON):
 
 
 _glissandi_engraving_factory_defaults = {
+    # control_point_policy can be either "grace", "split", or "none"
+    # - if "grace", the rhythm is expressed as simply as possible and they are engraved as headless grace notes
+    # - if "split", the note is split rhythmically at the control points
+    # - if "none", control points are ignored
+    "control_point_policy": "split",
     # if true, we consider all control points in the engraving process. If false, we only consider local extrema.
     "consider_non_extrema_control_points": False,
-    "include_inner_grace_notes": False,
+    # if true, the final pitch reached is expressed as a gliss up to a headless grace note
     "include_end_grace_note": True,
     # this threshold helps determine which gliss control points are worth expressing in notation
     # the further a control point is from its neighbors, and the further it deviates from
@@ -146,16 +151,32 @@ _glissandi_engraving_factory_defaults = {
 class GlissandiEngravingSettings(SavesToJSON):
 
     def __init__(self, **settings):
+        self._control_point_policy = _glissandi_engraving_factory_defaults["control_point_policy"] \
+            if "control_point_policy" not in settings else settings["control_point_policy"]
+        try:
+            assert self.control_point_policy in ("grace", "split", "none")
+        except AssertionError:
+            logging.warning("Control point policy must be one of: \"grace\", \"split\", or \"none\". Defaulting "
+                            "to \"{}\".".format(_glissandi_engraving_factory_defaults["control_point_policy"]))
+            self.control_point_policy = _glissandi_engraving_factory_defaults["control_point_policy"]
         self.consider_non_extrema_control_points = \
             _glissandi_engraving_factory_defaults["consider_non_extrema_control_points"] \
             if "consider_non_extrema_control_points" not in settings \
                 else settings["consider_non_extrema_control_points"]
-        self.include_inner_grace_notes = _glissandi_engraving_factory_defaults["include_inner_grace_notes"] \
-            if "include_inner_grace_notes" not in settings else settings["include_inner_grace_notes"]
         self.include_end_grace_note = _glissandi_engraving_factory_defaults["include_end_grace_note"] \
             if "include_end_grace_note" not in settings else settings["include_end_grace_note"]
         self.inner_grace_relevance_threshold = _glissandi_engraving_factory_defaults["inner_grace_relevance_threshold"] \
             if "inner_grace_relevance_threshold" not in settings else settings["inner_grace_relevance_threshold"]
+
+    @property
+    def control_point_policy(self):
+        return self._control_point_policy
+
+    @control_point_policy.setter
+    def control_point_policy(self, value):
+        assert value in ("grace", "split", "none"), \
+            "Control point policy must be one of: \"grace\", \"split\", or \"none\""
+        self._control_point_policy = value
 
     def to_json(self):
         return self.__dict__
