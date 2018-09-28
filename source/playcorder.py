@@ -7,8 +7,6 @@ from playcorder.performance import Performance
 from playcorder.ensemble import Ensemble
 from playcorder.instruments import PlaycorderInstrument
 
-from playcorder.clock import Clock
-
 from playcorder.midi_listener import *
 
 
@@ -214,7 +212,7 @@ class Playcorder:
 
     # --------------------------------- Recording Stuff -------------------------------
 
-    def start_recording(self, which_parts=None, clock="absolute"):
+    def start_recording(self, which_parts=None, clock="master"):
         if isinstance(clock, str) and clock == "master":
             clock = self.master_clock
         assert clock == "absolute" or isinstance(clock, Clock)
