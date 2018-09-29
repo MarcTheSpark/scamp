@@ -119,6 +119,10 @@ class Score:
         self.staff_groups = staff_groups
 
     @classmethod
+    def from_performance(cls, performance, quantization_scheme="default"):
+        return cls.from_quantized_performance(performance.quantized(quantization_scheme))
+
+    @classmethod
     def from_quantized_performance(cls, performance):
         assert performance.is_quantized()
         return cls([StaffGroup.from_quantized_performance_part(part) for part in performance.parts])
@@ -128,8 +132,17 @@ class Score:
         abjad.attach(abjad.LilyPondLiteral(stemless_note_override), score)
         return score
 
+    def show(self):
+        assert abjad is not None, "Abjad is required for this operation."
+        abjad.show(self.to_abjad())
+
     def get_XML(self):
         pass
+
+    def __repr__(self):
+        return "Score([\n{}\n])".format(
+            textwrap.indent(",\n".join(str(x) for x in self.staff_groups), "   ")
+        )
 
 
 # used in arranging voices in a part
@@ -361,6 +374,11 @@ class StaffGroup:
     def get_XML(self):
         pass
 
+    def __repr__(self):
+        return "StaffGroup([\n{}\n])".format(
+            textwrap.indent(",\n".join(str(x) for x in self.staves), "   ")
+        )
+
 
 def _join_same_source_abjad_note_group(same_source_group):
     # look pairwise to see if we need to tie or gliss
@@ -416,6 +434,11 @@ class Staff:
 
     def get_XML(self):
         pass
+
+    def __repr__(self):
+        return "Staff([\n{}\n])".format(
+            textwrap.indent(",\n".join(str(x) for x in self.measures), "   ")
+        )
 
 
 _voice_names = [r'voiceOne', r'voiceTwo', r'voiceThree', r'voiceFour']
@@ -484,6 +507,12 @@ class Measure:
 
     def get_XML(self):
         pass
+
+    def __repr__(self):
+        return "Measure(time_signature={}, show_time_signature={}, voices=[\n{}\n])".format(
+            self.time_signature, self.show_time_signature,
+            textwrap.indent(",\n".join(str(x) for x in self.voices), "   ")
+        )
 
 
 class Voice:
@@ -643,6 +672,11 @@ class Voice:
     def get_XML(self):
         pass
 
+    def __repr__(self):
+        return "Voice([\n{}\n])".format(
+            textwrap.indent(",\n".join(str(x) for x in self.contents), "   ")
+        ) if self.contents is not None else "Voice([None])"
+
 
 class Tuplet:
 
@@ -701,11 +735,11 @@ class Tuplet:
         return abjad.Tuplet(abjad.Multiplier(self.normal_divisions, self.tuplet_divisions), abjad_notes)
 
     def __repr__(self):
-        contents_string = ", contents=[\n{}\n]".format(
+        contents_string = "contents=[\n{}\n]".format(
             textwrap.indent(",\n".join(str(x) for x in self.contents), "   ")
         ) if len(self.contents) > 0 else ""
-        return "Tuplet({}, {}, {}{})".format(self.tuplet_divisions, self.normal_divisions, self.division_length,
-                                             contents_string)
+        return "Tuplet({}, {}, {}, {})".format(self.tuplet_divisions, self.normal_divisions, self.division_length,
+                                               contents_string)
 
 
 class NoteLike:
@@ -718,11 +752,6 @@ class NoteLike:
         self.pitch = pitch
         self.written_length = written_length
         self.properties = properties
-
-    def __repr__(self):
-        return "NoteLike(pitch={}, written_length={}, properties={})".format(
-            self.pitch, self.written_length, self.properties
-        )
 
     @staticmethod
     def _get_relevant_gliss_control_points(pitch_envelope):
@@ -865,3 +894,8 @@ class NoteLike:
                     source_id_dict[self.properties["_source_id"]].extend(grace_container)
 
         return abjad_object
+
+    def __repr__(self):
+        return "NoteLike(pitch={}, written_length={}, properties={})".format(
+            self.pitch, self.written_length, self.properties
+        )
