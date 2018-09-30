@@ -3,6 +3,7 @@ from playcorder.envelope import Envelope
 from playcorder.quantization import QuantizationRecord
 from playcorder.performance_note import PerformanceNote
 from playcorder.utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y
+from playcorder.engraving_translations import notehead_name_to_lilypond_type
 import math
 from fractions import Fraction
 from itertools import permutations
@@ -12,9 +13,8 @@ from collections import namedtuple
 
 
 # TODO:
-# -looking through for situations like tied eighths on and of 1 and 2 combining into quarters
-# -Voice directions in abjad
-# -gracenotes on glisses
+# - have Score.to_lilypond and Score.show constuct a lilypond file and put the headers there!
+# - looking through for situations like tied eighths on and of 1 and 2 combining into quarters
 
 # a list of tied NoteLikes. They'll also need to split up any pitch Envelopes into their chunks.
 # For now, we'll do this as gracenotes, but maybe there can be a setting that first splits a note into constituents
@@ -132,9 +132,15 @@ class Score:
         abjad.attach(abjad.LilyPondLiteral(stemless_note_override), score)
         return score
 
-    def show(self):
+    def to_lilypond(self):
+        return format(self.to_abjad())
+
+    def show(self, print_lilypond=False):
         assert abjad is not None, "Abjad is required for this operation."
-        abjad.show(self.to_abjad())
+        abjad_score = self.to_abjad()
+        if print_lilypond:
+            print(format(abjad_score))
+        abjad.show(abjad_score)
 
     def get_XML(self):
         pass
@@ -491,8 +497,8 @@ class Measure:
             if i == 0 and self.show_time_signature:
                 # TODO: THIS SEEMS BROKEN IN ABJAD, SO I HAVE A KLUGEY FIX WITH A LITERAL
                 # abjad.attach(self.time_signature.to_abjad(), abjad_voice[0])
-                abjad.attach(abjad.LilyPondLiteral(r"\time {}".format(self.time_signature.as_string()), "before"),
-                             abjad_voice[0])
+                abjad.attach(abjad.LilyPondLiteral(r"\time {}".format(self.time_signature.as_string()), "opening"),
+                             abjad_voice)
             if len(self.voices) > 1:
                 abjad.attach(abjad.LilyPondLiteral(_voice_literals[i]), abjad_voice)
             abjad_voice.name = _voice_names[i]
@@ -807,6 +813,8 @@ class NoteLike:
             if isinstance(self.pitch[0], Envelope):
                 # if so, its noteheads are based on the start level
                 abjad_object.note_heads = [x.start_level() - 60 for x in self.pitch]
+                # Set the notehead
+                self._set_abjad_note_head_styles(abjad_object)
                 last_pitches = abjad_object.written_pitches
 
                 # if the glissando engraving settings say to do so, we'll include
@@ -824,6 +832,8 @@ class NoteLike:
                     grace_chord = abjad.Chord()
                     grace_chord.written_duration = 1/16
                     grace_chord.note_heads = [x.value_at(t) - 60 for x in self.pitch]
+                    # Set the notehead
+                    self._set_abjad_note_head_styles(grace_chord)
                     # but first check that we're not just repeating the last grace chord
                     if grace_chord.written_pitches != last_pitches:
                         grace_notes.append(grace_chord)
@@ -831,10 +841,14 @@ class NoteLike:
             else:
                 # if not, our job is simple
                 abjad_object.note_heads = [x - 60 for x in self.pitch]
+                # Set the noteheads
+                self._set_abjad_note_head_styles(abjad_object)
 
         elif isinstance(self.pitch, Envelope):
             # This is a note doing a glissando
             abjad_object = abjad.Note(self.pitch.start_level() - 60, duration)
+            # Set the notehead
+            self._set_abjad_note_head_styles(abjad_object)
             last_pitch = abjad_object.written_pitch
 
             # if the glissando engraving settings say to do so, we'll include
@@ -849,6 +863,8 @@ class NoteLike:
 
             for t in grace_points:
                 grace = abjad.Note(self.pitch.value_at(t) - 60, 1 / 16)
+                # Set the notehead
+                self._set_abjad_note_head_styles(grace)
                 # but first check that we're not just repeating the last grace note pitch
                 if last_pitch != grace.written_pitch:
                     grace_notes.append(grace)
@@ -856,6 +872,8 @@ class NoteLike:
         else:
             # This is a simple note
             abjad_object = abjad.Note(self.pitch - 60, duration)
+            # Set the notehead
+            self._set_abjad_note_head_styles(abjad_object)
 
         # Now we make, fill, and attach the abjad AfterGraceContainer, if applicable
         if len(grace_notes) > 0:
@@ -894,6 +912,19 @@ class NoteLike:
                     source_id_dict[self.properties["_source_id"]].extend(grace_container)
 
         return abjad_object
+
+    def _set_abjad_note_head_styles(self, abjad_note_or_chord):
+        if isinstance(abjad_note_or_chord, abjad.Note):
+            note_head_style = self.properties.noteheads[0]
+            if note_head_style != "normal":
+                abjad.tweak(abjad_note_or_chord.note_head).style = notehead_name_to_lilypond_type[note_head_style]
+        elif isinstance(abjad_note_or_chord, abjad.Chord):
+            for chord_member, note_head_style in enumerate(self.properties.noteheads):
+                if note_head_style != "normal":
+                    abjad.tweak(abjad_note_or_chord.note_heads[chord_member]).style = \
+                        notehead_name_to_lilypond_type[note_head_style]
+        else:
+            raise ValueError("Must be an abjad Note or Chord object")
 
     def __repr__(self):
         return "NoteLike(pitch={}, written_length={}, properties={})".format(
