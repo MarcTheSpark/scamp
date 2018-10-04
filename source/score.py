@@ -10,10 +10,11 @@ from itertools import permutations
 import textwrap
 import abjad
 from collections import namedtuple
+from abc import ABC, abstractmethod
 
 
 # TODO:
-# - have Score.to_lilypond and Score.show constuct a lilypond file and put the headers there!
+# - Have the StaffGroup not happen in the Score creation
 # - looking through for situations like tied eighths on and of 1 and 2 combining into quarters
 
 # a list of tied NoteLikes. They'll also need to split up any pitch Envelopes into their chunks.
@@ -97,26 +98,112 @@ def _get_beat_division_indispensabilities(beat_length, beat_divisor):
 
 # ---------------------------------------------- Score Classes --------------------------------------------
 
-stemless_note_override = r"""% Definitions to improve score readability
-        #(define stemless 
-          (define-music-function (parser location)
+class ScoreComponent(ABC):
+
+    # used when we're rendering a full score: this can go outside the lilypond context
+    outer_stemless_def = """
+% Definition to improve score readability
+stemless = {
+    \once \override Beam.stencil = ##f
+    \once \override Flag.stencil = ##f
+    \once \override Stem.stencil = ##f
+}"""
+
+    # used when we're rendering something smaller than a score: this version can go inside scores / measures / etc.
+    inner_stemless_def = r"""% Definition to improve score readability
+    #(define stemless 
+        (define-music-function (parser location)
             ()
-              #{
+            #{
                 \once \override Beam.stencil = ##f
                 \once \override Flag.stencil = ##f
                 \once \override Stem.stencil = ##f
-              #})
-            )
-        \override Score.Glissando.minimum-length = #4
-        \override Score.Glissando.springs-and-rods = #ly:spanner::set-spacing-rods
-        \override Score.Glissando.thickness = #2
-        \override Score.Glissando #'breakable = ##t"""
+            #})
+        )
+    """
+
+    gliss_overrides = [
+        r"% Make the glisses a little thicker, make sure they have at least a little length, and allow line breaks",
+        r"\override Score.Glissando.minimum-length = #4",
+        r"\override Score.Glissando.springs-and-rods = #ly:spanner::set-spacing-rods",
+        r"\override Score.Glissando.thickness = #2",
+        r"\override Score.Glissando #'breakable = ##t",
+        "\n"
+    ]
+
+    @abstractmethod
+    def _to_abjad(self):
+        """
+        Convert this to an abjad representation
+        :return: the abjad translation of this score component, possibly missing needed definitions and overrides
+        """
+        pass
+
+    @abstractmethod
+    def to_music_xml(self):
+        pass
+
+    def to_abjad(self):
+        """
+        This wrapper around the _to_abjad implementation details makes sure we incorporate the appropriate definitions
+        :return: the abjad translation of this score component, ready to show
+        """
+        assert abjad is not None, "Abjad is required for this operation."
+        abjad_object = self._to_abjad()
+        lilypond_code = format(abjad_object)
+        if r"\glissando" in lilypond_code:
+            for gliss_override in ScoreComponent.gliss_overrides:
+                abjad.attach(abjad.LilyPondLiteral(gliss_override), abjad_object, "opening")
+
+        if r"\stemless" in lilypond_code:
+            abjad.attach(abjad.LilyPondLiteral(ScoreComponent.inner_stemless_def), abjad_object, "opening")
+
+        return abjad_object
+
+    def to_abjad_lilypond_file(self, title=None, composer=None):
+        assert abjad is not None, "Abjad is required for this operation."
+        abjad_object = self._to_abjad()
+        lilypond_code = format(abjad_object)
+
+        if r"\glissando" in lilypond_code:
+            for gliss_override in ScoreComponent.gliss_overrides:
+                abjad.attach(abjad.LilyPondLiteral(gliss_override), abjad_object, "opening")
+
+        abjad_lilypond_file = abjad.LilyPondFile.new(
+            music=abjad_object
+        )
+
+        # if we're actually producing the lilypond file itself, then we put the simpler
+        # definition of stemless outside of the main score object.
+        if r"\stemless" in lilypond_code:
+            abjad_lilypond_file.items.insert(-1, ScoreComponent.outer_stemless_def)
+
+        if title is not None:
+            abjad_lilypond_file.header_block.title = abjad.Markup(title)
+        if composer is not None:
+            abjad_lilypond_file.header_block.composer = abjad.Markup(composer)
+
+        return abjad_lilypond_file
+
+    def export_lilypond(self, file_path, title=None, composer=None):
+        with open(file_path, "w") as output_file:
+            output_file.write(format(self.to_abjad_lilypond_file(title, composer)))
+
+    def to_lilypond(self, wrap_as_file=False):
+        assert abjad is not None, "Abjad is required for this operation."
+        return format(self.to_abjad_lilypond_file() if wrap_as_file else self.to_abjad())
+
+    def show(self):
+        assert abjad is not None, "Abjad is required for this operation."
+        abjad.show(self.to_abjad())
 
 
-class Score:
+class Score(ScoreComponent):
 
-    def __init__(self, staff_groups):
+    def __init__(self, staff_groups, title=None, composer=None):
         self.staff_groups = staff_groups
+        self.title = title
+        self.composer = composer
 
     @classmethod
     def from_performance(cls, performance, quantization_scheme="default"):
@@ -127,22 +214,11 @@ class Score:
         assert performance.is_quantized()
         return cls([StaffGroup.from_quantized_performance_part(part) for part in performance.parts])
 
-    def to_abjad(self):
-        score = abjad.Score([staff_group.to_abjad() for staff_group in self.staff_groups])
-        abjad.attach(abjad.LilyPondLiteral(stemless_note_override), score)
+    def _to_abjad(self):
+        score = abjad.Score([staff_group._to_abjad() for staff_group in self.staff_groups])
         return score
 
-    def to_lilypond(self):
-        return format(self.to_abjad())
-
-    def show(self, print_lilypond=False):
-        assert abjad is not None, "Abjad is required for this operation."
-        abjad_score = self.to_abjad()
-        if print_lilypond:
-            print(format(abjad_score))
-        abjad.show(abjad_score)
-
-    def get_XML(self):
+    def to_music_xml(self):
         pass
 
     def __repr__(self):
@@ -156,7 +232,7 @@ _NumberedVoiceFragment = namedtuple("_NumberedVoiceFragment", "voice_num start_m
 _NamedVoiceFragment = namedtuple("_NamedVoiceFragment", "average_pitch start_measure_num measures_with_quantizations")
 
 
-class StaffGroup:
+class StaffGroup(ScoreComponent):
 
     def __init__(self, staves):
         self.staves = staves
@@ -371,13 +447,13 @@ class StaffGroup:
 
         return cls([Staff.from_measure_bins_of_voice_lists(x, quantization_record.time_signatures) for x in staves])
 
-    def to_abjad(self):
+    def _to_abjad(self):
         if len(self.staves) == 1:
-            return self.staves[0].to_abjad()
+            return self.staves[0]._to_abjad()
         else:
-            return abjad.StaffGroup([staff.to_abjad() for staff in self.staves])
+            return abjad.StaffGroup([staff._to_abjad() for staff in self.staves])
 
-    def get_XML(self):
+    def to_music_xml(self):
         pass
 
     def __repr__(self):
@@ -409,7 +485,7 @@ def _join_same_source_abjad_note_group(same_source_group):
         # abjad.attach(abjad.Slur(), abjad.Selection(same_source_group))
 
 
-class Staff:
+class Staff(ScoreComponent):
 
     def __init__(self, measures):
         self.measures = measures
@@ -428,17 +504,17 @@ class Staff:
                     for measure_content, time_signature, show_time_signature in zip(measure_bins, time_signatures,
                                                                                     time_signature_changes)])
 
-    def to_abjad(self):
+    def _to_abjad(self):
         # from the point of view of the source_id_dict (which helps us connect tied notes), the staff is
         # always going to be the top level call. There's no need to propagate the source_id_dict any further upward
         source_id_dict = {}
-        contents = [measure.to_abjad(source_id_dict) for measure in self.measures]
+        contents = [measure._to_abjad(source_id_dict) for measure in self.measures]
         for same_source_group in source_id_dict.values():
             _join_same_source_abjad_note_group(same_source_group)
 
         return abjad.Staff(contents)
 
-    def get_XML(self):
+    def to_music_xml(self):
         pass
 
     def __repr__(self):
@@ -451,7 +527,7 @@ _voice_names = [r'voiceOne', r'voiceTwo', r'voiceThree', r'voiceFour']
 _voice_literals= [r'\voiceOne', r'\voiceTwo', r'\voiceThree', r'\voiceFour']
 
 
-class Measure:
+class Measure(ScoreComponent):
 
     def __init__(self, voices, time_signature, show_time_signature=True):
         self.voices = voices
@@ -485,14 +561,14 @@ class Measure:
                     voices.append(Voice.from_performance_voice(*voice_content))
             return cls(voices, time_signature, show_time_signature=show_time_signature)
 
-    def to_abjad(self, source_id_dict=None):
+    def _to_abjad(self, source_id_dict=None):
         is_top_level_call = True if source_id_dict is None else False
         source_id_dict = {} if source_id_dict is None else source_id_dict
         abjad_measure = abjad.Container()
         for i, voice in enumerate(self.voices):
             if voice is None:
                 continue
-            abjad_voice = self.voices[i].to_abjad(source_id_dict)
+            abjad_voice = self.voices[i]._to_abjad(source_id_dict)
 
             if i == 0 and self.show_time_signature:
                 # TODO: THIS SEEMS BROKEN IN ABJAD, SO I HAVE A KLUGEY FIX WITH A LITERAL
@@ -511,7 +587,7 @@ class Measure:
 
         return abjad_measure
 
-    def get_XML(self):
+    def to_music_xml(self):
         pass
 
     def __repr__(self):
@@ -521,7 +597,7 @@ class Measure:
         )
 
 
-class Voice:
+class Voice(ScoreComponent):
 
     def __init__(self, contents, time_signature):
         self.contents = contents
@@ -663,19 +739,19 @@ class Voice:
 
         return [tuplet] if tuplet is not None else note_list
 
-    def to_abjad(self, source_id_dict=None):
+    def _to_abjad(self, source_id_dict=None):
         if self.contents is None:
             return abjad.Voice("{{R{}*{}}}".format(self.time_signature.denominator, self.time_signature.numerator))
         else:
             is_top_level_call = True if source_id_dict is None else False
             source_id_dict = {} if source_id_dict is None else source_id_dict
-            abjad_components = [x.to_abjad(source_id_dict) for x in self.contents]
+            abjad_components = [x._to_abjad(source_id_dict) for x in self.contents]
             if is_top_level_call:
                 for same_source_group in source_id_dict.values():
                     _join_same_source_abjad_note_group(same_source_group)
             return abjad.Voice(abjad_components)
 
-    def get_XML(self):
+    def to_music_xml(self):
         pass
 
     def __repr__(self):
@@ -684,7 +760,7 @@ class Voice:
         ) if self.contents is not None else "Voice([None])"
 
 
-class Tuplet:
+class Tuplet(ScoreComponent):
 
     def __init__(self, tuplet_divisions, normal_divisions, division_length, contents=None):
         """
@@ -731,14 +807,17 @@ class Tuplet:
             # otherwise, construct a tuplet from our answer
             return cls(divisor, normal_divisions, 4.0 / normal_type)
 
-    def to_abjad(self, source_id_dict=None):
+    def _to_abjad(self, source_id_dict=None):
         is_top_level_call = True if source_id_dict is None else False
         source_id_dict = {} if source_id_dict is None else source_id_dict
-        abjad_notes = [note_like.to_abjad(source_id_dict) for note_like in self.contents]
+        abjad_notes = [note_like._to_abjad(source_id_dict) for note_like in self.contents]
         if is_top_level_call:
             for same_source_group in source_id_dict.values():
                 _join_same_source_abjad_note_group(same_source_group)
         return abjad.Tuplet(abjad.Multiplier(self.normal_divisions, self.tuplet_divisions), abjad_notes)
+
+    def to_music_xml(self):
+        pass
 
     def __repr__(self):
         contents_string = "contents=[\n{}\n]".format(
@@ -748,7 +827,7 @@ class Tuplet:
                                                contents_string)
 
 
-class NoteLike:
+class NoteLike(ScoreComponent):
 
     def __init__(self, pitch, written_length, properties):
         """
@@ -787,7 +866,7 @@ class NoteLike:
                 last_pitch = pitch_envelope.value_at(control_point)
         return relevant_controls
 
-    def to_abjad(self, source_id_dict=None):
+    def _to_abjad(self, source_id_dict=None):
         """
         Convert this NoteLike to an abjad note, chord, or rest, along with possibly some headless grace notes to
         represent important changes of direction in a glissando, if the glissando engraving setting are set to do so
@@ -925,6 +1004,9 @@ class NoteLike:
                         notehead_name_to_lilypond_type[note_head_style]
         else:
             raise ValueError("Must be an abjad Note or Chord object")
+
+    def to_music_xml(self):
+        pass
 
     def __repr__(self):
         return "NoteLike(pitch={}, written_length={}, properties={})".format(
