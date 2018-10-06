@@ -4,6 +4,7 @@ from playcorder.quantization import QuantizationRecord
 from playcorder.performance_note import PerformanceNote
 from playcorder.utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y
 from playcorder.engraving_translations import notehead_name_to_lilypond_type
+from playcorder.note_properties import NotePropertiesDictionary
 import math
 from fractions import Fraction
 from itertools import permutations
@@ -14,12 +15,7 @@ from abc import ABC, abstractmethod
 
 
 # TODO:
-# - Have the StaffGroup not happen in the Score creation
 # - looking through for situations like tied eighths on and of 1 and 2 combining into quarters
-
-# a list of tied NoteLikes. They'll also need to split up any pitch Envelopes into their chunks.
-# For now, we'll do this as gracenotes, but maybe there can be a setting that first splits a note into constituents
-# based on the key points of the param curve and then splits those constituents into reproducible notes?
 
 
 # ---------------------------------------------- Duration Utilities --------------------------------------------
@@ -97,6 +93,72 @@ def _get_beat_division_indispensabilities(beat_length, beat_divisor):
 
 
 # ---------------------------------------------- Score Classes --------------------------------------------
+
+
+class ScoreContainer(ABC):
+
+    def __init__(self, contents, contents_argument_name, allowable_child_types, extra_field_names=()):
+        self._contents = contents if contents is not None else []
+        self._contents_argument_name = contents_argument_name
+        self._extra_field_names = extra_field_names
+        self._allowable_child_types = allowable_child_types
+        assert isinstance(self._contents, list) and all(isinstance(x, allowable_child_types) for x in self._contents)
+
+    def __contains__(self, item):
+        return item in self._contents
+
+    def __delitem__(self, i):
+        del self._contents[i]
+
+    def __getitem__(self, argument):
+        return self._contents.__getitem__(argument)
+
+    def __iter__(self):
+        return iter(self._contents)
+
+    def __len__(self):
+        return len(self._contents)
+
+    def __setitem__(self, i, item):
+        assert isinstance(item, self._allowable_child_types), "Incompatible child type"
+        self._contents[i] = item
+
+    def append(self, item):
+        assert isinstance(item, self._allowable_child_types), "Incompatible child type"
+        self._contents.append(item)
+
+    def extend(self, items):
+        assert hasattr(items, "__len__")
+        assert all(isinstance(item, self._allowable_child_types) for item in items), "Incompatible child type"
+        self._contents.extend(items)
+
+    def index(self, item):
+        return self._contents.index(item)
+
+    def insert(self, index, item):
+        assert isinstance(item, self._allowable_child_types), "Incompatible child type"
+        return self._contents.insert(index, item)
+
+    def pop(self, i=-1):
+        return self._contents.pop(i)
+
+    def remove(self, item):
+        return self._contents.remove(item)
+
+    def __repr__(self):
+        extra_args_string = "" if not hasattr(self, "_extra_field_names") \
+            else ", ".join("{}={}".format(x, self.__dict__[x]) for x in self._extra_field_names)
+        if len(extra_args_string) > 0:
+            extra_args_string += ", "
+        contents_string = "\n" + textwrap.indent(",\n".join(str(x) for x in self._contents), "   ") + "\n" \
+            if len(self._contents) > 0 else ""
+        return "{}({}{}=[{}])".format(
+            self.__class__.__name__,
+            extra_args_string,
+            self._contents_argument_name,
+            contents_string
+        )
+
 
 class ScoreComponent(ABC):
 
@@ -198,12 +260,16 @@ stemless = {
         abjad.show(self.to_abjad())
 
 
-class Score(ScoreComponent):
+class Score(ScoreComponent, ScoreContainer):
 
-    def __init__(self, staff_groups, title=None, composer=None):
-        self.staff_groups = staff_groups
+    def __init__(self, parts=None, title=None, composer=None):
+        ScoreContainer.__init__(self, parts, "parts", (StaffGroup, Staff), ("title", "composer"))
         self.title = title
         self.composer = composer
+
+    @property
+    def parts(self):
+        return self._contents
 
     @classmethod
     def from_performance(cls, performance, quantization_scheme="default"):
@@ -212,19 +278,21 @@ class Score(ScoreComponent):
     @classmethod
     def from_quantized_performance(cls, performance):
         assert performance.is_quantized()
-        return cls([StaffGroup.from_quantized_performance_part(part) for part in performance.parts])
+        contents = []
+        for part in performance.parts:
+            staff_group = StaffGroup.from_quantized_performance_part(part)
+            if len(staff_group.staves) > 1:
+                contents.append(staff_group)
+            elif len(staff_group.staves) == 1:
+                contents.append(staff_group.staves[0])
+        return cls(contents)
 
     def _to_abjad(self):
-        score = abjad.Score([staff_group._to_abjad() for staff_group in self.staff_groups])
+        score = abjad.Score([part._to_abjad() for part in self.parts])
         return score
 
     def to_music_xml(self):
         pass
-
-    def __repr__(self):
-        return "Score([\n{}\n])".format(
-            textwrap.indent(",\n".join(str(x) for x in self.staff_groups), "   ")
-        )
 
 
 # used in arranging voices in a part
@@ -232,10 +300,14 @@ _NumberedVoiceFragment = namedtuple("_NumberedVoiceFragment", "voice_num start_m
 _NamedVoiceFragment = namedtuple("_NamedVoiceFragment", "average_pitch start_measure_num measures_with_quantizations")
 
 
-class StaffGroup(ScoreComponent):
+class StaffGroup(ScoreComponent, ScoreContainer):
 
     def __init__(self, staves):
-        self.staves = staves
+        ScoreContainer.__init__(self, staves, "staves", Staff)
+
+    @property
+    def staves(self):
+        return self._contents
 
     @classmethod
     def from_quantized_performance_part(cls, quantized_performance_part):
@@ -279,7 +351,7 @@ class StaffGroup(ScoreComponent):
         try:
             # numbered voice
             voice_num = int(voice_name)
-            return _NumberedVoiceFragment(voice_num, start_measure_num, measures_with_quantizations)
+            return _NumberedVoiceFragment(voice_num - 1, start_measure_num, measures_with_quantizations)
         except ValueError:
             # not a numbered voice, so we want to order voices mostly by pitch
             return _NamedVoiceFragment(average_pitch, start_measure_num, measures_with_quantizations)
@@ -448,18 +520,10 @@ class StaffGroup(ScoreComponent):
         return cls([Staff.from_measure_bins_of_voice_lists(x, quantization_record.time_signatures) for x in staves])
 
     def _to_abjad(self):
-        if len(self.staves) == 1:
-            return self.staves[0]._to_abjad()
-        else:
-            return abjad.StaffGroup([staff._to_abjad() for staff in self.staves])
+        return abjad.StaffGroup([staff._to_abjad() for staff in self.staves])
 
     def to_music_xml(self):
         pass
-
-    def __repr__(self):
-        return "StaffGroup([\n{}\n])".format(
-            textwrap.indent(",\n".join(str(x) for x in self.staves), "   ")
-        )
 
 
 def _join_same_source_abjad_note_group(same_source_group):
@@ -485,10 +549,14 @@ def _join_same_source_abjad_note_group(same_source_group):
         # abjad.attach(abjad.Slur(), abjad.Selection(same_source_group))
 
 
-class Staff(ScoreComponent):
+class Staff(ScoreComponent, ScoreContainer):
 
     def __init__(self, measures):
-        self.measures = measures
+        ScoreContainer.__init__(self, measures, "measures", Measure)
+
+    @property
+    def measures(self):
+        return self._contents
 
     @classmethod
     def from_measure_bins_of_voice_lists(cls, measure_bins, time_signatures):
@@ -517,22 +585,21 @@ class Staff(ScoreComponent):
     def to_music_xml(self):
         pass
 
-    def __repr__(self):
-        return "Staff([\n{}\n])".format(
-            textwrap.indent(",\n".join(str(x) for x in self.measures), "   ")
-        )
-
 
 _voice_names = [r'voiceOne', r'voiceTwo', r'voiceThree', r'voiceFour']
 _voice_literals= [r'\voiceOne', r'\voiceTwo', r'\voiceThree', r'\voiceFour']
 
 
-class Measure(ScoreComponent):
+class Measure(ScoreComponent, ScoreContainer):
 
     def __init__(self, voices, time_signature, show_time_signature=True):
-        self.voices = voices
+        ScoreContainer.__init__(self, voices, "voices", (Voice, type(None)), ("time_signature", "show_time_signature"))
         self.time_signature = time_signature
         self.show_time_signature = show_time_signature
+
+    @property
+    def voices(self):
+        return self._contents
 
     @classmethod
     def empty_measure(cls, time_signature, show_time_signature=True):
@@ -590,18 +657,16 @@ class Measure(ScoreComponent):
     def to_music_xml(self):
         pass
 
-    def __repr__(self):
-        return "Measure(time_signature={}, show_time_signature={}, voices=[\n{}\n])".format(
-            self.time_signature, self.show_time_signature,
-            textwrap.indent(",\n".join(str(x) for x in self.voices), "   ")
-        )
 
-
-class Voice(ScoreComponent):
+class Voice(ScoreComponent, ScoreContainer):
 
     def __init__(self, contents, time_signature):
-        self.contents = contents
+        ScoreContainer.__init__(self, contents, "contents", (Tuplet, NoteLike), ("time_signature", ))
         self.time_signature = time_signature
+
+    @property
+    def contents(self):
+        return self._contents
 
     @classmethod
     def empty_voice(cls, time_signature):
@@ -740,7 +805,7 @@ class Voice(ScoreComponent):
         return [tuplet] if tuplet is not None else note_list
 
     def _to_abjad(self, source_id_dict=None):
-        if self.contents is None:
+        if len(self.contents) == 0:  # empty voice
             return abjad.Voice("{{R{}*{}}}".format(self.time_signature.denominator, self.time_signature.numerator))
         else:
             is_top_level_call = True if source_id_dict is None else False
@@ -754,23 +819,23 @@ class Voice(ScoreComponent):
     def to_music_xml(self):
         pass
 
-    def __repr__(self):
-        return "Voice([\n{}\n])".format(
-            textwrap.indent(",\n".join(str(x) for x in self.contents), "   ")
-        ) if self.contents is not None else "Voice([None])"
 
-
-class Tuplet(ScoreComponent):
+class Tuplet(ScoreComponent, ScoreContainer):
 
     def __init__(self, tuplet_divisions, normal_divisions, division_length, contents=None):
         """
         Creates a tuplet representing tuplet_divisions in the space of normal_divisions of division_length
         e.g. 7, 4, and 0.25 would mean '7 in the space of 4 sixteenth notes'
         """
+        ScoreContainer.__init__(self, contents, "contents", NoteLike,
+                                ("tuplet_divisions", "normal_divisions", "division_length"))
         self.tuplet_divisions = tuplet_divisions
         self.normal_divisions = normal_divisions
         self.division_length = division_length
-        self.contents = contents if contents is not None else []
+
+    @property
+    def contents(self):
+        return self._contents
 
     def dilation_factor(self):
         return self.tuplet_divisions / self.normal_divisions
@@ -819,13 +884,6 @@ class Tuplet(ScoreComponent):
     def to_music_xml(self):
         pass
 
-    def __repr__(self):
-        contents_string = "contents=[\n{}\n]".format(
-            textwrap.indent(",\n".join(str(x) for x in self.contents), "   ")
-        ) if len(self.contents) > 0 else ""
-        return "Tuplet({}, {}, {}, {})".format(self.tuplet_divisions, self.normal_divisions, self.division_length,
-                                               contents_string)
-
 
 class NoteLike(ScoreComponent):
 
@@ -836,7 +894,8 @@ class NoteLike(ScoreComponent):
         """
         self.pitch = pitch
         self.written_length = written_length
-        self.properties = properties
+        self.properties = properties if isinstance(properties, NotePropertiesDictionary) \
+            else NotePropertiesDictionary.from_unknown_format(properties)
 
     @staticmethod
     def _get_relevant_gliss_control_points(pitch_envelope):
