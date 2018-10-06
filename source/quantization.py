@@ -69,6 +69,8 @@ def quantize_performance_part(part, quantization_scheme, onset_weighting="defaul
     :param inner_split_weighting: How much do we care about inner segmentation timing (e.g. tuple note lengths)
     :return: a QuantizationRecord, detailing all of the time signatures, beat divisions selected, etc.
     """
+    if isinstance(quantization_scheme, (str, TimeSignature)):
+        quantization_scheme = QuantizationScheme.from_time_signature(quantization_scheme)
     assert isinstance(quantization_scheme, QuantizationScheme)
 
     part.voice_quantization_records = {}
