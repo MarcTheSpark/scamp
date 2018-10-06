@@ -206,6 +206,7 @@ def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="def
             else:
                 note.properties.temp["split_points"] = [quantized_split_time]
 
+    last_note_end_time = 0
     for note in voice:
         # now that all the start and end points have been adjusted,
         # we implement the quantized split points where applicable
@@ -220,10 +221,13 @@ def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="def
                 new_lengths.append(note.end_time - last_split_point)
             note.length = tuple(new_lengths)
 
+        last_note_end_time = max(note.end_time, last_note_end_time)
+
         # also normalize the pitch envelopes
         if isinstance(note.pitch, Envelope):
             note.pitch.normalize_to_duration(note.length_sum())
-    return _construct_quantization_record(beat_divisors, quantization_scheme)
+
+    return _construct_quantization_record(beat_divisors, last_note_end_time, quantization_scheme)
 
 
 def _collapse_chords(notes):
@@ -308,7 +312,17 @@ def _get_best_divisor_for_beat(beat_scheme, beat_start_time, onsets_in_beat, ter
     return best_divisor
 
 
-def _construct_quantization_record(beat_divisors, quantization_scheme):
+def _construct_quantization_record(beat_divisors, end_time, quantization_scheme):
+    """
+    Constructs a QuantizationRecord from the given scheme and divisors
+    :param beat_divisors: a list of beat divisors resulting from quantization
+    :param end_time: This helps us cover the special case in which the last note ends at the very end of a measure.
+    In this case, it's termination gets quantized in the first beat of the next measure, so we have a beat divisor
+    in that measure but no actual notes there. By checking if we've hit the end_time we can avoid constructing
+    that extra measure.
+    :param quantization_scheme: the quantization scheme being used
+    :return: a QuantizationRecord
+    """
     assert isinstance(beat_divisors, list)
     quantized_measures = []
     for measure_scheme, t in quantization_scheme.measure_scheme_iterator():
@@ -320,7 +334,7 @@ def _construct_quantization_record(beat_divisors, quantization_scheme):
             )
             t += beat_scheme.length
         quantized_measures.append(quantized_measure)
-        if len(beat_divisors) == 0:
+        if len(beat_divisors) == 0 or t >= end_time:
             return QuantizationRecord(quantized_measures)
 
 
