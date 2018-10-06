@@ -5,6 +5,7 @@ from .instruments import MidiPlaycorderInstrument, PlaycorderInstrument, OSCPlay
 from .clock import Clock, TempoEnvelope, wait
 from .performance import Performance, PerformancePart
 from .score import *
+from .quantization import *
 from .performance_note import PerformanceNote, NotePropertiesDictionary
 
 __author__ = 'mpevans'
