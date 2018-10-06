@@ -190,7 +190,7 @@ class NotePropertiesDictionary(dict, SavesToJSON):
                self.text == other_properties_dict.text
 
     def to_json(self):
-        json_friendly_dict = deepcopy(self)
+        json_friendly_dict = dict(deepcopy(self))
         json_friendly_dict["playback adjustments"] = [x.to_json() for x in self.playback_adjustments]
         del json_friendly_dict["temp"]
 
@@ -214,3 +214,7 @@ class NotePropertiesDictionary(dict, SavesToJSON):
         json_object["playback adjustments"] = [NotePlaybackAdjustment.from_json(x)
                                                for x in json_object["playback adjustments"]]
         return cls(**json_object)
+
+    def __repr__(self):
+        # this simplifies the properties dictionary to only the parts that deviate from the defaults
+        return repr(self.to_json())
