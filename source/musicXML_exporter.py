@@ -262,6 +262,8 @@ class Note(ElementTree.Element):
     def bar_rest(cls, duration_of_bar, staff=None, voice=None):
         return cls("bar rest", duration_of_bar, staff=staff, voice=voice)
 
+
+
 #  -------------------------------------------------- MEASURE ------------------------------------------------------ #
 
 

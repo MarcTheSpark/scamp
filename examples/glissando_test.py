@@ -1,5 +1,6 @@
 from playcorder import *
 from playcorder.quantization import QuantizationScheme
+from playcorder.settings import engraving_settings
 import random
 
 pc = Playcorder("default")
@@ -7,7 +8,7 @@ pc = Playcorder("default")
 piano = pc.add_midi_part("piano")
 piano.set_max_pitch_bend(20)
 
-random.seed(0)
+random.seed(1)
 
 pc.start_recording()
 
@@ -27,6 +28,8 @@ while pc.time() < 12:
 
 performance = pc.stop_recording()
 
+
+engraving_settings.glissandi.control_point_policy = "split"
 performance.quantize(QuantizationScheme.from_time_signature("5/4"))
 performance.save_to_json("quantized_glisses.json")
 

@@ -83,7 +83,7 @@ class Playcorder:
     def add_midi_part(self, name=None, preset=(0, 0), soundfont_index=0, num_channels=8,
                       midi_output_device=None, midi_output_name=None):
         """
-        Constructs a MidiPlaycorderInstrument, adds it to the Playcorder, and returns it
+        Constructs a MidiPlaycorderInstrument, adds it to the Session, and returns it
         :param name: name used for this instrument in score output and midi output (unless otherwise specified)
         :type name: str
         :param preset: if an int, assumes bank #0; can also be a tuple of form (bank, preset)
@@ -115,7 +115,7 @@ class Playcorder:
 
     def add_silent_part(self, name=None):
         """
-        Constructs a basic (and therefore silent) PlaycorderInstrument, adds it to the Playcorder, and returns it
+        Constructs a basic (and therefore silent) PlaycorderInstrument, adds it to the Session, and returns it
         :rtype : PlaycorderInstrument
         """
         name = "Track " + str(len(self.instruments) + 1) if name is None else name
@@ -575,7 +575,7 @@ class ParameterCurve:
 
 # -------------- EXAMPLE --------------
 #
-# pc = Playcorder(soundfont_path="default")
+# pc = Session(soundfont_path="default")
 #
 # piano = pc.add_midi_part((0, 0), "Piano")
 # guitar = pc.add_midi_part((0, 27), "Guitar")
