@@ -1,13 +1,9 @@
 import math
 from copy import deepcopy
-from playcorder.utilities import SavesToJSON
 import numbers
 
 
-# TODO: implement multiplicative inverse. Implement adding / subtracting / multiplying, etc. of Envelopes
-
-
-class Envelope(SavesToJSON):
+class Envelope:
 
     def __init__(self, segments=None):
         """
@@ -631,6 +627,15 @@ class Envelope(SavesToJSON):
         else:
             return cls.from_levels_and_durations(json_dict['levels'], json_dict['durations'],
                                                  curve_shapes, offset)
+
+    def save_to_json(self, file_path):
+        with open(file_path, "w") as file:
+            json.dump(self.to_json(), file, sort_keys=True, indent=4)
+
+    @classmethod
+    def load_from_json(cls, file_path):
+        with open(file_path, "r") as file:
+            return cls.from_json(json.load(file))
 
     def is_shifted_version_of(self, other):
         assert isinstance(other, Envelope)
