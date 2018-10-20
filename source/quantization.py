@@ -1,8 +1,8 @@
 from fractions import Fraction
-from playcorder.utilities import indigestibility, is_multiple, is_x_pow_of_y, round_to_multiple, SavesToJSON
+from scamp.utilities import indigestibility, is_multiple, is_x_pow_of_y, round_to_multiple, SavesToJSON
 from collections import namedtuple
-from playcorder.settings import quantization_settings, engraving_settings
-from playcorder.envelope import Envelope
+from scamp.settings import quantization_settings, engraving_settings
+from scamp.envelope import Envelope
 import textwrap
 import abjad
 

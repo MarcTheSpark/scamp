@@ -1,6 +1,6 @@
-from playcorder.utilities import resolve_relative_path, SavesToJSON
-from playcorder.simple_rtmidi_wrapper import SimpleRtMidiOut
-from playcorder.settings import playback_settings
+from scamp.utilities import resolve_relative_path, SavesToJSON
+from scamp.simple_rtmidi_wrapper import SimpleRtMidiOut
+from scamp.settings import playback_settings
 import logging
 from collections import namedtuple
 
@@ -17,7 +17,7 @@ except ImportError:
     logging.warning("sf2utils was not found; info about soundfont presets will not be available.")
 
 
-PlaycorderMidiPreset = namedtuple("PlaycorderMidiPreset", "name preset soundfont_index")
+ScampMidiPreset = namedtuple("ScampMidiPreset", "name preset soundfont_index")
 
 
 class CombinedMidiPlayer(SavesToJSON):
@@ -111,7 +111,7 @@ class CombinedMidiPlayer(SavesToJSON):
         for soundfont_id, soundfont_instrument_list in enumerate(self.soundfont_instrument_lists):
             for sf2_preset in soundfont_instrument_list:
                 try:
-                    yield PlaycorderMidiPreset(sf2_preset.name, (sf2_preset.bank, sf2_preset.preset), soundfont_id)
+                    yield ScampMidiPreset(sf2_preset.name, (sf2_preset.bank, sf2_preset.preset), soundfont_id)
                 except AttributeError:
                     pass
         raise StopIteration
@@ -197,7 +197,7 @@ class CombinedMidiInstrument:
 
         if directional_bend_value > 8192 or directional_bend_value < -8192:
             logging.warning("Attempted pitch bend beyond maximum range (default is 2 semitones). Call set_max_"
-                            "pitch_bend on your MidiPlaycorderInstrument to expand the range.")
+                            "pitch_bend on your MidiScampInstrument to expand the range.")
         # we can't have a directional pitch bend popping up to 8192, because we'll go one above the max allowed
         # on the other hand, -8192 is fine, since that will add up to zero
         # However, notice above that we don't send a warning about going beyond max pitch bend for a value of exactly

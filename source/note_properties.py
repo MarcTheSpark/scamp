@@ -1,6 +1,6 @@
-from playcorder.playback_adjustments import *
-from playcorder.utilities import SavesToJSON
-from playcorder.settings import playback_settings
+from scamp.playback_adjustments import *
+from scamp.utilities import SavesToJSON
+from scamp.settings import playback_settings
 from copy import deepcopy
 import logging
 

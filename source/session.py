@@ -1,21 +1,20 @@
-from playcorder.settings import playback_settings
+from scamp.settings import playback_settings
 
-from playcorder.simple_rtmidi_wrapper import get_available_midi_output_devices
+from scamp.simple_rtmidi_wrapper import get_available_midi_output_devices
 
-from playcorder.performance import Performance
+from scamp.performance import Performance
 
-from playcorder.ensemble import Ensemble
-from playcorder.instruments import PlaycorderInstrument
+from scamp.ensemble import Ensemble
+from scamp.instruments import ScampInstrument
 
-from playcorder.midi_listener import *
+from scamp.midi_listener import *
 
 
-class Playcorder:
+class Session:
 
     def __init__(self, soundfonts=None, audio_driver=None, midi_output_device=None):
         """
-
-        :param soundfonts: the names / paths of the soundfonts this playcorder will use
+        :param soundfonts: the names / paths of the soundfonts this scamp will use
         :param audio_driver: the driver used to output audio (if none, defaults to whatever fluidsynth chooses)
         :param midi_output_device: the default midi_output_device for outgoing midi streams. These can also be
         specified on a per-instrument basis, but this sets a global default. Defaults to creating virtual devices.
@@ -138,7 +137,7 @@ class Playcorder:
 
     def set_ensemble(self, ensemble: Ensemble):
         self._ensemble = ensemble
-        self._ensemble.host_playcorder = self
+        self._ensemble.host_session = self
 
     def get_instruments_with_substring(self, word, avoid=None, soundfont_index=0):
         return self._ensemble.get_instruments_with_substring(word, avoid=avoid, soundfont_index=soundfont_index)
@@ -150,7 +149,7 @@ class Playcorder:
         self._ensemble.print_all_soundfont_presets()
 
     def add_part(self, instrument):
-        assert isinstance(instrument, PlaycorderInstrument)
+        assert isinstance(instrument, ScampInstrument)
         return self._ensemble.add_part(instrument)
 
     def add_midi_part(self, name=None, preset=(0, 0), soundfont_index=0, num_channels=8,
@@ -165,7 +164,7 @@ class Playcorder:
     def add_osc_part(self, port, name=None, ip_address="127.0.0.1", message_prefix=None,
                      osc_message_strings="default"):
         """
-        Constructs an OSCPlaycorderInstrument, adds it to the Ensemble, and returns it
+        Constructs an OSCScampInstrument, adds it to the Ensemble, and returns it
         :param port: The port to send OSC Messages to (required)
         :param name: The name of the instrument
         :param ip_address: IP Address to send to; defaults to localhost
@@ -174,7 +173,7 @@ class Playcorder:
         :param osc_message_strings: A dictionary defining the strings used in the address of different kinds of
         messages. The defaults are defined in playbackSettings.json, and you probably would never change them. But
         just in case you have no control over which messages you listen for, the option is there.
-        :rtype : OSCPlaycorderInstrument
+        :rtype : OSCScampInstrument
         """
         return self._ensemble.add_osc_part(port, name=name, ip_address=ip_address, message_prefix=message_prefix,
                                            osc_message_strings=osc_message_strings)

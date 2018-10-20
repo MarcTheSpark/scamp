@@ -1,10 +1,10 @@
 import bisect
-from playcorder.quantization import quantize_performance_part, QuantizationRecord, QuantizationScheme
-from playcorder.settings import quantization_settings
-from playcorder.clock import Clock, TempoEnvelope
-from playcorder.performance_note import *
-from playcorder.score import Score, StaffGroup
-from playcorder.utilities import SavesToJSON
+from scamp.quantization import quantize_performance_part, QuantizationRecord, QuantizationScheme
+from scamp.settings import quantization_settings
+from scamp.clock import Clock, TempoEnvelope
+from scamp.performance_note import *
+from scamp.score import Score, StaffGroup
+from scamp.utilities import SavesToJSON
 import logging
 from copy import deepcopy
 import itertools
@@ -15,8 +15,8 @@ class PerformancePart(SavesToJSON):
 
     def __init__(self, instrument=None, name=None, voices=None, instrument_id=None, voice_quantization_records=None):
         """
-        Recording of the notes played by a PlaycorderInstrument. Can be saved to json and played back on a clock.
-        :param instrument: the PlaycorderInstrument associated with this part; used for playback
+        Recording of the notes played by a ScampInstrument. Can be saved to json and played back on a clock.
+        :param instrument: the ScampInstrument associated with this part; used for playback
         :param name: The name of this part
         :param voices: either a list of PerformanceNotes (which is interpreted as one unnamed voice), a list of lists
         of PerformanceNotes (which is interpreted as several numbered voices), or a dictionary mapping voice names
@@ -24,7 +24,7 @@ class PerformancePart(SavesToJSON):
         :param instrument_id: a json serializable record of the instrument used
         :param voice_quantization_records: a record of how this part was quantized if it has been quantized
         """
-        self.instrument = instrument  # A PlaycorderInstrument instance
+        self.instrument = instrument  # A ScampInstrument instance
         # the name of the part can be specified directly, or if not derives from the instrument it's attached to
         # if the part is not attached to an instrument, it starts with a name of None
         self.name = name if name is not None else instrument.name if instrument is not None else None
@@ -127,8 +127,8 @@ class PerformancePart(SavesToJSON):
     def play(self, start_time=0, stop_time=None, instrument=None, clock=None, blocking=True,
              tempo_envelope=None, selected_voices=None):
         instrument = self.instrument if instrument is None else instrument
-        from playcorder.instruments import PlaycorderInstrument
-        if not isinstance(instrument, PlaycorderInstrument):
+        from scamp.instruments import ScampInstrument
+        if not isinstance(instrument, ScampInstrument):
             raise ValueError("PerformancePart does not have a valid instrument and cannot play.")
         clock = Clock(instrument.name + " clock", pool_size=20) if clock is None else clock
         if not isinstance(clock, Clock):

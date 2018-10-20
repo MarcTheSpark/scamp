@@ -1,5 +1,5 @@
-from playcorder.utilities import SavesToJSON
-from playcorder.engraving_translations import *
+from scamp.utilities import SavesToJSON
+from scamp.engraving_translations import *
 
 
 # TODO: would be great if this included preset switches

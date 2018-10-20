@@ -2,10 +2,10 @@ import itertools
 from copy import deepcopy
 from functools import total_ordering
 
-from playcorder.envelope import Envelope
-from playcorder.utilities import SavesToJSON
-from playcorder.note_properties import NotePropertiesDictionary
-from playcorder.settings import engraving_settings
+from scamp.envelope import Envelope
+from scamp.utilities import SavesToJSON
+from scamp.note_properties import NotePropertiesDictionary
+from scamp.settings import engraving_settings
 
 """
 Note: This is a separate file from performance.py, since it is used both in performance.py and score.py,

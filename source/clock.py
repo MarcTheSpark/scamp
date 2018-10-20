@@ -3,7 +3,7 @@ from collections import namedtuple
 import threading
 from multiprocessing.pool import ThreadPool
 import logging
-from playcorder.envelope import Envelope, EnvelopeSegment
+from scamp.envelope import Envelope, EnvelopeSegment
 from copy import deepcopy
 import inspect
 
@@ -353,7 +353,7 @@ class Clock:
                 logging.warning("Catching up child clocks is taking more than 1 milliseconds ({} seconds to be "
                                 "precise) on clock {}. \nUnless you are recording on a child clock, you can safely "
                                 "turn this off by setting the keep_children_caught_up flag to false on the clock or "
-                                "playcorder.".format(calc_time, current_clock().name))
+                                "session.".format(calc_time, current_clock().name))
 
     def fast_forward_to_time(self, t):
         assert self.is_master(), "Only the master clock can be fast-forwarded."

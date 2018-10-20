@@ -1,7 +1,7 @@
-from .playcorder import Playcorder
+from .session import Session
 from .envelope import Envelope
 from .ensemble import Ensemble
-from .instruments import MidiPlaycorderInstrument, PlaycorderInstrument, OSCPlaycorderInstrument
+from .instruments import MidiScampInstrument, ScampInstrument, OSCScampInstrument
 from .clock import Clock, TempoEnvelope, wait
 from .performance import Performance, PerformancePart
 from .score import *

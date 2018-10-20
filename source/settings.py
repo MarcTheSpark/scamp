@@ -1,5 +1,5 @@
-from playcorder.utilities import resolve_relative_path, SavesToJSON
-from playcorder.playback_adjustments import PlaybackDictionary, NotePlaybackAdjustment
+from scamp.utilities import resolve_relative_path, SavesToJSON
+from scamp.playback_adjustments import PlaybackDictionary, NotePlaybackAdjustment
 import json
 import logging
 
@@ -49,7 +49,7 @@ class PlaybackSettings(SavesToJSON):
 
     def register_default_soundfont(self, name: str, soundfont_path: str):
         """
-        Adds a default named soundfont, so that it can be easily referred to in constructing a Playcorder
+        Adds a default named soundfont, so that it can be easily referred to in constructing a Session
         :param name: the default soundfont name
         :param soundfont_path: the absolute path to the soundfont, staring with a slash, or a relative path that
         gets resolved relative to the thirdparty/soundfonts directory

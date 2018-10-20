@@ -1,4 +1,4 @@
-from playcorder.clock import Clock
+from scamp.clock import Clock
 import inspect
 import logging
 import time

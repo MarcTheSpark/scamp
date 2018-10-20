@@ -1,16 +1,16 @@
 import threading
 import time
-from playcorder.envelope import Envelope
-from playcorder.utilities import SavesToJSON
+from scamp.envelope import Envelope
+from scamp.utilities import SavesToJSON
 from itertools import count
-from playcorder.settings import playback_settings
+from scamp.settings import playback_settings
 from copy import deepcopy
-from playcorder.note_properties import NotePropertiesDictionary
-from playcorder.clock import current_clock
+from scamp.note_properties import NotePropertiesDictionary
+from scamp.clock import current_clock
 import atexit
 import logging
 
-# TODO: Stretch goal: allow MIDIPlaycorderInstrument to have multiple presets
+# TODO: Stretch goal: allow MIDIScampInstrument to have multiple presets
 # Maybe create a method "add_alternate_preset(name, preset, soundfont_index, num_channels, triggers)"
 # that sets aside extra channels for it. Triggers could be of the form "articulation:staccato" or something
 # like that. But also if properties contains an entry for "preset:{preset name}" that could trigger it
@@ -20,17 +20,17 @@ try:
     from pythonosc import udp_client
 except ImportError:
     udp_client = None
-    logging.warning("pythonosc was not found; OSCPlaycorderInstrument will not function.")
+    logging.warning("pythonosc was not found; OSCScampInstrument will not function.")
 
 
-class PlaycorderInstrument(SavesToJSON):
+class ScampInstrument(SavesToJSON):
 
     def __init__(self, host=None, name=None):
         """
-        This is the parent class used all kinds of instruments used within a playcorder. The most basic one, below,
-        called a MidiPlaycorderInstrument, uses fluidsynth to playback sounds from a soundfont, and also sends the
+        This is the parent class used all kinds of instruments used within an ensemble. The most basic one, below,
+        called a MidiScampInstrument, uses fluidsynth to playback sounds from a soundfont, and also sends the
         output to a port via rtmidi. Other implementations could playback sounds in a different way.
-        :param host: The Playcorder or Ensemble that this instrument acts within
+        :param host: The Session or Ensemble that this instrument acts within
         :param name: The name of this instrument (used later in labeling parts in output)
         """
         self.name = name
@@ -44,18 +44,18 @@ class PlaycorderInstrument(SavesToJSON):
         self._performance_part = None
 
     def set_host(self, host):
-        from .playcorder import Playcorder
+        from .session import Session
         from .ensemble import Ensemble
-        assert isinstance(host, (Playcorder, Ensemble)), "PlaycorderInstrument must be hosted by Ensemble or Playcorder"
-        if isinstance(host, Playcorder):
+        assert isinstance(host, (Session, Ensemble)), "ScampInstrument must be hosted by Ensemble or Session"
+        if isinstance(host, Session):
             self.host_ensemble = host.ensemble
         else:
             self.host_ensemble = host
         self.name_count = self.host_ensemble.get_part_name_count(self.name)
 
     def time(self):
-        if self.host_ensemble is not None and self.host_ensemble.host_playcorder is not None:
-            return self.host_ensemble.host_playcorder.time()
+        if self.host_ensemble is not None and self.host_ensemble.host_session is not None:
+            return self.host_ensemble.host_session.time()
         else:
             return time.time()
 
@@ -80,7 +80,7 @@ class PlaycorderInstrument(SavesToJSON):
 
     def to_json(self):
         return {
-            "type": "PlaycorderInstrument",
+            "type": "ScampInstrument",
             "name": self.name,
         }
 
@@ -88,9 +88,9 @@ class PlaycorderInstrument(SavesToJSON):
 
     @staticmethod
     def from_json(json_dict, host_ensemble=None):
-        # the 'type' argument of the json_dict tells us which kind of PlaycorderInstrument constructor to use
+        # the 'type' argument of the json_dict tells us which kind of ScampInstrument constructor to use
         type_to_create = None
-        for instrument_type in PlaycorderInstrument.__subclasses__():
+        for instrument_type in ScampInstrument.__subclasses__():
             if json_dict["type"] == instrument_type.__name__:
                 type_to_create = instrument_type
                 break
@@ -120,11 +120,11 @@ class PlaycorderInstrument(SavesToJSON):
             if is_animating_volume:
                 volume_curve = volume.normalize_to_duration(length, False)
                 temporal_resolution = min(temporal_resolution,
-                                          MidiPlaycorderInstrument.get_good_volume_temporal_resolution(volume_curve))
+                                          MidiScampInstrument.get_good_volume_temporal_resolution(volume_curve))
             if is_animating_pitch:
                 pitch_curve = pitch.normalize_to_duration(length, False)
                 temporal_resolution = min(temporal_resolution,
-                                          MidiPlaycorderInstrument.get_good_pitch_bend_temporal_resolution(pitch_curve))
+                                          MidiScampInstrument.get_good_pitch_bend_temporal_resolution(pitch_curve))
             temporal_resolution = max(temporal_resolution, 0.01)  # faster than this is wasteful, doesn't seem to help
 
             def animate_pitch_and_volume():
@@ -203,11 +203,11 @@ class PlaycorderInstrument(SavesToJSON):
         volume = Envelope.from_list(volume) if hasattr(volume, "__len__") else volume
         pitch = Envelope.from_list(pitch) if hasattr(pitch, "__len__") else pitch
 
-        # record the note in the hosting playcorder, if it's recording
+        # record the note in the hosting session, if it's recording
         if self._performance_part is not None:
             from .performance import PerformancePart
             assert isinstance(self._performance_part, PerformancePart)
-            pc = self.host_ensemble.host_playcorder
+            pc = self.host_ensemble.host_session
             length_factor = (1 if pc._recording_clock == "absolute" else pc._recording_clock.absolute_rate()) / \
                             clock.absolute_rate()
             recorded_length = tuple(x * length_factor for x in length) \
@@ -311,9 +311,9 @@ class PlaycorderInstrument(SavesToJSON):
         self._do_end_note(note_id)
 
         # save to performance part if we're recording, and we have been since the note started
-        if self._performance_part is not None and start_time >= self.host_ensemble.host_playcorder.recording_start_time:
+        if self._performance_part is not None and start_time >= self.host_ensemble.host_session.recording_start_time:
             self._performance_part.new_note(
-                start_time - self.host_ensemble.host_playcorder.recording_start_time,
+                start_time - self.host_ensemble.host_session.recording_start_time,
                 self.time() - start_time, pitch, volume, properties
             )
 
@@ -331,19 +331,19 @@ class PlaycorderInstrument(SavesToJSON):
         return len(self._notes_started)
 
     def __repr__(self):
-        return "PlaycorderInstrument({}, {})".format(self.host_ensemble, self.name)
+        return "ScampInstrument({}, {})".format(self.host_ensemble, self.name)
 
 
-# -------------------------------------------- MIDIPlaycorderInstrument ---------------------------------------------
+# -------------------------------------------- MIDIScampInstrument ---------------------------------------------
 
 
-class MidiPlaycorderInstrument(PlaycorderInstrument):
+class MidiScampInstrument(ScampInstrument):
 
     def __init__(self, host=None, name=None, preset=(0, 0), soundfont_index=0, num_channels=8,
                  midi_output_device=None, midi_output_name=None):
         if host is None:
-            raise ValueError("MidiPlaycorderInstrument must be instantiated "
-                             "within the context of an Ensemble or Playcorder")
+            raise ValueError("MidiScampInstrument must be instantiated "
+                             "within the context of an Ensemble or Session")
         super().__init__(host, name)
 
         self.midi_player = self.host_ensemble.midi_player
@@ -452,7 +452,7 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
     def change_note_volume(self, note_id, new_volume):
         """
         Changes the volume of the note with the given id
-        For a MidiPlaycorderInstrument, this is mapped to expression, which means that new_volume represents a
+        For a MidiScampInstrument, this is mapped to expression, which means that new_volume represents a
         proportion of the starting volume of the note. The note can't get louder than it started.
         """
         channel, int_pitch, note_start_time, uses_pitch_bend = note_id
@@ -463,33 +463,33 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
 
     def to_json(self):
         return {
-            "type": "MidiPlaycorderInstrument",
+            "type": "MidiScampInstrument",
             "name": self.name,
             "preset": self.preset,
             "soundfont_index": self.soundfont_index,
             "num_channels": self.num_channels,
             # note that this saves the parameters we gave it explicitly, but not what it defaults to if
             # those parameters were left as None. That's good, because None should mean that it takes
-            # on the defaults of whatever Ensemble / Playcorder it's part of
+            # on the defaults of whatever Ensemble / Session it's part of
             "midi_output_device": self.midi_output_device,
             "midi_output_name": self.midi_output_name
         }
 
     def __repr__(self):
-        return "MidiPlaycorderInstrument({}, {}, {}, {}, {}, {}, {})".format(
+        return "MidiScampInstrument({}, {}, {}, {}, {}, {}, {})".format(
             self.host_ensemble, self.name, self.preset, self.soundfont_index,
             self.num_channels, self.midi_output_device, self.midi_output_name
         )
 
 
-# -------------------------------------------- OSCPlaycorderInstrument ----------------------------------------------
-# TODO: OSCPlaycorderInstrument._currently playing duplicates some functionality from
-# PlaycorderInstrument._notes_started   Fix that?
+# -------------------------------------------- OSCScampInstrument ----------------------------------------------
+# TODO: OSCScampInstrument._currently playing duplicates some functionality from
+# ScampInstrument._notes_started   Fix that?
 
 _note_id_generator = count()
 
 
-class OSCPlaycorderInstrument(PlaycorderInstrument):
+class OSCScampInstrument(ScampInstrument):
 
     def __init__(self, host=None, name=None, port=None, ip_address="127.0.0.1", message_prefix=None,
                  osc_message_strings="default"):
@@ -498,7 +498,7 @@ class OSCPlaycorderInstrument(PlaycorderInstrument):
         # the output client for OSC messages
         # by default the IP address is the local 127.0.0.1
         self.ip_address = ip_address
-        assert port is not None, "OSCPlaycorderInstrument must set an output port."
+        assert port is not None, "OSCScampInstrument must set an output port."
         self.port = port
         self.client = udp_client.SimpleUDPClient(ip_address, port)
         # the first part of the osc message; used to distinguish between instruments
@@ -606,7 +606,7 @@ class OSCPlaycorderInstrument(PlaycorderInstrument):
 
     def to_json(self):
         return {
-            "type": "OSCPlaycorderInstrument",
+            "type": "OSCScampInstrument",
             "name": self.name,
             "port": self.port,
             "ip_address": self.ip_address,
@@ -621,7 +621,7 @@ class OSCPlaycorderInstrument(PlaycorderInstrument):
         }
 
     def __repr__(self):
-        return "OSCPlaycorderInstrument({}, {}, {}, {}, {})".format(
+        return "OSCScampInstrument({}, {}, {}, {}, {})".format(
             self.host_ensemble, self.name, self.port, self.ip_address,
             self.message_prefix, {
                 "start_note_message_string": self._start_note_message_string,

@@ -1,10 +1,10 @@
-from playcorder.settings import engraving_settings
-from playcorder.envelope import Envelope
-from playcorder.quantization import QuantizationRecord
-from playcorder.performance_note import PerformanceNote
-from playcorder.utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y
-from playcorder.engraving_translations import notehead_name_to_lilypond_type
-from playcorder.note_properties import NotePropertiesDictionary
+from scamp.settings import engraving_settings
+from scamp.envelope import Envelope
+from scamp.quantization import QuantizationRecord
+from scamp.performance_note import PerformanceNote
+from scamp.utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y
+from scamp.engraving_translations import notehead_name_to_lilypond_type
+from scamp.note_properties import NotePropertiesDictionary
 import math
 from fractions import Fraction
 from itertools import permutations
