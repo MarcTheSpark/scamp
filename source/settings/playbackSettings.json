@@ -35,6 +35,7 @@
         "noteheads": {}
     },
     "default_audio_driver": "pulseaudio",
+    "default_max_midi_pitch_bend": 48,
     "default_midi_output_device": null,
     "default_soundfonts": {
         "default": "Merlin.sf2",

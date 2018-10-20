@@ -11,6 +11,7 @@ _playback_settings_factory_defaults = {
     },
     "default_audio_driver": None,
     "default_midi_output_device": None,
+    "default_max_midi_pitch_bend": 48,
     "osc_message_defaults": {
         "start_note_message_string": "start_note",
         "end_note_message_string": "end_note",
@@ -37,6 +38,8 @@ class PlaybackSettings(SavesToJSON):
             if "default_audio_driver" not in settings else settings["default_audio_driver"]
         self.default_midi_output_device = _playback_settings_factory_defaults["default_midi_output_device"] \
             if "default_midi_output_device" not in settings else settings["default_midi_output_device"]
+        self.default_max_midi_pitch_bend = _playback_settings_factory_defaults["default_max_midi_pitch_bend"] \
+            if "default_max_midi_pitch_bend" not in settings else settings["default_max_midi_pitch_bend"]
         self.osc_message_defaults = _playback_settings_factory_defaults["osc_message_defaults"] \
             if "osc_message_defaults" not in settings else settings["osc_message_defaults"]
         self.adjustments = _playback_settings_factory_defaults["adjustments"] \
