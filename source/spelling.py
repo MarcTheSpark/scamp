@@ -1,6 +1,9 @@
 import functools
 
-_c_spellings = ((0, 0), (0, 1), (1, 0), (2, -1), (2, 0), (3, 0), (3, 1), (4, 0), (5, -1), (5, 0), (6, -1), (6, 0))
+_c_standard_spellings = ((0, 0), (0, 1), (1, 0), (2, -1), (2, 0), (3, 0),
+                         (3, 1), (4, 0), (5, -1), (5, 0), (6, -1), (6, 0))
+_c_phrygian_spellings = ((0, 0), (1, -1), (1, 0), (2, -1), (2, 0), (3, 0),
+                         (3, 1), (4, 0), (5, -1), (5, 0), (6, -1), (6, 0))
 _sharp_spellings = ((0, 0), (0, 1), (1, 0), (1, 1), (2, 0), (3, 0), (3, 1), (4, 0), (4, 1), (5, 0), (5, 1), (6, 0))
 _flat_spellings = ((0, 0), (1, -1), (1, 0), (2, -1), (2, 0), (3, 0), (4, -1), (4, 0), (5, -1), (5, 0), (6, -1), (6, 0))
 _step_names = ('c', 'd', 'e', 'f', 'g', 'a', 'b')
@@ -11,7 +14,7 @@ _flat_order = tuple(reversed(_sharp_order))
 
 class SpellingPolicy:
 
-    def __init__(self, step_alteration_pairs=_c_spellings):
+    def __init__(self, step_alteration_pairs=_c_standard_spellings):
         """
         Object that translates pitches or pitch classes to the actual spelling used in a score
         Note that functools.lru_cache results in the same classmethod calls returning identical objects
@@ -33,13 +36,22 @@ class SpellingPolicy:
 
     @classmethod
     @functools.lru_cache()
-    def from_circle_of_fifths_position(cls, num_sharps_or_flats, avoid_double_accidentals=False):
+    def from_circle_of_fifths_position(cls, num_sharps_or_flats, avoid_double_accidentals=False,
+                                       template=_c_standard_spellings):
+        """
+        Generates a spelling policy by transposing a template around the circles of fifths
+        :param num_sharps_or_flats: how many steps sharp or flat to transpose around the circle of fifths. For instance,
+        if set to 4, our tonic is E, and if set to -3, our tonic is Eb
+        :param avoid_double_accidentals: if true, replaces double sharps and flats with simpler spelling
+        :param template: by default, uses sharp-2, flat-3, sharp-4, flat-6, and flat-7
+        :return: a SpellingPolicy based on the above
+        """
         if num_sharps_or_flats == 0:
-            return c_spellings
+            return cls(template)
 
         new_spellings = []
         # translate each step, alteration pair to what it would be in the new key
-        for step, alteration in _c_spellings:
+        for step, alteration in template:
             new_step = (step + 4 * num_sharps_or_flats) % 7
             # new alteration adds to the c alteration (key_alteration // 7) for each time round the circle of fifths
             # and (key_alteration % 7 > sharp_order.index(new_step)) checks to see if we've added this sharp or flat yet
@@ -55,7 +67,7 @@ class SpellingPolicy:
                     new_step = (new_step - 1) % 7
             new_spellings.append((new_step, new_alteration))
 
-        return cls(tuple(sorted(new_spellings, key=lambda x: (_c_spellings.index((x[0], 0)) + x[1]) % 12)))
+        return cls(tuple(sorted(new_spellings, key=lambda x: (template.index((x[0], 0)) + x[1]) % 12)))
 
     @classmethod
     @functools.lru_cache()
@@ -65,25 +77,41 @@ class SpellingPolicy:
         :param string_initializer: one of the following:
             - "flat" or "sharp", indicating that black keys are always expressed a particular way
             - a key center (case insensitive), such as "C#" or "f" or "Gb"
-            - key centers with modes attached (such as "g minor") are fine, too, but the mode is ignored since it
-            doesn't actually affect the way that the accidentals are interpreted.
+            - a key centers followed by a mode attached, such as "g minor" or "Bb locrian". Most modes to not alter the
+            way spelling is done, but certain modes like phrygian and locrian do.
         """
         if string_initializer == "flat":
             return SpellingPolicy.all_flats()
         elif string_initializer == "sharp":
             return SpellingPolicy.all_sharps()
         else:
-            string_initializer_lower = string_initializer.lower().replace(" ", "")
+            # most modes don't change anything about how spelling is done, since we default to flat-3, sharp-4,
+            # flat-6, and flat-7. The only exceptions are phrygian and locrian, since they have a flat-2 instead of
+            # a sharp-1. As a result, we have to use a different template for them.
+            string_initializer_processed = string_initializer.lower().replace(" ", "").replace("-", "").\
+                replace("_", "").replace("major", "").replace("minor", "").replace("ionian", "").\
+                replace("dorian", "").replace("lydian", "").replace("mixolydian", "").replace("aeolean", "")
+
+            if "phrygian" in string_initializer_processed:
+                string_initializer_processed = string_initializer_processed.replace("phrygian", "")
+                template = _c_phrygian_spellings
+            elif "locrian" in string_initializer_processed:
+                string_initializer_processed = string_initializer_processed.replace("phrygian", "")
+                template = _flat_spellings
+            else:
+                template = _c_standard_spellings
+
             try:
-                num_sharps_or_flats = _step_circle_of_fifths_positions[_step_names.index(string_initializer_lower[0])]
+                num_sharps_or_flats = _step_circle_of_fifths_positions[_step_names.index(string_initializer_processed[0])]
             except ValueError:
                 raise ValueError("Bad spelling policy initialization string. Use only 'sharp', 'flat', "
                                  "or the name of the desired key center (e.g. 'G#' or 'Db')")
-            if string_initializer_lower[1:].startswith(("b", "flat", "f", "-f", "-flat")):
+
+            if string_initializer_processed[1:].startswith(("b", "flat", "f")):
                 num_sharps_or_flats -= 7
-            elif string_initializer_lower[1:].startswith(("#", "sharp", "s", "-s", "-sharp")):
+            elif string_initializer_processed[1:].startswith(("#", "sharp", "s")):
                 num_sharps_or_flats += 7
-            return SpellingPolicy.from_circle_of_fifths_position(num_sharps_or_flats)
+            return SpellingPolicy.from_circle_of_fifths_position(num_sharps_or_flats, template=template)
 
     def get_name_alteration_and_octave(self, midi_num):
         rounded_midi_num = int(round(midi_num))
