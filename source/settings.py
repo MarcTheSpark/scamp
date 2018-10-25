@@ -1,8 +1,8 @@
 from scamp.utilities import resolve_relative_path, SavesToJSON
 from scamp.playback_adjustments import PlaybackDictionary, NotePlaybackAdjustment
+from scamp.spelling import SpellingPolicy
 import json
 import logging
-
 
 _playback_settings_factory_defaults = {
     "default_soundfonts": {
@@ -203,6 +203,7 @@ _engraving_settings_factory_defaults = {
                        "Black and White Life", "Pistol-Whipped Gyrations In A Petri Dish", "Carry on, Carrion",
                        "Color Me Blue", "Atomic Cucumbers", "If My Cat Could Smoke"],
     "default_composers": ["Gold-E-Lox", "50 Cent", "Eric Whitacre", "J. Bieber", "Honey Boo Boo", "Rebecca Black"],
+    "default_spelling_policy": SpellingPolicy.from_string("c major"),
     "glissandi": GlissandiEngravingSettings()
 }
 
@@ -222,6 +223,10 @@ class EngravingSettings(SavesToJSON):
             if "default_titles" not in settings else settings["default_titles"]
         self.default_composers = _engraving_settings_factory_defaults["default_composers"] \
             if "default_composers" not in settings else settings["default_composers"]
+        self.default_spelling_policy = _engraving_settings_factory_defaults["default_spelling_policy"] \
+            if "default_spelling_policy" not in settings \
+            else SpellingPolicy.from_string(settings["default_spelling_policy"]) \
+            if isinstance(settings["default_spelling_policy"], str) else settings["default_spelling_policy"]
         self.glissandi = GlissandiEngravingSettings(**_glissandi_engraving_factory_defaults) \
             if "glissandi" not in settings else GlissandiEngravingSettings(**settings["glissandi"]) \
             if isinstance(settings["glissandi"], dict) else settings["glissandi"]

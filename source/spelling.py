@@ -1,5 +1,5 @@
 import functools
-
+from scamp.utilities import SavesToJSON
 _c_standard_spellings = ((0, 0), (0, 1), (1, 0), (2, -1), (2, 0), (3, 0),
                          (3, 1), (4, 0), (5, -1), (5, 0), (6, -1), (6, 0))
 _c_phrygian_spellings = ((0, 0), (1, -1), (1, 0), (2, -1), (2, 0), (3, 0),
@@ -12,7 +12,7 @@ _sharp_order = (3, 0, 4, 1, 5, 2, 6)  # order in which sharps are added to a key
 _flat_order = tuple(reversed(_sharp_order))
 
 
-class SpellingPolicy:
+class SpellingPolicy(SavesToJSON):
 
     def __init__(self, step_alteration_pairs=_c_standard_spellings):
         """
@@ -80,9 +80,9 @@ class SpellingPolicy:
             - a key centers followed by a mode attached, such as "g minor" or "Bb locrian". Most modes to not alter the
             way spelling is done, but certain modes like phrygian and locrian do.
         """
-        if string_initializer == "flat":
+        if string_initializer in ("flat", "flats"):
             return SpellingPolicy.all_flats()
-        elif string_initializer == "sharp":
+        elif string_initializer in ("sharp", "sharps"):
             return SpellingPolicy.all_sharps()
         else:
             # most modes don't change anything about how spelling is done, since we default to flat-3, sharp-4,
@@ -129,3 +129,22 @@ class SpellingPolicy:
         name, alteration, octave = self.get_name_alteration_and_octave(midi_num)
         import abjad
         return abjad.NamedPitch(name, accidental=alteration, octave=octave)
+
+    def to_json(self):
+        # check to see this SpellingPolicy is identical to one made from one of the following string initializers
+        # if so, save it that way instead, for simplicity
+        for string_initializer in ("C", "G", "D", "A", "E", "B", "F#", "Db", "Ab", "Eb", "Bb", "F", "flat", "sharp"):
+            if self.step_alteration_pairs == SpellingPolicy.from_string(string_initializer).step_alteration_pairs:
+                return string_initializer
+        # otherwise, save the entire spelling
+        return self.step_alteration_pairs
+
+    @classmethod
+    def from_json(cls, json_object):
+        if isinstance(json_object, str):
+            return cls.from_string(json_object)
+        else:
+            return cls(tuple(tuple(x) for x in json_object))
+
+    def __repr__(self):
+        return "SpellingPolicy({})".format(self.step_alteration_pairs)
