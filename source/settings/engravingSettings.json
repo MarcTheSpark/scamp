@@ -1,5 +1,4 @@
 {
-    "_max_voices_per_part": 4,
     "articulation_split_protocols": {
         "accent": "first",
         "marcato": "first",
@@ -35,5 +34,6 @@
         "include_end_grace_note": true,
         "inner_grace_relevance_threshold": 4.0
     },
-    "max_dots_allowed": 3
+    "max_dots_allowed": 3,
+    "max_voices_per_part": 4
 }

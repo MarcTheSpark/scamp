@@ -182,7 +182,7 @@ class GlissandiEngravingSettings(SavesToJSON):
         self._control_point_policy = value
 
     def to_json(self):
-        return self.__dict__
+        return {key.strip("_"): value for key, value in self.__dict__.items()}
 
     @classmethod
     def from_json(cls, json_object):
@@ -249,8 +249,8 @@ class EngravingSettings(SavesToJSON):
         self.save_to_json(resolve_relative_path("settings/engravingSettings.json"))
 
     def to_json(self):
-        return {x: (self.__dict__[x].to_json() if hasattr(self.__dict__[x], "to_json")
-                    else self.__dict__[x]) for x in self.__dict__}
+        return {x.strip("_"): (self.__dict__[x].to_json() if hasattr(self.__dict__[x], "to_json")
+                               else self.__dict__[x]) for x in self.__dict__}
 
     @classmethod
     def from_json(cls, json_object):
