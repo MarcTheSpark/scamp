@@ -982,7 +982,8 @@ class NoteLike(ScoreComponent):
             # Now, is it a glissing chord?
             if isinstance(self.pitch[0], Envelope):
                 # if so, its noteheads are based on the start level
-                abjad_object.note_heads = [x.start_level() - 60 for x in self.pitch]
+                abjad_object.note_heads = [self.properties.spelling_policy.resolve_abjad_pitch(x.start_level())
+                                           for x in self.pitch]
                 # Set the notehead
                 self._set_abjad_note_head_styles(abjad_object)
                 last_pitches = abjad_object.written_pitches
@@ -1001,7 +1002,8 @@ class NoteLike(ScoreComponent):
                 for t in grace_points:
                     grace_chord = abjad.Chord()
                     grace_chord.written_duration = 1/16
-                    grace_chord.note_heads = [x.value_at(t) - 60 for x in self.pitch]
+                    grace_chord.note_heads = [self.properties.spelling_policy.resolve_abjad_pitch(x.value_at(t))
+                                              for x in self.pitch]
                     # Set the notehead
                     self._set_abjad_note_head_styles(grace_chord)
                     # but first check that we're not just repeating the last grace chord
@@ -1010,13 +1012,14 @@ class NoteLike(ScoreComponent):
                         last_pitches = grace_chord.written_pitches
             else:
                 # if not, our job is simple
-                abjad_object.note_heads = [x - 60 for x in self.pitch]
+                abjad_object.note_heads = [self.properties.spelling_policy.resolve_abjad_pitch(x) for x in self.pitch]
                 # Set the noteheads
                 self._set_abjad_note_head_styles(abjad_object)
 
         elif isinstance(self.pitch, Envelope):
             # This is a note doing a glissando
-            abjad_object = abjad.Note(self.pitch.start_level() - 60, duration)
+            abjad_object = abjad.Note(self.properties.spelling_policy.resolve_abjad_pitch(self.pitch.start_level()),
+                                      duration)
             # Set the notehead
             self._set_abjad_note_head_styles(abjad_object)
             last_pitch = abjad_object.written_pitch
@@ -1032,7 +1035,7 @@ class NoteLike(ScoreComponent):
                 grace_points += [self.pitch.end_time()]
 
             for t in grace_points:
-                grace = abjad.Note(self.pitch.value_at(t) - 60, 1 / 16)
+                grace = abjad.Note(self.properties.spelling_policy.resolve_abjad_pitch(self.pitch.value_at(t)), 1 / 16)
                 # Set the notehead
                 self._set_abjad_note_head_styles(grace)
                 # but first check that we're not just repeating the last grace note pitch
@@ -1041,7 +1044,7 @@ class NoteLike(ScoreComponent):
                     last_pitch = grace.written_pitch
         else:
             # This is a simple note
-            abjad_object = abjad.Note(self.pitch - 60, duration)
+            abjad_object = abjad.Note(self.properties.spelling_policy.resolve_abjad_pitch(self.pitch), duration)
             # Set the notehead
             self._set_abjad_note_head_styles(abjad_object)
 
