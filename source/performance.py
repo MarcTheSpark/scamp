@@ -364,11 +364,14 @@ class Performance(SavesToJSON):
     def num_measures(self):
         return max(part.num_measures() for part in self.parts)
 
-    def to_score(self):
+    def to_score(self, quantization_scheme=None):
+        # TODO: Probably should re-quantize if it's already quantized and we are given a quantization scheme
         if not self.is_quantized():
-            logging.warning("Performance was not quantized before calling to_score(); "
-                            "quantizing according to default quantization time_signature")
-            quantization_scheme = QuantizationScheme.from_time_signature(quantization_settings.default_time_signature)
+            if quantization_scheme is None:
+                logging.warning("No quantization scheme given; "
+                                "quantizing according to default quantization time_signature")
+                quantization_scheme = \
+                    QuantizationScheme.from_time_signature(quantization_settings.default_time_signature)
             return self.quantized(quantization_scheme).to_score()
         return Score.from_quantized_performance(self)
 
