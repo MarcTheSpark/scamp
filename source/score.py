@@ -271,6 +271,18 @@ class Score(ScoreComponent, ScoreContainer):
     def parts(self):
         return self._contents
 
+    @property
+    def staves(self):
+        # returns all the staves of all the parts in the score
+        out = []
+        for part in self.parts:
+            if isinstance(part, StaffGroup):
+                out.extend(part.staves)
+            else:
+                assert isinstance(part, Staff)
+                out.append(part)
+        return out
+
     @classmethod
     def from_performance(cls, performance, quantization_scheme="default"):
         return cls.from_quantized_performance(performance.quantized(quantization_scheme))
@@ -280,12 +292,28 @@ class Score(ScoreComponent, ScoreContainer):
         assert performance.is_quantized()
         contents = []
         for part in performance.parts:
+            if engraving_settings.ignore_empty_parts and part.num_measures() == 0:
+                # if this is an empty part, and we're not including empty parts, skip it
+                continue
             staff_group = StaffGroup.from_quantized_performance_part(part)
             if len(staff_group.staves) > 1:
                 contents.append(staff_group)
             elif len(staff_group.staves) == 1:
                 contents.append(staff_group.staves[0])
-        return cls(contents)
+        out = cls(contents)
+        if engraving_settings.pad_incomplete_parts:
+            out.pad_incomplete_parts()
+        return out
+
+    def pad_incomplete_parts(self):
+        staves = self.staves
+        longest_staff = max(staves, key=lambda staff: len(staff.measures))
+        longest_staff_length = len(longest_staff.measures)
+        for staff in self.staves:
+            while len(staff.measures) < longest_staff_length:
+                corresponding_measure_in_long_staff = longest_staff.measures[len(staff.measures)]
+                staff.measures.append(Measure.empty_measure(corresponding_measure_in_long_staff.time_signature,
+                                                            corresponding_measure_in_long_staff.show_time_signature))
 
     def _to_abjad(self):
         score = abjad.Score([part._to_abjad() for part in self.parts])
@@ -482,7 +510,8 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         :param measure_bins: a list of voice lists (can be many voices each)
         :param quantization_record: a QuantizationRecord
         """
-        num_staffs_required = int(max(math.ceil(len(x) / engraving_settings.max_voices_per_part) for x in measure_bins))
+        num_staffs_required = 1 if len(measure_bins) == 0 else \
+            int(max(math.ceil(len(x) / engraving_settings.max_voices_per_part) for x in measure_bins))
 
         # create a bunch of dummy bins for the different measures of each staff
         #             measures ->      staffs -v
@@ -517,6 +546,9 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         #       - a list of PerformanceNotes or
         #       - None, in the case of an empty voice
 
+        if all(len(x) == 0 for x in staves):
+            # empty staff group; none of its staves have any contents
+            return cls([Staff([])])
         return cls([Staff.from_measure_bins_of_voice_lists(x, quantization_record.time_signatures) for x in staves])
 
     def _to_abjad(self):

@@ -212,6 +212,8 @@ class PerformancePart(SavesToJSON):
     def get_longest_quantization_record(self):
         # useful if we want to get a sense of all the measures involved and their quantization,
         # since some voices may only last for a few measures and cut off early
+        if len(self.voice_quantization_records) is 0:
+            return None
         return max(self.voice_quantization_records.values(),
                    key=lambda quantization_record: len(quantization_record.quantized_measures))
 
@@ -223,7 +225,9 @@ class PerformancePart(SavesToJSON):
 
     def num_measures(self):
         assert self.is_quantized(), "Performance must be quantized to have a number of measures"
-        return len(self.get_longest_quantization_record().quantized_measures)
+        longest_quantization_record = self.get_longest_quantization_record()
+        return 0 if longest_quantization_record is None else \
+            len(self.get_longest_quantization_record().quantized_measures)
 
     def to_staff_group(self):
         if not self.is_quantized():

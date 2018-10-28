@@ -208,7 +208,9 @@ _engraving_settings_factory_defaults = {
                        "Color Me Blue", "Atomic Cucumbers", "If My Cat Could Smoke"],
     "default_composers": ["Gold-E-Lox", "50 Cent", "Eric Whitacre", "J. Bieber", "Honey Boo Boo", "Rebecca Black"],
     "default_spelling_policy": SpellingPolicy.from_string("c major"),
-    "glissandi": GlissandiEngravingSettings()
+    "ignore_empty_parts": True,
+    "glissandi": GlissandiEngravingSettings(),
+    "pad_incomplete_parts": True,
 }
 
 
@@ -234,6 +236,10 @@ class EngravingSettings(SavesToJSON):
         self.glissandi = GlissandiEngravingSettings(**_glissandi_engraving_factory_defaults) \
             if "glissandi" not in settings else GlissandiEngravingSettings(**settings["glissandi"]) \
             if isinstance(settings["glissandi"], dict) else settings["glissandi"]
+        self.ignore_empty_parts = _engraving_settings_factory_defaults["ignore_empty_parts"] \
+            if "ignore_empty_parts" not in settings else settings["ignore_empty_parts"]
+        self.pad_incomplete_parts = _engraving_settings_factory_defaults["pad_incomplete_parts"] \
+            if "pad_incomplete_parts" not in settings else settings["pad_incomplete_parts"]
 
     @property
     def max_voices_per_part(self):
