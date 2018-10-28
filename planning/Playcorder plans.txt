@@ -1,55 +1,15 @@
-NEED TO EXAMINE XML AND IT'S COMPATIBILITY WITH LILIPOND
-
-PCScore
-->Staff Group
-->Staff
-->Measure (set appropriate clef)
-->Voice (set is_simultaneous)
-->Tuplet
-..
-->Tuplet
-->Notes
-
-each should implement to_lilypond and to_XML
-
-Spanners (attached to multiple notes):
-hairpins
-slurs
-beams
-textspanners
-
-Attachments (attached to single notes)
-Articulations
-Dynamics
-
-Tricky: 
-glissandi
-ritards, accelerandi, Sudden tempo changes!
-
-
-QuantizationScheme
-MeasureQuantizationScheme
-BeatQuantizationScheme
-Accelerandi / Decelerandi (TempoEnvelope is the most general case. Depict this as a bunch of accelerandi decelerandi with metronome marks before and after.)
-
-
-Performance score:
-Most basically: Notes and Timings
-Can attach:
-	- TempoEnvelope (including ramped and sudden tempos)
-	– DynamicEnvelope (a
-	- Quantization scheme (how stuff is divided into measures and notes)
-During recording, the tempo can be ramped or set (ramp_to, slew_to)
-Durations should be set in beats, but recorded in seconds based on the current tempo. The default is q=60, so it ends up as seconds.
-
-Could have a utility to search for the most natural tempo.
-
-Performance score to PCScore:
-	Quantize to measures notes and voices
-	Notate tempo envelope as fully as possible
-
-
-PCScore to Performance Score:
-	-Flatten nested Tuplets, realize as durations
-	-realize glissandi as pitch envelopes
-	-multiply out dynamics and crescendi as volume envelopes
+- Empty parts: don't engrave? Maybe make that a setting...
+- Parts that end early: probably should engrave rests till the end
+- Get basic MusicXML working
+- Get recombination of larger notes working
+- Engraving tempo curve; accel, rit, sudden changes
+- MIDIPlayorderInstrument: allow preset shifts with keyword string
+- Playback adjustments: allow preset change as a possibility
+- Trills and Tremolo: can implement by splitting playback into many notes, changing preset, or -- in the case of trill --
+by simply adding a square wave envelope to the pitch.
+- Engraving Dynamics?? Probably need to be able to attach dynamic curves to instruments / voices of instruments. The way
+to do this would be to simply write them as DynamicEnvelope("fp<f") or something like that, parsing the string into an
+envelope for playback and then later attaching that to the staff as dynamics. This is tricky though! Basically, would
+be implemented as a parallel stream to the note stream, I think...
+- Engraving Slurs
+- Engraving Beams???
