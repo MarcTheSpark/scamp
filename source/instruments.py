@@ -123,13 +123,14 @@ class ScampInstrument(SavesToJSON):
 
     def _convert_properties_to_dictionary(self, raw_properties):
         properties = NotePropertiesDictionary.from_unknown_format(raw_properties) \
-            if not isinstance(properties, NotePropertiesDictionary) else raw_properties
+            if not isinstance(raw_properties, NotePropertiesDictionary) else raw_properties
         if properties["spelling_policy"] is None:
             if self.default_spelling_policy is not None:
                 properties.spelling_policy = self.default_spelling_policy
             elif self.host_ensemble is not None and self.host_ensemble.host_session is not None \
                     and self.host_ensemble.host_session.default_spelling_policy is not None:
                 properties.spelling_policy = self.host_ensemble.host_session.default_spelling_policy
+        return properties
 
     def _do_play_note(self, pitch, volume, length, properties, clock=None):
         # Does the actual sonic implementation of playing a note; used as a thread by the public method "play_note"
@@ -226,8 +227,7 @@ class ScampInstrument(SavesToJSON):
         if clock is None and hasattr(threading.current_thread(), "__clock__"):
             clock = threading.current_thread().__clock__
 
-        properties = NotePropertiesDictionary.from_unknown_format(properties) \
-            if not isinstance(properties, NotePropertiesDictionary) else properties
+        properties = self._convert_properties_to_dictionary(properties)
 
         volume = Envelope.from_list(volume) if hasattr(volume, "__len__") else volume
         pitch = Envelope.from_list(pitch) if hasattr(pitch, "__len__") else pitch
@@ -279,8 +279,7 @@ class ScampInstrument(SavesToJSON):
         """
         assert hasattr(pitches, "__len__")
 
-        properties = NotePropertiesDictionary.from_unknown_format(properties) \
-            if not isinstance(properties, NotePropertiesDictionary) else properties
+        properties = self._convert_properties_to_dictionary(properties)
 
         # we should either be given a number of noteheads equal to the number of pitches or just one notehead for all
         assert len(properties.noteheads) == len(pitches) or len(properties.noteheads) == 1, \
@@ -305,8 +304,7 @@ class ScampInstrument(SavesToJSON):
         Starts a note 'manually', meaning that its length is not predetermined, and that it has to be manually ended
         later by calling 'end_note' or 'end_all_notes'
         """
-        properties = NotePropertiesDictionary.from_unknown_format(properties) \
-            if not isinstance(properties, NotePropertiesDictionary) else properties
+        properties = self._convert_properties_to_dictionary(properties)
         note_id = self._do_start_note(pitch, volume, properties)
         self._notes_started.append((note_id, pitch, volume, self.time(), properties))
         # returns the note_id as a reference, in case we want to change pitch mid-playback
@@ -408,8 +406,7 @@ class MidiScampInstrument(ScampInstrument):
         # Same as with _do_play_note, we need to set the "pitch changes" key in the properties dictionary
         # since we don't know if the pitch will change, the default is to assume it does. If the user knows it
         # won't change pitch, then they can set pitch_might_change to false for more efficient MIDI channel use
-        properties = NotePropertiesDictionary.from_unknown_format(properties) \
-            if not isinstance(properties, NotePropertiesDictionary) else properties
+        properties = self._convert_properties_to_dictionary(properties)
         properties["temp"]["pitch changes"] = isinstance(pitch, Envelope)
         return super().start_note(pitch, volume, properties)
 
