@@ -1,7 +1,3 @@
-from scamp.settings import playback_settings
-
-from scamp.simple_rtmidi_wrapper import get_available_midi_output_devices
-
 from scamp.performance import Performance
 
 from scamp.ensemble import Ensemble
@@ -31,23 +27,6 @@ class Session:
         # The Performance object created when we record
         self.performance = None
 
-    @staticmethod
-    def get_available_midi_output_devices():
-        return get_available_midi_output_devices()
-
-    @staticmethod
-    def register_default_soundfont(name, soundfont_path):
-        return playback_settings.register_default_soundfont(name, soundfont_path)
-
-    @staticmethod
-    def unregister_default_soundfont(name):
-        return playback_settings.unregister_default_soundfont(name)
-
-    @staticmethod
-    def list_default_soundfonts():
-        for a, b in playback_settings.get_default_soundfonts().items():
-            print("{}: {}".format(a, b))
-
     # ----------------------------------- Clock Stuff --------------------------------
 
     def time(self):
@@ -55,6 +34,30 @@ class Session:
 
     def beats(self):
         return self.master_clock.beats()
+
+    @property
+    def beat_length(self):
+        return self.master_clock.beat_length
+
+    @beat_length.setter
+    def beat_length(self, b):
+        self.master_clock.beat_length = b
+
+    @property
+    def rate(self):
+        return self.master_clock.rate
+
+    @rate.setter
+    def rate(self, r):
+        self.master_clock.rate = r
+
+    @property
+    def tempo(self):
+        return self.master_clock.tempo
+
+    @tempo.setter
+    def tempo(self, t):
+        self.master_clock.tempo = t
 
     def fork(self, process_function, name="", initial_rate=1.0, extra_args=(), kwargs=None):
         return self.master_clock.fork(process_function, name=name, initial_rate=initial_rate,

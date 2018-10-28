@@ -72,6 +72,10 @@ class PlaybackSettings(SavesToJSON):
     def get_default_soundfonts(self):
         return self.default_soundfonts
 
+    def list_default_soundfonts(self):
+        for a, b in self.get_default_soundfonts().items():
+            print("{}: {}".format(a, b))
+
     def make_persistent(self):
         self.save_to_json(resolve_relative_path("settings/playbackSettings.json"))
 
@@ -266,7 +270,6 @@ except FileNotFoundError:
 except (TypeError, json.decoder.JSONDecodeError):
     logging.warning("Error loading playback settings; falling back to defaults.")
     playback_settings = PlaybackSettings()
-assert isinstance(playback_settings, PlaybackSettings)
 
 
 try:
@@ -279,7 +282,6 @@ except FileNotFoundError:
 except (TypeError, json.decoder.JSONDecodeError):
     logging.warning("Error loading quantization settings; falling back to defaults.")
     quantization_settings = QuantizationSettings()
-assert isinstance(quantization_settings, QuantizationSettings)
 
 
 try:
@@ -291,7 +293,6 @@ except FileNotFoundError:
 except (TypeError, json.decoder.JSONDecodeError):
     logging.warning("Error loading engraving settings; falling back to defaults.")
     engraving_settings = EngravingSettings()
-assert isinstance(engraving_settings, EngravingSettings)
 
 
 def restore_all_factory_defaults(persist=False):
