@@ -66,14 +66,16 @@ class NotePropertiesDictionary(dict, SavesToJSON):
                 # if there's a colon, it represents a key / value pair, e.g. "articulation: staccato"
                 if ":" in note_property:
                     colon_index = note_property.index(":")
-                    key, value = note_property[:colon_index].replace(" ", ""), note_property[colon_index+1:].strip()
-                    if "articulation" in key:
+                    key, value = note_property[:colon_index].replace(" ", "").lower(), \
+                                 note_property[colon_index+1:].strip().lower()
+                    if key in ("articulation", "articulations"):
                         if value in PlaybackDictionary.all_articulations:
                             properties_dict["articulations"].append(value)
                         else:
                             logging.warning("Articulation {} not understood".format(value))
-
-                    if "noteheads" in key:
+                    elif key == "noteheads":
+                        # For specifying multiple different notehead types in a chord, use the plural key "noteheads"
+                        # and specify the types separated by forward slashes
                         properties_dict["noteheads"] = []
                         for notehead in value.split("/"):
                             notehead = notehead.strip()
@@ -82,22 +84,21 @@ class NotePropertiesDictionary(dict, SavesToJSON):
                             else:
                                 properties_dict["noteheads"].append("normal")
                                 logging.warning("Notehead {} not understood".format(notehead))
-
-                    elif "notehead" in key:
+                    elif key == "notehead":
+                        # (for a chord, this sets all noteheads to the same type)
                         if value in PlaybackDictionary.all_noteheads:
                             properties_dict["noteheads"] = [value]
                         else:
                             logging.warning("Notehead {} not understood".format(value))
-
-                    if "notation" in key:
+                    elif key in ("notation", "notations"):
                         if value in PlaybackDictionary.all_notations:
                             properties_dict["notations"].append(value)
                         else:
                             logging.warning("Notation {} not understood".format(value))
 
                 else:
-                    note_property = note_property.replace(" ", "")
                     # otherwise, we try to figure out what kind of property we're dealing with
+                    note_property = note_property.replace(" ", "")
                     if note_property in PlaybackDictionary.all_articulations:
                         properties_dict["articulations"].append(note_property)
                     elif note_property in PlaybackDictionary.all_noteheads:
