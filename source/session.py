@@ -5,6 +5,8 @@ from scamp.instruments import ScampInstrument
 
 from scamp.midi_listener import *
 
+from scamp.spelling import SpellingPolicy
+
 
 class Session:
 
@@ -23,6 +25,10 @@ class Session:
         self.master_clock = Clock("MASTER")
         self._recording_clock = None
         self._recording_start_time = None
+
+        # A policy for spelling notes used as the default for the entire session
+        # Useful if the entire session is in a particular key, for instance
+        self._default_spelling_policy = None
 
         # The Performance object created when we record
         self.performance = None
@@ -253,3 +259,16 @@ class Session:
             )
         self._recording_start_time = None
         return self.performance
+
+    @property
+    def default_spelling_policy(self):
+        return self._default_spelling_policy
+
+    @default_spelling_policy.setter
+    def default_spelling_policy(self, value):
+        if value is None or isinstance(value, SpellingPolicy):
+            self._default_spelling_policy = value
+        elif isinstance(value, str):
+            self._default_spelling_policy = SpellingPolicy.from_string(value)
+        else:
+            raise ValueError("Spelling policy not understood.")

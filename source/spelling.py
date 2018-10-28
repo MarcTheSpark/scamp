@@ -6,7 +6,12 @@ _c_phrygian_spellings = ((0, 0), (1, -1), (1, 0), (2, -1), (2, 0), (3, 0),
                          (3, 1), (4, 0), (5, -1), (5, 0), (6, -1), (6, 0))
 _sharp_spellings = ((0, 0), (0, 1), (1, 0), (1, 1), (2, 0), (3, 0), (3, 1), (4, 0), (4, 1), (5, 0), (5, 1), (6, 0))
 _flat_spellings = ((0, 0), (1, -1), (1, 0), (2, -1), (2, 0), (3, 0), (4, -1), (4, 0), (5, -1), (5, 0), (6, -1), (6, 0))
+_sharp_spellings_even_white_keys = ((6, 1), (0, 1), (0, 2), (1, 1), (1, 2), (2, 1),
+                                    (3, 1), (3, 2), (4, 1), (4, 2), (5, 1), (5, 2))
+_flat_spellings_even_white_keys = ((1, -2), (1, -1), (2, -2), (2, -1), (3, -1), (4, -2),
+                                   (4, -1), (5, -2), (5, -1), (6, -2), (6, -1), (0, -1))
 _step_names = ('c', 'd', 'e', 'f', 'g', 'a', 'b')
+_step_pitch_classes = (0, 2, 4, 5, 7, 9, 11)
 _step_circle_of_fifths_positions = (0, 2, 4, -1, 1, 3, 5)  # number of sharps or flats for the white keys
 _sharp_order = (3, 0, 4, 1, 5, 2, 6)  # order in which sharps are added to a key signature
 _flat_order = tuple(reversed(_sharp_order))
@@ -26,13 +31,13 @@ class SpellingPolicy(SavesToJSON):
 
     @classmethod
     @functools.lru_cache()
-    def all_sharps(cls):
-        return cls(_sharp_spellings)
+    def all_sharps(cls, including_white_keys=False):
+        return cls(_sharp_spellings_even_white_keys if including_white_keys else _sharp_spellings)
 
     @classmethod
     @functools.lru_cache()
-    def all_flats(cls):
-        return cls(_flat_spellings)
+    def all_flats(cls, including_white_keys=False):
+        return cls(_flat_spellings_even_white_keys if including_white_keys else _flat_spellings)
 
     @classmethod
     @functools.lru_cache()
@@ -75,15 +80,22 @@ class SpellingPolicy(SavesToJSON):
         """
         Creates an instance of SpellingPolicy from several possible input string formats
         :param string_initializer: one of the following:
-            - "flat" or "sharp", indicating that black keys are always expressed a particular way
+            - "flat"/"b" or "sharp"/"#", indicating that any note, even a white key, is to be expressed with the
+            specified accidental. Most useful for spelling known individual notes
+            - "flats"/"sharps" indicating that black keys will be spelled with the specified accidental, but white
+            keys will remain unaltered. Turns out "flats" is equivalent to "Bb" and "sharps" is equivalent to "A"
             - a key center (case insensitive), such as "C#" or "f" or "Gb"
-            - a key centers followed by a mode attached, such as "g minor" or "Bb locrian". Most modes to not alter the
+            - a key center followed by a mode, such as "g minor" or "Bb locrian". Most modes to not alter the
             way spelling is done, but certain modes like phrygian and locrian do.
         """
-        if string_initializer in ("flat", "flats"):
-            return SpellingPolicy.all_flats()
-        elif string_initializer in ("sharp", "sharps"):
-            return SpellingPolicy.all_sharps()
+        if string_initializer in ("flat", "b"):
+            return SpellingPolicy.all_flats(including_white_keys=True)
+        elif string_initializer in ("sharp", "#"):
+            return SpellingPolicy.all_sharps(including_white_keys=True)
+        elif string_initializer == "flats":
+            return SpellingPolicy.all_flats(including_white_keys=False)
+        elif string_initializer == "sharps":
+            return SpellingPolicy.all_sharps(including_white_keys=False)
         else:
             # most modes don't change anything about how spelling is done, since we default to flat-3, sharp-4,
             # flat-6, and flat-7. The only exceptions are phrygian and locrian, since they have a flat-2 instead of
@@ -105,7 +117,7 @@ class SpellingPolicy(SavesToJSON):
                 num_sharps_or_flats = _step_circle_of_fifths_positions[_step_names.index(string_initializer_processed[0])]
             except ValueError:
                 raise ValueError("Bad spelling policy initialization string. Use only 'sharp', 'flat', "
-                                 "or the name of the desired key center (e.g. 'G#' or 'Db')")
+                                 "or the name of the desired key center (e.g. 'G#' or 'Db') with optional mode.")
 
             if string_initializer_processed[1:].startswith(("b", "flat", "f")):
                 num_sharps_or_flats -= 7
@@ -113,11 +125,17 @@ class SpellingPolicy(SavesToJSON):
                 num_sharps_or_flats += 7
             return SpellingPolicy.from_circle_of_fifths_position(num_sharps_or_flats, template=template)
 
-    def get_name_alteration_and_octave(self, midi_num):
+    def resolve_name_alteration_and_octave(self, midi_num):
         rounded_midi_num = int(round(midi_num))
         octave = int(rounded_midi_num / 12) - 1
         pitch_class = rounded_midi_num % 12
         step, alteration = self.step_alteration_pairs[pitch_class]
+        if _step_pitch_classes[step] + alteration < 0:
+            # if we have Cb, the octave will be interpreted incorrectly from the midi number, so we compensate
+            octave += 1
+        elif _step_pitch_classes[step] + alteration > 11:
+            # same kind of correction, but for B#
+            octave -= 1
         name = _step_names[step]
         # add back in any potential quarter tonal deviation
         # (round the different between midi_num and rounded_midi_num to the nearest multiple of 0.5)
@@ -125,15 +143,15 @@ class SpellingPolicy(SavesToJSON):
             alteration += round(2 * (midi_num - rounded_midi_num)) / 2
         return name, alteration, octave
 
-    def get_abjad_pitch(self, midi_num):
-        name, alteration, octave = self.get_name_alteration_and_octave(midi_num)
+    def resolve_abjad_pitch(self, midi_num):
+        name, alteration, octave = self.resolve_name_alteration_and_octave(midi_num)
         import abjad
         return abjad.NamedPitch(name, accidental=alteration, octave=octave)
 
     def to_json(self):
         # check to see this SpellingPolicy is identical to one made from one of the following string initializers
         # if so, save it that way instead, for simplicity
-        for string_initializer in ("C", "G", "D", "A", "E", "B", "F#", "Db", "Ab", "Eb", "Bb", "F", "flat", "sharp"):
+        for string_initializer in ("C", "G", "D", "A", "E", "B", "F#", "Db", "Ab", "Eb", "Bb", "F", "b", "#"):
             if self.step_alteration_pairs == SpellingPolicy.from_string(string_initializer).step_alteration_pairs:
                 return string_initializer
         # otherwise, save the entire spelling

@@ -7,6 +7,7 @@ from scamp.settings import playback_settings
 from copy import deepcopy
 from scamp.note_properties import NotePropertiesDictionary
 from scamp.clock import current_clock
+from scamp.spelling import SpellingPolicy
 import atexit
 import logging
 
@@ -36,8 +37,12 @@ class ScampInstrument(SavesToJSON):
         self.name = name
         self.name_count = None
         self.host_ensemble = None
+
         if host is not None:
             self.set_host(host)
+
+        # A policy for spelling notes used as the default for this instrument. Overrides the session default.
+        self._default_spelling_policy = None
 
         # used to identify instruments uniquely, even if they're given the same name
         self._notes_started = []   # each entry goes (note_id, pitch, volume, start_time, variant_dictionary)
@@ -58,6 +63,19 @@ class ScampInstrument(SavesToJSON):
             return self.host_ensemble.host_session.time()
         else:
             return time.time()
+
+    @property
+    def default_spelling_policy(self):
+        return self._default_spelling_policy
+
+    @default_spelling_policy.setter
+    def default_spelling_policy(self, value):
+        if value is None or isinstance(value, SpellingPolicy):
+            self._default_spelling_policy = value
+        elif isinstance(value, str):
+            self._default_spelling_policy = SpellingPolicy.from_string(value)
+        else:
+            raise ValueError("Spelling policy not understood.")
 
     # ------------------ Methods to be implemented by subclasses ------------------
 
@@ -102,6 +120,16 @@ class ScampInstrument(SavesToJSON):
         return type_to_create(host_ensemble, **kwargs)
 
     # ------------------------- "Private" Playback Methods -----------------------
+
+    def _convert_properties_to_dictionary(self, raw_properties):
+        properties = NotePropertiesDictionary.from_unknown_format(raw_properties) \
+            if not isinstance(properties, NotePropertiesDictionary) else raw_properties
+        if properties["spelling_policy"] is None:
+            if self.default_spelling_policy is not None:
+                properties.spelling_policy = self.default_spelling_policy
+            elif self.host_ensemble is not None and self.host_ensemble.host_session is not None \
+                    and self.host_ensemble.host_session.default_spelling_policy is not None:
+                properties.spelling_policy = self.host_ensemble.host_session.default_spelling_policy
 
     def _do_play_note(self, pitch, volume, length, properties, clock=None):
         # Does the actual sonic implementation of playing a note; used as a thread by the public method "play_note"
@@ -200,6 +228,7 @@ class ScampInstrument(SavesToJSON):
 
         properties = NotePropertiesDictionary.from_unknown_format(properties) \
             if not isinstance(properties, NotePropertiesDictionary) else properties
+
         volume = Envelope.from_list(volume) if hasattr(volume, "__len__") else volume
         pitch = Envelope.from_list(pitch) if hasattr(pitch, "__len__") else pitch
 

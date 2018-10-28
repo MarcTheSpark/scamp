@@ -1,6 +1,7 @@
 from scamp.playback_adjustments import *
 from scamp.utilities import SavesToJSON
-from scamp.settings import playback_settings
+from scamp.settings import playback_settings, engraving_settings
+from scamp.spelling import SpellingPolicy
 from copy import deepcopy
 import logging
 
@@ -18,6 +19,8 @@ class NotePropertiesDictionary(dict, SavesToJSON):
             kwargs["text"] = []
         if "playback adjustments" not in kwargs:
             kwargs["playback adjustments"] = []
+        if "spelling_policy" not in kwargs:
+            kwargs["spelling_policy"] = None
         if "temp" not in kwargs:
             # this is a throwaway directory that is not kept when we save to json
             kwargs["temp"] = {}
@@ -95,6 +98,11 @@ class NotePropertiesDictionary(dict, SavesToJSON):
                             properties_dict["notations"].append(value)
                         else:
                             logging.warning("Notation {} not understood".format(value))
+                    elif key in ("key", "spelling", "spellingpolicy", "spelling_policy", "spell"):
+                        try:
+                            properties_dict["spelling_policy"] = SpellingPolicy.from_string(value)
+                        except ValueError:
+                            logging.warning("Spelling policy \"{}\" not understood".format(value))
 
                 else:
                     # otherwise, we try to figure out what kind of property we're dealing with
@@ -105,6 +113,8 @@ class NotePropertiesDictionary(dict, SavesToJSON):
                         properties_dict["noteheads"] = [note_property]
                     elif note_property in PlaybackDictionary.all_notations:
                         properties_dict["notations"].append(note_property)
+                    elif note_property in ("#", "b", "sharps", "flats"):
+                        properties_dict["spelling_policy"] = SpellingPolicy.from_string(note_property)
 
         return properties_dict
 
@@ -147,6 +157,23 @@ class NotePropertiesDictionary(dict, SavesToJSON):
     @playback_adjustments.setter
     def playback_adjustments(self, value):
         self["playback_adjustments"] = value
+
+    @property
+    def spelling_policy(self):
+        return self["spelling_policy"] if self["spelling_policy"] is not None \
+            else engraving_settings.default_spelling_policy
+
+    @spelling_policy.setter
+    def spelling_policy(self, value):
+        if isinstance(value, SpellingPolicy):
+            self["spelling_policy"] = value
+        elif isinstance(value, str):
+            self["spelling_policy"] = SpellingPolicy.from_string(value)
+        elif hasattr(value, "__len__") and len(value) == 12 and \
+                all(hasattr(x, "__len__") and len(x) == 2 for x in value):
+            self["spelling_policy"] = tuple(tuple(x) for x in value)
+        else:
+            raise ValueError("Spelling policy not understood.")
 
     def starts_tie(self):
         return "_starts_tie" in self and self["_starts_tie"]
@@ -206,6 +233,8 @@ class NotePropertiesDictionary(dict, SavesToJSON):
             del json_friendly_dict["text"]
         if len(self.playback_adjustments) == 0:
             del json_friendly_dict["playback adjustments"]
+        if self.spelling_policy is None:
+            del json_friendly_dict["spelling_policy"]
 
         return json_friendly_dict
 
@@ -214,6 +243,8 @@ class NotePropertiesDictionary(dict, SavesToJSON):
         # convert all adjustments from dictionaries to NotePlaybackAdjustments
         json_object["playback adjustments"] = [NotePlaybackAdjustment.from_json(x)
                                                for x in json_object["playback adjustments"]]
+        if "spelling_policy" in json_object:
+            json_object["spelling_policy"] = SpellingPolicy.from_json(json_object["spelling_policy"])
         return cls(**json_object)
 
     def __repr__(self):
