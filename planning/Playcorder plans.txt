@@ -1,5 +1,4 @@
-- Empty parts: don't engrave? Maybe make that a setting...
-- Parts that end early: probably should engrave rests till the end
+- If quantize is called on a quantized score / part, maybe throw out the quantization and requantize?
 - Get basic MusicXML working
 - Get recombination of larger notes working
 - Engraving tempo curve; accel, rit, sudden changes
