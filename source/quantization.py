@@ -71,6 +71,15 @@ def quantize_performance_part(part, quantization_scheme, onset_weighting="defaul
     """
     if isinstance(quantization_scheme, (str, TimeSignature)):
         quantization_scheme = QuantizationScheme.from_time_signature(quantization_scheme)
+    elif isinstance(quantization_scheme, list) and \
+            all(isinstance(x, (str, TimeSignature)) for x in quantization_scheme):
+        # make it easy to loop a series of time signatures by adding the string "loop" at the end
+        loop = False
+        if quantization_scheme[-1].lower() == "loop":
+            quantization_scheme.pop()
+            loop = True
+        quantization_scheme = QuantizationScheme.from_time_signature_list(quantization_scheme, loop=loop)
+
     assert isinstance(quantization_scheme, QuantizationScheme)
 
     part.voice_quantization_records = {}
