@@ -7,26 +7,25 @@
         "tenuto": "last"
     },
     "default_composers": [
-        "Gold-E-Lox",
-        "50 Cent",
-        "Eric Whitacre",
-        "J. Bieber",
-        "Honey Boo Boo",
-        "Rebecca Black"
+        "HTMLvis",
+        "Rustin Beiber",
+        "Javan Morrison",
+        "Sia++",
+        "The Rubytles",
+        "CSStiny's Child",
+        "Perl Jam",
+        "PHPrince"
     ],
     "default_spelling_policy": "C",
     "default_titles": [
-        "Digging Deep",
-        "I Like Fruit",
-        "My Soup is Too Cold",
-        "Woe is Me",
-        "Dope Soundscapes",
-        "Black and White Life",
-        "Pistol-Whipped Gyrations In A Petri Dish",
-        "Carry on, Carrion",
-        "Color Me Blue",
-        "Atomic Cucumbers",
-        "If My Cat Could Smoke"
+        "On the Code Again",
+        "The Long and Winding Code",
+        "Code To Joy",
+        "Take Me Home, Country Codes",
+        "Thunder Code",
+        "Code to Nowhere",
+        "Goodbye Yellow Brick Code",
+        "Hit the Code, Jack"
     ],
     "glissandi": {
         "consider_non_extrema_control_points": false,
@@ -34,8 +33,8 @@
         "include_end_grace_note": true,
         "inner_grace_relevance_threshold": 4.0
     },
-    "ignore_empty_parts": false,
+    "ignore_empty_parts": true,
     "max_dots_allowed": 3,
     "max_voices_per_part": 4,
-    "pad_incomplete_parts": true,
+    "pad_incomplete_parts": true
 }

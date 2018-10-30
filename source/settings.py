@@ -203,10 +203,10 @@ _engraving_settings_factory_defaults = {
         "tenuto": "last",
         "accent": "first"
     },
-    "default_titles": ["Digging Deep", "I Like Fruit", "My Soup is Too Cold", "Woe is Me", "Dope Soundscapes",
-                       "Black and White Life", "Pistol-Whipped Gyrations In A Petri Dish", "Carry on, Carrion",
-                       "Color Me Blue", "Atomic Cucumbers", "If My Cat Could Smoke"],
-    "default_composers": ["Gold-E-Lox", "50 Cent", "Eric Whitacre", "J. Bieber", "Honey Boo Boo", "Rebecca Black"],
+    "default_titles": ["On the Code Again", "The Long and Winding Code", "Code To Joy", "Take Me Home, Country Codes",
+                       "Thunder Code", "Code to Nowhere", "Goodbye Yellow Brick Code", "Hit the Code, Jack"],
+    "default_composers": ["HTMLvis", "Rustin Beiber", "Javan Morrison", "Sia++", "The Rubytles", "CSStiny's Child",
+                          "Perl Jam", "PHPrince", ],
     "default_spelling_policy": SpellingPolicy.from_string("c major"),
     "ignore_empty_parts": True,
     "glissandi": GlissandiEngravingSettings(),
@@ -227,8 +227,10 @@ class EngravingSettings(SavesToJSON):
             if "articulation_split_protocols" not in settings else settings["articulation_split_protocols"]
         self.default_titles = _engraving_settings_factory_defaults["default_titles"] \
             if "default_titles" not in settings else settings["default_titles"]
+        assert isinstance(self.default_titles, (list, str, type(None))), "Default titles not understood."
         self.default_composers = _engraving_settings_factory_defaults["default_composers"] \
             if "default_composers" not in settings else settings["default_composers"]
+        assert isinstance(self.default_composers, (list, str, type(None))), "Default composers not understood."
         self.default_spelling_policy = _engraving_settings_factory_defaults["default_spelling_policy"] \
             if "default_spelling_policy" not in settings \
             else SpellingPolicy.from_string(settings["default_spelling_policy"]) \
@@ -249,6 +251,24 @@ class EngravingSettings(SavesToJSON):
     def max_voices_per_part(self, value):
         assert isinstance(value, int) and 0 <= value < 5, "Max voices per part must be an integer from 1 to 4"
         self._max_voices_per_part = value
+
+    def get_default_title(self):
+        if isinstance(self.default_titles, list):
+            import random
+            return random.choice(self.default_titles)
+        elif isinstance(self.default_titles, str):
+            return self.default_titles
+        else:
+            return None
+
+    def get_default_composer(self):
+        if isinstance(self.default_composers, list):
+            import random
+            return random.choice(self.default_composers)
+        elif isinstance(self.default_composers, str):
+            return self.default_composers
+        else:
+            return None
 
     def restore_factory_defaults(self):
         for key in _engraving_settings_factory_defaults:
