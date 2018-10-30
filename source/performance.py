@@ -364,16 +364,8 @@ class Performance(SavesToJSON):
     def num_measures(self):
         return max(part.num_measures() for part in self.parts)
 
-    def to_score(self, quantization_scheme=None):
-        # TODO: Probably should re-quantize if it's already quantized and we are given a quantization scheme
-        if not self.is_quantized():
-            if quantization_scheme is None:
-                logging.warning("No quantization scheme given; "
-                                "quantizing according to default quantization time_signature")
-                quantization_scheme = \
-                    QuantizationScheme.from_time_signature(quantization_settings.default_time_signature)
-            return self.quantized(quantization_scheme).to_score()
-        return Score.from_quantized_performance(self)
+    def to_score(self, quantization_scheme=None, title="default", composer="default"):
+        return Score.from_performance(self, quantization_scheme, title=title, composer=composer)
 
     def to_json(self):
         return {"parts": [part.to_json() for part in self.parts], "tempo_envelope": self.tempo_envelope.to_json()}

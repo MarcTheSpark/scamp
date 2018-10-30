@@ -1,6 +1,6 @@
-from scamp.settings import engraving_settings
+from scamp.settings import quantization_settings, engraving_settings
 from scamp.envelope import Envelope
-from scamp.quantization import QuantizationRecord
+from scamp.quantization import QuantizationRecord, QuantizationScheme
 from scamp.performance_note import PerformanceNote
 from scamp.utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y
 from scamp.engraving_translations import notehead_name_to_lilypond_type
@@ -12,7 +12,7 @@ import textwrap
 import abjad
 from collections import namedtuple
 from abc import ABC, abstractmethod
-
+import logging
 
 # TODO:
 # - looking through for situations like tied eighths on and of 1 and 2 combining into quarters
@@ -247,17 +247,28 @@ stemless = {
 
         return abjad_lilypond_file
 
-    def export_lilypond(self, file_path, title=None, composer=None):
+    def export_lilypond(self, file_path):
+        title = self.title if hasattr(self, "title") else None
+        composer = self.composer if hasattr(self, "composer") else None
         with open(file_path, "w") as output_file:
             output_file.write(format(self.to_abjad_lilypond_file(title, composer)))
 
     def to_lilypond(self, wrap_as_file=False):
+        title = self.title if hasattr(self, "title") else None
+        composer = self.composer if hasattr(self, "composer") else None
         assert abjad is not None, "Abjad is required for this operation."
-        return format(self.to_abjad_lilypond_file() if wrap_as_file else self.to_abjad())
+        return format(self.to_abjad_lilypond_file(title, composer) if wrap_as_file else self.to_abjad())
+
+    def print_lilypond(self, wrap_as_file=False):
+        print(self.to_lilypond(wrap_as_file=wrap_as_file))
 
     def show(self):
         assert abjad is not None, "Abjad is required for this operation."
-        abjad.show(self.to_abjad())
+        # we use a lilypond file wrapper if we need to display title or composer info (i.e. for Scores)
+        title = self.title if hasattr(self, "title") else None
+        composer = self.composer if hasattr(self, "composer") else None
+        abjad.show(self.to_abjad_lilypond_file(title=title, composer=composer)
+                   if title is not None or composer is not None else self.to_abjad())
 
 
 class Score(ScoreComponent, ScoreContainer):
@@ -284,12 +295,20 @@ class Score(ScoreComponent, ScoreContainer):
         return out
 
     @classmethod
-    def from_performance(cls, performance, quantization_scheme="default"):
-        return cls.from_quantized_performance(performance.quantized(quantization_scheme))
+    def from_performance(cls, performance, quantization_scheme=None, title="default", composer="default"):
+        if not performance.is_quantized() and quantization_scheme is None:
+            # not quantized and no quantization scheme given, so we need to pick a default quantization scheme
+            logging.warning("No quantization scheme given; quantizing according to default time signature")
+            quantization_scheme = QuantizationScheme.from_time_signature(quantization_settings.default_time_signature)
+
+        return Score.from_quantized_performance(
+            performance if quantization_scheme is None else performance.quantized(quantization_scheme),
+            title=title, composer=composer
+        )
 
     @classmethod
-    def from_quantized_performance(cls, performance):
-        assert performance.is_quantized()
+    def from_quantized_performance(cls, performance, title="default", composer="default"):
+        assert performance.is_quantized(), "Performance was not quantized."
         contents = []
         for part in performance.parts:
             if engraving_settings.ignore_empty_parts and part.num_measures() == 0:
@@ -300,7 +319,11 @@ class Score(ScoreComponent, ScoreContainer):
                 contents.append(staff_group)
             elif len(staff_group.staves) == 1:
                 contents.append(staff_group.staves[0])
-        out = cls(contents)
+        out = cls(
+            contents,
+            title=engraving_settings.get_default_title() if title == "default" else title,
+            composer=engraving_settings.get_default_composer() if composer == "default" else composer
+        )
         if engraving_settings.pad_incomplete_parts:
             out.pad_incomplete_parts()
         return out
