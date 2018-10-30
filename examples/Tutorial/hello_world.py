@@ -1,10 +1,10 @@
-from playcorder import *
+from scamp import *
 
-pc = Playcorder("default")
+session = Session("default")
 
-piano = pc.add_midi_part()
+piano = session.add_midi_part()
 
-pc.start_recording()
+session.start_recording()
 
 pitches = [60, 62, 64, 65, 67, 69, 71, 72]
 durations = [0.5, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 2.0]
@@ -12,6 +12,6 @@ durations = [0.5, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 2.0]
 for pitch, duration in zip(pitches, durations):
     piano.play_note(pitch, 1.0, duration)
 
-performance = pc.stop_recording()
+performance = session.stop_recording()
 
-Score.from_performance(performance).show()
+performance.to_score().show()
