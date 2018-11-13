@@ -177,6 +177,10 @@ class Duration(MusicXMLComponent):
         tuplet_modification = 1 if self.tuplet_ratio is None else float(self.tuplet_ratio[1]) / self.tuplet_ratio[0]
         return self.written_length * tuplet_modification
 
+    @property
+    def length_in_divisions(self):
+        return int(round(self.true_length * self.divisions))
+
     def num_beams(self):
         return Duration.note_type_to_num_beams[self.note_type]
 
@@ -233,7 +237,7 @@ class Duration(MusicXMLComponent):
         elements = []
         # specify all the duration-related attributes
         duration_el = ElementTree.Element("duration")
-        duration_el.text = str(int(round(self.true_length * self.divisions)))
+        duration_el.text = str(self.length_in_divisions)
         elements.append(duration_el)
 
         type_el = ElementTree.Element("type")
@@ -328,19 +332,20 @@ class _XMLNote(MusicXMLComponent):
 
             assert isinstance(self.duration, Duration)
             self.duration.divisions = self.divisions
-            element.extend(self.duration.render())
 
-        # ------------------ set voice and staff ----------------
+            duration_elements = self.duration.render()
+            element.append(duration_elements[0])
 
-        if self.voice is not None:
-            voice_el = ElementTree.Element("voice")
-            voice_el.text = str(self.voice)
-            element.append(voice_el)
+            # for some reason, the voice element is generally sandwiched in here
+            if self.voice is not None:
+                ElementTree.SubElement(element, "voice").text = str(self.voice)
+
+            element.extend(duration_elements[1:])
+
+        # ------------------ set staff ----------------
 
         if self.staff is not None:
-            staff_el = ElementTree.Element("staff")
-            staff_el.text = str(self.staff)
-            element.append(staff_el)
+            ElementTree.SubElement(element, "staff").text = str(self.staff)
 
         # ---------------- set attributes that apply to notes only ----------------
 
@@ -394,6 +399,11 @@ class _XMLNote(MusicXMLComponent):
     @property
     def written_length(self):
         return self.duration.written_length if isinstance(self.duration, Duration) else self.duration
+
+    @property
+    def length_in_divisions(self):
+        return self.duration.length_in_divisions if isinstance(self.duration, Duration) \
+            else int(round(self.divisions * self.duration))
 
     def min_denominator(self):
         if isinstance(self.duration, Duration):
@@ -500,6 +510,10 @@ class Chord(MusicXMLComponent):
         return self.notes[0].written_length
 
     @property
+    def length_in_divisions(self):
+        return self.notes[0].length_in_divisions
+
+    @property
     def notations(self):
         return self.notes[0].notations
 
@@ -515,6 +529,15 @@ class Chord(MusicXMLComponent):
     def divisions(self, value):
         for note in self.notes:
             note.divisions = value
+
+    @property
+    def voice(self):
+        return self.notes[0].voice
+
+    @voice.setter
+    def voice(self, value):
+        for note in self.notes:
+            note.voice = value
 
     @property
     def beams(self):
@@ -593,6 +616,18 @@ class BeamedGroup(MusicXMLComponent):
     def divisions(self, value):
         for leaf in self.contents:
             leaf.divisions = value
+
+    @property
+    def true_length(self):
+        return sum(leaf.true_length for leaf in self.contents)
+
+    @property
+    def written_length(self):
+        return sum(leaf.written_length for leaf in self.contents)
+
+    @property
+    def length_in_divisions(self):
+        return sum(leaf.length_in_divisions for leaf in self.contents)
 
     def min_denominator(self):
         return least_common_multiple(*[n.min_denominator() for n in self.contents])
@@ -702,8 +737,11 @@ class Measure(MusicXMLComponent):
         :param staves: for multi-part music, like piano music
         :param number: which number in the score. Will be set by the containing Part
         """
-        assert hasattr(contents, '__len__') and \
-               all(isinstance(x, (Note, Rest, Chord, BarRest, BeamedGroup, Tuplet)) for x in contents)
+        assert hasattr(contents, '__len__') and all(
+            isinstance(x, (Note, Rest, Chord, BarRest, BeamedGroup, Tuplet, type(None))) or
+            hasattr(x, '__len__') and all(isinstance(y, (Note, Rest, Chord, BarRest, BeamedGroup, Tuplet)) for y in x)
+            for x in contents
+        )
         self.contents = contents
         self.number = number
         self.time_signature = time_signature
@@ -716,16 +754,39 @@ class Measure(MusicXMLComponent):
         self.barline = barline
         self.staves = staves
 
+    @property
+    def voices(self):
+        # convenience method for putting the voices in a list, since contents is sometimes just a single voice list
+        return (self.contents, ) if not isinstance(self.contents[0], (tuple, list, type(None))) else self.contents
+
     def leaves(self):
         out = []
-        for note_or_tuplet in self.contents:
-            if isinstance(note_or_tuplet, Tuplet):
-                out.extend(note_or_tuplet.contents)
-            else:
-                out.append(note_or_tuplet)
+        for voice in self.voices:
+            if voice is None:  # skip empty voices
+                continue
+            for note_or_tuplet in voice:
+                if isinstance(note_or_tuplet, Tuplet):
+                    out.extend(note_or_tuplet.contents)
+                else:
+                    out.append(note_or_tuplet)
         return out
 
+    def set_leaf_voices(self):
+        for i, voice in enumerate(self.voices):
+            if voice is None:  # skip empty voices
+                continue
+            for element in voice:
+                if isinstance(element, (BeamedGroup, Tuplet)):
+                    # element is a container
+                    for leaf in element.contents:
+                        leaf.voice = i + 1
+                else:
+                    # element is a leaf
+                    element.voice = i + 1
+
     def render(self):
+        self.set_leaf_voices()
+
         measure_element = ElementTree.Element("measure", {"number": str(self.number)})
 
         attributes_el = ElementTree.SubElement(measure_element, "attributes")
@@ -751,12 +812,24 @@ class Measure(MusicXMLComponent):
             staves_el = ElementTree.SubElement(attributes_el, "staves")
             staves_el.text = str(self.staves)
 
-        for note_or_tuplet in self.contents:
-            rendered_content = note_or_tuplet.render()
-            if isinstance(rendered_content, tuple):
-                measure_element.extend(rendered_content)
-            else:
-                measure_element.append(rendered_content)
+        amount_to_backup = 0
+        for i, voice in enumerate(self.voices):
+            if voice is None:  # skip empty voices
+                continue
+
+            if i > 0:
+                # for voices after 1, we need to add a backup element to go back to the start of the measure
+                backup_el = ElementTree.SubElement(measure_element, "backup")
+                ElementTree.SubElement(backup_el, "duration").text = str(amount_to_backup)
+            amount_to_backup = 0
+
+            for note_or_tuplet in voice:
+                rendered_content = note_or_tuplet.render()
+                amount_to_backup += note_or_tuplet.length_in_divisions
+                if isinstance(rendered_content, tuple):
+                    measure_element.extend(rendered_content)
+                else:
+                    measure_element.append(rendered_content)
 
         if self.barline is not None:
             barline_el = ElementTree.SubElement(measure_element, "barline", {"location": "right"})
@@ -855,62 +928,75 @@ class Score(MusicXMLComponent):
                 score_element.append(part.render())
         return score_element
 
-# ------------------- A SHORT EXAMPLE --------------------
 
-Score([
-    PartGroup([
-        Part("Oboe", [
-            Measure([
-                Note("d5", 1.5),
-                BeamedGroup([
-                    Note("f#4", 0.25),
-                    Note("A#4", 0.25)
-                ]),
-                Chord(["Cs4", "Ab4"], 1.0),
-                Rest(1.0)
-            ], time_signature=(4, 4)),
-            Measure([
-                Tuplet([
-                    Note("c5", 0.5),
-                    Note("bb4", 0.25),
-                    Note("a4", 0.25),
-                    Note("b4", 0.25),
-                ], (5, 4)),
-                Note("f4", 2),
-                Rest(1)
-            ], clef="mezzo-soprano", barline="end")
-        ]),
-        Part("Clarinet", [
-            Measure([
-                Tuplet([
-                    Note("c5", 0.5),
-                    Note("bb4", 0.25),
-                    Note("a4", 0.25),
-                    Note("b4", 0.25),
-                ], (5, 4)),
-                Note("f4", 2),
-                Rest(1)
-            ], time_signature=(4, 4)),
-            Measure([
-                Note("d5", 1.5),
-                BeamedGroup([
-                    Note("f#4", 0.25),
-                    Note("A#4", 0.25)
-                ]),
-                Chord(["Cs4", "Ab4"], 1.0),
-                Rest(1.0)
-            ], barline="end")
-        ])
-    ]),
-    Part("Bassoon", [
-        Measure([
-            BarRest(4)
-        ], time_signature=(4, 4), clef="bass"),
-        Measure([
-            Rest(1.0),
-            Note("c4", 2.0),
-            Note("Eb3", 0.5),
-            Rest(0.5)
-        ], barline="end")
-    ])
-], title="MusicXML Example", composer="Beethoven").export_to_file("Example.xml")
+# # ------------------- A SHORT EXAMPLE --------------------
+#
+# Score([
+#     PartGroup([
+#         Part("Oboe", [
+#             Measure([
+#                 Note("d5", 1.5),
+#                 BeamedGroup([
+#                     Note("f#4", 0.25),
+#                     Note("A#4", 0.25)
+#                 ]),
+#                 Chord(["Cs4", "Ab4"], 1.0),
+#                 Rest(1.0)
+#             ], time_signature=(4, 4)),
+#             Measure([
+#                 Tuplet([
+#                     Note("c5", 0.5),
+#                     Note("bb4", 0.25),
+#                     Note("a4", 0.25),
+#                     Note("b4", 0.25),
+#                 ], (5, 4)),
+#                 Note("f4", 2),
+#                 Rest(1)
+#             ], clef="mezzo-soprano", barline="end")
+#         ]),
+#         Part("Clarinet", [
+#             Measure([
+#                 Tuplet([
+#                     Note("c5", 0.5),
+#                     Note("bb4", 0.25),
+#                     Note("a4", 0.25),
+#                     Note("b4", 0.25),
+#                 ], (5, 4)),
+#                 Note("f4", 2),
+#                 Rest(1)
+#             ], time_signature=(4, 4)),
+#             Measure([
+#                 Note("d5", 1.5),
+#                 BeamedGroup([
+#                     Note("f#4", 0.25),
+#                     Note("A#4", 0.25)
+#                 ]),
+#                 Chord(["Cs4", "Ab4"], 1.0),
+#                 Rest(1.0)
+#             ], barline="end")
+#         ])
+#     ]),
+#     Part("Bassoon", [
+#         Measure([
+#             BarRest(4)
+#         ], time_signature=(4, 4), clef="bass"),
+#         Measure([
+#             [
+#                 BeamedGroup([
+#                     Rest(0.5),
+#                     Note("d4", 0.5),
+#                     Note("Eb4", 0.5),
+#                     Note("F4", 0.5),
+#                 ]),
+#                 Note("Eb4", 2.0)
+#             ],
+#             None,
+#             [
+#                 Rest(1.0),
+#                 Note("c4", 2.0),
+#                 Note("Eb3", 0.5),
+#                 Rest(0.5)
+#             ]
+#         ], barline="end")
+#     ])
+# ], title="MusicXML Example", composer="Beethoven").export_to_file("Example.xml")
