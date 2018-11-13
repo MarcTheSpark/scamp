@@ -637,28 +637,82 @@ class Tuplet(BeamedGroup):
         return super().render()
 
 
-clef_name_to_letter_and_line = {
-    "treble": ("G", 2),
-    "bass": ("F", 4),
-    "alto": ("C", 3),
-    "tenor": ("C", 4)
-}
+class Clef(MusicXMLComponent):
+
+    clef_name_to_letter_and_line = {
+        "treble": ("G", 2),
+        "bass": ("F", 4),
+        "alto": ("C", 3),
+        "tenor": ("C", 4),
+        "soprano": ("C", 1),
+        "mezzo-soprano": ("C", 2),
+        "baritone": ("F", 3)
+    }
+
+    def __init__(self, sign, line, octaves_transposition=0):
+        self.sign = sign
+        self.line = str(line)
+        self.octaves_transposition = octaves_transposition
+
+    @classmethod
+    def from_string(cls, clef_string):
+        if clef_string in Clef.clef_name_to_letter_and_line:
+            return cls(*Clef.clef_name_to_letter_and_line[clef_string])
+        else:
+            raise ValueError("Clef name not understood.")
+
+    def render(self):
+        clef_element = ElementTree.Element("clef")
+        ElementTree.SubElement(clef_element, "sign").text = self.sign
+        ElementTree.SubElement(clef_element, "line").text = self.line
+        if self.octaves_transposition != 0:
+            ElementTree.SubElement(clef_element, "clef-octave-change").text = str(self.octaves_transposition)
+        return clef_element
 
 
 class Measure(MusicXMLComponent):
 
-    barline_name_to_xml_name = {
+    barline_xml_names = {
+        # the first two are useful aliases; the rest just retain their xml names
         "double": "light-light",
         "end": "light-heavy",
+        "regular": "regular",
+        "dotted": "dotted",
+        "dashed": "dashed",
+        "heavy": "heavy",
+        "light-light": "light-light",
+        "light-heavy": "light-heavy",
+        "heavy-light": "heavy-light",
+        "heavy-heavy": "heavy-heavy",
+        "tick": "tick",
+        "short": "short",
+        "none": "none"
     }
 
     def __init__(self, contents, time_signature=None, clef=None, barline=None, staves=None, number=1):
+        """
+
+        :param contents: Either a list of Notes / Chords / Rests / Tuplets / BeamedGroups or a list of voices, each of
+        which is a list of Notes / Chords / Rests / Tuplets / BeamedGroups.
+        :param time_signature: in tuple form, e.g. (3, 4) for "3/4"
+        :param clef: either None (for no clef), a Clef object, a string (like "treble"), or a tuple like ("G", 2) to
+        represent the clef letter, the line it lands, and an optional octave transposition as the third parameter
+        :param barline: either None, which means there will be a regular barline, or one of the names defined in the
+        barline_xml_names dictionary.
+        :param staves: for multi-part music, like piano music
+        :param number: which number in the score. Will be set by the containing Part
+        """
         assert hasattr(contents, '__len__') and \
                all(isinstance(x, (Note, Rest, Chord, BarRest, BeamedGroup, Tuplet)) for x in contents)
         self.contents = contents
         self.number = number
         self.time_signature = time_signature
-        self.clef = clef
+        assert isinstance(clef, (type(None), Clef, str, tuple)), "Clef not understood."
+        self.clef = clef if isinstance(clef, (type(None), Clef)) \
+            else Clef.from_string(clef) if isinstance(clef, str) \
+            else Clef(*clef)
+        assert barline is None or isinstance(barline, str) \
+               and barline.lower() in Measure.barline_xml_names, "Barline type not understood"
         self.barline = barline
         self.staves = staves
 
@@ -672,9 +726,9 @@ class Measure(MusicXMLComponent):
         return out
 
     def render(self):
-        element = ElementTree.Element("measure", {"number": str(self.number)})
+        measure_element = ElementTree.Element("measure", {"number": str(self.number)})
 
-        attributes_el = ElementTree.SubElement(element, "attributes")
+        attributes_el = ElementTree.SubElement(measure_element, "attributes")
 
         num_beat_divisions = least_common_multiple(*[x.min_denominator() for x in self.leaves()])
         for note in self.leaves():
@@ -691,17 +745,7 @@ class Measure(MusicXMLComponent):
             ElementTree.SubElement(time_el, "beat-type").text = str(self.time_signature[1])
 
         if self.clef is not None:
-            # clef is a tuple: the first element is the sign ("G" clef of "F" clef)
-            # the second element is the line the sign centers on
-            # an optional third element expresses the number of octaves transposition up or down
-            # however, we also take words like "treble" and convert them
-            if self.clef in clef_name_to_letter_and_line:
-                self.clef = clef_name_to_letter_and_line[self.clef]
-            clef_el = ElementTree.SubElement(attributes_el, "clef")
-            ElementTree.SubElement(clef_el, "sign").text = self.clef[0]
-            ElementTree.SubElement(clef_el, "line").text = str(self.clef[1])
-            if len(self.clef) > 2:
-                ElementTree.SubElement(clef_el, "clef-octave-change").text = str(self.clef[2])
+            attributes_el.append(self.clef.render())
 
         if self.staves is not None:
             staves_el = ElementTree.SubElement(attributes_el, "staves")
@@ -710,17 +754,15 @@ class Measure(MusicXMLComponent):
         for note_or_tuplet in self.contents:
             rendered_content = note_or_tuplet.render()
             if isinstance(rendered_content, tuple):
-                element.extend(rendered_content)
+                measure_element.extend(rendered_content)
             else:
-                element.append(rendered_content)
+                measure_element.append(rendered_content)
 
         if self.barline is not None:
-            barline_el = ElementTree.Element("barline", {"location": "right"})
-            element.append(barline_el)
-            if self.barline in Measure.barline_name_to_xml_name:
-                self.barline = Measure.barline_name_to_xml_name[self.barline]
-            ElementTree.SubElement(barline_el, "bar-style").text = self.barline
-        return element
+            barline_el = ElementTree.SubElement(measure_element, "barline", {"location": "right"})
+            ElementTree.SubElement(barline_el, "bar-style").text = Measure.barline_xml_names[self.barline.lower()]
+
+        return measure_element
 
 
 class Part(MusicXMLComponent):
@@ -813,62 +855,62 @@ class Score(MusicXMLComponent):
                 score_element.append(part.render())
         return score_element
 
-# # ------------------- A SHORT EXAMPLE --------------------
-#
-# Score([
-#     PartGroup([
-#         Part("Oboe", [
-#             Measure([
-#                 Note("d5", 1.5),
-#                 BeamedGroup([
-#                     Note("f#4", 0.25),
-#                     Note("A#4", 0.25)
-#                 ]),
-#                 Chord(["Cs4", "Ab4"], 1.0),
-#                 Rest(1.0)
-#             ], time_signature=(4, 4)),
-#             Measure([
-#                 Tuplet([
-#                     Note("c5", 0.5),
-#                     Note("bb4", 0.25),
-#                     Note("a4", 0.25),
-#                     Note("b4", 0.25),
-#                 ], (5, 4)),
-#                 Note("f4", 2),
-#                 Rest(1)
-#             ], barline="end")
-#         ]),
-#         Part("Clarinet", [
-#             Measure([
-#                 Tuplet([
-#                     Note("c5", 0.5),
-#                     Note("bb4", 0.25),
-#                     Note("a4", 0.25),
-#                     Note("b4", 0.25),
-#                 ], (5, 4)),
-#                 Note("f4", 2),
-#                 Rest(1)
-#             ], time_signature=(4, 4)),
-#             Measure([
-#                 Note("d5", 1.5),
-#                 BeamedGroup([
-#                     Note("f#4", 0.25),
-#                     Note("A#4", 0.25)
-#                 ]),
-#                 Chord(["Cs4", "Ab4"], 1.0),
-#                 Rest(1.0)
-#             ], barline="end")
-#         ])
-#     ]),
-#     Part("Bassoon", [
-#         Measure([
-#             BarRest(4)
-#         ], time_signature=(4, 4), clef="bass"),
-#         Measure([
-#             Rest(1.0),
-#             Note("c4", 2.0),
-#             Note("Eb3", 0.5),
-#             Rest(0.5)
-#         ], barline="end")
-#     ])
-# ], title="MusicXML Example", composer="Beethoven").export_to_file("Example.xml")
+# ------------------- A SHORT EXAMPLE --------------------
+
+Score([
+    PartGroup([
+        Part("Oboe", [
+            Measure([
+                Note("d5", 1.5),
+                BeamedGroup([
+                    Note("f#4", 0.25),
+                    Note("A#4", 0.25)
+                ]),
+                Chord(["Cs4", "Ab4"], 1.0),
+                Rest(1.0)
+            ], time_signature=(4, 4)),
+            Measure([
+                Tuplet([
+                    Note("c5", 0.5),
+                    Note("bb4", 0.25),
+                    Note("a4", 0.25),
+                    Note("b4", 0.25),
+                ], (5, 4)),
+                Note("f4", 2),
+                Rest(1)
+            ], clef="mezzo-soprano", barline="end")
+        ]),
+        Part("Clarinet", [
+            Measure([
+                Tuplet([
+                    Note("c5", 0.5),
+                    Note("bb4", 0.25),
+                    Note("a4", 0.25),
+                    Note("b4", 0.25),
+                ], (5, 4)),
+                Note("f4", 2),
+                Rest(1)
+            ], time_signature=(4, 4)),
+            Measure([
+                Note("d5", 1.5),
+                BeamedGroup([
+                    Note("f#4", 0.25),
+                    Note("A#4", 0.25)
+                ]),
+                Chord(["Cs4", "Ab4"], 1.0),
+                Rest(1.0)
+            ], barline="end")
+        ])
+    ]),
+    Part("Bassoon", [
+        Measure([
+            BarRest(4)
+        ], time_signature=(4, 4), clef="bass"),
+        Measure([
+            Rest(1.0),
+            Note("c4", 2.0),
+            Note("Eb3", 0.5),
+            Rest(0.5)
+        ], barline="end")
+    ])
+], title="MusicXML Example", composer="Beethoven").export_to_file("Example.xml")
