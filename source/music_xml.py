@@ -22,14 +22,14 @@ class MusicXMLComponent(ABC):
 
     @abstractmethod
     def render(self):
-        # Renders this component to an ElementTree.Element or a list of ElementTree.Elements
+        # Renders this component to a tuple of ElementTree.Element
+        # the reason for making it a tuple is that musical objects like chords are represented by several
+        # notes side by side, with all but the first containing a </chord> tag.
         pass
 
     def to_xml(self, pretty_print=False):
         element_rendering = self.render()
 
-        if not isinstance(element_rendering, tuple):
-            element_rendering = [element_rendering]
         if pretty_print:
             # this is not ideal; it's ugly and requires parsing and re-rendering and then removing version tags
             # for now, though, it's good enough and gets the desired results
@@ -94,21 +94,21 @@ class Pitch(MusicXMLComponent):
         return cls(step, octave, alteration)
 
     def render(self):
-        element = ElementTree.Element("pitch")
+        pitch_element = ElementTree.Element("pitch")
         step_el = ElementTree.Element("step")
         step_el.text = self.step
         alter_el = ElementTree.Element("alter")
         alter_el.text = str(self.alteration)
         octave_el = ElementTree.Element("octave")
         octave_el.text = str(self.octave)
-        element.append(step_el)
-        element.append(alter_el)
-        element.append(octave_el)
-        return element
+        pitch_element.append(step_el)
+        pitch_element.append(alter_el)
+        pitch_element.append(octave_el)
+        return pitch_element,
 
     def __repr__(self):
         return "Pitch(\"{}\", {}{})".format(self.step, self.octave,
-                                        ", {}".format(self.alteration) if self.alteration != 0 else "")
+                                            ", {}".format(self.alteration) if self.alteration != 0 else "")
 
 
 class Duration(MusicXMLComponent):
@@ -234,18 +234,18 @@ class Duration(MusicXMLComponent):
             return Duration.length_to_note_type[length / dots_multiplier], dots
 
     def render(self):
-        elements = []
+        duration_elements = []
         # specify all the duration-related attributes
         duration_el = ElementTree.Element("duration")
         duration_el.text = str(self.length_in_divisions)
-        elements.append(duration_el)
+        duration_elements.append(duration_el)
 
         type_el = ElementTree.Element("type")
         type_el.text = self.note_type
-        elements.append(type_el)
+        duration_elements.append(type_el)
 
         for _ in range(self.num_dots):
-            elements.append(ElementTree.Element("dot"))
+            duration_elements.append(ElementTree.Element("dot"))
 
         if self.tuplet_ratio is not None:
             time_modification = ElementTree.Element("time-modification")
@@ -256,8 +256,8 @@ class Duration(MusicXMLComponent):
                     raise ValueError("Tuplet normal note type is not a standard power of two length.")
                 ElementTree.SubElement(time_modification, "normal-type").text = \
                     Duration.length_to_note_type[self.tuplet_ratio[2]]
-            elements.append(time_modification)
-        return elements
+            duration_elements.append(time_modification)
+        return tuple(duration_elements)
 
     def __repr__(self):
         return "Duration(\"{}\", {}{})".format(self.note_type, self.num_dots,
@@ -267,7 +267,7 @@ class Duration(MusicXMLComponent):
 class _XMLNote(MusicXMLComponent):
 
     def __init__(self, pitch, duration, ties=None, notations=(), articulations=(), notehead=None, beams=None,
-                 is_chord_member=False, voice=None, staff=None):
+                 text_annotations=(), is_chord_member=False, voice=None, staff=None):
         """
         Implementation for the xml note element, which includes notes and rests
         :param pitch: a Pitch, or None to indicate a rest, or "bar rest" to indicate that it's a bar rest
@@ -285,7 +285,7 @@ class _XMLNote(MusicXMLComponent):
         """
         self.pitch = pitch
         self.duration = duration
-        self.divisions = self.min_denominator()
+        self._divisions = self.min_denominator()
         assert ties in ("start", "continue", "stop", None)
         self.ties = ties
         self.notations = list(notations) if not isinstance(notations, list) else notations
@@ -298,72 +298,69 @@ class _XMLNote(MusicXMLComponent):
         self.staff = staff
 
     def render(self):
-        element = ElementTree.Element("note")
+        note_element = ElementTree.Element("note")
 
         # ------------ set pitch and duration attributes ------------
 
         if self.pitch == "bar rest":
             # bar rest; in this case the duration is just a float, since it looks like a whole note regardless
-            element.append(ElementTree.Element("rest"))
+            note_element.append(ElementTree.Element("rest"))
             duration_el = ElementTree.Element("duration")
-            duration_el.text = str(int(round(self.duration * self.divisions)))
-            element.append(duration_el)
+            duration_el.text = str(int(round(self.duration * self._divisions)))
+            note_element.append(duration_el)
             # # old version: Seems to produce non-ideal results in musescore
-            # element.append(ElementTree.Element("rest", {"measure": "yes"}))
+            # note_element.append(ElementTree.Element("rest", {"measure": "yes"}))
             # duration_el = ElementTree.Element("duration")
             # duration_el.text = str(int(round(self.duration * self.divisions)))
-            # element.append(duration_el)
+            # note_element.append(duration_el)
             # type_el = ElementTree.Element("type")
             # type_el.text = "whole"
-            # element.append(type_el)
+            # note_element.append(type_el)
 
         else:
             # a note or rest with explicit written duration
             if self.pitch is None:
                 # normal rest
-                element.append(ElementTree.Element("rest"))
+                note_element.append(ElementTree.Element("rest"))
             else:
                 # pitched note
                 assert isinstance(self.pitch, Pitch)
 
                 if self.is_chord_member:
-                    element.append(ElementTree.Element("chord"))
-                element.append(self.pitch.render())
-
-            assert isinstance(self.duration, Duration)
-            self.duration.divisions = self.divisions
+                    note_element.append(ElementTree.Element("chord"))
+                note_element.extend(self.pitch.render())
 
             duration_elements = self.duration.render()
-            element.append(duration_elements[0])
+            note_element.append(duration_elements[0])
 
-            # for some reason, the voice element is generally sandwiched in here
+            # for some reason, the voice note_element is generally sandwiched in here
             if self.voice is not None:
-                ElementTree.SubElement(element, "voice").text = str(self.voice)
+                ElementTree.SubElement(note_element, "voice").text = str(self.voice)
 
-            element.extend(duration_elements[1:])
+            note_element.extend(duration_elements[1:])
 
         # ------------------ set staff ----------------
 
         if self.staff is not None:
-            ElementTree.SubElement(element, "staff").text = str(self.staff)
+            ElementTree.SubElement(note_element, "staff").text = str(self.staff)
 
         # ---------------- set attributes that apply to notes only ----------------
 
         if self.pitch is not None:
             if self.notehead is not None:
-                element.append(self.notehead)
+                note_element.append(self.notehead)
             if self.ties is not None:
                 if self.ties.lower() == "start" or self.ties.lower() == "continue":
-                    element.append(ElementTree.Element("tie", {"type": "start"}))
+                    note_element.append(ElementTree.Element("tie", {"type": "start"}))
                     self.notations.append(ElementTree.Element("tied", {"type": "start"}))
                 if self.ties.lower() == "stop" or self.ties.lower() == "continue":
-                    element.append(ElementTree.Element("tie", {"type": "stop"}))
+                    note_element.append(ElementTree.Element("tie", {"type": "stop"}))
                     self.notations.append(ElementTree.Element("tied", {"type": "stop"}))
             for beam_num in self.beams:
                 beam_text = self.beams[beam_num]
                 beam_el = ElementTree.Element("beam", {"number": str(beam_num)})
                 beam_el.text = beam_text
-                element.append(beam_el)
+                note_element.append(beam_el)
 
         # ------------------ add any notations and articulations ----------------
 
@@ -388,9 +385,9 @@ class _XMLNote(MusicXMLComponent):
                         articulations_el.append(articulation)
                     else:
                         articulations_el.append(ElementTree.Element(articulation))
-            element.append(notations_el)
+            note_element.append(notations_el)
 
-        return element
+        return note_element,
 
     @property
     def true_length(self):
@@ -403,7 +400,18 @@ class _XMLNote(MusicXMLComponent):
     @property
     def length_in_divisions(self):
         return self.duration.length_in_divisions if isinstance(self.duration, Duration) \
-            else int(round(self.divisions * self.duration))
+            else int(round(self._divisions * self.duration))
+
+    @property
+    def divisions(self):
+        return self.duration.divisions if isinstance(self.duration, Duration) else self._divisions
+
+    @divisions.setter
+    def divisions(self, value):
+        if isinstance(self.duration, Duration):
+            self.duration.divisions = value
+        else:
+            self._divisions = value
 
     def min_denominator(self):
         if isinstance(self.duration, Duration):
@@ -572,7 +580,7 @@ class Chord(MusicXMLComponent):
         return self.notes[0].min_denominator()
 
     def render(self):
-        return tuple(note.render() for note in self.notes)
+        return sum((note.render() for note in self.notes), ())
 
 
 class BeamedGroup(MusicXMLComponent):
@@ -634,14 +642,7 @@ class BeamedGroup(MusicXMLComponent):
 
     def render(self):
         self.render_contents_beaming()
-        rendered_notes = []
-        for leaf in self.contents:
-            rendered_leaf = leaf.render()
-            if isinstance(rendered_leaf, tuple):
-                rendered_notes.extend(rendered_leaf)
-            else:
-                rendered_notes.append(rendered_leaf)
-        return tuple(rendered_notes)
+        return sum((leaf.render() for leaf in self.contents), ())
 
 
 class Tuplet(BeamedGroup):
@@ -702,7 +703,7 @@ class Clef(MusicXMLComponent):
         ElementTree.SubElement(clef_element, "line").text = self.line
         if self.octaves_transposition != 0:
             ElementTree.SubElement(clef_element, "clef-octave-change").text = str(self.octaves_transposition)
-        return clef_element
+        return clef_element,
 
 
 class Measure(MusicXMLComponent):
@@ -764,12 +765,12 @@ class Measure(MusicXMLComponent):
         for voice in self.voices:
             if voice is None:  # skip empty voices
                 continue
-            for note_or_tuplet in voice:
-                if isinstance(note_or_tuplet, Tuplet):
-                    out.extend(note_or_tuplet.contents)
+            for note_or_group in voice:
+                if isinstance(note_or_group, (BeamedGroup, Tuplet)):
+                    out.extend(note_or_group.contents)
                 else:
-                    out.append(note_or_tuplet)
-        return out
+                    out.append(note_or_group)
+        return tuple(out)
 
     def set_leaf_voices(self):
         for i, voice in enumerate(self.voices):
@@ -806,7 +807,7 @@ class Measure(MusicXMLComponent):
             ElementTree.SubElement(time_el, "beat-type").text = str(self.time_signature[1])
 
         if self.clef is not None:
-            attributes_el.append(self.clef.render())
+            attributes_el.extend(self.clef.render())
 
         if self.staves is not None:
             staves_el = ElementTree.SubElement(attributes_el, "staves")
@@ -824,18 +825,14 @@ class Measure(MusicXMLComponent):
             amount_to_backup = 0
 
             for note_or_tuplet in voice:
-                rendered_content = note_or_tuplet.render()
                 amount_to_backup += note_or_tuplet.length_in_divisions
-                if isinstance(rendered_content, tuple):
-                    measure_element.extend(rendered_content)
-                else:
-                    measure_element.append(rendered_content)
+                measure_element.extend(note_or_tuplet.render())
 
         if self.barline is not None:
             barline_el = ElementTree.SubElement(measure_element, "barline", {"location": "right"})
             ElementTree.SubElement(barline_el, "bar-style").text = Measure.barline_xml_names[self.barline.lower()]
 
-        return measure_element
+        return measure_element,
 
 
 class Part(MusicXMLComponent):
@@ -847,16 +844,16 @@ class Part(MusicXMLComponent):
         self.part_name = part_name
 
     def render(self):
-        element = ElementTree.Element("part", {"id": "P{}".format(self.part_id)})
+        part_element = ElementTree.Element("part", {"id": "P{}".format(self.part_id)})
         for i, measure in enumerate(self.measures):
             measure.number = i + 1
-            element.append(measure.render())
-        return element
+            part_element.extend(measure.render())
+        return part_element,
 
     def render_part_list_entry(self):
         score_part_el = ElementTree.Element("score-part", {"id": "P{}".format(self.part_id)})
         ElementTree.SubElement(score_part_el, "part-name").text = self.part_name
-        return score_part_el
+        return score_part_el,
 
 
 class PartGroup:
@@ -868,12 +865,14 @@ class PartGroup:
         self.has_group_bar_line = has_group_bar_line
 
     def render(self):
-        return tuple(part.render() for part in self.parts)
+        return sum((part.render() for part in self.parts), ())
 
     def render_part_list_entry(self):
-        return (self.render_start_element(), ) + \
-               tuple(part.render_part_list_entry() for part in self.parts) + \
-               (self.render_stop_element(), )
+        out = [self.render_start_element()]
+        for part in self.parts:
+            out.extend(part.render_part_list_entry())
+        out.append(self.render_stop_element())
+        return tuple(out)
 
     def render_start_element(self):
         start_element = ElementTree.Element("part-group", {"type": "start"})
@@ -919,14 +918,10 @@ class Score(MusicXMLComponent):
         ElementTree.SubElement(encoding_el, "encoding-date").text = str(datetime.date.today())
         ElementTree.SubElement(encoding_el, "software").text = "SCAMP (Suite for Composing Algorithmic Music in Python)"
         part_list_el = ElementTree.SubElement(score_element, "part-list")
-        for part in self.parts:
-            if isinstance(part, PartGroup):
-                part_list_el.extend(part.render_part_list_entry())
-                score_element.extend(part.render())
-            else:
-                part_list_el.append(part.render_part_list_entry())
-                score_element.append(part.render())
-        return score_element
+        for part_or_part_group in self.parts:
+            part_list_el.extend(part_or_part_group.render_part_list_entry())
+            score_element.extend(part_or_part_group.render())
+        return score_element,
 
 
 # # ------------------- A SHORT EXAMPLE --------------------
