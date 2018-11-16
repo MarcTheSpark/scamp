@@ -744,7 +744,8 @@ class Measure(MusicXMLComponent):
         "none": "none"
     }
 
-    def __init__(self, contents, time_signature=None, clef=None, barline=None, staves=None, number=1):
+    def __init__(self, contents, time_signature=None, clef=None, barline=None, staves=None, number=1,
+                 directions_with_displacements=()):
         """
 
         :param contents: Either a list of Notes / Chords / Rests / Tuplets / BeamedGroups or a list of voices, each of
@@ -773,6 +774,12 @@ class Measure(MusicXMLComponent):
                and barline.lower() in Measure.barline_xml_names, "Barline type not understood"
         self.barline = barline
         self.staves = staves
+
+        assert isinstance(directions_with_displacements, (tuple, list)) and \
+               all(isinstance(x, (tuple, list)) and len(x) == 2 and
+                   isinstance(x[0], (MetronomeMark, TextAnnotation, EndDashedLine)) and
+                   isinstance(x[1], float) for x in directions_with_displacements)
+        self.directions_with_displacements = directions_with_displacements
 
     @property
     def voices(self):
@@ -848,6 +855,19 @@ class Measure(MusicXMLComponent):
             for note_or_tuplet in voice:
                 amount_to_backup += note_or_tuplet.length_in_divisions
                 measure_element.extend(note_or_tuplet.render())
+
+        if len(self.directions_with_displacements) > 0:
+            current_location_in_measure = amount_to_backup
+            for direction, displacement in self.directions_with_displacements:
+                displacement = int(round(displacement * num_beat_divisions))
+                if displacement < current_location_in_measure:
+                    backup_el = ElementTree.SubElement(measure_element, "backup")
+                    ElementTree.SubElement(backup_el, "duration").text = str(current_location_in_measure - displacement)
+                elif displacement > current_location_in_measure:
+                    forward_el = ElementTree.SubElement(measure_element, "forward")
+                    ElementTree.SubElement(forward_el, "duration").text = str(displacement - current_location_in_measure)
+                current_location_in_measure = displacement
+                measure_element.extend(direction.render())
 
         if self.barline is not None:
             barline_el = ElementTree.SubElement(measure_element, "barline", {"location": "right"})
@@ -1024,22 +1044,26 @@ class EndDashedLine(MusicXMLComponent):
 #     PartGroup([
 #         Part("Oboe", [
 #             Measure([
-#                 Note("d5", 1.5, directions=MetronomeMark(1.5, 87)),
+#                 Note("d5", 1.5, directions=MetronomeMark(1.5, 80)),
 #                 BeamedGroup([
 #                     Note("f#4", 0.25),
 #                     Note("A#4", 0.25)
 #                 ]),
 #                 Chord(["Cs4", "Ab4"], 1.0),
 #                 Rest(1.0)
-#             ], time_signature=(4, 4)),
+#             ], time_signature=(4, 4), directions_with_displacements=[
+#                 (TextAnnotation("rit.", italic=True, dashed_line=True), 1.0),
+#                 (EndDashedLine(), 3.5),
+#                 (MetronomeMark(1.0, 60), 3.5)
+#             ]),
 #             Measure([
 #                 Tuplet([
-#                     Note("c5", 0.5, directions=TextAnnotation("hello!")),
-#                     Note("bb4", 0.25, directions=TextAnnotation("rit.", italic=True, dashed_line=True)),
+#                     Note("c5", 0.5),
+#                     Note("bb4", 0.25),
 #                     Note("a4", 0.25),
 #                     Note("b4", 0.25),
 #                 ], (5, 4)),
-#                 Note("f4", 2, directions=[TextAnnotation("Dun!"), EndDashedLine()]),
+#                 Note("f4", 2, directions=TextAnnotation("with gusto!")),
 #                 Rest(1)
 #             ], clef="mezzo-soprano", barline="end")
 #         ]),
@@ -1089,3 +1113,4 @@ class EndDashedLine(MusicXMLComponent):
 #         ], barline="end")
 #     ])
 # ], title="MusicXML Example", composer="Beethoven").export_to_file("Example.xml")
+
