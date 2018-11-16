@@ -160,7 +160,6 @@ class Duration(MusicXMLComponent):
         self.num_dots = num_dots
         assert isinstance(tuplet_ratio, (type(None), tuple))
         self.tuplet_ratio = tuplet_ratio
-
         self.divisions = Fraction(self.true_length).limit_denominator().denominator
 
     @staticmethod
@@ -190,9 +189,7 @@ class Duration(MusicXMLComponent):
             note_type, num_dots = Duration.get_note_type_and_number_of_dots(written_length, max_dots_allowed)
         except ValueError as err:
             raise err
-
         tuplet_ratio = tuplet_ratio
-
         return cls(note_type, num_dots, tuplet_ratio)
 
     @classmethod
@@ -259,15 +256,24 @@ class Duration(MusicXMLComponent):
             duration_elements.append(time_modification)
         return tuple(duration_elements)
 
+    def render_to_beat_unit_tags(self):
+        beat_unit_el = ElementTree.Element("beat-unit")
+        beat_unit_el.text = self.note_type
+        out = (beat_unit_el, )
+        for _ in range(self.num_dots):
+            out += (ElementTree.Element("beat-unit-dot"), )
+        return out
+
     def __repr__(self):
-        return "Duration(\"{}\", {}{})".format(self.note_type, self.num_dots,
-                                           ", {}".format(self.tuplet_ratio) if self.tuplet_ratio is not None else "")
+        return "Duration(\"{}\", {}{})".format(
+            self.note_type, self.num_dots, ", {}".format(self.tuplet_ratio) if self.tuplet_ratio is not None else ""
+        )
 
 
 class _XMLNote(MusicXMLComponent):
 
     def __init__(self, pitch, duration, ties=None, notations=(), articulations=(), notehead=None, beams=None,
-                 text_annotations=(), is_chord_member=False, voice=None, staff=None):
+                 directions=(), is_chord_member=False, voice=None, staff=None):
         """
         Implementation for the xml note element, which includes notes and rests
         :param pitch: a Pitch, or None to indicate a rest, or "bar rest" to indicate that it's a bar rest
@@ -285,6 +291,9 @@ class _XMLNote(MusicXMLComponent):
         """
         self.pitch = pitch
         self.duration = duration
+        # self._divisions stores the divisions per quarter note in the case that this is a bar rest and the duration
+        # of the note is a float rather than a Duration object. Otherwise, we just use the "divisions" member of
+        # the self.duration object
         self._divisions = self.min_denominator()
         assert ties in ("start", "continue", "stop", None)
         self.ties = ties
@@ -293,6 +302,7 @@ class _XMLNote(MusicXMLComponent):
         self.tuplet_bracket = None
         self.notehead = notehead
         self.beams = {} if beams is None else beams
+        self.directions = directions if isinstance(directions, (list, tuple)) else (directions, )
         self.is_chord_member = is_chord_member
         self.voice = voice
         self.staff = staff
@@ -387,7 +397,8 @@ class _XMLNote(MusicXMLComponent):
                         articulations_el.append(ElementTree.Element(articulation))
             note_element.append(notations_el)
 
-        return note_element,
+        # place any text annotations before the note so that they show up at the same time as the note start
+        return sum((direction.render() for direction in self.directions), ()) + (note_element,)
 
     @property
     def true_length(self):
@@ -425,7 +436,7 @@ class _XMLNote(MusicXMLComponent):
 
 class Note(_XMLNote):
 
-    def __init__(self, pitch, duration, ties=None, notations=(), articulations=(), notehead=None):
+    def __init__(self, pitch, duration, ties=None, notations=(), articulations=(), notehead=None, directions=()):
         if isinstance(pitch, str):
             pitch = Pitch.from_string(pitch)
         assert isinstance(pitch, Pitch)
@@ -439,7 +450,7 @@ class Note(_XMLNote):
 
         assert isinstance(duration, Duration)
         super().__init__(pitch, duration, ties=ties, notations=notations,
-                         articulations=articulations, notehead=notehead)
+                         articulations=articulations, notehead=notehead, directions=directions)
 
     def __repr__(self):
         return "Note({}, {}{}{}{}{})".format(
@@ -453,14 +464,14 @@ class Note(_XMLNote):
 
 class Rest(_XMLNote):
 
-    def __init__(self, duration, notations=()):
+    def __init__(self, duration, notations=(), directions=()):
         if isinstance(duration, str):
             duration = Duration.from_string(duration)
         elif isinstance(duration, numbers.Number):
             duration = Duration.from_written_length(duration)
 
         assert isinstance(duration, Duration)
-        super().__init__(None, duration, notations=notations)
+        super().__init__(None, duration, notations=notations, directions=directions)
 
     def __repr__(self):
         return "Rest({}{})".format(
@@ -471,15 +482,15 @@ class Rest(_XMLNote):
 
 class BarRest(_XMLNote):
 
-    def __init__(self, bar_length):
+    def __init__(self, bar_length, directions=()):
         if isinstance(bar_length, Duration):
             bar_length = Duration.true_length
-        super().__init__("bar rest", bar_length)
+        super().__init__("bar rest", bar_length, directions=directions)
 
 
 class Chord(MusicXMLComponent):
 
-    def __init__(self, pitches, duration, ties=None, notations=(), articulations=(), noteheads=None):
+    def __init__(self, pitches, duration, ties=None, notations=(), articulations=(), noteheads=None, directions=()):
         assert isinstance(pitches, (list, tuple)) and len(pitches) > 1, "Chord should have multiple notes."
         pitches = [Pitch.from_string(pitch) if isinstance(pitch, str) else pitch for pitch in pitches]
         assert all(isinstance(pitch, Pitch) for pitch in pitches)
@@ -499,7 +510,8 @@ class Chord(MusicXMLComponent):
                  ties=ties if not isinstance(ties, (list, tuple)) else ties[i],
                  notations=notations if i == 0 else (),
                  articulations=articulations if i == 0 else (),
-                 notehead=noteheads[i] if noteheads is not None else None)
+                 notehead=noteheads[i] if noteheads is not None else None,
+                 directions=directions if i == 0 else ())
             for i, pitch in enumerate(pitches)
         )
 
@@ -528,6 +540,10 @@ class Chord(MusicXMLComponent):
     @property
     def articulations(self):
         return self.notes[0].articulations
+
+    @property
+    def directions(self):
+        return self.notes[0].directions
 
     @property
     def divisions(self):
@@ -784,6 +800,8 @@ class Measure(MusicXMLComponent):
                 else:
                     # element is a leaf
                     element.voice = i + 1
+                    for direction in element.directions:
+                        direction.voice = i + 1
 
     def render(self):
         self.set_leaf_voices()
@@ -924,13 +942,86 @@ class Score(MusicXMLComponent):
         return score_element,
 
 
+class MetronomeMark(MusicXMLComponent):
+
+    def __init__(self, beat_length, bpm, parentheses=False, voice=1, staff=1):
+        try:
+            self.beat_unit = Duration.from_written_length(beat_length)
+        except ValueError:
+            # fall back to quarter note tempo if the beat length is not expressible as a single notehead
+            self.beat_unit = Duration.from_written_length(1.0)
+            bpm /= beat_length
+        self.bpm = bpm
+        self.parentheses = parentheses
+        self.voice = voice
+        self.staff = staff
+
+    def render(self):
+        direction_element = ElementTree.Element("direction")
+        type_el = ElementTree.SubElement(direction_element, "direction-type")
+        metronome_el = ElementTree.SubElement(type_el, "metronome")
+        metronome_el.extend(self.beat_unit.render_to_beat_unit_tags())
+        ElementTree.SubElement(metronome_el, "per-minute").text = str(self.bpm)
+        ElementTree.SubElement(direction_element, "voice").text = str(self.voice)
+        if self.staff is not None:
+            ElementTree.SubElement(direction_element, "staff").text = str(self.staff)
+        return direction_element,
+
+
+class TextAnnotation(MusicXMLComponent):
+
+    def __init__(self, text, placement="above", font_size=None, italic=False, voice=1, staff=None,
+                 dashed_line=None, **kwargs):
+        # any extra properties of the musicXML "words" tag aside from font-size and italics can be passed to kwargs
+        self.text = text
+        self.placement = placement
+        self.text_properties = kwargs
+        if font_size is not None:
+            self.text_properties["font-size"] = font_size
+        if italic:
+            self.text_properties["font-style"] = "italic"
+        # by default, pass an integer to dashed_line to give it an id number. But if it's just True, set id to 1
+        self.dashed_line = 1 if dashed_line is True else dashed_line
+        self.voice = voice
+        self.staff = staff
+
+    def render(self):
+        direction_element = ElementTree.Element("direction", {"placement": self.placement})
+        type_el = ElementTree.SubElement(direction_element, "direction-type")
+        ElementTree.SubElement(type_el, "words", self.text_properties).text = self.text
+        if self.dashed_line is not None:
+            dash_type_el = ElementTree.SubElement(direction_element, "direction-type")
+            ElementTree.SubElement(dash_type_el, "dashes", {"number": str(self.dashed_line), "type": "start"})
+        ElementTree.SubElement(direction_element, "voice").text = str(self.voice)
+        if self.staff is not None:
+            ElementTree.SubElement(direction_element, "staff").text = str(self.staff)
+        return direction_element,
+
+
+class EndDashedLine(MusicXMLComponent):
+
+    def __init__(self, id_number=1, voice=1, staff=None):
+        self.id_number = id_number
+        self.voice = voice
+        self.staff = staff
+
+    def render(self):
+        direction_element = ElementTree.Element("direction")
+        dash_type_el = ElementTree.SubElement(direction_element, "direction-type")
+        ElementTree.SubElement(dash_type_el, "dashes", {"number": str(self.id_number), "type": "stop"})
+        ElementTree.SubElement(direction_element, "voice").text = str(self.voice)
+        if self.staff is not None:
+            ElementTree.SubElement(direction_element, "staff").text = str(self.staff)
+        return direction_element,
+
+
 # # ------------------- A SHORT EXAMPLE --------------------
 #
 # Score([
 #     PartGroup([
 #         Part("Oboe", [
 #             Measure([
-#                 Note("d5", 1.5),
+#                 Note("d5", 1.5, directions=MetronomeMark(1.5, 87)),
 #                 BeamedGroup([
 #                     Note("f#4", 0.25),
 #                     Note("A#4", 0.25)
@@ -940,12 +1031,12 @@ class Score(MusicXMLComponent):
 #             ], time_signature=(4, 4)),
 #             Measure([
 #                 Tuplet([
-#                     Note("c5", 0.5),
-#                     Note("bb4", 0.25),
+#                     Note("c5", 0.5, directions=TextAnnotation("hello!")),
+#                     Note("bb4", 0.25, directions=TextAnnotation("rit.", italic=True, dashed_line=True)),
 #                     Note("a4", 0.25),
 #                     Note("b4", 0.25),
 #                 ], (5, 4)),
-#                 Note("f4", 2),
+#                 Note("f4", 2, directions=[TextAnnotation("Dun!"), EndDashedLine()]),
 #                 Rest(1)
 #             ], clef="mezzo-soprano", barline="end")
 #         ]),
