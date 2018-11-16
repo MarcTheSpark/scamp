@@ -270,6 +270,26 @@ class Duration(MusicXMLComponent):
         )
 
 
+class BarRestDuration(MusicXMLComponent):
+
+    def __init__(self, length):
+        self.length = length
+        self.divisions = Fraction(length).limit_denominator().denominator
+
+    @property
+    def length_in_divisions(self):
+        return int(round(self.true_length * self.divisions))
+
+    @property
+    def true_length(self):
+        return self.length
+
+    def render(self):
+        duration_el = ElementTree.Element("duration")
+        duration_el.text = str(int(round(self.length * self.divisions)))
+        return duration_el,
+
+
 class _XMLNote(MusicXMLComponent):
 
     def __init__(self, pitch, duration, ties=None, notations=(), articulations=(), notehead=None, beams=None,
@@ -290,11 +310,11 @@ class _XMLNote(MusicXMLComponent):
         :param staff: which staff this note belongs to within its given part
         """
         self.pitch = pitch
+        assert isinstance(duration, (Duration, BarRestDuration))
         self.duration = duration
         # self._divisions stores the divisions per quarter note in the case that this is a bar rest and the duration
         # of the note is a float rather than a Duration object. Otherwise, we just use the "divisions" member of
         # the self.duration object
-        self._divisions = self.min_denominator()
         assert ties in ("start", "continue", "stop", None)
         self.ties = ties
         self.notations = list(notations) if not isinstance(notations, list) else notations
@@ -315,18 +335,7 @@ class _XMLNote(MusicXMLComponent):
         if self.pitch == "bar rest":
             # bar rest; in this case the duration is just a float, since it looks like a whole note regardless
             note_element.append(ElementTree.Element("rest"))
-            duration_el = ElementTree.Element("duration")
-            duration_el.text = str(int(round(self.duration * self._divisions)))
-            note_element.append(duration_el)
-            # # old version: Seems to produce non-ideal results in musescore
-            # note_element.append(ElementTree.Element("rest", {"measure": "yes"}))
-            # duration_el = ElementTree.Element("duration")
-            # duration_el.text = str(int(round(self.duration * self.divisions)))
-            # note_element.append(duration_el)
-            # type_el = ElementTree.Element("type")
-            # type_el.text = "whole"
-            # note_element.append(type_el)
-
+            note_element.extend(self.duration.render())
         else:
             # a note or rest with explicit written duration
             if self.pitch is None:
@@ -410,25 +419,18 @@ class _XMLNote(MusicXMLComponent):
 
     @property
     def length_in_divisions(self):
-        return self.duration.length_in_divisions if isinstance(self.duration, Duration) \
-            else int(round(self._divisions * self.duration))
+        return self.duration.length_in_divisions
 
     @property
     def divisions(self):
-        return self.duration.divisions if isinstance(self.duration, Duration) else self._divisions
+        return self.duration.divisions
 
     @divisions.setter
     def divisions(self, value):
-        if isinstance(self.duration, Duration):
-            self.duration.divisions = value
-        else:
-            self._divisions = value
+        self.duration.divisions = value
 
     def min_denominator(self):
-        if isinstance(self.duration, Duration):
-            return Fraction(self.duration.true_length).limit_denominator().denominator
-        else:
-            return Fraction(self.duration).limit_denominator().denominator
+        return Fraction(self.duration.true_length).limit_denominator().denominator
 
     def num_beams(self):
         return 0 if self.pitch is None else self.duration.num_beams()
@@ -483,9 +485,10 @@ class Rest(_XMLNote):
 class BarRest(_XMLNote):
 
     def __init__(self, bar_length, directions=()):
-        if isinstance(bar_length, Duration):
-            bar_length = Duration.true_length
-        super().__init__("bar rest", bar_length, directions=directions)
+        assert isinstance(bar_length, (numbers.Number, Duration, BarRestDuration))
+        duration = BarRestDuration(bar_length) if isinstance(bar_length, numbers.Number) \
+            else BarRestDuration(bar.true_length) if isinstance(bar_length, Duration) else bar_length
+        super().__init__("bar rest", duration, directions=directions)
 
 
 class Chord(MusicXMLComponent):
