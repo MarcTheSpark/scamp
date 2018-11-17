@@ -293,7 +293,7 @@ class BarRestDuration(MusicXMLComponent):
 class _XMLNote(MusicXMLComponent):
 
     def __init__(self, pitch, duration, ties=None, notations=(), articulations=(), notehead=None, beams=None,
-                 directions=(), is_chord_member=False, voice=None, staff=None):
+                 directions=(), stemless=False, is_grace=False, is_chord_member=False, voice=None, staff=None):
         """
         Implementation for the xml note element, which includes notes and rests
         :param pitch: a Pitch, or None to indicate a rest, or "bar rest" to indicate that it's a bar rest
@@ -309,6 +309,7 @@ class _XMLNote(MusicXMLComponent):
         :param voice: which voice this note belongs to within its given staff
         :param staff: which staff this note belongs to within its given part
         """
+        assert not (is_grace and pitch is None)  # can't have grace rests
         self.pitch = pitch
         assert isinstance(duration, (Duration, BarRestDuration))
         self.duration = duration
@@ -317,12 +318,14 @@ class _XMLNote(MusicXMLComponent):
         # the self.duration object
         assert ties in ("start", "continue", "stop", None)
         self.ties = ties
-        self.notations = list(notations) if not isinstance(notations, list) else notations
-        self.articulations = list(articulations) if not isinstance(articulations, list) else articulations
+        self.notations = notations if isinstance(notations, (list, tuple)) else (notations, )
+        self.articulations = articulations if isinstance(articulations, (list, tuple)) else (articulations, )
         self.tuplet_bracket = None
         self.notehead = notehead
         self.beams = {} if beams is None else beams
         self.directions = directions if isinstance(directions, (list, tuple)) else (directions, )
+        self.stemless = stemless
+        self.is_grace = is_grace
         self.is_chord_member = is_chord_member
         self.voice = voice
         self.staff = staff
@@ -337,6 +340,9 @@ class _XMLNote(MusicXMLComponent):
             note_element.append(ElementTree.Element("rest"))
             note_element.extend(self.duration.render())
         else:
+            if self.is_grace:
+                ElementTree.SubElement(note_element, "grace")
+
             # a note or rest with explicit written duration
             if self.pitch is None:
                 # normal rest
@@ -350,13 +356,22 @@ class _XMLNote(MusicXMLComponent):
                 note_element.extend(self.pitch.render())
 
             duration_elements = self.duration.render()
-            note_element.append(duration_elements[0])
+
+            if not self.is_grace:
+                # this is the actual duration tag; gracenotes don't have them
+                note_element.append(duration_elements[0])
 
             # for some reason, the voice note_element is generally sandwiched in here
             if self.voice is not None:
                 ElementTree.SubElement(note_element, "voice").text = str(self.voice)
 
+            # these are the note type and any dot tags
             note_element.extend(duration_elements[1:])
+
+        # ----------------- if stemless ---------------
+
+        if self.stemless:
+            ElementTree.SubElement(note_element, "stem").text = "none"
 
         # ------------------ set staff ----------------
 
@@ -438,7 +453,8 @@ class _XMLNote(MusicXMLComponent):
 
 class Note(_XMLNote):
 
-    def __init__(self, pitch, duration, ties=None, notations=(), articulations=(), notehead=None, directions=()):
+    def __init__(self, pitch, duration, ties=None, notations=(), articulations=(), notehead=None, directions=(),
+                 stemless=False):
         if isinstance(pitch, str):
             pitch = Pitch.from_string(pitch)
         assert isinstance(pitch, Pitch)
@@ -451,8 +467,8 @@ class Note(_XMLNote):
         assert ties in ("start", "continue", "stop", None)
 
         assert isinstance(duration, Duration)
-        super().__init__(pitch, duration, ties=ties, notations=notations,
-                         articulations=articulations, notehead=notehead, directions=directions)
+        super().__init__(pitch, duration, ties=ties, notations=notations, articulations=articulations,
+                         notehead=notehead, directions=directions, stemless=stemless)
 
     def __repr__(self):
         return "Note({}, {}{}{}{}{})".format(
@@ -460,7 +476,9 @@ class Note(_XMLNote):
             ", ties=\"{}\"".format(self.ties) if self.ties is not None else "",
             ", notations={}".format(self.notations) if len(self.notations) > 0 else "",
             ", articulations={}".format(self.articulations) if len(self.articulations) > 0 else "",
-            ", notehead=\"{}\"".format(self.notehead) if self.notehead is not None else ""
+            ", notehead=\"{}\"".format(self.notehead) if self.notehead is not None else "",
+            ", directions=\"{}\"".format(self.directions) if self.directions is not None else "",
+            ", stemless=\"{}\"".format(self.stemless) if self.stemless is not None else ""
         )
 
 
@@ -478,7 +496,8 @@ class Rest(_XMLNote):
     def __repr__(self):
         return "Rest({}{})".format(
             self.duration,
-            ", notations={}".format(self.notations) if len(self.notations) > 0 else ""
+            ", notations={}".format(self.notations) if len(self.notations) > 0 else "",
+            ", directions=\"{}\"".format(self.directions) if self.directions is not None else "",
         )
 
 
@@ -487,13 +506,20 @@ class BarRest(_XMLNote):
     def __init__(self, bar_length, directions=()):
         assert isinstance(bar_length, (numbers.Number, Duration, BarRestDuration))
         duration = BarRestDuration(bar_length) if isinstance(bar_length, numbers.Number) \
-            else BarRestDuration(bar.true_length) if isinstance(bar_length, Duration) else bar_length
+            else BarRestDuration(bar_length.true_length) if isinstance(bar_length, Duration) else bar_length
         super().__init__("bar rest", duration, directions=directions)
+
+    def __repr__(self):
+        return "BarRest({}{})".format(
+            self.duration,
+            ", directions=\"{}\"".format(self.directions) if self.directions is not None else "",
+        )
 
 
 class Chord(MusicXMLComponent):
 
-    def __init__(self, pitches, duration, ties=None, notations=(), articulations=(), noteheads=None, directions=()):
+    def __init__(self, pitches, duration, ties=None, notations=(), articulations=(), noteheads=None, directions=(),
+                 stemless=False):
         assert isinstance(pitches, (list, tuple)) and len(pitches) > 1, "Chord should have multiple notes."
         pitches = [Pitch.from_string(pitch) if isinstance(pitch, str) else pitch for pitch in pitches]
         assert all(isinstance(pitch, Pitch) for pitch in pitches)
@@ -514,7 +540,8 @@ class Chord(MusicXMLComponent):
                  notations=notations if i == 0 else (),
                  articulations=articulations if i == 0 else (),
                  notehead=noteheads[i] if noteheads is not None else None,
-                 directions=directions if i == 0 else ())
+                 directions=directions if i == 0 else (),
+                 stemless=stemless)
             for i, pitch in enumerate(pitches)
         )
 
@@ -523,6 +550,10 @@ class Chord(MusicXMLComponent):
 
     def num_beams(self):
         return self.notes[0].num_beams()
+
+    @property
+    def duration(self):
+        return self.notes[0].duration
 
     @property
     def true_length(self):
@@ -600,6 +631,43 @@ class Chord(MusicXMLComponent):
 
     def render(self):
         return sum((note.render() for note in self.notes), ())
+
+    def __repr__(self):
+        noteheads = None if all(n.notehead is None for n in self.notes) else tuple(n.notehead for n in self.notes)
+        return "Chord({}, {}{}{}{}{})".format(
+            tuple(note.pitch for note in self.notes), self.duration,
+            ", ties=\"{}\"".format(self.ties) if self.ties is not None else "",
+            ", notations={}".format(self.notations) if len(self.notations) > 0 else "",
+            ", articulations={}".format(self.articulations) if len(self.articulations) > 0 else "",
+            ", noteheads={}".format(noteheads) if noteheads is not None else "",
+            ", directions=\"{}\"".format(self.directions) if self.directions is not None else "",
+            ", stemless=True" if self.notes[0].stemless else ""
+        )
+
+
+class GraceNote(Note):
+
+    def __init__(self, pitch, duration, ties=None, notations=(), articulations=(), notehead=None, directions=(),
+                 stemless=False):
+        super().__init__(pitch,  duration, ties=ties, notations=notations, articulations=articulations,
+                         notehead=notehead, directions=directions, stemless=stemless)
+        self.is_grace = True
+
+    def __repr__(self):
+        return "Grace" + super().__repr__()
+
+
+class GraceChord(Chord):
+
+    def __init__(self, pitches, duration, ties=None, notations=(), articulations=(), noteheads=None, directions=(),
+                 stemless=False):
+        super().__init__(pitches, duration, ties=ties, notations=notations, articulations=articulations,
+                         noteheads=noteheads, directions=directions, stemless=stemless)
+        for note in self.notes:
+            note.is_grace = True
+
+    def __repr__(self):
+        return "Grace" + super().__repr__()
 
 
 class BeamedGroup(MusicXMLComponent):
@@ -778,7 +846,7 @@ class Measure(MusicXMLComponent):
         assert isinstance(directions_with_displacements, (tuple, list)) and \
                all(isinstance(x, (tuple, list)) and len(x) == 2 and
                    isinstance(x[0], (MetronomeMark, TextAnnotation, EndDashedLine)) and
-                   isinstance(x[1], float) for x in directions_with_displacements)
+                   isinstance(x[1], numbers.Number) for x in directions_with_displacements)
         self.directions_with_displacements = directions_with_displacements
 
     @property
@@ -1038,13 +1106,44 @@ class EndDashedLine(MusicXMLComponent):
         return direction_element,
 
 
+class StartGliss(ElementTree.Element):
+
+    def __init__(self, number=1):
+        super().__init__("slide", {"type": "start", "line-type": "solid", "number": str(number)})
+
+
+class StopGliss(ElementTree.Element):
+
+    def __init__(self, number=1):
+        super().__init__("slide", {"type": "stop", "line-type": "solid", "number": str(number)})
+
+
+class StartSlur(ElementTree.Element):
+
+    def __init__(self, number=1):
+        super().__init__("slur", {"type": "start", "number": str(number)})
+
+
+class ContinueSlur(ElementTree.Element):
+
+    def __init__(self, number=1):
+        super().__init__("slur", {"type": "continue", "number": str(number)})
+
+
+class StopSlur(ElementTree.Element):
+
+    def __init__(self, number=1):
+        super().__init__("slur", {"type": "stop", "number": str(number)})
+
+
 # # ------------------- A SHORT EXAMPLE --------------------
 #
 # Score([
 #     PartGroup([
 #         Part("Oboe", [
 #             Measure([
-#                 Note("d5", 1.5, directions=MetronomeMark(1.5, 80)),
+#                 Note("d5", 1.5, notations=StartGliss()),
+#                 GraceNote("eb5", 0.5, stemless=True, notations=StopGliss()),
 #                 BeamedGroup([
 #                     Note("f#4", 0.25),
 #                     Note("A#4", 0.25)
@@ -1052,8 +1151,8 @@ class EndDashedLine(MusicXMLComponent):
 #                 Chord(["Cs4", "Ab4"], 1.0),
 #                 Rest(1.0)
 #             ], time_signature=(4, 4), directions_with_displacements=[
-#                 (TextAnnotation("rit.", italic=True, dashed_line=True), 1.0),
-#                 (EndDashedLine(), 3.5),
+#                 (MetronomeMark(1.5, 80), 0),
+#                 (TextAnnotation("rit.", italic=True), 1.0),
 #                 (MetronomeMark(1.0, 60), 3.5)
 #             ]),
 #             Measure([
@@ -1097,9 +1196,9 @@ class EndDashedLine(MusicXMLComponent):
 #             [
 #                 BeamedGroup([
 #                     Rest(0.5),
-#                     Note("d4", 0.5),
-#                     Note("Eb4", 0.5),
-#                     Note("F4", 0.5),
+#                     Note("d4", 0.5, notations=[StartGliss(1), StartSlur()]),
+#                     Note("Eb4", 0.5, notations=[StopGliss(1), StartGliss(2), ContinueSlur()]),
+#                     Note("F4", 0.5, notations=[StopGliss(2), StopSlur()]),
 #                 ]),
 #                 Note("Eb4", 2.0)
 #             ],
