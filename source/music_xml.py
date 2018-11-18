@@ -1,7 +1,7 @@
 from xml.etree import ElementTree
 from abc import ABC, abstractmethod
 from fractions import Fraction
-import numbers
+from numbers import Number
 import math
 import datetime
 
@@ -304,6 +304,10 @@ class _XMLNote(MusicXMLComponent):
         :param notehead: str representing XML notehead type
         :param beams: a dict of { beam_level (int): beam_type } where beam type is one of ("begin", "continue", "end",
         "forward hook", "backward hook")
+        :param directions: list of TextAnnotation's / MetronomeMark's / EndDashedLine's. Things that go in the
+        <directions> tag of the resulting musicXML
+        :param stemless: boolean for whether to render the note with no stem
+        :param is_grace: boolean for whether to render the note a grace note with no actual duration
         :param is_chord_member: boolean for whether this is a secondary member of a chord (in which case it contains
         the <chord /> tag
         :param voice: which voice this note belongs to within its given staff
@@ -318,12 +322,12 @@ class _XMLNote(MusicXMLComponent):
         # the self.duration object
         assert ties in ("start", "continue", "stop", None)
         self.ties = ties
-        self.notations = notations if isinstance(notations, (list, tuple)) else (notations, )
-        self.articulations = articulations if isinstance(articulations, (list, tuple)) else (articulations, )
+        self.notations = list(notations) if isinstance(notations, (list, tuple)) else [notations]
+        self.articulations = list(articulations) if isinstance(articulations, (list, tuple)) else [articulations]
         self.tuplet_bracket = None
         self.notehead = notehead
         self.beams = {} if beams is None else beams
-        self.directions = directions if isinstance(directions, (list, tuple)) else (directions, )
+        self.directions = list(directions) if isinstance(directions, (list, tuple)) else [directions]
         self.stemless = stemless
         self.is_grace = is_grace
         self.is_chord_member = is_chord_member
@@ -461,7 +465,7 @@ class Note(_XMLNote):
 
         if isinstance(duration, str):
             duration = Duration.from_string(duration)
-        elif isinstance(duration, numbers.Number):
+        elif isinstance(duration, Number):
             duration = Duration.from_written_length(duration)
 
         assert ties in ("start", "continue", "stop", None)
@@ -487,7 +491,7 @@ class Rest(_XMLNote):
     def __init__(self, duration, notations=(), directions=()):
         if isinstance(duration, str):
             duration = Duration.from_string(duration)
-        elif isinstance(duration, numbers.Number):
+        elif isinstance(duration, Number):
             duration = Duration.from_written_length(duration)
 
         assert isinstance(duration, Duration)
@@ -504,8 +508,8 @@ class Rest(_XMLNote):
 class BarRest(_XMLNote):
 
     def __init__(self, bar_length, directions=()):
-        assert isinstance(bar_length, (numbers.Number, Duration, BarRestDuration))
-        duration = BarRestDuration(bar_length) if isinstance(bar_length, numbers.Number) \
+        assert isinstance(bar_length, (Number, Duration, BarRestDuration))
+        duration = BarRestDuration(bar_length) if isinstance(bar_length, Number) \
             else BarRestDuration(bar_length.true_length) if isinstance(bar_length, Duration) else bar_length
         super().__init__("bar rest", duration, directions=directions)
 
@@ -526,7 +530,7 @@ class Chord(MusicXMLComponent):
 
         if isinstance(duration, str):
             duration = Duration.from_string(duration)
-        elif isinstance(duration, numbers.Number):
+        elif isinstance(duration, Number):
             duration = Duration.from_written_length(duration)
         assert isinstance(duration, Duration)
 
@@ -534,10 +538,19 @@ class Chord(MusicXMLComponent):
                isinstance(ties, (list, tuple)) and len(ties) == len(pitches) and \
                all(x in ("start", "continue", "stop", None) for x in ties)
 
+        note_notations = [[] for _ in range(len(pitches))]
+        for notation in (notations if isinstance(notations, (list, tuple)) else (notations, )):
+            if isinstance(notation, (StartMultiGliss, StopMultiGliss)):
+                for i, gliss_notation in enumerate(notation.render()):
+                    if i < len(note_notations) and gliss_notation is not None:
+                        note_notations[i].append(gliss_notation)
+            else:
+                note_notations[0].append(notation)
+
         self.notes = tuple(
             Note(pitch, duration,
                  ties=ties if not isinstance(ties, (list, tuple)) else ties[i],
-                 notations=notations if i == 0 else (),
+                 notations=note_notations[i],
                  articulations=articulations if i == 0 else (),
                  notehead=noteheads[i] if noteheads is not None else None,
                  directions=directions if i == 0 else (),
@@ -846,7 +859,7 @@ class Measure(MusicXMLComponent):
         assert isinstance(directions_with_displacements, (tuple, list)) and \
                all(isinstance(x, (tuple, list)) and len(x) == 2 and
                    isinstance(x[0], (MetronomeMark, TextAnnotation, EndDashedLine)) and
-                   isinstance(x[1], numbers.Number) for x in directions_with_displacements)
+                   isinstance(x[1], Number) for x in directions_with_displacements)
         self.directions_with_displacements = directions_with_displacements
 
     @property
@@ -1106,44 +1119,83 @@ class EndDashedLine(MusicXMLComponent):
         return direction_element,
 
 
-class StartGliss(ElementTree.Element):
+class StartGliss(MusicXMLComponent, ElementTree.Element):
 
     def __init__(self, number=1):
         super().__init__("slide", {"type": "start", "line-type": "solid", "number": str(number)})
+        
+    def render(self):
+        return self
 
 
-class StopGliss(ElementTree.Element):
+class StopGliss(MusicXMLComponent, ElementTree.Element):
 
     def __init__(self, number=1):
         super().__init__("slide", {"type": "stop", "line-type": "solid", "number": str(number)})
 
+    def render(self):
+        return self
+    
 
-class StartSlur(ElementTree.Element):
+class StartMultiGliss(MusicXMLComponent):
+
+    def __init__(self, numbers=(1, )):
+        """
+        Multi-gliss notation used for glissing multiple members of a chord
+        :param numbers: most natural is to pass a range object here, for the range of numbers to assign to the glisses
+        of consecutive chord member. However, in the case of a chord where, say, you want the upper two notes to
+        gliss but not the bottom, pass (None, 1, 2) to this parameter.
+        """
+        self.numbers = numbers
+        
+    def render(self):
+        return tuple(StartGliss(n) if n is not None else None for n in self.numbers)
+
+
+class StopMultiGliss(MusicXMLComponent):
+
+    def __init__(self, numbers=(1, )):
+        self.numbers = numbers
+
+    def render(self):
+        return tuple(StopGliss(n) if n is not None else None for n in self.numbers)
+
+
+class StartSlur(MusicXMLComponent, ElementTree.Element):
 
     def __init__(self, number=1):
         super().__init__("slur", {"type": "start", "number": str(number)})
 
+    def render(self):
+        return self
+    
 
-class ContinueSlur(ElementTree.Element):
+class ContinueSlur(MusicXMLComponent, ElementTree.Element):
 
     def __init__(self, number=1):
         super().__init__("slur", {"type": "continue", "number": str(number)})
 
+    def render(self):
+        return self
+    
 
-class StopSlur(ElementTree.Element):
+class StopSlur(MusicXMLComponent, ElementTree.Element):
 
     def __init__(self, number=1):
         super().__init__("slur", {"type": "stop", "number": str(number)})
 
+    def render(self):
+        return self
 
 # # ------------------- A SHORT EXAMPLE --------------------
+#
 #
 # Score([
 #     PartGroup([
 #         Part("Oboe", [
 #             Measure([
-#                 Note("d5", 1.5, notations=StartGliss()),
-#                 GraceNote("eb5", 0.5, stemless=True, notations=StopGliss()),
+#                 Chord(["G#4", "b4", "d5"], 1.5, notations=StartMultiGliss((None, 1, 2))),
+#                 GraceChord(["C5", "eb5", "G5"], 0.5, stemless=True, notations=StopMultiGliss((1, None, 2))),
 #                 BeamedGroup([
 #                     Note("f#4", 0.25),
 #                     Note("A#4", 0.25)
