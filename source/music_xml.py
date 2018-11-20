@@ -18,6 +18,43 @@ def least_common_multiple(*args):
         return least_common_multiple(args[0], least_common_multiple(*args[1:]))
 
 
+def is_power_of_two(x):
+    log2_x = math.log2(x)
+    return log2_x == int(log2_x)
+
+
+def pad_with_rests(components, desired_length):
+    """
+    Adds rests to
+    :param components:
+    :param desired_length:
+    :return:
+    """
+    components = [components] if not isinstance(components, (tuple, list)) else components
+    assert all(hasattr(component, "true_length") for component in components)
+    sum_length = sum(component.true_length for component in components)
+    assert sum_length <= desired_length
+    remaining_length = Fraction(desired_length - sum_length).limit_denominator()
+    assert is_power_of_two(remaining_length.denominator), "Remaining length cannot require tuplets."
+    components = list(components)
+
+    longer_rests = []
+    for longer_rest_length in (4, 2, 1):
+        while remaining_length >= longer_rest_length:
+            longer_rests.append(Rest(longer_rest_length))
+            remaining_length -= longer_rest_length
+            remaining_length = Fraction(remaining_length).limit_denominator()
+    longer_rests.reverse()
+
+    while remaining_length > 0:
+        odd_remainder = 1 / remaining_length.denominator
+        components.append(Rest(odd_remainder))
+        remaining_length -= odd_remainder
+        remaining_length = Fraction(remaining_length).limit_denominator()
+
+    return components + longer_rests
+
+
 class MusicXMLComponent(ABC):
 
     @abstractmethod
@@ -25,6 +62,11 @@ class MusicXMLComponent(ABC):
         # Renders this component to a tuple of ElementTree.Element
         # the reason for making it a tuple is that musical objects like chords are represented by several
         # notes side by side, with all but the first containing a </chord> tag.
+        pass
+
+    @abstractmethod
+    def wrap_as_score(self):
+        # Wrap this component in a score so that it can be exported and viewed
         pass
 
     def to_xml(self, pretty_print=False):
@@ -51,7 +93,7 @@ class MusicXMLComponent(ABC):
 
     def export_to_file(self, file_path, pretty_print=True):
         with open(file_path, 'w') as file:
-            file.write(self.to_xml(pretty_print))
+            file.write(self.wrap_as_score().to_xml(pretty_print))
 
 
 class Pitch(MusicXMLComponent):
@@ -105,6 +147,9 @@ class Pitch(MusicXMLComponent):
         pitch_element.append(alter_el)
         pitch_element.append(octave_el)
         return pitch_element,
+
+    def wrap_as_score(self):
+        return Note(self, 1.0).wrap_as_score()
 
     def __repr__(self):
         return "Pitch(\"{}\", {}{})".format(self.step, self.octave,
@@ -264,6 +309,9 @@ class Duration(MusicXMLComponent):
             out += (ElementTree.Element("beat-unit-dot"), )
         return out
 
+    def wrap_as_score(self):
+        return Note("c4", self).wrap_as_score()
+
     def __repr__(self):
         return "Duration(\"{}\", {}{})".format(
             self.note_type, self.num_dots, ", {}".format(self.tuplet_ratio) if self.tuplet_ratio is not None else ""
@@ -288,6 +336,9 @@ class BarRestDuration(MusicXMLComponent):
         duration_el = ElementTree.Element("duration")
         duration_el.text = str(int(round(self.length * self.divisions)))
         return duration_el,
+
+    def wrap_as_score(self):
+        return BarRest(self).wrap_as_score()
 
 
 class _XMLNote(MusicXMLComponent):
@@ -333,6 +384,38 @@ class _XMLNote(MusicXMLComponent):
         self.is_chord_member = is_chord_member
         self.voice = voice
         self.staff = staff
+
+    @property
+    def true_length(self):
+        if self.is_grace:
+            return 0
+        return self.duration.true_length if isinstance(self.duration, Duration) else self.duration
+
+    @property
+    def written_length(self):
+        return self.duration.written_length if isinstance(self.duration, Duration) else self.duration
+
+    @property
+    def length_in_divisions(self):
+        if self.is_grace:
+            return 0
+        return self.duration.length_in_divisions
+
+    @property
+    def divisions(self):
+        return self.duration.divisions
+
+    @divisions.setter
+    def divisions(self, value):
+        self.duration.divisions = value
+
+    def min_denominator(self):
+        if self.is_grace:
+            return 1
+        return Fraction(self.duration.true_length).limit_denominator().denominator
+
+    def num_beams(self):
+        return 0 if self.pitch is None else self.duration.num_beams()
 
     def render(self):
         note_element = ElementTree.Element("note")
@@ -428,31 +511,15 @@ class _XMLNote(MusicXMLComponent):
         # place any text annotations before the note so that they show up at the same time as the note start
         return sum((direction.render() for direction in self.directions), ()) + (note_element,)
 
-    @property
-    def true_length(self):
-        return self.duration.true_length if isinstance(self.duration, Duration) else self.duration
-
-    @property
-    def written_length(self):
-        return self.duration.written_length if isinstance(self.duration, Duration) else self.duration
-
-    @property
-    def length_in_divisions(self):
-        return self.duration.length_in_divisions
-
-    @property
-    def divisions(self):
-        return self.duration.divisions
-
-    @divisions.setter
-    def divisions(self, value):
-        self.duration.divisions = value
-
-    def min_denominator(self):
-        return Fraction(self.duration.true_length).limit_denominator().denominator
-
-    def num_beams(self):
-        return 0 if self.pitch is None else self.duration.num_beams()
+    def wrap_as_score(self):
+        if isinstance(self, BarRest):
+            duration_as_fraction = Fraction(self.true_length).limit_denominator()
+            assert is_power_of_two(duration_as_fraction.denominator)
+            time_signature = (duration_as_fraction.numerator, duration_as_fraction.denominator * 4)
+            return Measure([self], time_signature=time_signature).wrap_as_score()
+        else:
+            measure_length = 4 if self.true_length <= 4 else int(self.true_length) + 1
+            return Measure(pad_with_rests(self, measure_length), (measure_length, 4)).wrap_as_score()
 
 
 class Note(_XMLNote):
@@ -645,6 +712,10 @@ class Chord(MusicXMLComponent):
     def render(self):
         return sum((note.render() for note in self.notes), ())
 
+    def wrap_as_score(self):
+        measure_length = 4 if self.true_length <= 4 else int(self.true_length) + 1
+        return Measure(pad_with_rests(self, measure_length), (measure_length, 4)).wrap_as_score()
+
     def __repr__(self):
         noteheads = None if all(n.notehead is None for n in self.notes) else tuple(n.notehead for n in self.notes)
         return "Chord({}, {}{}{}{}{})".format(
@@ -673,11 +744,12 @@ class GraceNote(Note):
 class GraceChord(Chord):
 
     def __init__(self, pitches, duration, ties=None, notations=(), articulations=(), noteheads=None, directions=(),
-                 stemless=False):
+                 stemless=False, slashed=False):
         super().__init__(pitches, duration, ties=ties, notations=notations, articulations=articulations,
                          noteheads=noteheads, directions=directions, stemless=stemless)
         for note in self.notes:
             note.is_grace = True
+            note.slashed = slashed
 
     def __repr__(self):
         return "Grace" + super().__repr__()
@@ -744,6 +816,10 @@ class BeamedGroup(MusicXMLComponent):
         self.render_contents_beaming()
         return sum((leaf.render() for leaf in self.contents), ())
 
+    def wrap_as_score(self):
+        measure_length = 4 if self.true_length <= 4 else int(math.ceil(self.true_length))
+        return Measure(pad_with_rests(self, measure_length), (measure_length, 4)).wrap_as_score()
+
 
 class Tuplet(BeamedGroup):
 
@@ -804,6 +880,9 @@ class Clef(MusicXMLComponent):
         if self.octaves_transposition != 0:
             ElementTree.SubElement(clef_element, "clef-octave-change").text = str(self.octaves_transposition)
         return clef_element,
+
+    def wrap_as_score(self):
+        return Measure([BarRest(4)], time_signature=(4, 4), clef=self).wrap_as_score()
 
 
 class Measure(MusicXMLComponent):
@@ -956,6 +1035,9 @@ class Measure(MusicXMLComponent):
 
         return measure_element,
 
+    def wrap_as_score(self):
+        return Part("", [self]).wrap_as_score()
+
 
 class Part(MusicXMLComponent):
 
@@ -977,8 +1059,11 @@ class Part(MusicXMLComponent):
         ElementTree.SubElement(score_part_el, "part-name").text = self.part_name
         return score_part_el,
 
+    def wrap_as_score(self):
+        return Score([self])
 
-class PartGroup:
+
+class PartGroup(MusicXMLComponent):
 
     def __init__(self, parts, has_bracket=True, has_group_bar_line=True):
         assert hasattr(parts, '__len__') and all(isinstance(x, Part) for x in parts)
@@ -1006,6 +1091,9 @@ class PartGroup:
     @staticmethod
     def render_stop_element():
         return ElementTree.Element("part-group", {"type": "stop"})
+
+    def wrap_as_score(self):
+        return Score([self])
 
 
 class Score(MusicXMLComponent):
@@ -1045,8 +1133,21 @@ class Score(MusicXMLComponent):
             score_element.extend(part_or_part_group.render())
         return score_element,
 
+    def wrap_as_score(self):
+        return self
 
-class MetronomeMark(MusicXMLComponent):
+
+class Direction(MusicXMLComponent):
+
+    @abstractmethod
+    def render(self):
+        pass
+
+    def wrap_as_score(self):
+        return Measure([BarRest(4, directions=(self, ))], time_signature=(4, 4)).wrap_as_score()
+
+
+class MetronomeMark(Direction):
 
     def __init__(self, beat_length, bpm, parentheses=False, voice=1, staff=1):
         try:
@@ -1072,7 +1173,7 @@ class MetronomeMark(MusicXMLComponent):
         return direction_element,
 
 
-class TextAnnotation(MusicXMLComponent):
+class TextAnnotation(Direction):
 
     def __init__(self, text, placement="above", font_size=None, italic=False, voice=1, staff=None,
                  dashed_line=None, **kwargs):
@@ -1102,7 +1203,7 @@ class TextAnnotation(MusicXMLComponent):
         return direction_element,
 
 
-class EndDashedLine(MusicXMLComponent):
+class EndDashedLine(Direction):
 
     def __init__(self, id_number=1, voice=1, staff=None):
         self.id_number = id_number
@@ -1119,25 +1220,25 @@ class EndDashedLine(MusicXMLComponent):
         return direction_element,
 
 
-class StartGliss(MusicXMLComponent, ElementTree.Element):
+class StartGliss(Direction, ElementTree.Element):
 
     def __init__(self, number=1):
         super().__init__("slide", {"type": "start", "line-type": "solid", "number": str(number)})
         
     def render(self):
-        return self
+        return self,
 
 
-class StopGliss(MusicXMLComponent, ElementTree.Element):
+class StopGliss(Direction, ElementTree.Element):
 
     def __init__(self, number=1):
         super().__init__("slide", {"type": "stop", "line-type": "solid", "number": str(number)})
 
     def render(self):
-        return self
+        return self,
     
 
-class StartMultiGliss(MusicXMLComponent):
+class StartMultiGliss(Direction):
 
     def __init__(self, numbers=(1, )):
         """
@@ -1152,7 +1253,7 @@ class StartMultiGliss(MusicXMLComponent):
         return tuple(StartGliss(n) if n is not None else None for n in self.numbers)
 
 
-class StopMultiGliss(MusicXMLComponent):
+class StopMultiGliss(Direction):
 
     def __init__(self, numbers=(1, )):
         self.numbers = numbers
@@ -1161,31 +1262,32 @@ class StopMultiGliss(MusicXMLComponent):
         return tuple(StopGliss(n) if n is not None else None for n in self.numbers)
 
 
-class StartSlur(MusicXMLComponent, ElementTree.Element):
+class StartSlur(Direction, ElementTree.Element):
 
     def __init__(self, number=1):
         super().__init__("slur", {"type": "start", "number": str(number)})
 
     def render(self):
-        return self
+        return self,
     
 
-class ContinueSlur(MusicXMLComponent, ElementTree.Element):
+class ContinueSlur(Direction, ElementTree.Element):
 
     def __init__(self, number=1):
         super().__init__("slur", {"type": "continue", "number": str(number)})
 
     def render(self):
-        return self
+        return self,
     
 
-class StopSlur(MusicXMLComponent, ElementTree.Element):
+class StopSlur(Direction, ElementTree.Element):
 
     def __init__(self, number=1):
         super().__init__("slur", {"type": "stop", "number": str(number)})
 
     def render(self):
-        return self
+        return self,
+
 
 # # ------------------- A SHORT EXAMPLE --------------------
 #
