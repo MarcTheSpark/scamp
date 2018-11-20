@@ -344,7 +344,7 @@ class BarRestDuration(MusicXMLComponent):
 class _XMLNote(MusicXMLComponent):
 
     def __init__(self, pitch, duration, ties=None, notations=(), articulations=(), notehead=None, beams=None,
-                 directions=(), stemless=False, is_grace=False, is_chord_member=False, voice=None, staff=None):
+                 directions=(), stemless=False, grace=False, is_chord_member=False, voice=None, staff=None):
         """
         Implementation for the xml note element, which includes notes and rests
         :param pitch: a Pitch, or None to indicate a rest, or "bar rest" to indicate that it's a bar rest
@@ -358,13 +358,14 @@ class _XMLNote(MusicXMLComponent):
         :param directions: list of TextAnnotation's / MetronomeMark's / EndDashedLine's. Things that go in the
         <directions> tag of the resulting musicXML
         :param stemless: boolean for whether to render the note with no stem
-        :param is_grace: boolean for whether to render the note a grace note with no actual duration
+        :param grace: boolean for whether to render the note a grace note with no actual duration, or the string
+        "slashed" if it's a slashed grace note
         :param is_chord_member: boolean for whether this is a secondary member of a chord (in which case it contains
         the <chord /> tag
         :param voice: which voice this note belongs to within its given staff
         :param staff: which staff this note belongs to within its given part
         """
-        assert not (is_grace and pitch is None)  # can't have grace rests
+        assert not (grace and pitch is None)  # can't have grace rests
         self.pitch = pitch
         assert isinstance(duration, (Duration, BarRestDuration))
         self.duration = duration
@@ -380,7 +381,8 @@ class _XMLNote(MusicXMLComponent):
         self.beams = {} if beams is None else beams
         self.directions = list(directions) if isinstance(directions, (list, tuple)) else [directions]
         self.stemless = stemless
-        self.is_grace = is_grace
+        self.is_grace = grace is not False
+        self.slashed = grace == "slashed"
         self.is_chord_member = is_chord_member
         self.voice = voice
         self.staff = staff
@@ -428,7 +430,7 @@ class _XMLNote(MusicXMLComponent):
             note_element.extend(self.duration.render())
         else:
             if self.is_grace:
-                ElementTree.SubElement(note_element, "grace")
+                ElementTree.SubElement(note_element, "grace", {"slash": "yes"} if self.slashed else {})
 
             # a note or rest with explicit written duration
             if self.pitch is None:
@@ -732,10 +734,11 @@ class Chord(MusicXMLComponent):
 class GraceNote(Note):
 
     def __init__(self, pitch, duration, ties=None, notations=(), articulations=(), notehead=None, directions=(),
-                 stemless=False):
+                 stemless=False, slashed=False):
         super().__init__(pitch,  duration, ties=ties, notations=notations, articulations=articulations,
                          notehead=notehead, directions=directions, stemless=stemless)
         self.is_grace = True
+        self.slashed = slashed
 
     def __repr__(self):
         return "Grace" + super().__repr__()
