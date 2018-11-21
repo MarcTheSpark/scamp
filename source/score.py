@@ -353,8 +353,19 @@ _NamedVoiceFragment = namedtuple("_NamedVoiceFragment", "average_pitch start_mea
 
 class StaffGroup(ScoreComponent, ScoreContainer):
 
-    def __init__(self, staves):
+    def __init__(self, staves, name=None):
         ScoreContainer.__init__(self, staves, "staves", Staff)
+        self.name = name
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        self._name = value
+        for i, staff in enumerate(self.staves):
+            staff.name = value if i == 0 else "{} ({})".format(value, i + 1)
 
     @property
     def staves(self):
@@ -367,7 +378,8 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         fragments = StaffGroup._separate_voices_into_fragments(quantized_performance_part)
         measure_voice_grid = StaffGroup._create_measure_voice_grid(fragments, quantized_performance_part.num_measures())
         return StaffGroup.from_measure_voice_grid(
-            measure_voice_grid, quantized_performance_part.get_longest_quantization_record()
+            measure_voice_grid, quantized_performance_part.get_longest_quantization_record(),
+            name=quantized_performance_part.name
         )
 
     @staticmethod
@@ -527,11 +539,12 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         return measure_grid
 
     @classmethod
-    def from_measure_voice_grid(cls, measure_bins, quantization_record):
+    def from_measure_voice_grid(cls, measure_bins, quantization_record, name=None):
         """
         Creates a StaffGroup with Staves that accommodate engraving_settings.max_voices_per_part voices each
         :param measure_bins: a list of voice lists (can be many voices each)
         :param quantization_record: a QuantizationRecord
+        :param name: name for the staff group; the staves will get named, e.g. "piano [1]", "piano [2]", etc.
         """
         num_staffs_required = 1 if len(measure_bins) == 0 else \
             int(max(math.ceil(len(x) / engraving_settings.max_voices_per_part) for x in measure_bins))
@@ -572,7 +585,8 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         if all(len(x) == 0 for x in staves):
             # empty staff group; none of its staves have any contents
             return cls([Staff([])])
-        return cls([Staff.from_measure_bins_of_voice_lists(x, quantization_record.time_signatures) for x in staves])
+        return cls([Staff.from_measure_bins_of_voice_lists(x, quantization_record.time_signatures) for x in staves],
+                   name=name)
 
     def _to_abjad(self):
         return abjad.StaffGroup([staff._to_abjad() for staff in self.staves])
@@ -606,8 +620,9 @@ def _join_same_source_abjad_note_group(same_source_group):
 
 class Staff(ScoreComponent, ScoreContainer):
 
-    def __init__(self, measures):
+    def __init__(self, measures, name=None):
         ScoreContainer.__init__(self, measures, "measures", Measure)
+        self.name = name
 
     @property
     def measures(self):
@@ -634,8 +649,7 @@ class Staff(ScoreComponent, ScoreContainer):
         contents = [measure._to_abjad(source_id_dict) for measure in self.measures]
         for same_source_group in source_id_dict.values():
             _join_same_source_abjad_note_group(same_source_group)
-
-        return abjad.Staff(contents)
+        return abjad.Staff(contents, name=self.name)
 
     def to_music_xml(self):
         pass
@@ -715,7 +729,7 @@ class Measure(ScoreComponent, ScoreContainer):
 
 class Voice(ScoreComponent, ScoreContainer):
 
-    def __init__(self, contents, time_signature):
+    def __init__(self, contents, time_signature: TimeSignature):
         ScoreContainer.__init__(self, contents, "contents", (Tuplet, NoteLike), ("time_signature", ))
         self.time_signature = time_signature
 
@@ -861,7 +875,9 @@ class Voice(ScoreComponent, ScoreContainer):
 
     def _to_abjad(self, source_id_dict=None):
         if len(self.contents) == 0:  # empty voice
-            return abjad.Voice("{{R{}*{}}}".format(self.time_signature.denominator, self.time_signature.numerator))
+            return abjad.Voice([abjad.MultimeasureRest(
+                (self.time_signature.numerator, self.time_signature.denominator)
+            )])
         else:
             is_top_level_call = True if source_id_dict is None else False
             source_id_dict = {} if source_id_dict is None else source_id_dict
@@ -952,6 +968,15 @@ class NoteLike(ScoreComponent):
         self.properties = properties if isinstance(properties, NotePropertiesDictionary) \
             else NotePropertiesDictionary.from_unknown_format(properties)
 
+    def is_rest(self):
+        return self.pitch is None
+
+    def is_chord(self):
+        return isinstance(self.pitch, tuple)
+
+    def does_glissando(self):
+        return self.is_chord() and isinstance(self.pitch[0], Envelope) or isinstance(self.pitch, Envelope)
+
     @staticmethod
     def _get_relevant_gliss_control_points(pitch_envelope):
         """
@@ -994,17 +1019,14 @@ class NoteLike(ScoreComponent):
         # list of gliss grace notes, if applicable
         grace_notes = []
 
-        if self.pitch is None:
-            # Just a rest
+        if self.is_rest():
             abjad_object = abjad.Rest(duration)
-        elif isinstance(self.pitch, tuple):
-            # This is a chord
+        elif self.is_chord():
             abjad_object = abjad.Chord()
             abjad_object.written_duration = duration
 
-            # Now, is it a glissing chord?
-            if isinstance(self.pitch[0], Envelope):
-                # if so, its noteheads are based on the start level
+            if self.does_glissando():
+                # if it's a glissing chord, its noteheads are based on the start level
                 abjad_object.note_heads = [self.properties.spelling_policy.resolve_abjad_pitch(x.start_level())
                                            for x in self.pitch]
                 # Set the notehead
@@ -1039,7 +1061,7 @@ class NoteLike(ScoreComponent):
                 # Set the noteheads
                 self._set_abjad_note_head_styles(abjad_object)
 
-        elif isinstance(self.pitch, Envelope):
+        elif self.does_glissando():
             # This is a note doing a glissando
             abjad_object = abjad.Note(self.properties.spelling_policy.resolve_abjad_pitch(self.pitch.start_level()),
                                       duration)
