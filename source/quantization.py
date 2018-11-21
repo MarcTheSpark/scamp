@@ -456,11 +456,51 @@ class BeatQuantizationScheme:
 
 class TimeSignature(SavesToJSON):
 
-    def __init__(self, numerator, denominator):
+    def __init__(self, numerator, denominator, beat_lengths=None):
+        """
+        Class representing a time signature
+        :param numerator: self-explanatory
+        :param denominator: self-explanatory
+        :param beat_lengths: This is a hint as to how the time signature is divided up into beats. By default,
+        it is None, meaning that a sensible default will be constructed.
+        """
         self.numerator = numerator
         # For now, and the foreseeable future, I don't want to deal with time signatures like 4/7
         assert is_x_pow_of_y(denominator, 2)
         self.denominator = denominator
+        self.beat_lengths = beat_lengths if beat_lengths is not None else self._calculate_default_beat_lengths()
+
+    def _calculate_default_beat_lengths(self):
+        if not hasattr(self.numerator, '__len__'):
+            # not an additive meter
+            if self.denominator <= 4 or is_multiple(self.numerator, 3):
+                # if the denominator is 4 or less, we'll use the denominator as the beat
+                # and if not, but the numerator is a multiple of 3, then we've got a compound meter
+                if self.denominator > 4:
+                    beat_length = 4.0 / self.denominator * 3
+                else:
+                    beat_length = 4.0 / self.denominator
+                num_beats = int(round(self.measure_length() / beat_length))
+                beat_lengths = [beat_length] * num_beats
+            else:
+                # if we're here then the denominator is >= 8 and the numerator is not a multiple of 3
+                # so we'll do a bunch of duple beats followed by a triple beat if the numerator is odd
+                duple_beat_length = 4.0 / self.denominator * 2
+                triple_beat_length = 4.0 / self.denominator * 3
+
+                if self.numerator % 2 == 0:
+                    beat_lengths = [duple_beat_length] * (self.numerator // 2)
+                else:
+                    beat_lengths = [duple_beat_length] * (self.numerator // 2 - 1) + [triple_beat_length]
+        else:
+            # additive meter
+            if self.denominator <= 4:
+                # denominator is quarter note or slower, so treat each denominator value as a beat, ignoring groupings
+                beat_lengths = [4.0 / self.denominator] * sum(self.numerator)
+            else:
+                # denominator is eighth or faster, so treat each grouping as a beat
+                beat_lengths = [4.0 / self.denominator * x for x in self.numerator]
+        return beat_lengths
 
     @classmethod
     def from_string(cls, time_signature_string):
@@ -529,53 +569,21 @@ class MeasureQuantizationScheme:
             time_signature = TimeSignature.from_string(time_signature)
         elif isinstance(time_signature, tuple):
             time_signature = TimeSignature(*time_signature)
-
-        measure_length = time_signature.measure_length()
-
-        # first we make a list of the beat lengths based on the time signature
-        if not hasattr(time_signature.numerator, '__len__'):
-            # not an additive meter
-            if time_signature.denominator <= 4 or is_multiple(time_signature.numerator, 3):
-                # if the denominator is 4 or less, we'll use the denominator as the beat
-                # and if not, but the numerator is a multiple of 3, then we've got a compound meter
-                if time_signature.denominator > 4:
-                    beat_length = 4.0 / time_signature.denominator * 3
-                else:
-                    beat_length = 4.0 / time_signature.denominator
-                num_beats = int(round(measure_length/beat_length))
-                beat_lengths = [beat_length] * num_beats
-            else:
-                # if we're here then the denominator is >= 8 and the numerator is not a multiple of 3
-                # so we'll do a bunch of duple beats followed by a triple beat if the numerator is odd
-                duple_beat_length = 4.0 / time_signature.denominator * 2
-                triple_beat_length = 4.0 / time_signature.denominator * 3
-
-                if time_signature.numerator % 2 == 0:
-                    beat_lengths = [duple_beat_length] * (time_signature.numerator // 2)
-                else:
-                    beat_lengths = [duple_beat_length] * (time_signature.numerator // 2 - 1) + [triple_beat_length]
-        else:
-            # additive meter
-            if time_signature.denominator <= 4:
-                # denominator is quarter note or slower, so treat each denominator value as a beat, ignoring groupings
-                beat_lengths = [4.0 / time_signature.denominator] * sum(time_signature.numerator)
-            else:
-                # denominator is eighth or faster, so treat each grouping as a beat
-                beat_lengths = [4.0 / time_signature.denominator * x for x in time_signature.numerator]
+        assert isinstance(time_signature, TimeSignature)
 
         # now we convert the beat lengths to BeatQuantizationSchemes and construct our object
         if max_indigestibility is None:
             # no max_indigestibility, so just use the max divisor
             beat_schemes = [
                 BeatQuantizationScheme.from_max_divisor(beat_length, max_divisor, simplicity_preference)
-                for beat_length in beat_lengths
+                for beat_length in time_signature.beat_lengths
             ]
         else:
             # using a max_indigestibility
             beat_schemes = [
                 BeatQuantizationScheme.from_max_indigestibility(beat_length, max_divisor,
                                                                 max_indigestibility, simplicity_preference)
-                for beat_length in beat_lengths
+                for beat_length in time_signature.beat_lengths
             ]
         return cls(beat_schemes, time_signature)
 
