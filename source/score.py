@@ -1,10 +1,11 @@
 from scamp.settings import quantization_settings, engraving_settings
 from scamp.envelope import Envelope
-from scamp.quantization import QuantizationRecord, QuantizationScheme
+from scamp.quantization import QuantizationRecord, QuantizationScheme, TimeSignature
 from scamp.performance_note import PerformanceNote
 from scamp.utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y
 from scamp.engraving_translations import notehead_name_to_lilypond_type
 from scamp.note_properties import NotePropertiesDictionary
+from scamp import music_xml
 import math
 from fractions import Fraction
 from itertools import permutations
@@ -205,6 +206,9 @@ stemless = {
     def to_music_xml(self):
         pass
 
+    def export_music_xml(self, file_path, pretty_print=True):
+        self.to_music_xml().export_to_file(file_path, pretty_print=pretty_print)
+
     def to_abjad(self):
         """
         This wrapper around the _to_abjad implementation details makes sure we incorporate the appropriate definitions
@@ -343,7 +347,7 @@ class Score(ScoreComponent, ScoreContainer):
         return score
 
     def to_music_xml(self):
-        pass
+        return music_xml.Score([part.to_music_xml() for part in self. parts], self.title, self.composer)
 
 
 # used in arranging voices in a part
@@ -592,7 +596,7 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         return abjad.StaffGroup([staff._to_abjad() for staff in self.staves])
 
     def to_music_xml(self):
-        pass
+        return music_xml.PartGroup([staff.to_music_xml() for staff in self.staves])
 
 
 def _join_same_source_abjad_note_group(same_source_group):
@@ -652,7 +656,7 @@ class Staff(ScoreComponent, ScoreContainer):
         return abjad.Staff(contents, name=self.name)
 
     def to_music_xml(self):
-        pass
+        return music_xml.Part(self.name, [measure.to_music_xml() for measure in self.measures])
 
 
 _voice_names = [r'voiceOne', r'voiceTwo', r'voiceThree', r'voiceFour']
@@ -724,7 +728,9 @@ class Measure(ScoreComponent, ScoreContainer):
         return abjad_measure
 
     def to_music_xml(self):
-        pass
+        return music_xml.Measure([voice.to_music_xml() for voice in self.voices],
+                                 time_signature=(self.time_signature.numerator, self.time_signature.denominator)
+                                 if self.show_time_signature else None)
 
 
 class Voice(ScoreComponent, ScoreContainer):
@@ -888,7 +894,32 @@ class Voice(ScoreComponent, ScoreContainer):
             return abjad.Voice(abjad_components)
 
     def to_music_xml(self):
-        pass
+        if len(self.contents) == 0:
+            return [music_xml.BarRest(self.time_signature.numerator / self.time_signature.denominator * 4)]
+        else:
+            t = next_beat_start = 0
+            contents = list(self.contents)
+            out = []
+            for beat_length in self.time_signature.beat_lengths:
+                next_beat_start += beat_length
+                beat_group = []
+
+                while len(contents) > 0 and t < next_beat_start:
+                    this_item = contents.pop(0)
+                    if isinstance(this_item, NoteLike):
+                        beat_group.append(this_item.to_music_xml())
+                        t += this_item.written_length
+                    else:
+                        assert isinstance(this_item, Tuplet)
+                        out.append(music_xml.BeamedGroup(beat_group))
+                        out.append(this_item.to_music_xml())
+                        beat_group = []
+                        t += this_item.length()
+
+                if len(beat_group) > 0:
+                    out.append(music_xml.BeamedGroup(beat_group))
+            assert len(contents) == 0  # we should have gone through everything at this point
+            return out
 
 
 class Tuplet(ScoreComponent, ScoreContainer):
@@ -953,7 +984,8 @@ class Tuplet(ScoreComponent, ScoreContainer):
         return abjad.Tuplet(abjad.Multiplier(self.normal_divisions, self.tuplet_divisions), abjad_notes)
 
     def to_music_xml(self):
-        pass
+        return music_xml.Tuplet([note_like.to_music_xml() for note_like in self.contents],
+                                (self.tuplet_divisions, self.normal_divisions))
 
 
 class NoteLike(ScoreComponent):
@@ -1145,7 +1177,33 @@ class NoteLike(ScoreComponent):
             raise ValueError("Must be an abjad Note or Chord object")
 
     def to_music_xml(self):
-        pass
+        if self.is_rest():
+            return music_xml.Rest(self.written_length)
+        elif self.is_chord():
+            if self.does_glissando():
+                pass
+            else:
+                return music_xml.Chord(
+                    tuple(self.properties.spelling_policy.resolve_music_xml_pitch(p) for p in self.pitch),
+                    self.written_length, ties=self._get_xml_tie_state()
+                )
+        elif self.does_glissando():
+            pass
+        else:
+            return music_xml.Note(
+                self.properties.spelling_policy.resolve_music_xml_pitch(self.pitch),
+                self.written_length, ties=self._get_xml_tie_state()
+            )
+
+    def _get_xml_tie_state(self):
+        if self.properties.starts_tie() and self.properties.ends_tie():
+            return "continue"
+        elif self.properties.starts_tie():
+            return "start"
+        elif self.properties.ends_tie():
+            return "stop"
+        else:
+            return None
 
     def __repr__(self):
         return "NoteLike(pitch={}, written_length={}, properties={})".format(
