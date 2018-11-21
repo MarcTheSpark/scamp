@@ -450,7 +450,14 @@ class _XMLNote(MusicXMLComponent):
                 # this is the actual duration tag; gracenotes don't have them
                 note_element.append(duration_elements[0])
 
-            # for some reason, the voice note_element is generally sandwiched in here
+            # for some reason, the tie element and the voice are generally sandwiched in here
+
+            if self.ties is not None:
+                if self.ties.lower() == "start" or self.ties.lower() == "continue":
+                    note_element.append(ElementTree.Element("tie", {"type": "start"}))
+                if self.ties.lower() == "stop" or self.ties.lower() == "continue":
+                    note_element.append(ElementTree.Element("tie", {"type": "stop"}))
+
             if self.voice is not None:
                 ElementTree.SubElement(note_element, "voice").text = str(self.voice)
 
@@ -474,10 +481,8 @@ class _XMLNote(MusicXMLComponent):
                 note_element.append(self.notehead)
             if self.ties is not None:
                 if self.ties.lower() == "start" or self.ties.lower() == "continue":
-                    note_element.append(ElementTree.Element("tie", {"type": "start"}))
                     self.notations.append(ElementTree.Element("tied", {"type": "start"}))
                 if self.ties.lower() == "stop" or self.ties.lower() == "continue":
-                    note_element.append(ElementTree.Element("tie", {"type": "stop"}))
                     self.notations.append(ElementTree.Element("tied", {"type": "stop"}))
             for beam_num in self.beams:
                 beam_text = self.beams[beam_num]
