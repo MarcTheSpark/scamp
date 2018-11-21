@@ -125,7 +125,7 @@ class SpellingPolicy(SavesToJSON):
                 num_sharps_or_flats += 7
             return SpellingPolicy.from_circle_of_fifths_position(num_sharps_or_flats, template=template)
 
-    def resolve_name_alteration_and_octave(self, midi_num):
+    def resolve_name_octave_and_alteration(self, midi_num):
         rounded_midi_num = int(round(midi_num))
         octave = int(rounded_midi_num / 12) - 1
         pitch_class = rounded_midi_num % 12
@@ -141,12 +141,17 @@ class SpellingPolicy(SavesToJSON):
         # (round the different between midi_num and rounded_midi_num to the nearest multiple of 0.5)
         if rounded_midi_num != midi_num:
             alteration += round(2 * (midi_num - rounded_midi_num)) / 2
-        return name, alteration, octave
+        return name, octave, alteration
 
     def resolve_abjad_pitch(self, midi_num):
-        name, alteration, octave = self.resolve_name_alteration_and_octave(midi_num)
+        name, octave, alteration = self.resolve_name_octave_and_alteration(midi_num)
         import abjad
         return abjad.NamedPitch(name, accidental=alteration, octave=octave)
+
+    def resolve_music_xml_pitch(self, midi_num):
+        name, octave, alteration = self.resolve_name_octave_and_alteration(midi_num)
+        from scamp import music_xml
+        return music_xml.Pitch(name.upper(), octave, alteration)
 
     def to_json(self):
         # check to see this SpellingPolicy is identical to one made from one of the following string initializers
