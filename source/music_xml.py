@@ -377,7 +377,8 @@ class _XMLNote(MusicXMLComponent):
         self.notations = list(notations) if isinstance(notations, (list, tuple)) else [notations]
         self.articulations = list(articulations) if isinstance(articulations, (list, tuple)) else [articulations]
         self.tuplet_bracket = None
-        self.notehead = notehead
+        assert isinstance(notehead, (Notehead, str, type(None)))
+        self.notehead = Notehead(notehead) if isinstance(notehead, str) else notehead
         self.beams = {} if beams is None else beams
         self.directions = list(directions) if isinstance(directions, (list, tuple)) else [directions]
         self.stemless = stemless
@@ -464,10 +465,13 @@ class _XMLNote(MusicXMLComponent):
             # these are the note type and any dot tags
             note_element.extend(duration_elements[1:])
 
-        # ----------------- if stemless ---------------
+        # --------------- stem / notehead -------------
 
         if self.stemless:
             ElementTree.SubElement(note_element, "stem").text = "none"
+
+        if self.notehead is not None:
+            note_element.extend(self.notehead.render())
 
         # ------------------ set staff ----------------
 
@@ -477,8 +481,6 @@ class _XMLNote(MusicXMLComponent):
         # ---------------- set attributes that apply to notes only ----------------
 
         if self.pitch is not None:
-            if self.notehead is not None:
-                note_element.append(self.notehead)
             if self.ties is not None:
                 if self.ties.lower() == "start" or self.ties.lower() == "continue":
                     self.notations.append(ElementTree.Element("tied", {"type": "start"}))
@@ -626,7 +628,7 @@ class Chord(MusicXMLComponent):
                  ties=ties if not isinstance(ties, (list, tuple)) else ties[i],
                  notations=note_notations[i],
                  articulations=articulations if i == 0 else (),
-                 notehead=noteheads[i] if noteheads is not None else None,
+                 notehead=noteheads if isinstance(noteheads, str) else noteheads[i] if noteheads is not None else None,
                  directions=directions if i == 0 else (),
                  stemless=stemless)
             for i, pitch in enumerate(pitches)
@@ -1144,6 +1146,120 @@ class Score(MusicXMLComponent):
     def wrap_as_score(self):
         return self
 
+# ------------------------------------ Details: Noteheads, Notations, Directions ------------------------------------
+
+
+class Notehead(MusicXMLComponent):
+
+    valid_xml_types = ["normal", "diamond", "triangle", "slash", "cross", "x", "circle-x", "inverted triangle",
+                       "square", "arrow down", "arrow up", "circled", "slashed", "back slashed", "cluster",
+                       "circle dot", "left triangle", "rectangle", "do", "re", "mi", "fa", "fa up", "so",
+                       "la", "ti",  "none"]
+
+    def __init__(self, notehead_name: str, filled=None):
+        notehead_name = notehead_name.strip().lower()
+        if "filled " in notehead_name:
+            filled = "yes"
+            notehead_name = notehead_name.replace("filled ", "")
+        elif "open " in notehead_name:
+            filled = "no"
+            notehead_name = notehead_name.replace("open ", "")
+        assert notehead_name in Notehead.valid_xml_types, "Notehead \"{}\" not understood".format(notehead_name)
+        self.notehead_name = notehead_name
+        assert filled in (None, "yes", "no", True, False)
+        self.filled = "yes" if filled in ("yes", True) else "no" if filled in ("no", False) else None
+
+    def render(self):
+        notehead_el = ElementTree.Element("notehead", {"filled": self.filled} if self.filled is not None else {})
+        notehead_el.text = self.notehead_name
+        return notehead_el,
+
+    def wrap_as_score(self):
+        return Note("c5", 1, notehead=self).wrap_as_score()
+
+    def __repr__(self):
+        return "Notehead({}{})".format(self.notehead_name,
+                                       ", {}".format(self.filled) if self.filled is not None else "")
+
+
+class Notation(MusicXMLComponent):
+
+    @abstractmethod
+    def render(self):
+        pass
+
+    def wrap_as_score(self):
+        return Note("c5", 1, notations=(self, )).wrap_as_score()
+
+
+class StartGliss(Notation, ElementTree.Element):
+
+    def __init__(self, number=1):
+        super().__init__("slide", {"type": "start", "line-type": "solid", "number": str(number)})
+
+    def render(self):
+        return self,
+
+
+class StopGliss(Notation, ElementTree.Element):
+
+    def __init__(self, number=1):
+        super().__init__("slide", {"type": "stop", "line-type": "solid", "number": str(number)})
+
+    def render(self):
+        return self,
+
+
+class StartMultiGliss(Notation):
+
+    def __init__(self, numbers=(1,)):
+        """
+        Multi-gliss notation used for glissing multiple members of a chord
+        :param numbers: most natural is to pass a range object here, for the range of numbers to assign to the glisses
+        of consecutive chord member. However, in the case of a chord where, say, you want the upper two notes to
+        gliss but not the bottom, pass (None, 1, 2) to this parameter.
+        """
+        self.numbers = numbers
+
+    def render(self):
+        return tuple(StartGliss(n) if n is not None else None for n in self.numbers)
+
+
+class StopMultiGliss(Notation):
+
+    def __init__(self, numbers=(1,)):
+        self.numbers = numbers
+
+    def render(self):
+        return tuple(StopGliss(n) if n is not None else None for n in self.numbers)
+
+
+class StartSlur(Notation, ElementTree.Element):
+
+    def __init__(self, number=1):
+        super().__init__("slur", {"type": "start", "number": str(number)})
+
+    def render(self):
+        return self,
+
+
+class ContinueSlur(Notation, ElementTree.Element):
+
+    def __init__(self, number=1):
+        super().__init__("slur", {"type": "continue", "number": str(number)})
+
+    def render(self):
+        return self,
+
+
+class StopSlur(Notation, ElementTree.Element):
+
+    def __init__(self, number=1):
+        super().__init__("slur", {"type": "stop", "number": str(number)})
+
+    def render(self):
+        return self,
+
 
 class Direction(MusicXMLComponent):
 
@@ -1228,75 +1344,6 @@ class EndDashedLine(Direction):
         return direction_element,
 
 
-class StartGliss(Direction, ElementTree.Element):
-
-    def __init__(self, number=1):
-        super().__init__("slide", {"type": "start", "line-type": "solid", "number": str(number)})
-        
-    def render(self):
-        return self,
-
-
-class StopGliss(Direction, ElementTree.Element):
-
-    def __init__(self, number=1):
-        super().__init__("slide", {"type": "stop", "line-type": "solid", "number": str(number)})
-
-    def render(self):
-        return self,
-    
-
-class StartMultiGliss(Direction):
-
-    def __init__(self, numbers=(1, )):
-        """
-        Multi-gliss notation used for glissing multiple members of a chord
-        :param numbers: most natural is to pass a range object here, for the range of numbers to assign to the glisses
-        of consecutive chord member. However, in the case of a chord where, say, you want the upper two notes to
-        gliss but not the bottom, pass (None, 1, 2) to this parameter.
-        """
-        self.numbers = numbers
-        
-    def render(self):
-        return tuple(StartGliss(n) if n is not None else None for n in self.numbers)
-
-
-class StopMultiGliss(Direction):
-
-    def __init__(self, numbers=(1, )):
-        self.numbers = numbers
-
-    def render(self):
-        return tuple(StopGliss(n) if n is not None else None for n in self.numbers)
-
-
-class StartSlur(Direction, ElementTree.Element):
-
-    def __init__(self, number=1):
-        super().__init__("slur", {"type": "start", "number": str(number)})
-
-    def render(self):
-        return self,
-    
-
-class ContinueSlur(Direction, ElementTree.Element):
-
-    def __init__(self, number=1):
-        super().__init__("slur", {"type": "continue", "number": str(number)})
-
-    def render(self):
-        return self,
-    
-
-class StopSlur(Direction, ElementTree.Element):
-
-    def __init__(self, number=1):
-        super().__init__("slur", {"type": "stop", "number": str(number)})
-
-    def render(self):
-        return self,
-
-
 # # ------------------- A SHORT EXAMPLE --------------------
 #
 #
@@ -1332,7 +1379,7 @@ class StopSlur(Direction, ElementTree.Element):
 #             Measure([
 #                 Tuplet([
 #                     Note("c5", 0.5),
-#                     Note("bb4", 0.25),
+#                     Note("bb4", 0.25, notehead="x"),
 #                     Note("a4", 0.25),
 #                     Note("b4", 0.25),
 #                 ], (5, 4)),
@@ -1358,7 +1405,7 @@ class StopSlur(Direction, ElementTree.Element):
 #             [
 #                 BeamedGroup([
 #                     Rest(0.5),
-#                     Note("d4", 0.5, notations=[StartGliss(1), StartSlur()]),
+#                     Note("d4", 0.5, notehead="open mi", notations=[StartGliss(1), StartSlur()]),
 #                     Note("Eb4", 0.5, notations=[StopGliss(1), StartGliss(2), ContinueSlur()]),
 #                     Note("F4", 0.5, notations=[StopGliss(2), StopSlur()]),
 #                 ]),
