@@ -4,9 +4,14 @@ from fractions import Fraction
 from numbers import Number
 import math
 import datetime
+import tempfile
+import os
 
 
-def least_common_multiple(*args):
+# --------------------------------------------------- Utilities ----------------------------------------------------
+
+
+def _least_common_multiple(*args):
     # utility for getting the least_common_multiple of a list of numbers
     if len(args) == 0:
         return 1
@@ -15,27 +20,28 @@ def least_common_multiple(*args):
     elif len(args) == 2:
         return args[0] * args[1] // math.gcd(args[0], args[1])
     else:
-        return least_common_multiple(args[0], least_common_multiple(*args[1:]))
+        return _least_common_multiple(args[0], _least_common_multiple(*args[1:]))
 
 
-def is_power_of_two(x):
+def _is_power_of_two(x):
+    # utility for checking if x is a power of two
     log2_x = math.log2(x)
     return log2_x == int(log2_x)
 
 
 def pad_with_rests(components, desired_length):
     """
-    Adds rests to
-    :param components:
-    :param desired_length:
-    :return:
+    Appends rests to a list of components to fill out the desired length
+    :param components: a list of MusicXMLComponents
+    :param desired_length: in quarters
+    :return: an expanded list of components
     """
     components = [components] if not isinstance(components, (tuple, list)) else components
     assert all(hasattr(component, "true_length") for component in components)
     sum_length = sum(component.true_length for component in components)
     assert sum_length <= desired_length
     remaining_length = Fraction(desired_length - sum_length).limit_denominator()
-    assert is_power_of_two(remaining_length.denominator), "Remaining length cannot require tuplets."
+    assert _is_power_of_two(remaining_length.denominator), "Remaining length cannot require tuplets."
     components = list(components)
 
     longer_rests = []
@@ -53,6 +59,9 @@ def pad_with_rests(components, desired_length):
         remaining_length = Fraction(remaining_length).limit_denominator()
 
     return components + longer_rests
+
+
+# --------------------------------------------- Abstract Parent Class -----------------------------------------------
 
 
 class MusicXMLComponent(ABC):
@@ -341,6 +350,9 @@ class BarRestDuration(MusicXMLComponent):
         return BarRest(self).wrap_as_score()
 
 
+# ---------------------------------------- Note class and all it variations -----------------------------------------
+
+
 class _XMLNote(MusicXMLComponent):
 
     def __init__(self, pitch, duration, ties=None, notations=(), articulations=(), notehead=None, beams=None,
@@ -523,7 +535,7 @@ class _XMLNote(MusicXMLComponent):
     def wrap_as_score(self):
         if isinstance(self, BarRest):
             duration_as_fraction = Fraction(self.true_length).limit_denominator()
-            assert is_power_of_two(duration_as_fraction.denominator)
+            assert _is_power_of_two(duration_as_fraction.denominator)
             time_signature = (duration_as_fraction.numerator, duration_as_fraction.denominator * 4)
             return Measure([self], time_signature=time_signature).wrap_as_score()
         else:
@@ -594,6 +606,9 @@ class BarRest(_XMLNote):
             self.duration,
             ", directions=\"{}\"".format(self.directions) if self.directions is not None else "",
         )
+
+
+# -------------------------------------- Chord (wrapper around multiple Notes) ---------------------------------------
 
 
 class Chord(MusicXMLComponent):
@@ -738,6 +753,9 @@ class Chord(MusicXMLComponent):
         )
 
 
+# -------------------------------------------- Grace Notes and Chords ---------------------------------------------
+
+
 class GraceNote(Note):
 
     def __init__(self, pitch, duration, ties=None, notations=(), articulations=(), notehead=None, directions=(),
@@ -763,6 +781,9 @@ class GraceChord(Chord):
 
     def __repr__(self):
         return "Grace" + super().__repr__()
+
+
+# -------------------------------------------------- Note Groups ------------------------------------------------
 
 
 class BeamedGroup(MusicXMLComponent):
@@ -820,7 +841,7 @@ class BeamedGroup(MusicXMLComponent):
         return sum(leaf.length_in_divisions for leaf in self.contents)
 
     def min_denominator(self):
-        return least_common_multiple(*[n.min_denominator() for n in self.contents])
+        return _least_common_multiple(*[n.min_denominator() for n in self.contents])
 
     def render(self):
         self.render_contents_beaming()
@@ -852,11 +873,14 @@ class Tuplet(BeamedGroup):
 
     def min_denominator(self):
         self.set_tuplet_info_for_contents(self.ratio)
-        return least_common_multiple(*[n.min_denominator() for n in self.contents])
+        return _least_common_multiple(*[n.min_denominator() for n in self.contents])
 
     def render(self):
         self.set_tuplet_info_for_contents(self.ratio)
         return super().render()
+
+
+# ----------------------------------------------- Clef and Measure -------------------------------------------------
 
 
 class Clef(MusicXMLComponent):
@@ -990,7 +1014,7 @@ class Measure(MusicXMLComponent):
 
         attributes_el = ElementTree.SubElement(measure_element, "attributes")
 
-        num_beat_divisions = least_common_multiple(*[x.min_denominator() for x in self.leaves()])
+        num_beat_divisions = _least_common_multiple(*[x.min_denominator() for x in self.leaves()])
         for note in self.leaves():
             note.divisions = num_beat_divisions
 
@@ -1047,6 +1071,9 @@ class Measure(MusicXMLComponent):
 
     def wrap_as_score(self):
         return Part("", [self]).wrap_as_score()
+
+
+# -------------------------------------------- Part, PartGroup, and Score ------------------------------------------
 
 
 class Part(MusicXMLComponent):
@@ -1146,7 +1173,7 @@ class Score(MusicXMLComponent):
     def wrap_as_score(self):
         return self
 
-# ------------------------------------ Details: Noteheads, Notations, Directions ------------------------------------
+# -------------------------------- Remaining Details: Noteheads, Notations, Directions --------------------------------
 
 
 class Notehead(MusicXMLComponent):
@@ -1344,7 +1371,7 @@ class EndDashedLine(Direction):
         return direction_element,
 
 
-# # ------------------- A SHORT EXAMPLE --------------------
+# # --------------------------------------------- A Short Example ------------------------------------------------
 #
 #
 # Score([
@@ -1420,5 +1447,5 @@ class EndDashedLine(Direction):
 #             ]
 #         ], barline="end")
 #     ])
-# ], title="MusicXML Example", composer="Beethoven").export_to_file("Example.xml")
+# ], title="MusicXML Example", composer="HTMLvis").export_to_file("Example.xml")
 
