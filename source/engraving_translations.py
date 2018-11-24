@@ -1,4 +1,6 @@
 from xml.etree import ElementTree
+from scamp import music_xml
+import logging
 
 
 notehead_name_to_lilypond_type = {
@@ -35,6 +37,30 @@ notehead_name_to_lilypond_type = {
     "none": "none",
 }
 
+
+def get_lilypond_notehead_name(notehead_string: str):
+    notehead_string = notehead_string.lower().strip()
+    base_notehead = notehead_string.replace("filled", "").replace("open", "").strip()
+    if base_notehead not in notehead_name_to_lilypond_type:
+        # This error is raised if a notehead is asked for that wouldn't have been recognized for xml output either
+        raise ValueError("Notehead type {} not recognized".format(notehead_string))
+
+    elif notehead_string not in notehead_name_to_lilypond_type:
+        logging.warning("\"Filled\" and \"open\" do not apply to lilypond output. "
+                        "Reverting to \"{}\"".format(base_notehead))
+        out = notehead_name_to_lilypond_type[base_notehead]
+
+    else:
+        out = notehead_name_to_lilypond_type[notehead_string]
+
+    if out is None:
+        logging.warning("Notehead type \"{}\" not available for lilypond output; "
+                        "reverting to standard notehead".format(notehead_string))
+        return "default|{} notehead was desired".format(notehead_string)
+    else:
+        return out
+
+
 notehead_name_to_xml_type = {
     "normal": "normal",
     "diamond": "diamond",
@@ -69,26 +95,20 @@ notehead_name_to_xml_type = {
     "none": "none",
 }
 
-notehead_type_to_xml_filled_attribute = {
-    "harmonic": "no",
-    "harmonic black": "yes",
-}
 
-
-def is_valid_notehead(notehead_string: str):
-    return notehead_string.replace("filled ", "").replace("open ", "") in notehead_name_to_xml_type.keys()
-
-
-def get_notehead_xml_filled_attribute(notehead_string: str):
-    basic_notehead_name = notehead_string.replace("filled ", "").replace("open ", "")
-    if "filled" in notehead_string:
-        return "yes"
-    elif "open" in notehead_string:
-        return "no"
-    elif basic_notehead_name in notehead_type_to_xml_filled_attribute:
-        return notehead_type_to_xml_filled_attribute[basic_notehead_name]
+def get_xml_notehead(notehead_string: str):
+    notehead_string = notehead_string.lower().strip()
+    base_notehead = notehead_string.replace("filled", "").replace("open", "").strip()
+    if base_notehead not in notehead_name_to_xml_type:
+        raise ValueError("Notehead type {} not recognized".format(notehead_string))
     else:
-        return None  # meaning, don't use the filled attribute
+        base_notehead = notehead_name_to_xml_type[base_notehead]
+    out = music_xml.Notehead(base_notehead)
+    if notehead_string.startswith("filled"):
+        out.filled = "yes"
+    elif notehead_string.startswith("open"):
+        out.filled = "no"
+    return out
 
 
 articulation_to_xml_element_name = {

@@ -3,7 +3,7 @@ from scamp.envelope import Envelope
 from scamp.quantization import QuantizationRecord, QuantizationScheme, TimeSignature
 from scamp.performance_note import PerformanceNote
 from scamp.utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y
-from scamp.engraving_translations import notehead_name_to_lilypond_type
+from scamp.engraving_translations import get_xml_notehead, get_lilypond_notehead_name
 from scamp.note_properties import NotePropertiesDictionary
 from scamp import music_xml
 import math
@@ -1167,12 +1167,19 @@ class NoteLike(ScoreComponent):
         if isinstance(abjad_note_or_chord, abjad.Note):
             note_head_style = self.properties.noteheads[0]
             if note_head_style != "normal":
-                abjad.tweak(abjad_note_or_chord.note_head).style = notehead_name_to_lilypond_type[note_head_style]
+                lilypond_style = get_lilypond_notehead_name(note_head_style)
+                # the pipe separates out a bit of comment text, which is used when the
+                # desired notehead can't be displayed
+                abjad.tweak(abjad_note_or_chord.note_head).style = lilypond_style.split("|")[0]
+                if len(lilypond_style.split("|")) > 1:
+                    abjad.attach(abjad.LilyPondComment(lilypond_style.split("|")[1]), abjad_note_or_chord)
         elif isinstance(abjad_note_or_chord, abjad.Chord):
             for chord_member, note_head_style in enumerate(self.properties.noteheads):
                 if note_head_style != "normal":
-                    abjad.tweak(abjad_note_or_chord.note_heads[chord_member]).style = \
-                        notehead_name_to_lilypond_type[note_head_style]
+                    lilypond_style = get_lilypond_notehead_name(note_head_style)
+                    abjad.tweak(abjad_note_or_chord.note_heads[chord_member]).style = lilypond_style.split("|")[0]
+                    if len(lilypond_style.split("|")) > 1:
+                        abjad.attach(abjad.LilyPondComment(lilypond_style.split("|")[1]), abjad_note_or_chord)
         else:
             raise ValueError("Must be an abjad Note or Chord object")
 
@@ -1185,14 +1192,18 @@ class NoteLike(ScoreComponent):
             else:
                 return music_xml.Chord(
                     tuple(self.properties.spelling_policy.resolve_music_xml_pitch(p) for p in self.pitch),
-                    self.written_length, ties=self._get_xml_tie_state()
+                    self.written_length, ties=self._get_xml_tie_state(),
+                    noteheads=tuple(get_xml_notehead(notehead) if notehead != "normal" else None
+                                    for notehead in self.properties.noteheads)
                 )
         elif self.does_glissando():
             pass
         else:
             return music_xml.Note(
                 self.properties.spelling_policy.resolve_music_xml_pitch(self.pitch),
-                self.written_length, ties=self._get_xml_tie_state()
+                self.written_length, ties=self._get_xml_tie_state(),
+                notehead=(get_xml_notehead(self.properties.noteheads[0])
+                          if self.properties.noteheads[0] != "normal" else None)
             )
 
     def _get_xml_tie_state(self):
