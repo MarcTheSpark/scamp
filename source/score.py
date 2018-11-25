@@ -18,7 +18,6 @@ import logging
 # TODO:
 # - looking through for situations like tied eighths on and of 1 and 2 combining into quarters
 
-
 # ---------------------------------------------- Duration Utilities --------------------------------------------
 
 length_to_note_type = {
@@ -208,6 +207,17 @@ stemless = {
 
     def export_music_xml(self, file_path, pretty_print=True):
         self.to_music_xml().export_to_file(file_path, pretty_print=pretty_print)
+
+    def print_music_xml(self, pretty_print=True):
+        print(self.to_music_xml().to_xml(pretty_print=pretty_print))
+
+    def show_xml(self):
+        try:
+            self.to_music_xml().view_in_software(engraving_settings.show_music_xml_command_line)
+        except OSError:
+            raise Exception("Command \"{}\" for showing musicXML failed. Either install the relevant program, or \n"
+                            "change the value of \"show_music_xml_command_line\" in the engraving_settings to use "
+                            "your program of choice.".format(engraving_settings.show_music_xml_command_line))
 
     def to_abjad(self):
         """

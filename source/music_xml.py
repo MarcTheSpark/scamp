@@ -5,7 +5,7 @@ from numbers import Number
 import math
 import datetime
 import tempfile
-import os
+import subprocess
 
 
 # --------------------------------------------------- Utilities ----------------------------------------------------
@@ -104,10 +104,10 @@ class MusicXMLComponent(ABC):
         with open(file_path, 'w') as file:
             file.write(self.wrap_as_score().to_xml(pretty_print))
 
-    def view_in_software(self, command="musescore"):
+    def view_in_software(self, command):
         with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as file:
             file.write(self.wrap_as_score().to_xml())
-        os.system("{} {} &".format(command, file.name))
+        subprocess.Popen([command, file.name])
 
 
 # --------------------------------------------- Pitch and Duration -----------------------------------------------

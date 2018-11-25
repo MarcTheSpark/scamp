@@ -211,6 +211,7 @@ _engraving_settings_factory_defaults = {
     "ignore_empty_parts": True,
     "glissandi": GlissandiEngravingSettings(),
     "pad_incomplete_parts": True,
+    "show_music_xml_command_line": "musescore",
 }
 
 
@@ -242,6 +243,8 @@ class EngravingSettings(SavesToJSON):
             if "ignore_empty_parts" not in settings else settings["ignore_empty_parts"]
         self.pad_incomplete_parts = _engraving_settings_factory_defaults["pad_incomplete_parts"] \
             if "pad_incomplete_parts" not in settings else settings["pad_incomplete_parts"]
+        self.show_music_xml_command_line = _engraving_settings_factory_defaults["show_music_xml_command_line"] \
+            if "show_music_xml_command_line" not in settings else settings["show_music_xml_command_line"]
 
     @property
     def max_voices_per_part(self):
