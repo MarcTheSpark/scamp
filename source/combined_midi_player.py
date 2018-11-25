@@ -10,6 +10,24 @@ except ImportError:
     fluidsynth = None
     logging.warning("Fluidsynth could not be loaded; synth output will not be available.")
 
+if fluidsynth is not None and playback_settings.default_audio_driver == "auto":
+    print("Testing for working audio driver...")
+    found_driver = False
+    for driver in ['alsa', 'oss', 'coreaudio', 'pulseaudio', 'jack', 'portaudio', 'sndmgr', 'Direct Sound']:
+        test_synth = fluidsynth.Synth()
+        test_synth.start(driver=driver)
+        if test_synth.audio_driver is not None:
+            playback_settings.default_audio_driver = driver
+            playback_settings.make_persistent()
+            found_driver = True
+            test_synth.delete()
+            print("Found audio driver '{}'. This has been made the default, but it can be altered via "
+                  "the playback settings.".format(driver))
+            break
+        test_synth.delete()
+    if not found_driver:
+        logging.warning("No working audio driver was found; synth output will not be available.")
+
 try:
     from sf2utils.sf2parse import Sf2File
 except ImportError:
