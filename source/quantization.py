@@ -402,6 +402,9 @@ class BeatQuantizationScheme:
         """
         Takes a max_divisor and max_indigestibility to get a determine the list of divisors.
         """
+        if simplicity_preference == "default":
+            simplicity_preference = quantization_settings.simplicity_preference
+
         # look at all possible divisors and the indigestibilities
         all_divisors = range(2, max_divisor + 1)
         all_indigestibilities = BeatQuantizationScheme.get_divisor_indigestibilities(length, all_divisors)
