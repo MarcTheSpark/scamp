@@ -9,8 +9,6 @@ import subprocess
 
 
 # TODO: Make nested printing possible
-# TODO: Why are tuplets sometimes not finishing up?
-# TODO: Why do some notes end up with forward and backward hooks in the same beam??
 
 
 # --------------------------------------------------- Utilities ----------------------------------------------------
@@ -537,7 +535,7 @@ class _XMLNote(MusicXMLComponent):
 
         # ------------------ add any notations and articulations ----------------
 
-        if len(self.notations) + len(self.articulations) > 0:
+        if len(self.notations) + len(self.articulations) > 0 or self.tuplet_bracket is not None:
             # there is either a notation or an articulation, so we'll add a notations tag
             notations_el = ElementTree.Element("notations")
             for notation in self.notations:
@@ -839,7 +837,7 @@ class BeamedGroup(MusicXMLComponent):
                     elif next_note_active:
                         leaf.beams[beam_depth] = "begin"
                     else:
-                        if int(round(leaf_start_time / 0.5 ** beam_depth)) % 2 == 0:
+                        if int(round(leaf_start_time / 0.5 ** leaf.num_beams())) % 2 == 0:
                             leaf.beams[beam_depth] = "forward hook"
                         else:
                             leaf.beams[beam_depth] = "backward hook"
