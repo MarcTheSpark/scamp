@@ -8,6 +8,11 @@ import tempfile
 import subprocess
 
 
+# TODO: Make nested printing possible
+# TODO: Why are tuplets sometimes not finishing up?
+# TODO: Why do some notes end up with forward and backward hooks in the same beam??
+
+
 # --------------------------------------------------- Utilities ----------------------------------------------------
 
 
