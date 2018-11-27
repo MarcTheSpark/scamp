@@ -29,6 +29,24 @@ def _is_power_of_two(x):
     return log2_x == int(log2_x)
 
 
+def escape_split(s, delimiter):
+    # Borrowed from https://stackoverflow.com/questions/18092354/python-split-string-without-splitting-escaped-character
+    i, res, buf = 0, [], ''
+    while True:
+        j, e = s.find(delimiter, i), 0
+        if j < 0:  # end reached
+            return res + [buf + s[i:]]  # add remainder
+        while j - e and s[j - e - 1] == '\\':
+            e += 1  # number of escapes
+        d = e // 2  # number of double escapes
+        if e != d * 2:  # odd number of escapes
+            buf += s[i:j - d - 1] + s[j]  # add the escaped char
+            i = j + 1  # and skip it
+            continue  # add more to buf
+        res.append(buf + s[i:j - d])
+        i, buf = j + len(delimiter), ''  # start after delim
+
+
 def pad_with_rests(components, desired_length):
     """
     Appends rests to a list of components to fill out the desired length
@@ -107,7 +125,7 @@ class MusicXMLComponent(ABC):
     def view_in_software(self, command):
         with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as file:
             file.write(self.wrap_as_score().to_xml())
-        subprocess.Popen([command, file.name])
+        subprocess.Popen(escape_split(command, " ") + [file.name])
 
 
 # --------------------------------------------- Pitch and Duration -----------------------------------------------
@@ -201,7 +219,7 @@ class Duration(MusicXMLComponent):
         "quarter": 0,
         "eighth": 1,
         "16th": 2,
-        "32nd:": 3,
+        "32nd": 3,
         "64th": 4,
         "128th": 5,
         "256th": 6,
