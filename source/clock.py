@@ -42,7 +42,8 @@ WakeUpCall = namedtuple("WakeUpCall", "t clock")
 
 class Clock:
 
-    def __init__(self, name=None, parent=None, initial_rate=1.0, pool_size=200, timing_policy=0.98):
+    def __init__(self, name=None, parent=None, initial_rate=1.0, timing_policy=0.98,
+                 synchronization_policy=None, pool_size=200):
         """
         Recursively nestable clock class. Clocks can fork child-clocks, which can in turn fork their own child-clock.
         Only the master clock calls sleep; child-clocks instead register WakeUpCalls with their parents, who
@@ -51,15 +52,32 @@ class Clock:
         :param parent: the parent clock for this clock; a value of None indicates the master clock
         :param pool_size: the size of the process pool for unsynchronized forks, which are used for playing notes. Only
         has an effect if this is the master clock.
-        :param timing_policy: either "relative" or "absolute". "relative" attempts to keeps each wait call as faithful
-        as possible to what it should be. This can result in the clock getting behind real time, since if heavy
-        processing causes us to get behind on one note we never catch up. "absolute" tries instead to stay faithful to
-        the time since the clock began. If one wait is too long due to heavy processing, later delays will be shorter
-        to try to catch up. This can result in inaccuracies in relative timing. In general, use "relative" unless you
-        are trying to synchronize the output with an external process.
+        :param timing_policy: either "relative", "absolute", or a float between 0 and 1 representing a balance between
+        the two. "relative" attempts to keeps each wait call as faithful as possible to what it should be. This can
+        result in the clock getting behind real time, since if heavy processing causes us to get behind on one note
+        we never catch up. "absolute" tries instead to stay faithful to the time since the clock began. If one wait
+        is too long due to heavy processing, later delays will be shorter to try to catch up. This can result in
+        inaccuracies in relative timing. Setting the timing policy to a float between 0 and 1 implements a hybrid
+        approach in which, when the clock gets behind, it is allowed to catch up somewhat, but only to a certain extent.
+        (0 is equivalent to absolute timing, 1 is equivalent to relative timing.)
+        :param synchronization_policy: either None or one of "all relatives", "all descendants", "no synchronization",
+        or "inherit". Since a clock is woken up by its parent clock, it will always remain synchronized with
+        all parents / grandparents / etc; however, if you ask one of its children what time / beat it is on, it may
+        have old information, since it has been asleep. If the synchronization_policy is set to "no synchronization",
+        then we live with this, but if it is set to "all descendants" then we take the time (and CPU cycles) to catch
+        up all its descendants so that they read the correct time. Nevertheless, cousin clocks (other descendants of
+        this clock's parent) may still not be caught up, so the "all relatives" policy makes sure that all descendants
+        of the master clock - no matter how they are related to this clock - will have up-to-date information about
+        what time / beat they are on whenever this clock wakes up. This is the default setting, since it avoids
+        inaccurate information, but if there are a lot of clocks it may be valuable to turn off relative synchronization
+        if it's slowing things down. The value "inherit" means that this clock inherits its synchronization policy from
+        its master. If no value is specified, then it defaults to "all relatives" for the master clock and "inherit"
+        for all descendants, which in practice means that all clocks will synchronize with all relatives upon waking.
         """
         self.name = name
         self.parent = parent
+        if self.parent is not None and self not in self.parent._children:
+            self.parent._children.append(self)
         self._children = []
 
         # queue of WakeUpCalls for child clocks
@@ -89,12 +107,13 @@ class Clock:
         # precise timing uses a while loop when we get close to the wake-up time
         # it burns more CPU to do this, but the timing is more accurate
         self.use_precise_timing = True
-        # keep_children_caught_up catches up all child clocks when the parent wakes up
-        # this is important if recording on a child clock, otherwise not so much
-        self.keep_children_caught_up = True
-        self._log_processing_time = False
-        self._timing_policy = timing_policy
 
+        self.timing_policy = timing_policy
+
+        self.synchronization_policy = synchronization_policy if synchronization_policy is not None \
+            else "all relatives" if self.is_master() else "inherit"
+
+        self._log_processing_time = False
         self._fast_forward_goal = None
 
     @property
@@ -171,6 +190,33 @@ class Clock:
     def absolute_beat_length(self):
         return 1 / self.absolute_rate()
 
+    @property
+    def synchronization_policy(self):
+        return self._synchronization_policy
+
+    @synchronization_policy.setter
+    def synchronization_policy(self, value):
+        assert value in ("all relatives", "all descendants", "no synchronization", "inherit"), \
+            'Invalid synchronization policy "{}". Must be one of ("all relatives", "all descendants", ' \
+            '"no synchronization", "inherit").'.format(value)
+        assert not (self.is_master() and value == "inherit"), "Master cannot inherit synchronization policy."
+        self._synchronization_policy = value
+
+    def _resolve_synchronization_policy(self):
+        # resolves a value of "inherit" if necessary
+        for clock in self.iterate_inheritance():
+            if clock.synchronization_policy != "inherit":
+                return clock.synchronization_policy
+
+    @property
+    def timing_policy(self):
+        return self._timing_policy
+
+    @timing_policy.setter
+    def timing_policy(self, value):
+        assert value in ("absolute", "relative") or isinstance(value, (int, float)) and 0 <= value <= 1.
+        self._timing_policy = value
+
     def use_absolute_timing_policy(self):
         """
         This timing policy only cares about keeping the time since the clock start accurate to what it should be.
@@ -208,7 +254,6 @@ class Clock:
         kwargs = {} if kwargs is None else kwargs
 
         child = Clock(name, parent=self, initial_rate=initial_rate)
-        self._children.append(child)
 
         def _process(*args, **kwds):
             try:
@@ -343,17 +388,18 @@ class Clock:
         self.wait_in_parent(self._tempo_envelope.get_wait_time(end_time - self.beats()))
         self._tempo_envelope.advance(end_time - self.beats())
 
-        # when we're done waiting, some of the children may be behind, having not woken up yet
-        # we advance them forward to the current time, unless we've been told not to
-        if self._we_should_catch_up_the_children():
-            start = time.time()
+        # see explanation of synchronization_policy above
+        start = time.time()
+        if self._resolve_synchronization_policy() == "all relatives":
+            self.master._catch_up_children()
+        elif self._resolve_synchronization_policy() == "all descendants":
             self._catch_up_children()
-            calc_time = time.time() - start
-            if calc_time > 0.001:
-                logging.warning("Catching up child clocks is taking more than 1 milliseconds ({} seconds to be "
-                                "precise) on clock {}. \nUnless you are recording on a child clock, you can safely "
-                                "turn this off by setting the keep_children_caught_up flag to false on the clock or "
-                                "session.".format(calc_time, current_clock().name))
+        calc_time = time.time() - start
+        if calc_time > 0.001:
+            logging.warning("Catching up child clocks is taking more than 1 milliseconds ({} seconds to be precise) on "
+                            "clock {}. \nUnless you are recording on a child or cousin clock, you can safely turn this "
+                            "off by setting the synchonization_policy for this clock (or for the master clock) to "
+                            "\"no synchronization\"".format(calc_time, current_clock().name))
 
     def fast_forward_to_time(self, t):
         assert self.is_master(), "Only the master clock can be fast-forwarded."
@@ -373,11 +419,6 @@ class Clock:
     def is_fast_forwarding(self):
         # same as asking if this clock's master clock is fast-forwarding
         return self.master._fast_forward_goal is not None
-
-    def _we_should_catch_up_the_children(self):
-        # it's only worth catching up child clocks if this clock itself is always caught up, so let's
-        # check that the keep_children_caught_up is set for this and all parent clocks.
-        return all(clock.keep_children_caught_up for clock in self.iterate_inheritance())
 
     def _catch_up_children(self):
         # when we catch up the children, they also have to recursively catch up their children, etc.
@@ -427,6 +468,9 @@ class Clock:
     def stop_logging_processing_time(self):
         self._log_processing_time = False
 
+    def children(self):
+        return tuple(self._children)
+
     def iterate_inheritance(self):
         clock = self
         yield clock
@@ -435,7 +479,16 @@ class Clock:
             yield clock
 
     def inheritance(self):
-        return list(self.iterate_inheritance())
+        return tuple(self.iterate_inheritance())
+
+    def iterate_descendants(self):
+        for child_clock in self._children:
+            yield child_clock
+            for descendant_of_child in child_clock.iterate_descendants():
+                yield descendant_of_child
+
+    def descendants(self):
+        return tuple(self.iterate_descendants())
 
     def extract_absolute_tempo_envelope(self, start_beat=0, step_size=0.1, tolerance=0.005):
         if self.is_master():
