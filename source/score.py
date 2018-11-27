@@ -921,9 +921,10 @@ class Voice(ScoreComponent, ScoreContainer):
                         t += this_item.written_length
                     else:
                         assert isinstance(this_item, Tuplet)
-                        out.append(music_xml.BeamedGroup(beat_group))
+                        if len(beat_group) > 0:
+                            out.append(music_xml.BeamedGroup(beat_group))
+                            beat_group = []
                         out.append(this_item.to_music_xml())
-                        beat_group = []
                         t += this_item.length()
 
                 if len(beat_group) > 0:
@@ -1006,7 +1007,7 @@ class NoteLike(ScoreComponent):
         :param pitch: tuple if a pitch, None if a rest
         """
         self.pitch = pitch
-        self.written_length = written_length
+        self.written_length = Fraction(written_length).limit_denominator()
         self.properties = properties if isinstance(properties, NotePropertiesDictionary) \
             else NotePropertiesDictionary.from_unknown_format(properties)
 
