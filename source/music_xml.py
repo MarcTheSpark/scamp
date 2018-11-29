@@ -759,6 +759,14 @@ class Chord(MusicXMLComponent):
             for note in self.notes:
                 note.ties = value
 
+    @property
+    def tuplet_bracket(self):
+        return self.notes[0].tuplet_bracket
+
+    @tuplet_bracket.setter
+    def tuplet_bracket(self, value):
+        self.notes[0].tuplet_bracket = value
+
     def min_denominator(self):
         return self.notes[0].min_denominator()
 
