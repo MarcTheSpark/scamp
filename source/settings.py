@@ -152,6 +152,7 @@ _glissandi_engraving_factory_defaults = {
     # the further a control point is from its neighbors, and the further it deviates from
     # the linearly interpolated pitch at that point, the higher its relevance score.
     "inner_grace_relevance_threshold": 4.0,
+    "max_inner_graces_music_xml": 1
 }
 
 
@@ -174,6 +175,8 @@ class GlissandiEngravingSettings(SavesToJSON):
             if "include_end_grace_note" not in settings else settings["include_end_grace_note"]
         self.inner_grace_relevance_threshold = _glissandi_engraving_factory_defaults["inner_grace_relevance_threshold"] \
             if "inner_grace_relevance_threshold" not in settings else settings["inner_grace_relevance_threshold"]
+        self.max_inner_graces_music_xml = _glissandi_engraving_factory_defaults["max_inner_graces_music_xml"] \
+            if "max_inner_graces_music_xml" not in settings else settings["max_inner_graces_music_xml"]
 
     @property
     def control_point_policy(self):

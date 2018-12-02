@@ -632,6 +632,105 @@ def _join_same_source_abjad_note_group(same_source_group):
         # abjad.attach(abjad.Slur(), abjad.Selection(same_source_group))
 
 
+def _join_same_source_xml_note_group(same_source_group):
+    available_gliss_numbers = list(range(1, 7))
+    # since each gliss needs to be associated with an unambiguous number, here we keep track of which
+    # glisses we've started and which numbers are still free / have been freed up by a gliss that ended
+    glisses_started_notes = []
+    glisses_started_numbers = []
+    gliss_present = False
+    for i, this_note_or_chord in enumerate(same_source_group):
+        if isinstance(this_note_or_chord, music_xml.Note):
+            if i < len(same_source_group) - 1:
+                # not the last note of the group, so it starts a tie or gliss
+                next_note_or_chord = same_source_group[i + 1]
+                if this_note_or_chord.pitch == next_note_or_chord.pitch:
+                    # it's a tie
+                    this_note_or_chord.starts_tie = True
+                else:
+                    # it's a gliss
+                    this_note_or_chord.starts_tie = False
+                    if len(available_gliss_numbers) > 0:
+                        this_gliss_number = available_gliss_numbers.pop(0)
+                        this_note_or_chord.notations.append(music_xml.StartGliss(this_gliss_number))
+                        glisses_started_notes.append(this_note_or_chord)
+                        glisses_started_numbers.append(this_gliss_number)
+                    else:
+                        logging.warning("Ran out of available numbers to assign glisses in XML output. "
+                                        "Some glisses will be omitted")
+                    gliss_present = True
+            if i > 0:
+                # not the first note of the group, so it ends a tie or gliss
+                last_note_or_chord = same_source_group[i - 1]
+                if this_note_or_chord.pitch == last_note_or_chord.pitch:
+                    # it's a tie
+                    this_note_or_chord.ends_tie = True
+                else:
+                    # it's a gliss
+                    this_note_or_chord.ends_tie = False
+                    which_start_gliss = glisses_started_notes.index(last_note_or_chord)
+                    # if which_start_gliss is -1, it means we couldn't find the start gliss
+                    # this is because we ran out of gliss numbers in starting the gliss
+                    if which_start_gliss >= 0:
+                        glisses_started_notes.pop(which_start_gliss)
+                        gliss_number = glisses_started_numbers.pop(which_start_gliss)
+                        this_note_or_chord.notations.append(music_xml.StopGliss(gliss_number))
+                        available_gliss_numbers.append(gliss_number)
+                        available_gliss_numbers.sort()
+                    gliss_present = True
+        elif isinstance(this_note_or_chord, music_xml.Chord):
+            next_note_or_chord = same_source_group[i + 1] if i < len(same_source_group) - 1 else None
+            last_note_or_chord = same_source_group[i - 1] if i > 0 else None
+
+            for j, note in enumerate(this_note_or_chord.notes):
+                if next_note_or_chord is not None:
+                    # find the corresponding note in the next chord
+                    next_note = next_note_or_chord.notes[j]
+                    if note.pitch == next_note.pitch:
+                        # this note starts a tie to the corresponding note in the next chord
+                        note.starts_tie = True
+                    else:
+                        # this note starts a gliss to the corresponding note in the next chord
+                        note.starts_tie = False
+                        if len(available_gliss_numbers) > 0:
+                            this_gliss_number = available_gliss_numbers.pop(0)
+                            note.notations.append(music_xml.StartGliss(this_gliss_number))
+                            glisses_started_notes.append(note)
+                            glisses_started_numbers.append(this_gliss_number)
+                        else:
+                            logging.warning("Ran out of available numbers to assign glisses in XML output. "
+                                            "Some glisses will be omitted.")
+                        gliss_present = True
+                if last_note_or_chord is not None:
+                    # find the corresponding note in the last chord
+                    last_note = last_note_or_chord.notes[j]
+                    if note.pitch == last_note.pitch:
+                        # this note ends a tie from the corresponding note in the last chord
+                        note.stops_tie = True
+                    else:
+                        # this note ends a gliss from the corresponding note in the last chord
+                        note.stops_tie = False
+                        # find the gliss that was started by the corresponding note in the previous chord
+                        try:
+                            which_start_gliss = glisses_started_notes.index(last_note)
+                            glisses_started_notes.pop(which_start_gliss)
+                            gliss_number = glisses_started_numbers.pop(which_start_gliss)
+                            note.notations.append(music_xml.StopGliss(gliss_number))
+                            # return this gliss number to the pool of available numbers
+                            available_gliss_numbers.append(gliss_number)
+                            available_gliss_numbers.sort()
+                        except ValueError:
+                            # if this is false, the start of the gliss couldn't be found, which suggests that we ran
+                            # out of available numbers to assign to the glisses. So we skip the StopGliss notation
+                            pass
+                        gliss_present = True
+
+    if gliss_present:
+        # add slur notation to the very first note and last note
+        same_source_group[0].notations.append(music_xml.StartSlur())
+        same_source_group[-1].notations.append(music_xml.StopSlur())
+
+
 class Staff(ScoreComponent, ScoreContainer):
 
     def __init__(self, measures, name=None):
@@ -666,11 +765,15 @@ class Staff(ScoreComponent, ScoreContainer):
         return abjad.Staff(contents, name=self.name)
 
     def to_music_xml(self):
-        return music_xml.Part(self.name, [measure.to_music_xml() for measure in self.measures])
+        source_id_dict = {}
+        measures = [measure.to_music_xml(source_id_dict) for measure in self.measures]
+        for same_source_group in source_id_dict.values():
+            _join_same_source_xml_note_group(same_source_group)
+        return music_xml.Part(self.name, measures)
 
 
 _voice_names = [r'voiceOne', r'voiceTwo', r'voiceThree', r'voiceFour']
-_voice_literals= [r'\voiceOne', r'\voiceTwo', r'\voiceThree', r'\voiceFour']
+_voice_literals = [r'\voiceOne', r'\voiceTwo', r'\voiceThree', r'\voiceFour']
 
 
 class Measure(ScoreComponent, ScoreContainer):
@@ -737,10 +840,19 @@ class Measure(ScoreComponent, ScoreContainer):
 
         return abjad_measure
 
-    def to_music_xml(self):
-        return music_xml.Measure([voice.to_music_xml() for voice in self.voices],
-                                 time_signature=(self.time_signature.numerator, self.time_signature.denominator)
-                                 if self.show_time_signature else None)
+    def to_music_xml(self, source_id_dict=None):
+        is_top_level_call = True if source_id_dict is None else False
+        source_id_dict = {} if source_id_dict is None else source_id_dict
+
+        xml_voices = [voice.to_music_xml(source_id_dict) for voice in self.voices]
+        time_signature = (self.time_signature.numerator, self.time_signature.denominator) \
+            if self.show_time_signature else None
+
+        if is_top_level_call:
+            for same_source_group in source_id_dict.values():
+                _join_same_source_xml_note_group(same_source_group)
+
+        return music_xml.Measure(xml_voices, time_signature=time_signature)
 
 
 class Voice(ScoreComponent, ScoreContainer):
@@ -903,10 +1015,13 @@ class Voice(ScoreComponent, ScoreContainer):
                     _join_same_source_abjad_note_group(same_source_group)
             return abjad.Voice(abjad_components)
 
-    def to_music_xml(self):
+    def to_music_xml(self, source_id_dict=None):
         if len(self.contents) == 0:
             return [music_xml.BarRest(self.time_signature.numerator / self.time_signature.denominator * 4)]
         else:
+            is_top_level_call = True if source_id_dict is None else False
+            source_id_dict = {} if source_id_dict is None else source_id_dict
+
             t = next_beat_start = 0
             contents = list(self.contents)
             out = []
@@ -917,19 +1032,24 @@ class Voice(ScoreComponent, ScoreContainer):
                 while len(contents) > 0 and t < next_beat_start:
                     this_item = contents.pop(0)
                     if isinstance(this_item, NoteLike):
-                        beat_group.append(this_item.to_music_xml())
+                        beat_group.extend(this_item.to_music_xml(source_id_dict))
                         t += this_item.written_length
                     else:
                         assert isinstance(this_item, Tuplet)
                         if len(beat_group) > 0:
                             out.append(music_xml.BeamedGroup(beat_group))
                             beat_group = []
-                        out.append(this_item.to_music_xml())
+                        out.append(this_item.to_music_xml(source_id_dict))
                         t += this_item.length()
 
                 if len(beat_group) > 0:
                     out.append(music_xml.BeamedGroup(beat_group))
             assert len(contents) == 0  # we should have gone through everything at this point
+
+            if is_top_level_call:
+                for same_source_group in source_id_dict.values():
+                    _join_same_source_xml_note_group(same_source_group)
+
             return out
 
 
@@ -994,9 +1114,15 @@ class Tuplet(ScoreComponent, ScoreContainer):
                 _join_same_source_abjad_note_group(same_source_group)
         return abjad.Tuplet(abjad.Multiplier(self.normal_divisions, self.tuplet_divisions), abjad_notes)
 
-    def to_music_xml(self):
-        return music_xml.Tuplet([note_like.to_music_xml() for note_like in self.contents],
-                                (self.tuplet_divisions, self.normal_divisions))
+    def to_music_xml(self, source_id_dict=None):
+        is_top_level_call = True if source_id_dict is None else False
+        source_id_dict = {} if source_id_dict is None else source_id_dict
+        xml_note_segments = [note_segment for note_like in self.contents
+                             for note_segment in note_like.to_music_xml(source_id_dict)]
+        if is_top_level_call:
+            for same_source_group in source_id_dict.values():
+                _join_same_source_xml_note_group(same_source_group)
+        return music_xml.Tuplet(xml_note_segments, (self.tuplet_divisions, self.normal_divisions))
 
 
 class NoteLike(ScoreComponent):
@@ -1021,7 +1147,7 @@ class NoteLike(ScoreComponent):
         return self.is_chord() and isinstance(self.pitch[0], Envelope) or isinstance(self.pitch, Envelope)
 
     @staticmethod
-    def _get_relevant_gliss_control_points(pitch_envelope):
+    def _get_relevant_gliss_control_points(pitch_envelope, max_points_to_keep=None):
         """
         The idea here is that the control points that matter are the ones that aren't near others or an endpoint
         (temporal_relevance) and are a significant deviation in pitch from the assumed interpolated pitch if we
@@ -1042,11 +1168,39 @@ class NoteLike(ScoreComponent):
             # figure out how much the pitch at this control point deviates from just linear interpolation
             linear_interpolated_pitch = last_pitch + (pitch_envelope.end_level() - last_pitch) * progress_to_endpoint
             pitch_deviation = abs(pitch_envelope.value_at(control_point) - linear_interpolated_pitch)
-            if temporal_relevance * pitch_deviation > engraving_settings.glissandi.inner_grace_relevance_threshold:
-                relevant_controls.append(control_point)
+            relevance = temporal_relevance * pitch_deviation
+            if relevance > engraving_settings.glissandi.inner_grace_relevance_threshold:
+                if max_points_to_keep is not None:
+                    relevant_controls.append((relevance, control_point))
+                else:
+                    relevant_controls.append(control_point)
                 left_bound = control_point
                 last_pitch = pitch_envelope.value_at(control_point)
-        return relevant_controls
+
+        if max_points_to_keep is not None:
+            control_points = [x[1] for x in sorted(relevant_controls, reverse=True)[:max_points_to_keep]]
+            control_points.sort()
+            return control_points
+        else:
+            return relevant_controls
+
+    def _get_grace_points(self, control_point_limit=None):
+        pitch_curve = self.pitch[0] if self.is_chord() else self.pitch
+
+        # if this note doesn't start a tie, then it's the last note of the glissando,
+        # so if the settings say to do so, we include an end grace note
+        include_end_point = not self.properties.starts_tie() and engraving_settings.glissandi.include_end_grace_note
+        # in that case, it has to count towards the control point limit if there is one
+        if control_point_limit is not None and include_end_point:
+            control_point_limit -= 1
+
+        grace_points = NoteLike._get_relevant_gliss_control_points(pitch_curve, control_point_limit) \
+            if engraving_settings.glissandi.control_point_policy == "grace" else []
+
+        if include_end_point:
+            grace_points.append(pitch_curve.end_time())
+
+        return grace_points
 
     def _to_abjad(self, source_id_dict=None):
         """
@@ -1076,15 +1230,7 @@ class NoteLike(ScoreComponent):
                 self._set_abjad_note_head_styles(abjad_object)
                 last_pitches = abjad_object.written_pitches
 
-                # if the glissando engraving settings say to do so, we'll include
-                # relevant inner turn around points as headless grace notes
-                grace_points = NoteLike._get_relevant_gliss_control_points(self.pitch[0]) \
-                    if engraving_settings.glissandi.control_point_policy == "grace" else []
-
-                # also, if this is the last segment of a quantized and split PerformanceNote, and if the glissando
-                # engraving settings say to do so, we include the final pitch reached as a headless grace note
-                if not self.properties.starts_tie() and engraving_settings.glissandi.include_end_grace_note:
-                    grace_points += [self.pitch[0].end_time()]
+                grace_points = self._get_grace_points()
 
                 # add a grace chord for each important turn around point in the gliss
                 for t in grace_points:
@@ -1112,15 +1258,7 @@ class NoteLike(ScoreComponent):
             self._set_abjad_note_head_styles(abjad_object)
             last_pitch = abjad_object.written_pitch
 
-            # if the glissando engraving settings say to do so, we'll include
-            # relevant inner turn around points as headless grace notes
-            grace_points = NoteLike._get_relevant_gliss_control_points(self.pitch) \
-                if engraving_settings.glissandi.control_point_policy == "grace" else []
-
-            # also, if this is the last segment of a quantized and split PerformanceNote, and if the glissando
-            # engraving settings say to do so, we include the final pitch reached as a headless grace note
-            if not self.properties.starts_tie() and engraving_settings.glissandi.include_end_grace_note:
-                grace_points += [self.pitch.end_time()]
+            grace_points = self._get_grace_points()
 
             for t in grace_points:
                 grace = abjad.Note(self.properties.spelling_policy.resolve_abjad_pitch(self.pitch.value_at(t)), 1 / 16)
@@ -1194,28 +1332,70 @@ class NoteLike(ScoreComponent):
         else:
             raise ValueError("Must be an abjad Note or Chord object")
 
-    def to_music_xml(self):
+    def to_music_xml(self, source_id_dict=None):
         if self.is_rest():
-            return music_xml.Rest(self.written_length)
+            return music_xml.Rest(self.written_length),
         elif self.is_chord():
+            out = [music_xml.Chord(
+                tuple(self.properties.spelling_policy.resolve_music_xml_pitch(
+                    p.start_level() if isinstance(p, Envelope) else p
+                ) for p in self.pitch),
+                self.written_length, ties=self._get_xml_tie_state(),
+                noteheads=tuple(get_xml_notehead(notehead) if notehead != "normal" else None
+                                for notehead in self.properties.noteheads)
+            )]
             if self.does_glissando():
-                pass
-            else:
-                return music_xml.Chord(
-                    tuple(self.properties.spelling_policy.resolve_music_xml_pitch(p) for p in self.pitch),
-                    self.written_length, ties=self._get_xml_tie_state(),
-                    noteheads=tuple(get_xml_notehead(notehead) if notehead != "normal" else None
-                                    for notehead in self.properties.noteheads)
-                )
-        elif self.does_glissando():
-            pass
+                grace_points = self._get_grace_points(engraving_settings.glissandi.max_inner_graces_music_xml)
+                for t in grace_points:
+                    these_pitches = tuple(self.properties.spelling_policy.resolve_music_xml_pitch(
+                        p.value_at(t) if isinstance(p, Envelope) else p) for p in self.pitch)
+                    # only add a grace chord if it differs in pitch from the last chord / grace chord
+                    if these_pitches[0] != out[-1].pitches[0]:
+                        out.append(music_xml.GraceChord(
+                            these_pitches, 1.0, stemless=True,
+                            noteheads=tuple(get_xml_notehead(notehead) if notehead != "normal" else None
+                                            for notehead in self.properties.noteheads)
+                        ))
+
         else:
-            return music_xml.Note(
-                self.properties.spelling_policy.resolve_music_xml_pitch(self.pitch),
+            out = [music_xml.Note(
+                self.properties.spelling_policy.resolve_music_xml_pitch(
+                    self.pitch.start_level() if isinstance(self.pitch, Envelope) else self.pitch
+                ),
                 self.written_length, ties=self._get_xml_tie_state(),
                 notehead=(get_xml_notehead(self.properties.noteheads[0])
                           if self.properties.noteheads[0] != "normal" else None)
-            )
+            )]
+            if self.does_glissando():
+                grace_points = self._get_grace_points(engraving_settings.glissandi.max_inner_graces_music_xml)
+                for t in grace_points:
+                    this_pitch = self.properties.spelling_policy.resolve_music_xml_pitch(self.pitch.value_at(t))
+                    # only add a grace note if it differs in pitch from the last note / grace note
+                    if this_pitch != out[-1].pitch:
+                        out.append(music_xml.GraceNote(
+                            this_pitch, 1.0, stemless=True,
+                            notehead=(get_xml_notehead(self.properties.noteheads[0])
+                                      if self.properties.noteheads[0] != "normal" else None)
+                        ))
+
+        if source_id_dict is not None and self.does_glissando():
+            # this is where we populate the source_id_dict passed down to us from the top level "to_music_xml()" call
+            # sometimes a note will not have a _source_id property defined, since it never gets broken into tied
+            # components. However, if it's a glissando and there's stemless grace notes involved, we're going to
+            # have to give it a _source_id so that it can share it with its grace notes
+            if "_source_id" not in self.properties:
+                self.properties["_source_id"] = PerformanceNote.next_id()
+
+            # here we take the new note that we're creating and add it to the bin in source_id_dict that
+            # contains all the notes of the same source, so that they can be joined by glissandi
+            if self.properties["_source_id"] in source_id_dict:
+                # this source_id is already associated with a leaf, so add it to the list
+                source_id_dict[self.properties["_source_id"]].extend(out)
+            else:
+                # we don't yet have a record on this source_id, so start a list with this object under that key
+                source_id_dict[self.properties["_source_id"]] = list(out)
+
+        return out
 
     def _get_xml_tie_state(self):
         if self.properties.starts_tie() and self.properties.ends_tie():

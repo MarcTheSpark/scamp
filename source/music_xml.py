@@ -119,7 +119,9 @@ class MusicXMLComponent(ABC):
                 for element in element_rendering
             )
         else:
-            return b''.join(ElementTree.tostring(element, 'utf-8') for element in element_rendering)
+            header = b'<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD ' \
+                     b'MusicXML 3.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">'
+            return (header + b''.join(ElementTree.tostring(element, 'utf-8') for element in element_rendering)).decode()
 
     def export_to_file(self, file_path, pretty_print=True):
         with open(file_path, 'w') as file:
@@ -127,7 +129,9 @@ class MusicXMLComponent(ABC):
 
     def view_in_software(self, command):
         with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as file:
-            file.write(self.wrap_as_score().to_xml())
+            # Note: For some reason the minified (non-pretty print) version causes MuseScore to spin out and fail
+            # This seems to be on MuseScore's end, because there's no difference aside from minification
+            file.write(self.wrap_as_score().to_xml(pretty_print=True).encode())
         subprocess.Popen(escape_split(command, " ") + [file.name])
 
 
@@ -188,6 +192,11 @@ class Pitch(MusicXMLComponent):
 
     def wrap_as_score(self):
         return Note(self, 1.0).wrap_as_score()
+
+    def __eq__(self, other):
+        if not isinstance(other, Pitch):
+            return False
+        return self.step == other.step and self.octave == other.octave and self.alteration == other.alteration
 
     def __repr__(self):
         return "Pitch(\"{}\", {}{})".format(self.step, self.octave,
@@ -591,6 +600,32 @@ class Note(_XMLNote):
         super().__init__(pitch, duration, ties=ties, notations=notations, articulations=articulations,
                          notehead=notehead, directions=directions, stemless=stemless)
 
+    @property
+    def starts_tie(self):
+        return self.ties in ("start", "continue")
+
+    @starts_tie.setter
+    def starts_tie(self, value):
+        if value:
+            # setting it to start a tie if it isn't already
+            self.ties = "start" if self.ties in ("start", None) else "continue"
+        else:
+            # setting it to not start a tie
+            self.ties = None if self.ties in ("start", None) else "stop"
+
+    @property
+    def stops_tie(self):
+        return self.ties in ("stop", "continue")
+
+    @stops_tie.setter
+    def stops_tie(self, value):
+        if value:
+            # setting it to stop a tie if it isn't already
+            self.ties = "stop" if self.ties in ("stop", None) else "continue"
+        else:
+            # setting it to not stop a tie
+            self.ties = None if self.ties in ("stop", None) else "start"
+
     def __repr__(self):
         return "Note({}, {}{}{}{}{})".format(
             self.pitch, self.duration,
@@ -680,6 +715,17 @@ class Chord(MusicXMLComponent):
 
         for note in self.notes[1:]:
             note.is_chord_member = True
+
+    @property
+    def pitches(self):
+        return tuple(note.pitch for note in self.notes)
+
+    @pitches.setter
+    def pitches(self, value):
+        assert isinstance(value, tuple) and len(value) == len(self.notes) \
+               and all(isinstance(x, Pitch) for x in value)
+        for note, pitch in zip(self.notes, value):
+            note.pitch = pitch
 
     def num_beams(self):
         return self.notes[0].num_beams()
