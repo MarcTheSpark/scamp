@@ -3,6 +3,112 @@ from copy import deepcopy
 import numbers
 
 
+# --------------------------------------------------- Utilities ----------------------------------------------------
+
+
+def _get_extrema_and_inflection_points(function, domain_start, domain_end, resolution=100, iterations=5,
+                                       include_endpoints=True, return_on_first_point=False):
+    assert resolution >= 10 or iterations == 1, "Resolution should be at least 10 if iteration is being used"
+    key_points = []
+    value = None
+    first_difference = None
+    second_difference = None
+    step = (domain_end - domain_start) / resolution
+    for x in range(0, resolution):
+        t = domain_start + x * step
+        this_value = function(t)
+
+        if value is not None:
+            # some rounding is necessary to avoid floating point inaccuracies from creating false sign changes
+            this_difference = round(this_value - value, 10)
+            if first_difference is not None:
+                # check if first difference changes sign in the first derivative
+                if this_difference * first_difference < 0:
+                    # there's been a change of sign, so it's a local min or max. split here
+                    new_point = _get_extrema_and_inflection_points(
+                        function, t - 2 * step, t + 2 * step, max(10, int(resolution / 2)), iterations - 1,
+                        include_endpoints=False, return_on_first_point=True
+                    ) if iterations > 1 else t
+
+                    if return_on_first_point:
+                        return new_point
+                    else:
+                        key_points.append(new_point)
+
+                this_second_difference = round(this_difference - first_difference, 10)
+
+                if second_difference is not None:
+                    # check if second difference changes sign
+                    if this_second_difference * second_difference < 0:
+                        # there's been a change of sign, so it's an inflection point. split here
+                        if t not in key_points:
+                            new_point = _get_extrema_and_inflection_points(
+                                function, t - 2 * step, t + 2 * step, max(10, int(resolution / 2)), iterations - 1,
+                                include_endpoints=False, return_on_first_point=True
+                            ) if iterations > 1 else t
+
+                            if return_on_first_point:
+                                return new_point
+                            else:
+                                key_points.append(new_point)
+                second_difference = this_second_difference
+            first_difference = this_difference
+        value = this_value
+
+    if return_on_first_point:
+        # something has gone a little wrong, because we did an extra iteration to find the key point more exactly,
+        # but we didn't get any closer. So just return the average.
+        return (domain_start + domain_end) / 2
+
+    if include_endpoints:
+        return [domain_start] + key_points + [domain_end]
+    else:
+        return key_points
+
+
+def _make_envelope_segments_from_function(function, domain_start, domain_end, resolution_multiple=1,
+                                          key_point_precision=100, key_point_iterations=5):
+    assert isinstance(resolution_multiple, int) and resolution_multiple > 0
+    key_points = _get_extrema_and_inflection_points(function, domain_start, domain_end,
+                                                    key_point_precision, key_point_iterations)
+    if resolution_multiple > 1:
+        key_points = [l + k * (r - l) / resolution_multiple
+                      for l, r in zip(key_points[:-1], key_points[1:])
+                      for k in range(resolution_multiple)] + [key_points[-1]]
+
+    segments = []
+    i = 0
+    while i < len(key_points) - 1:
+        segment_start = key_points[i]
+        segment_end = key_points[i + 1]
+        halfway_point = (segment_start + segment_end) / 2
+        segment_start_value = function(segment_start)
+        segment_end_value = function(segment_end)
+        segment_halfway_value = function(halfway_point)
+
+        # we're trying to split at the min / max locations to get monotonic segments
+        # in case we get a segment that is neither strictly monotonic not constant,
+        # we can just split it straight down the middle
+        is_strictly_monotonic = min(segment_start_value, segment_end_value) < segment_halfway_value < \
+                                max(segment_start_value, segment_end_value)
+        is_constant = segment_start_value == segment_halfway_value == segment_end_value
+        if not (is_strictly_monotonic or is_constant):
+            # if we are splitting it, add a key point halfway and try again without incrementing
+            key_points.insert(i + 1, halfway_point)
+            continue
+
+        segments.append(EnvelopeSegment.from_endpoints_and_halfway_level(
+            segment_start, segment_end,
+            segment_start_value, segment_end_value, segment_halfway_value
+        ))
+        i += 1
+
+    return segments
+
+
+# --------------------------------------------- Main Envelope Class ------------------------------------------------
+
+
 class Envelope:
 
     def __init__(self, segments=None):
@@ -198,6 +304,20 @@ class Envelope:
         return cls.from_levels_and_durations((0, attack_level, sustain_level, sustain_level, 0),
                                              (attack_length, decay_length, sustain_length, release_length),
                                              curve_shapes=curve_shapes)
+
+    @classmethod
+    def from_function(cls, function, domain_start=0, domain_end=1, resolution_multiple=2,
+                      key_point_precision=100, key_point_iterations=5):
+        """
+        Approximation of arbitrary function as an envelope of exponential segments.
+        By default, the function is split at local extrema and inflection points found through a pretty
+        unsophisticated numerical process. The precision of this numerical process is set through the
+        key_point_precision and key_point_iterations arguments. If resolution_multiple is set greater than 1
+        then extra key points are added in between those key points to improve curve fit.
+        :return: an Envelope
+        """
+        return cls(_make_envelope_segments_from_function(function, domain_start, domain_end, resolution_multiple,
+                                                         key_point_precision, key_point_iterations))
 
     # ---------------------------- Various Properties --------------------------------
 
@@ -677,13 +797,13 @@ class Envelope:
             y_values.extend(segment_y_values)
         return x_values, y_values
 
-    def show_plot(self, resolution=25, show_segment_divisions=True):
+    def show_plot(self, title=None, resolution=25, show_segment_divisions=True):
         import matplotlib.pyplot as plt
         fig, ax = plt.subplots()
         ax.plot(*self.get_graphable_point_pairs(resolution))
         if show_segment_divisions:
             ax.plot(self.times, self.levels, 'o')
-        ax.set_title('Graph of Envelope')
+        ax.set_title('Graph of Envelope' if title is None else title)
         plt.show()
 
     @staticmethod
@@ -751,6 +871,9 @@ class Envelope:
 
     def __repr__(self):
         return "Envelope({}, {}, {}, {})".format(self.levels, self.durations, self.curve_shapes, self.offset)
+
+
+# ------------------------------------------ Envelope Segment Class ------------------------------------------------
 
 
 class EnvelopeSegment:
@@ -983,78 +1106,12 @@ class EnvelopeSegment:
         y_values = [self.value_at(x) for x in x_values]
         return x_values, y_values
 
-    def show_plot(self, resolution=25):
+    def show_plot(self, title=None, resolution=25):
         import matplotlib.pyplot as plt
         fig, ax = plt.subplots()
         ax.plot(*self.get_graphable_point_pairs(resolution))
-        ax.set_title('Graph of Envelope Segment')
+        ax.set_title('Graph of Envelope Segment' if title is None else title)
         plt.show()
-
-    @staticmethod
-    def _split_binary_function_applied_pair(input1, input2, binary_function, resolution=60):
-        if input2.start_time == input1.start_time and input2.end_time == input1.end_time:
-            split_points = []
-            value = None
-            first_difference = None
-            second_difference = None
-            for x in range(0, resolution):
-                t = input1.start_time + (x / resolution) * input1.duration
-                this_value = binary_function(input1.value_at(t), input2.value_at(t))
-
-                if value is not None:
-                    # some rounding is necessary to avoid floating point inaccuracies from creating false sign changes
-                    this_difference = round(this_value - value, 10)
-                    if first_difference is not None:
-                        # check if first difference changes sign in the first derivative
-                        if this_difference * first_difference < 0:
-                            # there's been a change of sign, so it's a local min or max. split here
-                            split_points.append(t)
-
-                        this_second_difference = round(this_difference - first_difference, 10)
-
-                        if second_difference is not None:
-                            # check if second difference changes sign
-                            if this_second_difference * second_difference < 0:
-                                # there's been a change of sign, so it's an inflection point. split here
-                                if t not in split_points:
-                                    split_points.append(t)
-                        second_difference = this_second_difference
-                    first_difference = this_difference
-                value = this_value
-
-            key_points = [input1.start_time] + split_points + [input1.end_time]
-            segments = []
-            i = 0
-            while i < len(key_points) - 1:
-                segment_start = key_points[i]
-                segment_end = key_points[i + 1]
-                halfway_point = (segment_start + segment_end) / 2
-                segment_start_value = binary_function(input1.value_at(segment_start), input2.value_at(segment_start))
-                segment_end_value = binary_function(input1.value_at(segment_end), input2.value_at(segment_end))
-                segment_halfway_value = binary_function(input1.value_at(halfway_point), input2.value_at(halfway_point))
-
-                # we're trying to split at the min / max locations to get monotonic segments
-                # in case we get a segment that is neither strictly monotonic not constant,
-                # we can just split it straight down the middle
-                is_strictly_monotonic = min(segment_start_value, segment_end_value) < segment_halfway_value < \
-                                        max(segment_start_value, segment_end_value)
-                is_constant = segment_start_value == segment_halfway_value == segment_end_value
-                if not (is_strictly_monotonic or is_constant):
-                    key_points.insert(i + 1, halfway_point)
-                    continue
-
-                segments.append(EnvelopeSegment.from_endpoints_and_halfway_level(
-                    segment_start, segment_end,
-                    segment_start_value, segment_end_value, segment_halfway_value
-                ))
-                i += 1
-
-            if len(segments) == 1:
-                return segments[0]
-            else:
-                return Envelope(segments)
-        else:
-            raise ValueError("EnvelopeSegments can only be added if they have the same time range.")
 
     def _reciprocal(self):
         assert self.start_level * self.end_level > 0, "Cannot divide by EnvelopeSegment that crosses zero"
@@ -1072,7 +1129,15 @@ class EnvelopeSegment:
             out.shift_vertical(other)
             return out
         elif isinstance(other, EnvelopeSegment):
-            return EnvelopeSegment._split_binary_function_applied_pair(self, other, lambda a, b: a + b)
+            if self.start_time == other.start_time and self.end_time == other.end_time:
+                segments = _make_envelope_segments_from_function(lambda t: self.value_at(t) + other.value_at(t),
+                                                                 self.start_time, self.end_time)
+                if len(segments) == 1:
+                    return segments[0]
+                else:
+                    return Envelope(segments)
+            else:
+                raise ValueError("EnvelopeSegments can only be added if they have the same time range.")
         else:
             raise TypeError("Can only add EnvelopeSegment to a constant or another EnvelopeSegment")
 
@@ -1091,7 +1156,15 @@ class EnvelopeSegment:
             out.scale_vertical(other)
             return out
         elif isinstance(other, EnvelopeSegment):
-            return EnvelopeSegment._split_binary_function_applied_pair(self, other, lambda a, b: a * b)
+            if self.start_time == other.start_time and self.end_time == other.end_time:
+                segments = _make_envelope_segments_from_function(lambda t: self.value_at(t) * other.value_at(t),
+                                                                 self.start_time, self.end_time)
+                if len(segments) == 1:
+                    return segments[0]
+                else:
+                    return Envelope(segments)
+            else:
+                raise ValueError("EnvelopeSegments can only be added if they have the same time range.")
         else:
             raise TypeError("Can only multiply EnvelopeSegment with a constant or another EnvelopeSegment")
 
