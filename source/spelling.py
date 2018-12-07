@@ -145,7 +145,8 @@ class SpellingPolicy(SavesToJSON):
 
     def resolve_abjad_pitch(self, midi_num):
         name, octave, alteration = self.resolve_name_octave_and_alteration(midi_num)
-        import abjad
+        from scamp.dependencies import abjad
+        assert abjad is not None, "Abjad is required for this operation."
         return abjad.NamedPitch(name, accidental=alteration, octave=octave)
 
     def resolve_music_xml_pitch(self, midi_num):

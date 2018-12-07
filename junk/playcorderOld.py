@@ -2,8 +2,8 @@ import threading
 import time
 import logging
 
-from source.recording_to_xml import save_to_xml_file as save_recording_to_xml
-from source.measures_beats_notes import *
+from old.recording_to_xml import save_to_xml_file as save_recording_to_xml
+from old.measures_beats_notes import *
 
 from source.combined_midi_player import CombinedMidiPlayer, register_default_soundfont, \
     unregister_default_soundfont, get_default_soundfonts

@@ -3,9 +3,8 @@ from scamp.utilities import indigestibility, is_multiple, is_x_pow_of_y, round_t
 from collections import namedtuple
 from scamp.settings import quantization_settings, engraving_settings
 from scamp.envelope import Envelope
+from scamp.dependencies import abjad
 import textwrap
-import abjad
-
 
 QuantizedBeat = namedtuple("QuantizedBeat", "start_time start_time_in_measure length divisor")
 

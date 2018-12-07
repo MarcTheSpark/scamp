@@ -1,13 +1,7 @@
 from scamp.clock import Clock
 import inspect
-import logging
 import time
-
-try:
-    import rtmidi
-except ImportError:
-    rtmidi = None
-    logging.warning("python-rtmidi was not found; midi input will not be available")
+from scamp.dependencies import rtmidi
 
 
 def get_available_ports_and_devices():

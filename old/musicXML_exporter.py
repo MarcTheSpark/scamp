@@ -263,7 +263,6 @@ class Note(ElementTree.Element):
         return cls("bar rest", duration_of_bar, staff=staff, voice=voice)
 
 
-
 #  -------------------------------------------------- MEASURE ------------------------------------------------------ #
 
 
@@ -467,8 +466,8 @@ class Backup(ElementTree.Element):
         duration_el.text = str(num_beat_divisions * quarters_length)
 
 
-#  --------------------------------------------------- EXAMPLE ----------------------------------------------------- #
-
+# #  --------------------------------------------------- EXAMPLE ----------------------------------------------------- #
+#
 # my_score = Score("Test Score", "D. Bag")
 # violin_part = Part("Violin")
 # measure = Measure(1, (3, 4), "treble")

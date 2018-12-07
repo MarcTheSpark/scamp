@@ -6,11 +6,11 @@ from scamp.utilities import get_standard_indispensability_array, prime_factor, f
 from scamp.engraving_translations import get_xml_notehead, get_lilypond_notehead_name
 from scamp.note_properties import NotePropertiesDictionary
 from scamp import music_xml
+from scamp.dependencies import abjad
 import math
 from fractions import Fraction
 from itertools import permutations
 import textwrap
-import abjad
 from collections import namedtuple
 from abc import ABC, abstractmethod
 import logging

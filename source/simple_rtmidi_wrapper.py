@@ -1,10 +1,4 @@
-import logging
-
-try:
-    import rtmidi
-except ImportError:
-    rtmidi = None
-    logging.warning("python-rtmidi was not found; midi output will not be available.")
+from scamp.dependencies import rtmidi
 
 
 def get_best_name_match(names_list, desired_name):

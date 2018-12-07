@@ -9,19 +9,13 @@ from scamp.note_properties import NotePropertiesDictionary
 from scamp.clock import current_clock
 from scamp.spelling import SpellingPolicy
 import atexit
-import logging
+from scamp.dependencies import udp_client
 
 # TODO: Stretch goal: allow MIDIScampInstrument to have multiple presets
 # Maybe create a method "add_alternate_preset(name, preset, soundfont_index, num_channels, triggers)"
 # that sets aside extra channels for it. Triggers could be of the form "articulation:staccato" or something
 # like that. But also if properties contains an entry for "preset:{preset name}" that could trigger it
 # as well.
-
-try:
-    from pythonosc import udp_client
-except ImportError:
-    udp_client = None
-    logging.warning("pythonosc was not found; OSCScampInstrument will not function.")
 
 
 class ScampInstrument(SavesToJSON):
