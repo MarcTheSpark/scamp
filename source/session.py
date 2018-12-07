@@ -103,12 +103,12 @@ class Session:
         self.master_clock.use_precise_timing = value
 
     @property
-    def keep_children_caught_up(self):
-        return self.master_clock.keep_children_caught_up
+    def synchronization_policy(self):
+        return self.master_clock.synchronization_policy
 
-    @keep_children_caught_up.setter
-    def keep_children_caught_up(self, value):
-        self.master_clock.keep_children_caught_up = value
+    @synchronization_policy.setter
+    def synchronization_policy(self, value):
+        self.master_clock.synchronization_policy = value
 
     @property
     def timing_policy(self):
@@ -116,7 +116,6 @@ class Session:
 
     @timing_policy.setter
     def timing_policy(self, value):
-        assert value in Clock.timing_policy_choices
         self.master_clock.timing_policy = value
 
     # ----------------------------------- Listeners ----------------------------------
@@ -188,14 +187,10 @@ class Session:
                                            osc_message_strings=osc_message_strings)
 
     def save_ensemble_to_json(self, filepath):
-        import json
-        with open(filepath, "w") as file:
-            json.dump(self._ensemble.to_json(), file)
+        self._ensemble.save_to_json(filepath)
 
     def load_ensemble_from_json(self, filepath):
-        import json
-        with open(filepath, "r") as file:
-            self.set_ensemble(Ensemble.from_json(json.load(file)))
+        self.set_ensemble(Ensemble.load_from_json(filepath))
 
     # ----------------------------- Modifying MIDI Settings --------------------------
 
