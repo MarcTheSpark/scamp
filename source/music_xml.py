@@ -1218,22 +1218,22 @@ class PartGroup(MusicXMLComponent):
 
 class Score(MusicXMLComponent):
 
-    def __init__(self, parts, title=None, composer=None):
-        assert hasattr(parts, '__len__') and all(isinstance(x, (Part, PartGroup)) for x in parts)
-        self.parts = parts
+    def __init__(self, contents, title=None, composer=None):
+        assert hasattr(contents, '__len__') and all(isinstance(x, (Part, PartGroup)) for x in contents)
+        self.contents = contents
         self.title = title
         self.composer = composer
 
+    @property
+    def parts(self):
+        return tuple(part for part_or_group in self.contents
+                     for part in (part_or_group.parts if isinstance(part_or_group, PartGroup) else (part_or_group, )))
+
     def set_part_numbers(self):
         next_id = 1
-        for part_or_group in self.parts:
-            if isinstance(part_or_group, PartGroup):
-                for part in part_or_group.parts:
-                    part.part_id = next_id
-                    next_id += 1
-            else:
-                part_or_group.part_id = next_id
-                next_id += 1
+        for part in self.parts:
+            part.part_id = next_id
+            next_id += 1
 
     def render(self):
         self.set_part_numbers()
@@ -1248,7 +1248,7 @@ class Score(MusicXMLComponent):
         ElementTree.SubElement(encoding_el, "encoding-date").text = str(datetime.date.today())
         ElementTree.SubElement(encoding_el, "software").text = "SCAMP (Suite for Composing Algorithmic Music in Python)"
         part_list_el = ElementTree.SubElement(score_element, "part-list")
-        for part_or_part_group in self.parts:
+        for part_or_part_group in self.contents:
             part_list_el.extend(part_or_part_group.render_part_list_entry())
             score_element.extend(part_or_part_group.render())
         return score_element,
