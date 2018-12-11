@@ -1241,7 +1241,7 @@ class Score(MusicXMLComponent):
         work_el = ElementTree.SubElement(score_element, "work")
         if self.title is not None:
             ElementTree.SubElement(work_el, "work-title").text = self.title
-        id_el = ElementTree.SubElement(score_element,"identification")
+        id_el = ElementTree.SubElement(score_element, "identification")
         if self.composer is not None:
             ElementTree.SubElement(id_el, "creator", {"type": "composer"}).text = self.composer
         encoding_el = ElementTree.SubElement(id_el, "encoding")

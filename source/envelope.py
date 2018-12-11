@@ -654,7 +654,7 @@ class Envelope:
                 segment.end_time = (segment.end_time - self.start_time()) * ratio + self.start_time()
         return out
 
-    def local_extrema(self):
+    def local_extrema(self, include_saddle_points=False):
         """
         Returns a list of the times where the curve changes direction.
         """
@@ -668,6 +668,8 @@ class Envelope:
             else:
                 # if this segment was static, then keep the direction we had going in
                 direction = last_direction
+                if include_saddle_points:
+                    local_extrema.append(segment.start_time)
             if last_direction * direction < 0:
                 # we changed sign, since
                 local_extrema.append(segment.start_time)

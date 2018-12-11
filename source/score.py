@@ -291,6 +291,7 @@ class Score(ScoreComponent, ScoreContainer):
         ScoreContainer.__init__(self, parts, "parts", (StaffGroup, Staff), ("title", "composer"))
         self.title = title
         self.composer = composer
+        self.tempo_envelope = None
 
     @property
     def parts(self):
@@ -338,6 +339,7 @@ class Score(ScoreComponent, ScoreContainer):
             title=engraving_settings.get_default_title() if title == "default" else title,
             composer=engraving_settings.get_default_composer() if composer == "default" else composer
         )
+        out.tempo_envelope = performance.tempo_envelope
         if engraving_settings.pad_incomplete_parts:
             out.pad_incomplete_parts()
         return out
@@ -357,7 +359,39 @@ class Score(ScoreComponent, ScoreContainer):
         return score
 
     def to_music_xml(self):
-        return music_xml.Score([part.to_music_xml() for part in self. parts], self.title, self.composer)
+        xml_score = music_xml.Score([part.to_music_xml() for part in self. parts], self.title, self.composer)
+        # the tempo needs to be expressly stated at the beginning, at any change of tempo direction,
+        # at the start of any stable plateau (i.e. saddle point) and at the end of the tempo envelope if not redundant
+        key_points = [0] + self.tempo_envelope.local_extrema(include_saddle_points=True)
+        if self.tempo_envelope.tempo_at(key_points[-1]) != self.tempo_envelope.end_level:
+            key_points.append(self.tempo_envelope.end_time())
+
+        measure_start = 0
+        for xml_measure, score_measure in zip(xml_score.parts[0].measures, self.staves[0].measures):
+            if len(key_points) == 0:
+                break
+            this_measure_annotations = []
+            while len(key_points) > 0 and key_points[0] - measure_start < score_measure.length:
+                key_point = key_points.pop(0)
+                key_point_tempo = self.tempo_envelope.tempo_at(key_point)
+                next_key_point_tempo = self.tempo_envelope.tempo_at(key_points[0]) if len(key_points) > 0 else None
+                change_indicator = None if next_key_point_tempo is None or next_key_point_tempo == key_point_tempo \
+                    else "accel." if next_key_point_tempo > key_point_tempo else "rit."
+                measure_beat_lengths = score_measure.time_signature.beat_lengths
+                if all(x == measure_beat_lengths[0] for x in measure_beat_lengths):
+                    beat_length = measure_beat_lengths[0]
+                    bpm = key_point_tempo / beat_length
+                else:
+                    beat_length = 1.0
+                    bpm = key_point_tempo
+                this_measure_annotations.append((music_xml.MetronomeMark(beat_length, bpm), key_point - measure_start))
+                if change_indicator is not None:
+                    this_measure_annotations.append((music_xml.TextAnnotation(change_indicator, italic=True),
+                                                     key_point - measure_start))
+
+            xml_measure.directions_with_displacements = this_measure_annotations
+            measure_start += score_measure.length
+        return xml_score
 
 
 # used in arranging voices in a part
@@ -786,6 +820,10 @@ class Measure(ScoreComponent, ScoreContainer):
     @property
     def voices(self):
         return self._contents
+
+    @property
+    def length(self):
+        return self.time_signature.measure_length()
 
     @classmethod
     def empty_measure(cls, time_signature, show_time_signature=True):
