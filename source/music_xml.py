@@ -1383,7 +1383,7 @@ class Direction(MusicXMLComponent):
 
 class MetronomeMark(Direction):
 
-    def __init__(self, beat_length, bpm, parentheses=False, voice=1, staff=1):
+    def __init__(self, beat_length, bpm, voice=1, staff=1, **other_attributes):
         try:
             self.beat_unit = Duration.from_written_length(beat_length)
         except ValueError:
@@ -1391,14 +1391,14 @@ class MetronomeMark(Direction):
             self.beat_unit = Duration.from_written_length(1.0)
             bpm /= beat_length
         self.bpm = bpm
-        self.parentheses = parentheses
+        self.other_attributes = {key.replace("_", "-"): value for key, value in other_attributes.items()}
         self.voice = voice
         self.staff = staff
 
     def render(self):
         direction_element = ElementTree.Element("direction")
         type_el = ElementTree.SubElement(direction_element, "direction-type")
-        metronome_el = ElementTree.SubElement(type_el, "metronome")
+        metronome_el = ElementTree.SubElement(type_el, "metronome", self.other_attributes)
         metronome_el.extend(self.beat_unit.render_to_beat_unit_tags())
         ElementTree.SubElement(metronome_el, "per-minute").text = str(self.bpm)
         ElementTree.SubElement(direction_element, "voice").text = str(self.voice)
