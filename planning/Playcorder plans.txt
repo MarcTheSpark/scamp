@@ -1,7 +1,8 @@
-- If quantize is called on a quantized score / part, maybe throw out the quantization and requantize?
-- Get basic MusicXML working
 - Get recombination of larger notes working
-- Engraving tempo curve; accel, rit, sudden changes
+- add append function to TempoCurve
+- Add in tempo guide marks if desired in xml
+- Engraving sudden tempo changes
+- Engraving tempo in abjad
 - MIDIPlayorderInstrument: allow preset shifts with keyword string
 - Playback adjustments: allow preset change as a possibility
 - Trills and Tremolo: can implement by splitting playback into many notes, changing preset, or -- in the case of trill --
@@ -10,5 +11,5 @@ by simply adding a square wave envelope to the pitch.
 to do this would be to simply write them as DynamicEnvelope("fp<f") or something like that, parsing the string into an
 envelope for playback and then later attaching that to the staff as dynamics. This is tricky though! Basically, would
 be implemented as a parallel stream to the note stream, I think...
-- Engraving Slurs
-- Engraving Beams???
+- Engraving slurs?
+- Make outgoing midi stream an addable function?
