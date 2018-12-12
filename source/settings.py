@@ -19,7 +19,7 @@ class ScampSettings(SimpleNamespace, SavesToJSON):
         keys_to_leave_as_dicts = self._keys_to_leave_as_dicts \
             if keys_to_leave_as_dicts is None else keys_to_leave_as_dicts
         if attribute_validation_function is not None:
-            self.validate_attribute = attribute_validation_function
+            self._validate_attribute = attribute_validation_function
         settings_arguments = {}
         for key in set(settings_dict.keys()).union(set(factory_defaults.keys())):
             if key in settings_dict and key in factory_defaults:
@@ -33,7 +33,7 @@ class ScampSettings(SimpleNamespace, SavesToJSON):
                     # then we convert that dictionary to a ScampSettings namespace
                     settings_arguments[key] = ScampSettings(
                         settings_dict[key], factory_defaults[key], keys_to_leave_as_dicts,
-                        attribute_validation_function=self.validate_attribute
+                        attribute_validation_function=self._validate_attribute
                     )
                 else:
                     # if neither of the above is true, then it's clearly just json-ready data
@@ -52,23 +52,23 @@ class ScampSettings(SimpleNamespace, SavesToJSON):
                     # then we convert the dictionary to a ScampSettings namespace
                     settings_arguments[key] = ScampSettings(
                         factory_defaults[key], factory_defaults[key], keys_to_leave_as_dicts=keys_to_leave_as_dicts,
-                        attribute_validation_function=self.validate_attribute
+                        attribute_validation_function=self._validate_attribute
                     )
                 else:
                     # otherwise, we just take the default as is
                     settings_arguments[key] = factory_defaults[key]
-            settings_arguments[key] = self.validate_attribute(key, settings_arguments[key])
+            settings_arguments[key] = self._validate_attribute(key, settings_arguments[key])
         super().__init__(**settings_arguments)
 
     @staticmethod
     def nested_dict_from_nested_settings(nested_settings):
         if isinstance(nested_settings, ScampSettings):
             nested_settings = vars(nested_settings)
-            if "validate_attribute" in nested_settings:
+            if "_validate_attribute" in nested_settings:
                 # this is a little klugey, but the issue is that ScampSettings objects for sub-settings need to use
-                # the validate_attribute method of their parent, so I explicitly set that method, but then it appears
+                # the _validate_attribute method of their parent, so I explicitly set that method, but then it appears
                 # in the __dict__ of the settings object and must be deleted manually before serializing to json
-                del nested_settings["validate_attribute"]
+                del nested_settings["_validate_attribute"]
         if hasattr(nested_settings, "to_json"):
             return nested_settings.to_json()
         elif isinstance(nested_settings, dict):
@@ -110,11 +110,11 @@ class ScampSettings(SimpleNamespace, SavesToJSON):
             logging.warning("Error loading {}; falling back to defaults.".format(cls._settings_name.lower()))
             return cls.factory_default()
 
-    def validate_attribute(self, key, value):
+    def _validate_attribute(self, key, value):
         return value
 
     def __setattr__(self, key, value):
-        super().__setattr__(key, self.validate_attribute(key, value))
+        super().__setattr__(key, self._validate_attribute(key, value))
 
 
 class PlaybackSettings(ScampSettings):
@@ -194,10 +194,14 @@ class QuantizationSettings(ScampSettings):
     _settings_name = "Quantization settings"
     _json_path = "settings/quantizationSettings.json"
 
+    def __init__(self, settings_dict, factory_defaults=None, keys_to_leave_as_dicts=None):
+        # This is here to help with auto-completion so that the IDE knows what attributes are available
+        self.onset_weighting = self.termination_weighting = self.inner_split_weighting = self.max_divisor = \
+            self.max_indigestibility = self.simplicity_preference = self.default_time_signature = None
+        super().__init__(settings_dict, factory_defaults, keys_to_leave_as_dicts)
+
 
 class EngravingSettings(ScampSettings):
-
-    __slots__ = ("hello", )
 
     _factory_defaults = {
         "max_voices_per_part": 4,
@@ -234,8 +238,9 @@ class EngravingSettings(ScampSettings):
             "max_inner_graces_music_xml": 1
         },
         "tempo": {
+            "guide_mark_spacing": 0.5,
             "include_guide_marks": False,
-            "guide_mark_spacing": 0.5
+            "parenthesize_guide_marks": True
         },
         "pad_incomplete_parts": True,
         "show_music_xml_command_line": "musescore",
@@ -244,6 +249,13 @@ class EngravingSettings(ScampSettings):
     _keys_to_leave_as_dicts = ("articulation_split_protocols", )
     _settings_name = "Engraving settings"
     _json_path = "settings/engravingSettings.json"
+
+    def __init__(self, settings_dict, factory_defaults=None, keys_to_leave_as_dicts=None):
+        # This is here to help with auto-completion so that the IDE knows what attributes are available
+        self.max_voices_per_part = self.max_dots_allowed = self.articulation_split_protocols = self.default_titles = \
+            self.default_composers = self.default_spelling_policy = self.ignore_empty_parts = self.glissandi = \
+            self.tempo = self.pad_incomplete_parts = self.show_music_xml_command_line = None
+        super().__init__(settings_dict, factory_defaults, keys_to_leave_as_dicts)
 
     def get_default_title(self):
         if isinstance(self.default_titles, list):
@@ -263,7 +275,7 @@ class EngravingSettings(ScampSettings):
         else:
             return None
 
-    def validate_attribute(self, key, value):
+    def _validate_attribute(self, key, value):
         if key == "max_voices_per_part" and not (isinstance(value, int) and 1 <= value <= 4):
             logging.warning("Invalid value \"{}\" for max_voices_per_part: must be an integer from 1 to 4. defaulting "
                             "to {}".format(value, EngravingSettings._factory_defaults["max_voices_per_part"]))
