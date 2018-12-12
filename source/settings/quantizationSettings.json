@@ -1,4 +1,6 @@
 {
+    "default_time_signature": "4/4",
+    "inner_split_weighting": 0.75,
     "max_divisor": 8,
     "max_indigestibility": null,
     "onset_weighting": 1.0,

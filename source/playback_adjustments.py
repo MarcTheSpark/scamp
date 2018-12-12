@@ -157,3 +157,8 @@ class PlaybackDictionary(dict, SavesToJSON):
                     json_object[notation_category][notation_name] = \
                         NotePlaybackAdjustment.from_json(json_object[notation_category][notation_name])
         return cls(**json_object)
+
+    def __repr__(self):
+        return "PlaybackDictionary(articulations={}, noteheads={}, notations={})".format(
+            self["articulations"], self["noteheads"], self["notations"]
+        )

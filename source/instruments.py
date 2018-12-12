@@ -514,7 +514,7 @@ _note_id_generator = count()
 class OSCScampInstrument(ScampInstrument):
 
     def __init__(self, host=None, name=None, port=None, ip_address="127.0.0.1", message_prefix=None,
-                 osc_message_strings="default"):
+                 osc_message_addresses="default"):
         super().__init__(host, name)
 
         # the output client for OSC messages
@@ -527,21 +527,21 @@ class OSCScampInstrument(ScampInstrument):
         # by default uses the name of the instrument, but if two instruments have the same name, this is bad
         self.message_prefix = (name if name is not None else "unnamed") if message_prefix is None else message_prefix
 
-        self._start_note_message_string = osc_message_strings["start_note_message_string"] \
-            if isinstance(osc_message_strings, dict) and "start_note_message_string" in osc_message_strings \
-            else playback_settings.osc_message_defaults["start_note_message_string"]
-        self._end_note_message_string = osc_message_strings["end_note_message_string"] \
-            if isinstance(osc_message_strings, dict) and "end_note_message_string" in osc_message_strings \
-            else playback_settings.osc_message_defaults["end_note_message_string"]
-        self._change_pitch_message_string = osc_message_strings["change_pitch_message_string"] \
-            if isinstance(osc_message_strings, dict) and "change_pitch_message_string" in osc_message_strings \
-            else playback_settings.osc_message_defaults["change_pitch_message_string"]
-        self._change_volume_message_string = osc_message_strings["change_volume_message_string"] \
-            if isinstance(osc_message_strings, dict) and "change_volume_message_string" in osc_message_strings \
-            else playback_settings.osc_message_defaults["change_volume_message_string"]
-        self._change_quality_message_string = osc_message_strings["change_quality_message_string"] \
-            if isinstance(osc_message_strings, dict) and "change_quality_message_string" in osc_message_strings \
-            else playback_settings.osc_message_defaults["change_quality_message_string"]
+        self._start_note_message = osc_message_addresses["start_note"] \
+            if isinstance(osc_message_addresses, dict) and "start_note" in osc_message_addresses \
+            else playback_settings.osc_message_addresses["start_note"]
+        self._end_note_message = osc_message_addresses["end_note"] \
+            if isinstance(osc_message_addresses, dict) and "end_note" in osc_message_addresses \
+            else playback_settings.osc_message_addresses["end_note"]
+        self._change_pitch_message = osc_message_addresses["change_pitch"] \
+            if isinstance(osc_message_addresses, dict) and "change_pitch" in osc_message_addresses \
+            else playback_settings.osc_message_addresses["change_pitch"]
+        self._change_volume_message = osc_message_addresses["change_volume"] \
+            if isinstance(osc_message_addresses, dict) and "change_volume" in osc_message_addresses \
+            else playback_settings.osc_message_addresses["change_volume"]
+        self._change_quality_message = osc_message_addresses["change_quality"] \
+            if isinstance(osc_message_addresses, dict) and "change_quality" in osc_message_addresses \
+            else playback_settings.osc_message_addresses["change_quality"]
 
         self._currently_playing = []
 
@@ -595,7 +595,7 @@ class OSCScampInstrument(ScampInstrument):
 
     def _do_start_note(self, pitch, volume, properties):
         note_id = properties["_osc_note_id"] if "_osc_note_id" in properties else next(_note_id_generator)
-        self.client.send_message("/{}/{}".format(self.message_prefix, self._start_note_message_string),
+        self.client.send_message("/{}/{}".format(self.message_prefix, self._start_note_message),
                                  [note_id, pitch, volume])
 
         if "qualities" in properties and isinstance(properties["qualities"], dict):
@@ -610,20 +610,20 @@ class OSCScampInstrument(ScampInstrument):
         return note_id
 
     def _do_end_note(self, note_id):
-        self.client.send_message("/{}/{}".format(self.message_prefix, self._end_note_message_string), [note_id])
+        self.client.send_message("/{}/{}".format(self.message_prefix, self._end_note_message), [note_id])
         if note_id in self._currently_playing:
             self._currently_playing.remove(note_id)
 
     def change_note_pitch(self, note_id, new_pitch):
-        self.client.send_message("/{}/{}".format(self.message_prefix, self._change_pitch_message_string),
+        self.client.send_message("/{}/{}".format(self.message_prefix, self._change_pitch_message),
                                  [note_id, new_pitch])
 
     def change_note_volume(self, note_id, new_volume):
-        self.client.send_message("/{}/{}".format(self.message_prefix, self._change_volume_message_string),
+        self.client.send_message("/{}/{}".format(self.message_prefix, self._change_volume_message),
                                  [note_id, new_volume])
 
     def change_note_quality(self, note_id, quality, value):
-        self.client.send_message("/{}/{}/{}".format(self.message_prefix, self._change_quality_message_string, quality),
+        self.client.send_message("/{}/{}/{}".format(self.message_prefix, self._change_quality_message, quality),
                                  [note_id, value])
 
     def to_json(self):
@@ -633,12 +633,12 @@ class OSCScampInstrument(ScampInstrument):
             "port": self.port,
             "ip_address": self.ip_address,
             "message_prefix": self.message_prefix,
-            "osc_message_strings": {
-                "start_note_message_string": self._start_note_message_string,
-                "end_note_message_string": self._end_note_message_string,
-                "change_pitch_message_string": self._change_pitch_message_string,
-                "change_volume_message_string": self._change_volume_message_string,
-                "change_quality_message_string": self._change_quality_message_string
+            "osc_message_addresses": {
+                "start_note": self._start_note_message,
+                "end_note": self._end_note_message,
+                "change_pitch": self._change_pitch_message,
+                "change_volume": self._change_volume_message,
+                "change_quality": self._change_quality_message
             },
         }
 
@@ -646,10 +646,10 @@ class OSCScampInstrument(ScampInstrument):
         return "OSCScampInstrument({}, {}, {}, {}, {})".format(
             self.host_ensemble, self.name, self.port, self.ip_address,
             self.message_prefix, {
-                "start_note_message_string": self._start_note_message_string,
-                "end_note_message_string": self._end_note_message_string,
-                "change_pitch_message_string": self._change_pitch_message_string,
-                "change_volume_message_string": self._change_volume_message_string,
-                "change_quality_message_string": self._change_quality_message_string
+                "start_note": self._start_note_message,
+                "end_note": self._end_note_message,
+                "change_pitch": self._change_pitch_message,
+                "change_volume": self._change_volume_message,
+                "change_quality": self._change_quality_message
             }
         )

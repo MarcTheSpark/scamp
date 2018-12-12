@@ -4,15 +4,15 @@ To test out, run all the code blocks in OSCListenerPython.scd, make sure that th
 result of NetAddr.langPort, and then run this script.
 """
 
-from playcorder import *
+from scamp import *
 import random
 
 
-pc = Playcorder()
+session = Session()
 
 # The port here must match the result of NetAddr.langPort in SuperCollider
-fm_sines = pc.add_osc_part(57120, name="fm_sines")
-hihat = pc.add_osc_part(57120, name="hihat")
+fm_sines = session.add_osc_part(57120, name="fm_sines")
+hihat = session.add_osc_part(57120, name="hihat")
 
 
 def fm_sines_part():
@@ -29,8 +29,8 @@ def hihat_part():
         hihat.play_note(80 + random.random() * 40, random.random(), 0.25)
 
 
-pc.fork(fm_sines_part)
-pc.fork(hihat_part)
-pc.wait_forever()
+session.fork(fm_sines_part)
+session.fork(hihat_part)
+session.wait_forever()
 
 

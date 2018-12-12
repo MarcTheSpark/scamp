@@ -103,7 +103,7 @@ class Ensemble(SavesToJSON):
         return instrument
 
     def add_osc_part(self, port, name=None, ip_address="127.0.0.1", message_prefix=None,
-                     osc_message_strings="default"):
+                     osc_message_addresses="default"):
         """
         Constructs an OSCScampInstrument, adds it to the Ensemble, and returns it
         :param port: The port to send OSC Messages to (required)
@@ -111,14 +111,14 @@ class Ensemble(SavesToJSON):
         :param ip_address: IP Address to send to; defaults to localhost
         :param message_prefix: the first part of the message address. Defaults to name or "unnamed" if name is None.
         If two instruments have the same name, this can be used to give them distinct messages
-        :param osc_message_strings: A dictionary defining the strings used in the address of different kinds of
+        :param osc_message_addresses: A dictionary defining the strings used in the address of different kinds of
         messages. The defaults are defined in playbackSettings.json, and you probably would never change them. But
         just in case you have no control over which messages you listen for, the option is there.
         :rtype : OSCScampInstrument
         """
         name = "Track " + str(len(self.instruments) + 1) if name is None else name
         instrument = OSCScampInstrument(self, name=name, port=port, ip_address=ip_address,
-                                             message_prefix=message_prefix, osc_message_strings=osc_message_strings)
+                                             message_prefix=message_prefix, osc_message_addresses=osc_message_addresses)
         self.add_part(instrument)
         return instrument
 

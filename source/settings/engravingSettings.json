@@ -38,5 +38,9 @@
     "max_dots_allowed": 3,
     "max_voices_per_part": 4,
     "pad_incomplete_parts": true,
-    "show_music_xml_command_line": "musescore"
+    "show_music_xml_command_line": "musescore",
+    "tempo": {
+        "guide_mark_spacing": 0.5,
+        "include_guide_marks": false
+    }
 }

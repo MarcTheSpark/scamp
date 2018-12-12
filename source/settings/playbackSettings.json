@@ -42,11 +42,11 @@
         "default": "Merlin.sf2",
         "piano": "GrandPiano.sf2"
     },
-    "osc_message_defaults": {
-        "change_pitch_message_string": "change_pitch",
-        "change_quality_message_string": "change_quality",
-        "change_volume_message_string": "change_volume",
-        "end_note_message_string": "end_note",
-        "start_note_message_string": "start_note"
+    "osc_message_addresses": {
+        "change_pitch": "change_pitch",
+        "change_quality": "change_quality",
+        "change_volume": "change_volume",
+        "end_note": "end_note",
+        "start_note": "start_note"
     }
 }
