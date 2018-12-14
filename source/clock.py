@@ -598,12 +598,12 @@ class TempoEnvelope(Envelope):
 
         if duration_units == "beats":
             extension_into_future = self.length() - self.beats()
-            assert duration > extension_into_future, "Target must extend beyond the last existing target."
+            assert duration >= extension_into_future, "Target must extend beyond the last existing target."
             self.append_segment(beat_length_target, duration - extension_into_future, curve_shape)
         else:
             # units == "time", so we need to figure out how many beats are necessary
             time_extension_into_future = self.integrate_interval(self.beats(), self.length())
-            assert duration > time_extension_into_future, "Target must extend beyond the last existing target."
+            assert duration >= time_extension_into_future, "Target must extend beyond the last existing target."
 
             # normalized_time = how long the curve would take if it were one beat long
             normalized_time = EnvelopeSegment(
