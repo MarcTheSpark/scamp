@@ -8,74 +8,37 @@ import json
 
 class ScampSettings(SimpleNamespace, SavesToJSON):
 
-    _keys_to_leave_as_dicts = ()
-    _factory_defaults = {}
+    factory_defaults = {}
     _settings_name = "Settings"
     _json_path = None
+    _is_root_setting = False
 
-    def __init__(self, settings_dict, factory_defaults=None, keys_to_leave_as_dicts=None,
-                 attribute_validation_function=None):
-        factory_defaults = self._factory_defaults if factory_defaults is None else factory_defaults
-        keys_to_leave_as_dicts = self._keys_to_leave_as_dicts \
-            if keys_to_leave_as_dicts is None else keys_to_leave_as_dicts
-        if attribute_validation_function is not None:
-            self._validate_attribute = attribute_validation_function
-        settings_arguments = {}
-        for key in set(settings_dict.keys()).union(set(factory_defaults.keys())):
-            if key in settings_dict and key in factory_defaults:
-                # there is both an explicitly given setting and a factory default
-                if isinstance(factory_defaults[key], SavesToJSON):
-                    # if the factory default is a custom scamp class that serializes to or from json
-                    # then we use that class's "from_json" method to load up the setting
-                    settings_arguments[key] = type(factory_defaults[key]).from_json(settings_dict[key])
-                elif isinstance(settings_dict[key], dict) and key not in keys_to_leave_as_dicts:
-                    # otherwise, if this key points to a dictionary, and we haven't been told to leave it that way
-                    # then we convert that dictionary to a ScampSettings namespace
-                    settings_arguments[key] = ScampSettings(
-                        settings_dict[key], factory_defaults[key], keys_to_leave_as_dicts,
-                        attribute_validation_function=self._validate_attribute
-                    )
-                else:
-                    # if neither of the above is true, then it's clearly just json-ready data
-                    settings_arguments[key] = settings_dict[key]
-            elif key in settings_dict:
-                # there is no factory default for this key, which really shouldn't happen
-                # it suggests someone added something to the json file that shouldn't be there
-                logging.warning("Unexpected key \"{}\" in {}".format(
-                    key, self._json_path if self._json_path is not None else "settings"
-                ))
-            else:
-                # no setting given in the settings_dict, so we fall back to the factory default
-                if isinstance(factory_defaults[key], dict) and not isinstance(factory_defaults[key], SavesToJSON) \
-                        and key not in keys_to_leave_as_dicts:
-                    # if it's a dict, but not a custom scamp class, and we've not been told to leave it as a dictionary
-                    # then we convert the dictionary to a ScampSettings namespace
-                    settings_arguments[key] = ScampSettings(
-                        factory_defaults[key], factory_defaults[key], keys_to_leave_as_dicts=keys_to_leave_as_dicts,
-                        attribute_validation_function=self._validate_attribute
-                    )
-                else:
-                    # otherwise, we just take the default as is
-                    settings_arguments[key] = factory_defaults[key]
-            settings_arguments[key] = self._validate_attribute(key, settings_arguments[key])
-        super().__init__(**settings_arguments)
-
-    @staticmethod
-    def nested_dict_from_nested_settings(nested_settings):
-        if isinstance(nested_settings, ScampSettings):
-            nested_settings = vars(nested_settings)
-            if "_validate_attribute" in nested_settings:
-                # this is a little klugey, but the issue is that ScampSettings objects for sub-settings need to use
-                # the _validate_attribute method of their parent, so I explicitly set that method, but then it appears
-                # in the __dict__ of the settings object and must be deleted manually before serializing to json
-                del nested_settings["_validate_attribute"]
-        if hasattr(nested_settings, "to_json"):
-            return nested_settings.to_json()
-        elif isinstance(nested_settings, dict):
-            return {key: ScampSettings.nested_dict_from_nested_settings(value)
-                    for key, value in nested_settings.items()}
+    def __init__(self, settings_dict=None):
+        if settings_dict is None:
+            settings_arguments = self.factory_defaults
         else:
-            return nested_settings
+            settings_arguments = {}
+            for key in set(settings_dict.keys()).union(set(self.factory_defaults.keys())):
+                if key in settings_dict and key in self.factory_defaults:
+                    # there is both an explicitly given setting and a factory default
+                    if isinstance(self.factory_defaults[key], SavesToJSON):
+                        # if the factory default is a custom scamp class that serializes to or from json (including
+                        # another ScampSettings derivative), then we use that class's "from_json" method to load it
+                        settings_arguments[key] = type(self.factory_defaults[key]).from_json(settings_dict[key])
+                    else:
+                        # otherwise it should just be a simple json-friendly piece of data
+                        settings_arguments[key] = settings_dict[key]
+                elif key in settings_dict:
+                    # there is no factory default for this key, which really shouldn't happen
+                    # it suggests someone added something to the json file that shouldn't be there
+                    logging.warning("Unexpected key \"{}\" in {}".format(
+                        key, self._json_path if self._json_path is not None else "settings"
+                    ))
+                else:
+                    # no setting given in the settings_dict, so we fall back to the factory default
+                    settings_arguments[key] = self.factory_defaults[key]
+                settings_arguments[key] = self._validate_attribute(key, settings_arguments[key])
+        super().__init__(**settings_arguments)
 
     def restore_factory_defaults(self):
         for key in self._factory_defaults:
@@ -90,15 +53,15 @@ class ScampSettings(SimpleNamespace, SavesToJSON):
         return cls({})
 
     def to_json(self):
-        json_dict = ScampSettings.nested_dict_from_nested_settings(self)
-        return json_dict
+        return {key: value.to_json() if hasattr(value, "to_json") else value for key, value in vars(self).items()}
 
     @classmethod
     def from_json(cls, json_object):
-        return cls(json_object, cls._factory_defaults, cls._keys_to_leave_as_dicts)
+        return cls(json_object)
 
     @classmethod
     def load(cls):
+        assert cls._is_root_setting, "Cannot load a non-root setting automatically."
         try:
             return cls.load_from_json(resolve_relative_path(cls._json_path))
         except FileNotFoundError:
@@ -110,16 +73,22 @@ class ScampSettings(SimpleNamespace, SavesToJSON):
             logging.warning("Error loading {}; falling back to defaults.".format(cls._settings_name.lower()))
             return cls.factory_default()
 
-    def _validate_attribute(self, key, value):
+    @staticmethod
+    def _validate_attribute(key, value):
         return value
 
     def __setattr__(self, key, value):
-        super().__setattr__(key, self._validate_attribute(key, value))
+        if all(x is None for x in vars(self).values()):
+            # this avoids validation warnings getting sent out when we set the instance variables of subclasses
+            # to None at the beginning of their __init__ calls (which we do as a hint to IDEs)
+            super().__setattr__(key, value)
+        else:
+            super().__setattr__(key, self._validate_attribute(key, value))
 
 
 class PlaybackSettings(ScampSettings):
 
-    _factory_defaults = {
+    factory_defaults = {
         "default_soundfonts": {
             "default": "Merlin.sf2",
             "piano": "GrandPiano.sf2"
@@ -143,14 +112,16 @@ class PlaybackSettings(ScampSettings):
         })
     }
 
-    _keys_to_leave_as_dicts = ("default_soundfonts", "osc_message_addresses")
     _settings_name = "Playback settings"
     _json_path = "settings/playbackSettings.json"
+    _is_root_setting = True
 
-    def __init__(self, settings_dict, factory_defaults=None, keys_to_leave_as_dicts=None):
+    def __init__(self, settings_dict=None):
+        # This is here to help with auto-completion so that the IDE knows what attributes are available
         self.default_soundfonts = self.default_audio_driver = self.default_midi_output_device = \
             self.default_max_midi_pitch_bend = self.osc_message_addresses = self.adjustments = None
-        super().__init__(settings_dict, factory_defaults, keys_to_leave_as_dicts)
+        super().__init__(settings_dict)
+        assert isinstance(self.adjustments, PlaybackDictionary)
 
     def register_default_soundfont(self, name: str, soundfont_path: str):
         """
@@ -181,7 +152,7 @@ class PlaybackSettings(ScampSettings):
 
 class QuantizationSettings(ScampSettings):
 
-    _factory_defaults = {
+    factory_defaults = {
         "onset_weighting": 1.0,
         "termination_weighting": 0.5,
         "inner_split_weighting": 0.75,
@@ -193,17 +164,77 @@ class QuantizationSettings(ScampSettings):
 
     _settings_name = "Quantization settings"
     _json_path = "settings/quantizationSettings.json"
+    _is_root_setting = True
 
-    def __init__(self, settings_dict, factory_defaults=None, keys_to_leave_as_dicts=None):
+    def __init__(self, settings_dict=None):
         # This is here to help with auto-completion so that the IDE knows what attributes are available
         self.onset_weighting = self.termination_weighting = self.inner_split_weighting = self.max_divisor = \
             self.max_indigestibility = self.simplicity_preference = self.default_time_signature = None
-        super().__init__(settings_dict, factory_defaults, keys_to_leave_as_dicts)
+        super().__init__(settings_dict)
+
+
+class GlissandiSettings(ScampSettings):
+
+    factory_defaults = {
+        # control_point_policy can be either "grace", "split", or "none"
+        # - if "grace", the rhythm is expressed as simply as possible and they are engraved as headless grace notes
+        # - if "split", the note is split rhythmically at the control points
+        # - if "none", control points are ignored
+        "control_point_policy": "split",
+        # if true, we consider all control points in the engraving process.
+        # If false, we only consider local extrema.
+        "consider_non_extrema_control_points": False,
+        # if true, the final pitch reached is expressed as a gliss up to a headless grace note
+        "include_end_grace_note": True,
+        # this threshold helps determine which gliss control points are worth expressing in notation
+        # the further a control point is from its neighbors, and the further it deviates from
+        # the linearly interpolated pitch at that point, the higher its relevance score.
+        "inner_grace_relevance_threshold": 4.0,
+        "max_inner_graces_music_xml": 1
+    }
+
+    _settings_name = "Glissandi settings"
+    _json_path = "settings/engravingSettings.json"
+    _is_root_setting = False
+
+    def __init__(self, settings_dict=None):
+        # This is here to help with auto-completion so that the IDE knows what attributes are available
+        self.control_point_policy = self.consider_non_extrema_control_points = self.include_end_grace_note = \
+            self.inner_grace_relevance_threshold = self.max_inner_graces_music_xml = None
+        super().__init__(settings_dict)
+
+    @staticmethod
+    def _validate_attribute(key, value):
+        if key == "control_point_policy" and value not in ("grace", "split", "none"):
+            logging.warning(
+                "Invalid value of \"{}\" for glissando control point policy: must be one of: \"grace\", \"split\", or "
+                "\"none\". Defaulting to \"{}\".".format(
+                    value, GlissandiSettings.factory_defaults["control_point_policy"]
+                )
+            )
+            return GlissandiSettings.factory_defaults["control_point_policy"]
+        return value
+
+
+class TempoSettings(ScampSettings):
+    factory_defaults = {
+        "guide_mark_spacing": 0.5,
+        "include_guide_marks": False,
+        "parenthesize_guide_marks": True
+    }
+
+    _settings_name = "Tempo settings"
+    _json_path = "settings/engravingSettings.json"
+    _is_root_setting = False
+
+    def __init__(self, settings_dict=None):
+        self.guide_mark_spacing = self.include_guide_marks = self.parenthesize_guide_marks = None
+        super().__init__(settings_dict)
 
 
 class EngravingSettings(ScampSettings):
 
-    _factory_defaults = {
+    factory_defaults = {
         "max_voices_per_part": 4,
         "max_dots_allowed": 3,
         "articulation_split_protocols": {  # can be first, last, or both
@@ -220,42 +251,24 @@ class EngravingSettings(ScampSettings):
                               "The Rubytles", "CSStiny's Child", "Perl Jam", "PHPrince", ],
         "default_spelling_policy": SpellingPolicy.from_string("C"),
         "ignore_empty_parts": True,
-        "glissandi": {
-            # control_point_policy can be either "grace", "split", or "none"
-            # - if "grace", the rhythm is expressed as simply as possible and they are engraved as headless grace notes
-            # - if "split", the note is split rhythmically at the control points
-            # - if "none", control points are ignored
-            "control_point_policy": "split",
-            # if true, we consider all control points in the engraving process.
-            # If false, we only consider local extrema.
-            "consider_non_extrema_control_points": False,
-            # if true, the final pitch reached is expressed as a gliss up to a headless grace note
-            "include_end_grace_note": True,
-            # this threshold helps determine which gliss control points are worth expressing in notation
-            # the further a control point is from its neighbors, and the further it deviates from
-            # the linearly interpolated pitch at that point, the higher its relevance score.
-            "inner_grace_relevance_threshold": 4.0,
-            "max_inner_graces_music_xml": 1
-        },
-        "tempo": {
-            "guide_mark_spacing": 0.5,
-            "include_guide_marks": False,
-            "parenthesize_guide_marks": True
-        },
+        "glissandi": GlissandiSettings(),
+        "tempo": TempoSettings(),
         "pad_incomplete_parts": True,
         "show_music_xml_command_line": "musescore",
     }
 
-    _keys_to_leave_as_dicts = ("articulation_split_protocols", )
     _settings_name = "Engraving settings"
     _json_path = "settings/engravingSettings.json"
+    _is_root_setting = True
 
-    def __init__(self, settings_dict, factory_defaults=None, keys_to_leave_as_dicts=None):
+    def __init__(self, settings_dict=None):
         # This is here to help with auto-completion so that the IDE knows what attributes are available
         self.max_voices_per_part = self.max_dots_allowed = self.articulation_split_protocols = self.default_titles = \
-            self.default_composers = self.default_spelling_policy = self.ignore_empty_parts = self.glissandi = \
-            self.tempo = self.pad_incomplete_parts = self.show_music_xml_command_line = None
-        super().__init__(settings_dict, factory_defaults, keys_to_leave_as_dicts)
+            self.default_composers = self.default_spelling_policy = self.ignore_empty_parts = \
+            self.pad_incomplete_parts = self.show_music_xml_command_line = None
+        self.glissandi: GlissandiSettings = None
+        self.tempo: TempoSettings = None
+        super().__init__(settings_dict)
 
     def get_default_title(self):
         if isinstance(self.default_titles, list):
@@ -278,20 +291,15 @@ class EngravingSettings(ScampSettings):
     def _validate_attribute(self, key, value):
         if key == "max_voices_per_part" and not (isinstance(value, int) and 1 <= value <= 4):
             logging.warning("Invalid value \"{}\" for max_voices_per_part: must be an integer from 1 to 4. defaulting "
-                            "to {}".format(value, EngravingSettings._factory_defaults["max_voices_per_part"]))
-        elif key == "control_point_policy" and value not in ("grace", "split", "none"):
-            logging.warning(
-                "Invalid value of \"{}\" for glissando control point policy: must be one of: \"grace\", \"split\", or "
-                "\"none\". Defaulting to \"{}\".".format(
-                    value, EngravingSettings._factory_defaults["glissandi"]["control_point_policy"]
-                )
-            )
+                            "to {}".format(value, EngravingSettings.factory_defaults["max_voices_per_part"]))
+            return EngravingSettings.factory_defaults["max_voices_per_part"]
         elif key == "default_composers" and not isinstance(value, (list, str, type(None))):
             logging.warning("Default composers not understood: must be a list, string, or None. "
                             "Falling back to defaults.")
+            return EngravingSettings.factory_defaults["default_composers"]
         elif key == "default_titles" and not isinstance(value, (list, str, type(None))):
             logging.warning("Default titles not understood: must be a list, string, or None. Falling back to defaults.")
-
+            return EngravingSettings.factory_defaults["default_titles"]
         return value
 
 
