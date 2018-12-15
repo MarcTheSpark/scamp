@@ -559,8 +559,8 @@ class TempoEnvelope(Envelope):
         self.truncate()
         self.append_segment(beat_length, 0)
 
-    def beat_length_at(self, beat):
-        return self.value_at(beat)
+    def beat_length_at(self, beat, from_left=False):
+        return self.value_at(beat, from_left)
 
     @property
     def rate(self):
@@ -570,8 +570,8 @@ class TempoEnvelope(Envelope):
     def rate(self, rate):
         self.beat_length = 1/rate
 
-    def rate_at(self, beat):
-        return 1 / self.beat_length_at(beat)
+    def rate_at(self, beat, from_left=False):
+        return 1 / self.beat_length_at(beat, from_left)
 
     @property
     def tempo(self):
@@ -581,8 +581,8 @@ class TempoEnvelope(Envelope):
     def tempo(self, tempo):
         self.rate = tempo / 60
 
-    def tempo_at(self, beat):
-        return self.rate_at(beat) * 60
+    def tempo_at(self, beat, from_left=False):
+        return self.rate_at(beat, from_left) * 60
 
     def set_beat_length_target(self, beat_length_target, duration, curve_shape=0,
                                duration_units="beats", truncate=True):

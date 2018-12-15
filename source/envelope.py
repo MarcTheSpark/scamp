@@ -570,12 +570,18 @@ class Envelope:
 
     # ------------------------ Interpolation, Integration --------------------------
 
-    def value_at(self, t):
+    def value_at(self, t, from_left=False):
+        """
+        The most important method for an Envelope: what's it's value at a given time
+        :param t: the time
+        :param from_left: if true, get the limit as we approach t from the left. In the case of a zero-length segment,
+        which suddenly changes the value, this tells us what the value was right before the jump.
+        :return: the value of this Envelope at t
+        """
         if t < self.start_time():
             return self.start_level()
-        for segment in reversed(self.segments):
-            # we start at the end in case of zero_length segments; it's best that they return their end level
-            if t in segment:
+        for segment in self.segments:
+            if t in segment or from_left and t == segment.end_time:
                 return segment.value_at(t)
         return self.end_level()
 
