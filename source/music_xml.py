@@ -1090,6 +1090,13 @@ class Measure(MusicXMLComponent):
                     for direction in element.directions:
                         direction.voice = i + 1
 
+    def _get_beat_division_for_directions(self):
+        # determine what beat division is ideal for the independently placed directions
+        if len(self.directions_with_displacements) == 0:
+            return None
+        return _least_common_multiple(*[Fraction(displacement).limit_denominator(256).denominator
+                                        for _, displacement in self.directions_with_displacements])
+
     def render(self):
         self.set_leaf_voices()
 
@@ -1098,6 +1105,18 @@ class Measure(MusicXMLComponent):
         attributes_el = ElementTree.SubElement(measure_element, "attributes")
 
         num_beat_divisions = _least_common_multiple(*[x.min_denominator() for x in self.leaves()])
+
+        if len(self.directions_with_displacements) > 0:
+            # if we're using independently placed directions, then we try to find a denominator that accommodates
+            # that as precisely as possible this means
+            ideal_division = _least_common_multiple(self._get_beat_division_for_directions(), num_beat_divisions)
+            if ideal_division <= 1024:
+                num_beat_divisions = ideal_division
+            else:
+                # Just in case the ideal division is totally outrageous, we just multiply the division
+                # by two repeatedly until we are about to go over 1024
+                num_beat_divisions *= max(1, 2 ** int(math.log2(1024 / num_beat_divisions)))
+
         for note in self.leaves():
             note.divisions = num_beat_divisions
 
