@@ -93,8 +93,16 @@ def round_x_to_pow_of_y(x, y):
     return y ** (int(round(a)) if isinstance(y, int) else round(a))
 
 
+def floor_to_multiple(x, factor):
+    return math.floor(x / factor) * factor
+
+
+def ceil_to_multiple(x, factor):
+    return math.ceil(x / factor) * factor
+
+
 def round_to_multiple(x, factor):
-    return round(x/factor)*factor
+    return round(x / factor) * factor
 
 
 def is_multiple(x, y):

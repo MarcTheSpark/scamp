@@ -218,8 +218,13 @@ class GlissandiSettings(ScampSettings):
 
 class TempoSettings(ScampSettings):
     factory_defaults = {
-        "guide_mark_spacing": 0.5,
-        "include_guide_marks": False,
+        # grid that the guide marks are snapped to, in beats. Actual appearance of a guide mark depends on sensitivity.
+        "guide_mark_resolution": 0.125,
+        # guide_mark_sensitivity represents how much a tempo has to change proportionally to put a guide mark
+        # so for instance, if it's 0.1 and the last notated tempo was 60, we'll put a guide mark when the
+        # tempo reaches 60 +/- 0.1 * 60 = 54 or 66
+        "guide_mark_sensitivity": 0.08,
+        "include_guide_marks": True,
         "parenthesize_guide_marks": True
     }
 
@@ -228,7 +233,8 @@ class TempoSettings(ScampSettings):
     _is_root_setting = False
 
     def __init__(self, settings_dict=None):
-        self.guide_mark_spacing = self.include_guide_marks = self.parenthesize_guide_marks = None
+        self.guide_mark_resolution = self.guide_mark_resolution = self.include_guide_marks = \
+            self.parenthesize_guide_marks = None
         super().__init__(settings_dict)
 
 

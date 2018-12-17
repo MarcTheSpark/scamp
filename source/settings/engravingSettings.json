@@ -40,8 +40,9 @@
     "pad_incomplete_parts": true,
     "show_music_xml_command_line": "musescore",
     "tempo": {
-        "guide_mark_spacing": 0.5,
-        "include_guide_marks": false,
+        "guide_mark_resolution": 0.125,
+        "guide_mark_sensitivity": 0.08,
+        "include_guide_marks": true,
         "parenthesize_guide_marks": true
     }
 }

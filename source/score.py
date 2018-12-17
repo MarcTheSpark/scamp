@@ -2,7 +2,8 @@ from scamp.settings import quantization_settings, engraving_settings
 from scamp.envelope import Envelope
 from scamp.quantization import QuantizationRecord, QuantizationScheme, TimeSignature
 from scamp.performance_note import PerformanceNote
-from scamp.utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y
+from scamp.utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y, \
+    ceil_to_multiple, floor_to_multiple
 from scamp.engraving_translations import get_xml_notehead, get_lilypond_notehead_name
 from scamp.note_properties import NotePropertiesDictionary
 from scamp import music_xml
@@ -354,41 +355,94 @@ class Score(ScoreComponent, ScoreContainer):
                 staff.measures.append(Measure.empty_measure(corresponding_measure_in_long_staff.time_signature,
                                                             corresponding_measure_in_long_staff.show_time_signature))
 
+    def _get_tempo_key_points_and_guide_marks(self):
+        """
+        Returns a list of where the key tempo points are and a list of tuples representing the locations of any
+        guide marks and the tempos that they indicate at those point. The reason for this is that occasionally a
+        guide mark might be indicating the final tempo of a rit or accel, but be placed a tiny bit before that moment
+        so as not to conflict with another tempo marking upon arrival.
+        """
+        # the tempo needs to be expressly stated at the beginning, at any change of tempo direction,
+        # at the start of any stable plateau (i.e. saddle point) and at the end of the tempo envelope if not redundant
+        key_points = [0] + self.tempo_envelope.local_extrema(include_saddle_points=True)
+        # if the last segment speeds up, we need to notate its end tempo
+        if self.tempo_envelope.tempo_at(key_points[-1]) != self.tempo_envelope.end_level:
+            key_points.append(self.tempo_envelope.end_time())
+
+        guide_marks = []
+        if engraving_settings.tempo.include_guide_marks:
+            for left_key_point, right_key_point in zip(key_points[:-1], key_points[1:]):
+                last_tempo = self.tempo_envelope.tempo_at(left_key_point)
+                t = ceil_to_multiple(left_key_point, engraving_settings.tempo.guide_mark_resolution)
+                while t < floor_to_multiple(right_key_point, engraving_settings.tempo.guide_mark_resolution):
+                    # guide_mark_sensitivity is the proportional change in tempo needed for a guide mark
+                    sensitivity_factor = 1 + engraving_settings.tempo.guide_mark_sensitivity
+                    current_tempo = self.tempo_envelope.tempo_at(t)
+                    if not last_tempo / sensitivity_factor < current_tempo < last_tempo * sensitivity_factor:
+                        guide_marks.append((t, self.tempo_envelope.tempo_at(t)))
+                        last_tempo = current_tempo
+                    t += engraving_settings.tempo.guide_mark_resolution
+        else:
+            # no guide marks, but we still need to give a special indication when there is a sudden
+            # jump in tempo that happens after an accel or a rit. that ends at a different tempo
+            for last_point, key_point in zip(key_points[:-1], key_points[1:]):
+                if self.tempo_envelope.tempo_at(key_point) != self.tempo_envelope.tempo_at(key_point, True) \
+                        and self.tempo_envelope.tempo_at(key_point, True) != self.tempo_envelope.tempo_at(last_point):
+                    # if the tempo is different approached from the left and from the right, then this is a
+                    # sudden change of tempo, and if it happens after an accel or rit, we need to indicate where
+                    # that accel or rit ended before jumping tempo.
+                    guide_mark_location = (key_point - min(0.25, (key_point - last_point) / 2))
+                    guide_marks.append((guide_mark_location, self.tempo_envelope.tempo_at(key_point, True)))
+
+        return key_points, guide_marks
+
     def _to_abjad(self):
         score = abjad.Score([part._to_abjad() for part in self.parts])
         return score
 
     def to_music_xml(self):
         xml_score = music_xml.Score([part.to_music_xml() for part in self. parts], self.title, self.composer)
-        # the tempo needs to be expressly stated at the beginning, at any change of tempo direction,
-        # at the start of any stable plateau (i.e. saddle point) and at the end of the tempo envelope if not redundant
-        key_points = [0] + self.tempo_envelope.local_extrema(include_saddle_points=True)
-        if self.tempo_envelope.tempo_at(key_points[-1]) != self.tempo_envelope.end_level:
-            key_points.append(self.tempo_envelope.end_time())
+
+        key_points, guide_marks = self._get_tempo_key_points_and_guide_marks()
 
         measure_start = 0
+        # go through each measure and add the tempo annotations
         for xml_measure, score_measure in zip(xml_score.parts[0].measures, self.staves[0].measures):
-            if len(key_points) == 0:
+            if len(key_points) + len(guide_marks) == 0:
                 break
             this_measure_annotations = []
+
+            measure_beat_lengths = score_measure.time_signature.beat_lengths
+            metronome_mark_beat_length = measure_beat_lengths[0] \
+                if all(x == measure_beat_lengths[0] for x in measure_beat_lengths) else 1.0
+
             while len(key_points) > 0 and key_points[0] - measure_start < score_measure.length:
                 key_point = key_points.pop(0)
                 key_point_tempo = self.tempo_envelope.tempo_at(key_point)
                 next_key_point_tempo = self.tempo_envelope.tempo_at(key_points[0]) if len(key_points) > 0 else None
                 change_indicator = None if next_key_point_tempo is None or next_key_point_tempo == key_point_tempo \
                     else "accel." if next_key_point_tempo > key_point_tempo else "rit."
-                measure_beat_lengths = score_measure.time_signature.beat_lengths
-                if all(x == measure_beat_lengths[0] for x in measure_beat_lengths):
-                    beat_length = measure_beat_lengths[0]
-                    bpm = key_point_tempo / beat_length
-                else:
-                    beat_length = 1.0
-                    bpm = key_point_tempo
-                this_measure_annotations.append((music_xml.MetronomeMark(beat_length, bpm), key_point - measure_start))
+
+                this_measure_annotations.append(
+                    (music_xml.MetronomeMark(metronome_mark_beat_length,
+                                             round(key_point_tempo / metronome_mark_beat_length, 1)),
+                     key_point - measure_start)
+                )
+
                 if change_indicator is not None:
                     this_measure_annotations.append((music_xml.TextAnnotation(change_indicator, italic=True),
                                                      key_point - measure_start))
 
+            while len(guide_marks) > 0 and guide_marks[0][0] - measure_start < score_measure.length:
+                guide_mark_location, guide_mark_tempo = guide_marks.pop(0)
+                this_measure_annotations.append(
+                    (music_xml.MetronomeMark(metronome_mark_beat_length,
+                                             round(guide_mark_tempo / metronome_mark_beat_length, 1),
+                                             parentheses="yes", font_size="5"),
+                     guide_mark_location - measure_start)
+                )
+
+            this_measure_annotations.sort(key=lambda x: x[1])
             xml_measure.directions_with_displacements = this_measure_annotations
             measure_start += score_measure.length
         return xml_score
