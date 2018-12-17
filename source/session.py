@@ -1,11 +1,11 @@
-from scamp.performance import Performance
+from .performance import Performance
 
-from scamp.ensemble import Ensemble
-from scamp.instruments import ScampInstrument
+from .ensemble import Ensemble
+from .instruments import ScampInstrument
 
-from scamp.midi_listener import *
+from .midi_listener import *
 
-from scamp.spelling import SpellingPolicy
+from .spelling import SpellingPolicy
 
 
 class Session:

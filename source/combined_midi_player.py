@@ -1,7 +1,7 @@
-from scamp.utilities import resolve_relative_path, SavesToJSON
-from scamp.simple_rtmidi_wrapper import SimpleRtMidiOut
-from scamp.settings import playback_settings
-from scamp.dependencies import fluidsynth, Sf2File
+from .utilities import resolve_relative_path, SavesToJSON
+from .simple_rtmidi_wrapper import SimpleRtMidiOut
+from .settings import playback_settings
+from .dependencies import fluidsynth, Sf2File
 import logging
 from collections import namedtuple
 

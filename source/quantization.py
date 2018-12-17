@@ -1,9 +1,9 @@
 from fractions import Fraction
-from scamp.utilities import indigestibility, is_multiple, is_x_pow_of_y, round_to_multiple, SavesToJSON
+from .utilities import indigestibility, is_multiple, is_x_pow_of_y, round_to_multiple, SavesToJSON
 from collections import namedtuple
-from scamp.settings import quantization_settings, engraving_settings
-from scamp.envelope import Envelope
-from scamp.dependencies import abjad
+from .settings import quantization_settings, engraving_settings
+from . import Envelope
+from .dependencies import abjad
 import textwrap
 
 QuantizedBeat = namedtuple("QuantizedBeat", "start_time start_time_in_measure length divisor")

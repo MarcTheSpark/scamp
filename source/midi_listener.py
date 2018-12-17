@@ -1,7 +1,7 @@
-from scamp.clock import Clock
+from .clockblocks import Clock
 import inspect
 import time
-from scamp.dependencies import rtmidi
+from .dependencies import rtmidi
 
 
 def get_available_ports_and_devices():

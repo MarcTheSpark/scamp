@@ -2,10 +2,10 @@ import itertools
 from copy import deepcopy
 from functools import total_ordering
 
-from scamp.envelope import Envelope
-from scamp.utilities import SavesToJSON
-from scamp.note_properties import NotePropertiesDictionary
-from scamp.settings import engraving_settings
+from . import Envelope
+from .utilities import SavesToJSON
+from .note_properties import NotePropertiesDictionary
+from .settings import engraving_settings
 
 """
 Note: This is a separate file from performance.py, since it is used both in performance.py and score.py,

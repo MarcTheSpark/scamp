@@ -3,7 +3,7 @@ from collections import namedtuple
 import threading
 from multiprocessing.pool import ThreadPool
 import logging
-from scamp.envelope import Envelope, EnvelopeSegment
+from .expenvelope import Envelope, EnvelopeSegment
 from copy import deepcopy
 import inspect
 

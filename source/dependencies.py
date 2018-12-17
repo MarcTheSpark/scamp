@@ -1,4 +1,4 @@
-from scamp.settings import playback_settings
+from .settings import playback_settings
 import logging
 
 ABJAD_MINIMUM_VERSION = "3.0.0"

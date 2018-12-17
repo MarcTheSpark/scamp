@@ -1,6 +1,6 @@
-from scamp.instruments import ScampInstrument, MidiScampInstrument, OSCScampInstrument
-from scamp.combined_midi_player import CombinedMidiPlayer
-from scamp.utilities import SavesToJSON
+from .instruments import ScampInstrument, MidiScampInstrument, OSCScampInstrument
+from .combined_midi_player import CombinedMidiPlayer
+from .utilities import SavesToJSON
 
 
 # TODO: allow a silent MIDI Instrument to be created (e.g. "add_silent_midi_part") that outputs a MIDI stream only

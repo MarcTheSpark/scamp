@@ -1,5 +1,5 @@
 from xml.etree import ElementTree
-from scamp import music_xml
+from . import pymusicxml
 import logging
 
 
@@ -103,7 +103,7 @@ def get_xml_notehead(notehead_string: str):
         raise ValueError("Notehead type {} not recognized".format(notehead_string))
     else:
         base_notehead = notehead_name_to_xml_type[base_notehead]
-    out = music_xml.Notehead(base_notehead)
+    out = pymusicxml.Notehead(base_notehead)
     if notehead_string.startswith("filled"):
         out.filled = "yes"
     elif notehead_string.startswith("open"):

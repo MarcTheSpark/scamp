@@ -1,7 +1,7 @@
-from scamp.playback_adjustments import *
-from scamp.utilities import SavesToJSON
-from scamp.settings import playback_settings, engraving_settings
-from scamp.spelling import SpellingPolicy
+from .playback_adjustments import *
+from .utilities import SavesToJSON
+from .settings import playback_settings, engraving_settings
+from .spelling import SpellingPolicy
 from copy import deepcopy
 import logging
 

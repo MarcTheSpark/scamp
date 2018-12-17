@@ -1,15 +1,15 @@
 import threading
 import time
-from scamp.envelope import Envelope
-from scamp.utilities import SavesToJSON
+from . import Envelope
+from .utilities import SavesToJSON
 from itertools import count
-from scamp.settings import playback_settings
+from .settings import playback_settings
 from copy import deepcopy
-from scamp.note_properties import NotePropertiesDictionary
-from scamp.clock import current_clock
-from scamp.spelling import SpellingPolicy
+from .note_properties import NotePropertiesDictionary
+from .clockblocks import current_clock
+from .spelling import SpellingPolicy
 import atexit
-from scamp.dependencies import udp_client
+from .dependencies import udp_client
 
 # TODO: Stretch goal: allow MIDIScampInstrument to have multiple presets
 # Maybe create a method "add_alternate_preset(name, preset, soundfont_index, num_channels, triggers)"

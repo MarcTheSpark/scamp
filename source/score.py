@@ -1,13 +1,13 @@
-from scamp.settings import quantization_settings, engraving_settings
-from scamp.envelope import Envelope
-from scamp.quantization import QuantizationRecord, QuantizationScheme, TimeSignature
-from scamp.performance_note import PerformanceNote
-from scamp.utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y, \
+from .settings import quantization_settings, engraving_settings
+from . import Envelope
+from .quantization import QuantizationRecord, QuantizationScheme, TimeSignature
+from .performance_note import PerformanceNote
+from .utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y, \
     ceil_to_multiple, floor_to_multiple
-from scamp.engraving_translations import get_xml_notehead, get_lilypond_notehead_name
-from scamp.note_properties import NotePropertiesDictionary
-from scamp import music_xml
-from scamp.dependencies import abjad
+from .engraving_translations import get_xml_notehead, get_lilypond_notehead_name
+from .note_properties import NotePropertiesDictionary
+from . import pymusicxml
+from .dependencies import abjad
 import math
 from fractions import Fraction
 from itertools import permutations
@@ -401,7 +401,7 @@ class Score(ScoreComponent, ScoreContainer):
         return score
 
     def to_music_xml(self):
-        xml_score = music_xml.Score([part.to_music_xml() for part in self. parts], self.title, self.composer)
+        xml_score = pymusicxml.Score([part.to_music_xml() for part in self. parts], self.title, self.composer)
 
         key_points, guide_marks = self._get_tempo_key_points_and_guide_marks()
 
@@ -424,21 +424,21 @@ class Score(ScoreComponent, ScoreContainer):
                     else "accel." if next_key_point_tempo > key_point_tempo else "rit."
 
                 this_measure_annotations.append(
-                    (music_xml.MetronomeMark(metronome_mark_beat_length,
-                                             round(key_point_tempo / metronome_mark_beat_length, 1)),
+                    (pymusicxml.MetronomeMark(metronome_mark_beat_length,
+                                              round(key_point_tempo / metronome_mark_beat_length, 1)),
                      key_point - measure_start)
                 )
 
                 if change_indicator is not None:
-                    this_measure_annotations.append((music_xml.TextAnnotation(change_indicator, italic=True),
+                    this_measure_annotations.append((pymusicxml.TextAnnotation(change_indicator, italic=True),
                                                      key_point - measure_start))
 
             while len(guide_marks) > 0 and guide_marks[0][0] - measure_start < score_measure.length:
                 guide_mark_location, guide_mark_tempo = guide_marks.pop(0)
                 this_measure_annotations.append(
-                    (music_xml.MetronomeMark(metronome_mark_beat_length,
-                                             round(guide_mark_tempo / metronome_mark_beat_length, 1),
-                                             parentheses="yes", font_size="5"),
+                    (pymusicxml.MetronomeMark(metronome_mark_beat_length,
+                                              round(guide_mark_tempo / metronome_mark_beat_length, 1),
+                                              parentheses="yes", font_size="5"),
                      guide_mark_location - measure_start)
                 )
 
@@ -694,7 +694,7 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         return abjad.StaffGroup([staff._to_abjad() for staff in self.staves])
 
     def to_music_xml(self):
-        return music_xml.PartGroup([staff.to_music_xml() for staff in self.staves])
+        return pymusicxml.PartGroup([staff.to_music_xml() for staff in self.staves])
 
 
 def _join_same_source_abjad_note_group(same_source_group):
@@ -728,7 +728,7 @@ def _join_same_source_xml_note_group(same_source_group):
     glisses_started_numbers = []
     gliss_present = False
     for i, this_note_or_chord in enumerate(same_source_group):
-        if isinstance(this_note_or_chord, music_xml.Note):
+        if isinstance(this_note_or_chord, pymusicxml.Note):
             if i < len(same_source_group) - 1:
                 # not the last note of the group, so it starts a tie or gliss
                 next_note_or_chord = same_source_group[i + 1]
@@ -740,7 +740,7 @@ def _join_same_source_xml_note_group(same_source_group):
                     this_note_or_chord.starts_tie = False
                     if len(available_gliss_numbers) > 0:
                         this_gliss_number = available_gliss_numbers.pop(0)
-                        this_note_or_chord.notations.append(music_xml.StartGliss(this_gliss_number))
+                        this_note_or_chord.notations.append(pymusicxml.StartGliss(this_gliss_number))
                         glisses_started_notes.append(this_note_or_chord)
                         glisses_started_numbers.append(this_gliss_number)
                     else:
@@ -762,11 +762,11 @@ def _join_same_source_xml_note_group(same_source_group):
                     if which_start_gliss >= 0:
                         glisses_started_notes.pop(which_start_gliss)
                         gliss_number = glisses_started_numbers.pop(which_start_gliss)
-                        this_note_or_chord.notations.append(music_xml.StopGliss(gliss_number))
+                        this_note_or_chord.notations.append(pymusicxml.StopGliss(gliss_number))
                         available_gliss_numbers.append(gliss_number)
                         available_gliss_numbers.sort()
                     gliss_present = True
-        elif isinstance(this_note_or_chord, music_xml.Chord):
+        elif isinstance(this_note_or_chord, pymusicxml.Chord):
             next_note_or_chord = same_source_group[i + 1] if i < len(same_source_group) - 1 else None
             last_note_or_chord = same_source_group[i - 1] if i > 0 else None
 
@@ -782,7 +782,7 @@ def _join_same_source_xml_note_group(same_source_group):
                         note.starts_tie = False
                         if len(available_gliss_numbers) > 0:
                             this_gliss_number = available_gliss_numbers.pop(0)
-                            note.notations.append(music_xml.StartGliss(this_gliss_number))
+                            note.notations.append(pymusicxml.StartGliss(this_gliss_number))
                             glisses_started_notes.append(note)
                             glisses_started_numbers.append(this_gliss_number)
                         else:
@@ -803,7 +803,7 @@ def _join_same_source_xml_note_group(same_source_group):
                             which_start_gliss = glisses_started_notes.index(last_note)
                             glisses_started_notes.pop(which_start_gliss)
                             gliss_number = glisses_started_numbers.pop(which_start_gliss)
-                            note.notations.append(music_xml.StopGliss(gliss_number))
+                            note.notations.append(pymusicxml.StopGliss(gliss_number))
                             # return this gliss number to the pool of available numbers
                             available_gliss_numbers.append(gliss_number)
                             available_gliss_numbers.sort()
@@ -815,8 +815,8 @@ def _join_same_source_xml_note_group(same_source_group):
 
     if gliss_present:
         # add slur notation to the very first note and last note
-        same_source_group[0].notations.append(music_xml.StartSlur())
-        same_source_group[-1].notations.append(music_xml.StopSlur())
+        same_source_group[0].notations.append(pymusicxml.StartSlur())
+        same_source_group[-1].notations.append(pymusicxml.StopSlur())
 
 
 class Staff(ScoreComponent, ScoreContainer):
@@ -857,7 +857,7 @@ class Staff(ScoreComponent, ScoreContainer):
         measures = [measure.to_music_xml(source_id_dict) for measure in self.measures]
         for same_source_group in source_id_dict.values():
             _join_same_source_xml_note_group(same_source_group)
-        return music_xml.Part(self.name, measures)
+        return pymusicxml.Part(self.name, measures)
 
 
 _voice_names = [r'voiceOne', r'voiceTwo', r'voiceThree', r'voiceFour']
@@ -944,7 +944,7 @@ class Measure(ScoreComponent, ScoreContainer):
             for same_source_group in source_id_dict.values():
                 _join_same_source_xml_note_group(same_source_group)
 
-        return music_xml.Measure(xml_voices, time_signature=time_signature)
+        return pymusicxml.Measure(xml_voices, time_signature=time_signature)
 
 
 class Voice(ScoreComponent, ScoreContainer):
@@ -1109,7 +1109,7 @@ class Voice(ScoreComponent, ScoreContainer):
 
     def to_music_xml(self, source_id_dict=None):
         if len(self.contents) == 0:
-            return [music_xml.BarRest(self.time_signature.numerator / self.time_signature.denominator * 4)]
+            return [pymusicxml.BarRest(self.time_signature.numerator / self.time_signature.denominator * 4)]
         else:
             is_top_level_call = True if source_id_dict is None else False
             source_id_dict = {} if source_id_dict is None else source_id_dict
@@ -1129,13 +1129,13 @@ class Voice(ScoreComponent, ScoreContainer):
                     else:
                         assert isinstance(this_item, Tuplet)
                         if len(beat_group) > 0:
-                            out.append(music_xml.BeamedGroup(beat_group))
+                            out.append(pymusicxml.BeamedGroup(beat_group))
                             beat_group = []
                         out.append(this_item.to_music_xml(source_id_dict))
                         t += this_item.length()
 
                 if len(beat_group) > 0:
-                    out.append(music_xml.BeamedGroup(beat_group))
+                    out.append(pymusicxml.BeamedGroup(beat_group))
             assert len(contents) == 0  # we should have gone through everything at this point
 
             if is_top_level_call:
@@ -1214,7 +1214,7 @@ class Tuplet(ScoreComponent, ScoreContainer):
         if is_top_level_call:
             for same_source_group in source_id_dict.values():
                 _join_same_source_xml_note_group(same_source_group)
-        return music_xml.Tuplet(xml_note_segments, (self.tuplet_divisions, self.normal_divisions))
+        return pymusicxml.Tuplet(xml_note_segments, (self.tuplet_divisions, self.normal_divisions))
 
 
 class NoteLike(ScoreComponent):
@@ -1426,9 +1426,9 @@ class NoteLike(ScoreComponent):
 
     def to_music_xml(self, source_id_dict=None):
         if self.is_rest():
-            return music_xml.Rest(self.written_length),
+            return pymusicxml.Rest(self.written_length),
         elif self.is_chord():
-            out = [music_xml.Chord(
+            out = [pymusicxml.Chord(
                 tuple(self.properties.spelling_policy.resolve_music_xml_pitch(
                     p.start_level() if isinstance(p, Envelope) else p
                 ) for p in self.pitch),
@@ -1443,14 +1443,14 @@ class NoteLike(ScoreComponent):
                         p.value_at(t) if isinstance(p, Envelope) else p) for p in self.pitch)
                     # only add a grace chord if it differs in pitch from the last chord / grace chord
                     if these_pitches[0] != out[-1].pitches[0]:
-                        out.append(music_xml.GraceChord(
+                        out.append(pymusicxml.GraceChord(
                             these_pitches, 1.0, stemless=True,
                             noteheads=tuple(get_xml_notehead(notehead) if notehead != "normal" else None
                                             for notehead in self.properties.noteheads)
                         ))
 
         else:
-            out = [music_xml.Note(
+            out = [pymusicxml.Note(
                 self.properties.spelling_policy.resolve_music_xml_pitch(
                     self.pitch.start_level() if isinstance(self.pitch, Envelope) else self.pitch
                 ),
@@ -1464,7 +1464,7 @@ class NoteLike(ScoreComponent):
                     this_pitch = self.properties.spelling_policy.resolve_music_xml_pitch(self.pitch.value_at(t))
                     # only add a grace note if it differs in pitch from the last note / grace note
                     if this_pitch != out[-1].pitch:
-                        out.append(music_xml.GraceNote(
+                        out.append(pymusicxml.GraceNote(
                             this_pitch, 1.0, stemless=True,
                             notehead=(get_xml_notehead(self.properties.noteheads[0])
                                       if self.properties.noteheads[0] != "normal" else None)

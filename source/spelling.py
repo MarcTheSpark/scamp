@@ -1,5 +1,5 @@
 import functools
-from scamp.utilities import SavesToJSON
+from .utilities import SavesToJSON
 _c_standard_spellings = ((0, 0), (0, 1), (1, 0), (2, -1), (2, 0), (3, 0),
                          (3, 1), (4, 0), (5, -1), (5, 0), (6, -1), (6, 0))
 _c_phrygian_spellings = ((0, 0), (1, -1), (1, 0), (2, -1), (2, 0), (3, 0),
@@ -151,8 +151,8 @@ class SpellingPolicy(SavesToJSON):
 
     def resolve_music_xml_pitch(self, midi_num):
         name, octave, alteration = self.resolve_name_octave_and_alteration(midi_num)
-        from scamp import music_xml
-        return music_xml.Pitch(name.upper(), octave, alteration)
+        from . import pymusicxml
+        return pymusicxml.Pitch(name.upper(), octave, alteration)
 
     def to_json(self):
         # check to see this SpellingPolicy is identical to one made from one of the following string initializers

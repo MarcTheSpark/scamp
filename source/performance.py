@@ -1,10 +1,10 @@
 import bisect
-from scamp.quantization import quantize_performance_part, QuantizationRecord, QuantizationScheme
-from scamp.settings import quantization_settings
-from scamp.clock import Clock, TempoEnvelope
-from scamp.performance_note import *
-from scamp.score import Score, StaffGroup
-from scamp.utilities import SavesToJSON
+from .quantization import quantize_performance_part, QuantizationRecord, QuantizationScheme
+from .settings import quantization_settings
+from .clockblocks import Clock, TempoEnvelope
+from .performance_note import *
+from .score import Score, StaffGroup
+from .utilities import SavesToJSON
 import logging
 from copy import deepcopy
 import itertools

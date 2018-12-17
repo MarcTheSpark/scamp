@@ -1,4 +1,4 @@
-from scamp.dependencies import rtmidi
+from .dependencies import rtmidi
 
 
 def get_best_name_match(names_list, desired_name):

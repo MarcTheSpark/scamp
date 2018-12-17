@@ -1,7 +1,7 @@
 from types import SimpleNamespace
-from scamp.utilities import resolve_relative_path, SavesToJSON
-from scamp.playback_adjustments import PlaybackDictionary, NotePlaybackAdjustment
-from scamp.spelling import SpellingPolicy
+from .utilities import resolve_relative_path, SavesToJSON
+from .playback_adjustments import PlaybackDictionary, NotePlaybackAdjustment
+from .spelling import SpellingPolicy
 import logging
 import json
 

@@ -1,3 +1,4 @@
+from .utilities import _least_common_multiple, _is_power_of_two, _escape_split
 from xml.etree import ElementTree
 from abc import ABC, abstractmethod
 from fractions import Fraction
@@ -14,43 +15,7 @@ import subprocess
 # --------------------------------------------------- Utilities ----------------------------------------------------
 
 
-def _least_common_multiple(*args):
-    # utility for getting the least_common_multiple of a list of numbers
-    if len(args) == 0:
-        return 1
-    elif len(args) == 1:
-        return args[0]
-    elif len(args) == 2:
-        return args[0] * args[1] // math.gcd(args[0], args[1])
-    else:
-        return _least_common_multiple(args[0], _least_common_multiple(*args[1:]))
-
-
-def _is_power_of_two(x):
-    # utility for checking if x is a power of two
-    log2_x = math.log2(x)
-    return log2_x == int(log2_x)
-
-
-def escape_split(s, delimiter):
-    # Borrowed from https://stackoverflow.com/questions/18092354/python-split-string-without-splitting-escaped-character
-    i, res, buf = 0, [], ''
-    while True:
-        j, e = s.find(delimiter, i), 0
-        if j < 0:  # end reached
-            return res + [buf + s[i:]]  # add remainder
-        while j - e and s[j - e - 1] == '\\':
-            e += 1  # number of escapes
-        d = e // 2  # number of double escapes
-        if e != d * 2:  # odd number of escapes
-            buf += s[i:j - d - 1] + s[j]  # add the escaped char
-            i = j + 1  # and skip it
-            continue  # add more to buf
-        res.append(buf + s[i:j - d])
-        i, buf = j + len(delimiter), ''  # start after delim
-
-
-def pad_with_rests(components, desired_length):
+def _pad_with_rests(components, desired_length):
     """
     Appends rests to a list of components to fill out the desired length
     :param components: a list of MusicXMLComponents
@@ -132,7 +97,7 @@ class MusicXMLComponent(ABC):
             # Note: For some reason the minified (non-pretty print) version causes MuseScore to spin out and fail
             # This seems to be on MuseScore's end, because there's no difference aside from minification
             file.write(self.wrap_as_score().to_xml(pretty_print=True).encode())
-        subprocess.Popen(escape_split(command, " ") + [file.name])
+        subprocess.Popen(_escape_split(command, " ") + [file.name])
 
 
 # --------------------------------------------- Pitch and Duration -----------------------------------------------
@@ -578,7 +543,7 @@ class _XMLNote(MusicXMLComponent):
             return Measure([self], time_signature=time_signature).wrap_as_score()
         else:
             measure_length = 4 if self.true_length <= 4 else int(self.true_length) + 1
-            return Measure(pad_with_rests(self, measure_length), (measure_length, 4)).wrap_as_score()
+            return Measure(_pad_with_rests(self, measure_length), (measure_length, 4)).wrap_as_score()
 
 
 class Note(_XMLNote):
@@ -821,7 +786,7 @@ class Chord(MusicXMLComponent):
 
     def wrap_as_score(self):
         measure_length = 4 if self.true_length <= 4 else int(self.true_length) + 1
-        return Measure(pad_with_rests(self, measure_length), (measure_length, 4)).wrap_as_score()
+        return Measure(_pad_with_rests(self, measure_length), (measure_length, 4)).wrap_as_score()
 
     def __repr__(self):
         noteheads = None if all(n.notehead is None for n in self.notes) else tuple(n.notehead for n in self.notes)
@@ -932,7 +897,7 @@ class BeamedGroup(MusicXMLComponent):
 
     def wrap_as_score(self):
         measure_length = 4 if self.true_length <= 4 else int(math.ceil(self.true_length))
-        return Measure(pad_with_rests(self, measure_length), (measure_length, 4)).wrap_as_score()
+        return Measure(_pad_with_rests(self, measure_length), (measure_length, 4)).wrap_as_score()
 
 
 class Tuplet(BeamedGroup):

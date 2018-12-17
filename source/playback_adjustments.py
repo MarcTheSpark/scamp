@@ -1,5 +1,5 @@
-from scamp.utilities import SavesToJSON
-from scamp.engraving_translations import *
+from .utilities import SavesToJSON
+from .engraving_translations import *
 
 
 # TODO: would be great if this included preset switches
