@@ -1,18 +1,16 @@
-from playcorder import *
-from playcorder.quantization import QuantizationScheme
-from playcorder.settings import engraving_settings
+from scamp import *
 import random
 
-pc = Playcorder("default")
+session = Session("default")
 
-piano = pc.add_midi_part("piano")
+piano = session.add_midi_part("piano")
 piano.set_max_pitch_bend(20)
 
 random.seed(1)
 
-pc.start_recording()
+session.start_recording()
 
-while pc.time() < 12:
+while session.time() < 12:
     gliss = Envelope.from_levels_and_durations(
         [random.random() * 20 + 60, random.random() * 20 + 60, random.random() * 20 + 60, random.random() * 20 + 60],
         [random.random()+0.5, random.random()+0.5, random.random()+0.5]
@@ -23,16 +21,14 @@ while pc.time() < 12:
     else:
         piano.play_chord([gliss, gliss+4], 1.0, random.random()*2 + 0.5)
     if random.random() < 0.5:
-        pc.wait(random.random()*2)
+        session.wait(random.random() * 2)
 
 
-performance = pc.stop_recording()
+performance = session.stop_recording()
 
-
-engraving_settings.glissandi.control_point_policy = "split"
 performance.quantize(QuantizationScheme.from_time_signature("5/4"))
-performance.save_to_json("quantized_glisses.json")
+performance.save_to_json(resolve_relative_path("SavedFiles/quantized_glisses.json"))
 
-pc.wait(2)
+session.wait(2)
 print("playing quantized")
-performance.play(clock=pc.master_clock)
+performance.play(clock=session.master_clock)

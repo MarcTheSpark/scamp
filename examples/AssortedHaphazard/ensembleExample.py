@@ -1,4 +1,4 @@
-from playcorder import Ensemble
+from scamp import Ensemble
 
 
 def construct_ensemble():

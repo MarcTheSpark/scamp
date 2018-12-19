@@ -13,3 +13,4 @@ envelope for playback and then later attaching that to the staff as dynamics. Th
 be implemented as a parallel stream to the note stream, I think...
 - Engraving slurs?
 - Make outgoing midi stream an addable function?
+- Make expenvelope work in IPython notebook? Maybe other stuff too somehow?

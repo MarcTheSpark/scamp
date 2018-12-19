@@ -1,0 +1,35 @@
+{
+    "instruments": [
+        {
+            "midi_output_device": null,
+            "midi_output_name": "shakuhachi",
+            "name": "shakuhachi",
+            "num_channels": 8,
+            "preset": [
+                0,
+                77
+            ],
+            "soundfont_index": 0,
+            "type": "MidiScampInstrument"
+        },
+        {
+            "midi_output_device": null,
+            "midi_output_name": "oboe",
+            "name": "oboe",
+            "num_channels": 8,
+            "preset": [
+                0,
+                68
+            ],
+            "soundfont_index": 0,
+            "type": "MidiScampInstrument"
+        }
+    ],
+    "midi_player": {
+        "audio_driver": "alsa",
+        "rtmidi_output_device": null,
+        "soundfonts": [
+            "default"
+        ]
+    }
+}

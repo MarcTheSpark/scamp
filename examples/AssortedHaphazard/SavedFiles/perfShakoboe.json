@@ -1,0 +1,671 @@
+{
+    "parts": [
+        {
+            "instrument_id": [
+                "shakuhachi",
+                0
+            ],
+            "name": "shakuhachi",
+            "voice_quantization_records": null,
+            "voices": {
+                "_unspecified_": [
+                    {
+                        "length": 2.5,
+                        "pitch": 70,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 2.2105573245012273,
+                        "volume": {
+                            "curve_shapes": [
+                                0,
+                                2,
+                                0
+                            ],
+                            "durations": [
+                                0.3260869565217392,
+                                1.847826086956522,
+                                0.3260869565217388
+                            ],
+                            "levels": [
+                                1.0,
+                                0.2,
+                                1.0,
+                                1.0
+                            ]
+                        }
+                    },
+                    {
+                        "length": 0.2177603484272205,
+                        "pitch": 75,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 5.710557324501227,
+                        "volume": 1.0
+                    },
+                    {
+                        "length": 2.5,
+                        "pitch": 78,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 7.928317672928447,
+                        "volume": {
+                            "curve_shapes": [
+                                0,
+                                2,
+                                0
+                            ],
+                            "durations": [
+                                0.3260869565217392,
+                                1.847826086956522,
+                                0.3260869565217388
+                            ],
+                            "levels": [
+                                1.0,
+                                0.2,
+                                1.0,
+                                1.0
+                            ]
+                        }
+                    },
+                    {
+                        "length": 0.24887752488128945,
+                        "pitch": 94,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 11.428317672928447,
+                        "volume": 1.0
+                    },
+                    {
+                        "length": 2.5,
+                        "pitch": 94,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 14.677195197809738,
+                        "volume": {
+                            "curve_shapes": [
+                                0,
+                                2,
+                                0
+                            ],
+                            "durations": [
+                                0.3260869565217392,
+                                1.847826086956522,
+                                0.3260869565217388
+                            ],
+                            "levels": [
+                                1.0,
+                                0.2,
+                                1.0,
+                                1.0
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "instrument_id": [
+                "oboe",
+                0
+            ],
+            "name": "oboe",
+            "voice_quantization_records": null,
+            "voices": {
+                "_unspecified_": [
+                    {
+                        "length": 0.25,
+                        "pitch": 94.25377485692712,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 0.0,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 94.37804869026262,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 0.25,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 94.64747670761126,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 0.5,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 95.25095727020764,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 0.75,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 95.6207516323751,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 1.0,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 94.38704656110103,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 1.25,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 93.7313996416315,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 1.5,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 93.26104939666455,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 1.75,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 94.53665125905277,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 2.0,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 90.90894750397871,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 2.25,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 92.95464058217848,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 2.5,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 96.30683278018165,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 2.75,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 91.4968846348147,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 3.0,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 94.25702863432014,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 3.25,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 94.14802863703025,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 3.5,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 90.19052915355537,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 3.75,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 95.27398960509092,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 4.0,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 91.47727983667606,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 4.25,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 88.94280354954934,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 4.5,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 95.5345737287983,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 4.75,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 93.29201992414244,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 5.0,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 90.41235201780064,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 5.25,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 92.72823717856923,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 5.5,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 93.89624383910663,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 5.75,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 93.51229631073728,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 6.0,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 90.04054645945887,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 6.25,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 88.42953802688429,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 6.5,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 89.30832939958145,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 6.75,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 89.36905803856548,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 7.0,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 91.38051412085899,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 7.25,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 88.7631446970482,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 7.5,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 87.2834649783555,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 7.75,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 87.35540034379785,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 8.0,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 91.3273207863322,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 8.25,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 88.86227721782022,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 8.5,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 92.02446783592845,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 8.75,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 85.61316782778772,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 9.0,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 88.99679835667581,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 9.25,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 87.03128350339765,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 9.5,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 85.84102942504211,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 9.75,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 88.33676578725057,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 10.0,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 83.67528770734745,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 10.25,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 90.30342093054533,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 10.5,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 83.24066713982309,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 10.75,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 86.26720041465094,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 11.0,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 82.69412050045858,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 11.25,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 88.61842654347997,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 11.5,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 82.97333952811746,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 11.75,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 87.24753038705715,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 12.0,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 84.34285976112496,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 12.25,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 80.80059130417011,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 12.5,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 85.29428123007372,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 12.75,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 80.43500568709953,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 13.0,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 80.1011941796284,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 13.25,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 79.51888267962364,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 13.5,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 81.51763890018923,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 13.75,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 85.56514153104571,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 14.0,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 84.52114355444023,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 14.25,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 81.1034788782634,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 14.5,
+                        "volume": 0.4
+                    },
+                    {
+                        "length": 0.25,
+                        "pitch": 81.63746048688323,
+                        "properties": {
+                            "spelling_policy": null
+                        },
+                        "start_time": 14.75,
+                        "volume": 0.4
+                    }
+                ]
+            }
+        }
+    ],
+    "tempo_envelope": {
+        "length": 50.0,
+        "levels": [
+            1.0,
+            0.2
+        ]
+    }
+}

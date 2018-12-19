@@ -1,8 +1,8 @@
-from playcorder import Playcorder
+from scamp import Session
 
-pc = Playcorder("default")
+session = Session("default")
 
-piano = pc.add_midi_part("piano", (0, 22))
+piano = session.add_midi_part("piano", (0, 22))
 
 while True:
     piano.play_note(65, 1, 0.25)

@@ -1,4 +1,4 @@
-from scamp.envelope import Envelope
+from expenvelope import Envelope
 import math
 
 # Ways of constructing Envelopes

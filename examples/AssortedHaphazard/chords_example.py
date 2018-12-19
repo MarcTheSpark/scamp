@@ -1,8 +1,8 @@
-from playcorder import *
+from scamp import *
 
-pc = Playcorder("default")
+session = Session("default")
 
-piano = pc.add_midi_part("piano")
+piano = session.add_midi_part("piano")
 
 # this makes the whole chord diamond noteheads
 piano.play_chord((60, 64, 69), 0.5, 2.0, "notehead: diamond")

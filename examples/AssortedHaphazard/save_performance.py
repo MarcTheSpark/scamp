@@ -1,13 +1,13 @@
-from playcorder import Playcorder, Clock, Envelope
+from scamp import *
 import random
 import math
 
-pc = Playcorder("default")
+session = Session("default")
 
-shaku = pc.add_midi_part("shakuhachi", (0, 77))
-oboe = pc.add_midi_part("oboe", (0, 68))
+shaku = session.add_midi_part("shakuhachi", (0, 77))
+oboe = session.add_midi_part("oboe", (0, 68))
 
-pc.ensemble.save_to_json("shakEnsemble.json")
+session.ensemble.save_to_json(resolve_relative_path("SavedFiles/shakEnsemble.json"))
 
 
 def oboe_part(clock):
@@ -29,22 +29,18 @@ def shaku_part(clock):
             clock.wait(random.choice([1, 2, 3]))
 
 
-pc.fork(oboe_part)
-pc.fork(shaku_part)
+session.fork(oboe_part)
+session.fork(shaku_part)
 
-pc.master_clock.set_tempo_target(300, 30, duration_units="time")
-# pc.master_clock.timing_policy = "relative"
+session.master_clock.set_tempo_target(300, 30, duration_units="time")
 
-pc.wait(15)
-pc.start_recording()
+session.wait(15)
+session.start_recording()
 print("Starting recording...")
-pc.wait(15)
-performance = pc.stop_recording()
+session.wait(15)
+performance = session.stop_recording()
 print("Finished. Saving recording.")
 
-performance.save_to_json("perfShakoboe.json")
-# pc.master_clock.wait(2)
+performance.save_to_json(resolve_relative_path("SavedFiles/perfShakoboe.json"))
 
-pc.wait_forever()
-
-# 598
+session.wait_forever()

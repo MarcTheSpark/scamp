@@ -575,19 +575,19 @@ class ParameterCurve:
 
 # -------------- EXAMPLE --------------
 #
-# pc = Session(soundfont_path="default")
+# session = Session(soundfont_path="default")
 #
-# piano = pc.add_midi_part((0, 0), "Piano")
-# guitar = pc.add_midi_part((0, 27), "Guitar")
+# piano = session.add_midi_part((0, 0), "Piano")
+# guitar = session.add_midi_part((0, 27), "Guitar")
 #
-# pc.start_recording([piano, guitar], manual_time=True)
+# session.start_recording([piano, guitar], manual_time=True)
 #
 # import random
 # for i in range(15):
 #     l = random.random()*1.5+0.1
 #     random.choice([piano, guitar]).play_note(50 + random.random()*20, 0.5, l)
-#     pc.wait(l+random.random()*1.5)
+#     session.wait(l+random.random()*1.5)
 #
-# pc.stop_recording()
+# session.stop_recording()
 #
-# pc.save_to_xml_file(file_name="bob.xml", time_signature="5/4", tempo=120, divisions=6, add_sibelius_pitch_bend=True)
+# session.save_to_xml_file(file_name="bob.xml", time_signature="5/4", tempo=120, divisions=6, add_sibelius_pitch_bend=True)
