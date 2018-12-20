@@ -1,9 +1,9 @@
+- Fix bug where there's duplicate tempo markings, e.g. in piano phase
 - Get recombination of larger notes working
 - add append function to TempoCurve
-- Add in tempo guide marks if desired in xml
 - Engraving sudden tempo changes
 - Engraving tempo in abjad
-- MIDIPlayorderInstrument: allow preset shifts with keyword string
+- MIDIScampInstrument: allow preset shifts with keyword string
 - Playback adjustments: allow preset change as a possibility
 - Trills and Tremolo: can implement by splitting playback into many notes, changing preset, or -- in the case of trill --
 by simply adding a square wave envelope to the pitch.
