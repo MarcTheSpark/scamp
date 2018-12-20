@@ -74,4 +74,4 @@ Score([
             ]
         ], barline="end")
     ])
-], title="MusicXML Example", composer="HTMLvis").export_to_file("Example.xml")
+], title="Directly Created MusicXML", composer="HTMLvis").export_to_file("DirectExample.xml")

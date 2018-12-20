@@ -1,3 +1,4 @@
+from collections import MutableSequence, Sequence
 from .utilities import _least_common_multiple, _is_power_of_two, _escape_split
 from xml.etree import ElementTree
 from abc import ABC, abstractmethod
@@ -98,6 +99,30 @@ class MusicXMLComponent(ABC):
             # This seems to be on MuseScore's end, because there's no difference aside from minification
             file.write(self.wrap_as_score().to_xml(pretty_print=True).encode())
         subprocess.Popen(_escape_split(command, " ") + [file.name])
+
+
+class MusicXMLContainer(MutableSequence):
+
+    def __init__(self, contents, allowed_types):
+        contents = [] if contents is None else contents
+        assert isinstance(allowed_types, tuple) and all(isinstance(x, type) for x in allowed_types)
+        assert isinstance(contents, Sequence) and all(isinstance(x, allowed_types) for x in contents)
+        self.contents = list(contents)
+
+    def insert(self, i, o):
+        self.contents.insert(i, o)
+
+    def __getitem__(self, i):
+        self.contents.__getitem__(i)
+
+    def __setitem__(self, i, o):
+        self.contents.__setitem__(i, o)
+
+    def __delitem__(self, i):
+        self.contents.__delitem__(i)
+
+    def __len__(self):
+        return self.contents.__len__()
 
 
 # --------------------------------------------- Pitch and Duration -----------------------------------------------
@@ -834,11 +859,10 @@ class GraceChord(Chord):
 # -------------------------------------------------- Note Groups ------------------------------------------------
 
 
-class BeamedGroup(MusicXMLComponent):
+class BeamedGroup(MusicXMLComponent, MusicXMLContainer):
 
-    def __init__(self, contents):
-        assert hasattr(contents, '__len__') and all(isinstance(x, (Note, Chord, Rest)) for x in contents)
-        self.contents = contents
+    def __init__(self, contents=None):
+        super().__init__(contents=contents, allowed_types=(Note, Chord, Rest))
 
     def render_contents_beaming(self):
         for beam_depth in range(1, max(leaf.num_beams() for leaf in self.contents) + 1):
@@ -967,7 +991,7 @@ class Clef(MusicXMLComponent):
         return Measure([BarRest(4)], time_signature=(4, 4), clef=self).wrap_as_score()
 
 
-class Measure(MusicXMLComponent):
+class Measure(MusicXMLComponent, MusicXMLContainer):
 
     barline_xml_names = {
         # the first two are useful aliases; the rest just retain their xml names
@@ -986,7 +1010,7 @@ class Measure(MusicXMLComponent):
         "none": "none"
     }
 
-    def __init__(self, contents, time_signature=None, clef=None, barline=None, staves=None, number=1,
+    def __init__(self, contents=None, time_signature=None, clef=None, barline=None, staves=None, number=1,
                  directions_with_displacements=()):
         """
 
@@ -1000,12 +1024,14 @@ class Measure(MusicXMLComponent):
         :param staves: for multi-part music, like piano music
         :param number: which number in the score. Will be set by the containing Part
         """
-        assert hasattr(contents, '__len__') and all(
+        super().__init__(contents=contents, allowed_types=(Note, Rest, Chord, BarRest, BeamedGroup,
+                                                           Tuplet, type(None), Sequence))
+        assert hasattr(self.contents, '__len__') and all(
             isinstance(x, (Note, Rest, Chord, BarRest, BeamedGroup, Tuplet, type(None))) or
             hasattr(x, '__len__') and all(isinstance(y, (Note, Rest, Chord, BarRest, BeamedGroup, Tuplet)) for y in x)
-            for x in contents
+            for x in self.contents
         )
-        self.contents = contents
+
         self.number = number
         self.time_signature = time_signature
         assert isinstance(clef, (type(None), Clef, str, tuple)), "Clef not understood."
@@ -1143,13 +1169,16 @@ class Measure(MusicXMLComponent):
 # -------------------------------------------- Part, PartGroup, and Score ------------------------------------------
 
 
-class Part(MusicXMLComponent):
+class Part(MusicXMLComponent, MusicXMLContainer):
 
-    def __init__(self, part_name, measures, part_id=1):
+    def __init__(self, part_name, measures=None, part_id=1):
         self.part_id = part_id
-        assert hasattr(measures, '__len__') and all(isinstance(x, Measure) for x in measures)
-        self.measures = measures
+        super().__init__(contents=measures, allowed_types=(Measure,))
         self.part_name = part_name
+
+    @property
+    def measures(self):
+        return self.contents
 
     def render(self):
         part_element = ElementTree.Element("part", {"id": "P{}".format(self.part_id)})
@@ -1167,13 +1196,16 @@ class Part(MusicXMLComponent):
         return Score([self])
 
 
-class PartGroup(MusicXMLComponent):
+class PartGroup(MusicXMLComponent, MusicXMLContainer):
 
-    def __init__(self, parts, has_bracket=True, has_group_bar_line=True):
-        assert hasattr(parts, '__len__') and all(isinstance(x, Part) for x in parts)
-        self.parts = parts
+    def __init__(self, parts=None, has_bracket=True, has_group_bar_line=True):
+        super().__init__(contents=parts, allowed_types=(Part,))
         self.has_bracket = has_bracket
         self.has_group_bar_line = has_group_bar_line
+
+    @property
+    def parts(self):
+        return self.contents
 
     def render(self):
         return sum((part.render() for part in self.parts), ())
@@ -1200,11 +1232,10 @@ class PartGroup(MusicXMLComponent):
         return Score([self])
 
 
-class Score(MusicXMLComponent):
+class Score(MusicXMLComponent, MusicXMLContainer):
 
-    def __init__(self, contents, title=None, composer=None):
-        assert hasattr(contents, '__len__') and all(isinstance(x, (Part, PartGroup)) for x in contents)
-        self.contents = contents
+    def __init__(self, contents=None, title=None, composer=None):
+        super().__init__(contents=contents, allowed_types=(Part, PartGroup))
         self.title = title
         self.composer = composer
 
@@ -1230,7 +1261,7 @@ class Score(MusicXMLComponent):
             ElementTree.SubElement(id_el, "creator", {"type": "composer"}).text = self.composer
         encoding_el = ElementTree.SubElement(id_el, "encoding")
         ElementTree.SubElement(encoding_el, "encoding-date").text = str(datetime.date.today())
-        ElementTree.SubElement(encoding_el, "software").text = "SCAMP (Suite for Composing Algorithmic Music in Python)"
+        ElementTree.SubElement(encoding_el, "software").text = "pymusicxml"
         part_list_el = ElementTree.SubElement(score_element, "part-list")
         for part_or_part_group in self.contents:
             part_list_el.extend(part_or_part_group.render_part_list_entry())
