@@ -1,3 +1,6 @@
 [submodule "source/clockblocks"]
 	path = source/clockblocks
 	url = https://github.com/MarcTheSpark/clockblocks/
+[submodule "source/pymusicxml"]
+	path = source/pymusicxml
+	url = https://github.com/MarcTheSpark/pymusicxml/
