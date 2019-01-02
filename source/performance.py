@@ -165,13 +165,13 @@ class PerformancePart(SavesToJSON):
         if blocking:
             # clock blocked ;-)
             if tempo_envelope is not None:
-                clock.apply_tempo_envelope(tempo_envelope)
+                clock.tempo_envelope.append_envelope(tempo_envelope)
             _play_thread(clock)
             return clock
         else:
             sub_clock = clock.fork(_play_thread)
             if tempo_envelope is not None:
-                sub_clock.apply_tempo_envelope(tempo_envelope)
+                sub_clock.tempo_envelope.append_envelope(tempo_envelope)
             return sub_clock
 
     def set_instrument_from_ensemble(self, ensemble):
