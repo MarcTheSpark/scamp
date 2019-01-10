@@ -6,7 +6,7 @@ from itertools import count
 from .settings import playback_settings
 from copy import deepcopy
 from .note_properties import NotePropertiesDictionary
-from .clockblocks import current_clock
+from clockblocks import current_clock
 from .spelling import SpellingPolicy
 import atexit
 from .dependencies import udp_client

@@ -1,11 +1,9 @@
 from .performance import Performance
-
 from .ensemble import Ensemble
 from .instruments import ScampInstrument
-
 from .midi_listener import *
-
 from .spelling import SpellingPolicy
+from clockblocks import Clock
 
 
 class Session:

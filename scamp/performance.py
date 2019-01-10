@@ -1,7 +1,7 @@
 import bisect
 from .quantization import quantize_performance_part, QuantizationRecord, QuantizationScheme
 from .settings import quantization_settings
-from .clockblocks import Clock, TempoEnvelope
+from clockblocks import Clock, TempoEnvelope
 from .performance_note import *
 from .score import Score, StaffGroup
 from .utilities import SavesToJSON

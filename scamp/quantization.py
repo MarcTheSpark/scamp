@@ -2,7 +2,7 @@ from fractions import Fraction
 from .utilities import indigestibility, is_multiple, is_x_pow_of_y, round_to_multiple, SavesToJSON
 from collections import namedtuple
 from .settings import quantization_settings, engraving_settings
-from . import Envelope
+from expenvelope import Envelope
 from .dependencies import abjad
 import textwrap
 

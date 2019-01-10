@@ -1,5 +1,5 @@
 from xml.etree import ElementTree
-from . import pymusicxml
+import pymusicxml
 import logging
 
 

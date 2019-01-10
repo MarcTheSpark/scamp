@@ -2,7 +2,7 @@ import itertools
 from copy import deepcopy
 from functools import total_ordering
 
-from . import Envelope
+from expenvelope import Envelope
 from .utilities import SavesToJSON
 from .note_properties import NotePropertiesDictionary
 from .settings import engraving_settings

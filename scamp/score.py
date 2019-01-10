@@ -1,12 +1,12 @@
 from .settings import quantization_settings, engraving_settings
-from . import Envelope
+from expenvelope import Envelope
 from .quantization import QuantizationRecord, QuantizationScheme, TimeSignature
 from .performance_note import PerformanceNote
 from .utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y, \
     ceil_to_multiple, floor_to_multiple
 from .engraving_translations import get_xml_notehead, get_lilypond_notehead_name
 from .note_properties import NotePropertiesDictionary
-from . import pymusicxml
+import pymusicxml
 from .dependencies import abjad
 import math
 from fractions import Fraction

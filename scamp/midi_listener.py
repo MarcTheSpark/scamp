@@ -1,4 +1,4 @@
-from .clockblocks import Clock
+from clockblocks import Clock
 import inspect
 import time
 from .dependencies import rtmidi

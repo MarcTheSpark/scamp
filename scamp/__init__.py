@@ -1,7 +1,7 @@
 __author__ = 'mpevans'
 
-from .clockblocks import Clock, TempoEnvelope, wait
-from .clockblocks.expenvelope import Envelope
+from clockblocks import Clock, TempoEnvelope, wait
+from expenvelope import Envelope
 from .session import Session
 from .ensemble import Ensemble
 from .instruments import MidiScampInstrument, ScampInstrument, OSCScampInstrument
