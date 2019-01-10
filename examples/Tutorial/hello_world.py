@@ -2,7 +2,7 @@ from scamp import *
 
 session = Session("default")
 
-piano = session.add_midi_part()
+piano = session.add_midi_part("piano", (0, 0))
 
 session.start_recording()
 

@@ -43,9 +43,8 @@ def sine_glisses(this_clock):
                           72 + 10 * math.sin((this_clock.beats() + 1.0) * freq * 2 * math.pi)],
                          1.0, 1.0)
 
-session.fast_forward_in_beats(20)
-# session.fork(violins)
-# session.fork(banjass)
+session.fork(violins)
+session.fork(banjass)
 session.fork(sine_glisses)
 session.start_recording()
 session.wait(20)
