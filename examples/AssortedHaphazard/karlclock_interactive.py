@@ -6,9 +6,13 @@ rate = 1
 
 
 def on_press(key):
-    global rate
-    rate = 1 + int(str(key).replace("\'", ""))
-    print(rate)
+    try:
+        global rate
+        rate = 1 + int(str(key).replace("\'", ""))
+        print("New rate is ", rate)
+    except ValueError:
+        # ignore key presses that don't correspond to number keys
+        pass
 
 
 # Collect events until released
