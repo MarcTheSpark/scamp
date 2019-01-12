@@ -19,7 +19,7 @@ def on_press(key):
 Listener(on_press=on_press).start()
 
 
-s = Session("default")
+s = Session()
 
 
 piano = s.add_midi_part("piano", (0, 0))

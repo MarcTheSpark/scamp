@@ -35,7 +35,7 @@
         "notations": {},
         "noteheads": {}
     },
-    "default_audio_driver": "auto",
+    "default_audio_driver": "alsa",
     "default_max_midi_pitch_bend": 48,
     "default_midi_output_device": null,
     "named_soundfonts": {

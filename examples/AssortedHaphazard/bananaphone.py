@@ -2,7 +2,7 @@ from scamp import *
 from random import random
 import math
 
-session = Session("default")
+session = Session()
 
 session.master_clock.set_tempo_target(300, 20)
 

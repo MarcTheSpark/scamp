@@ -1,7 +1,7 @@
 from scamp import *
 from random import random, seed
 
-session = Session("default")
+session = Session()
 drum = session.add_midi_part("metronome", (0, 116))
 piano = session.add_midi_part("piano", (0, 0))
 

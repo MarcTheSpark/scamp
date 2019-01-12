@@ -1,6 +1,6 @@
 from scamp import Session
 
-session = Session("default")
+session = Session()
 
 piano = session.add_midi_part("piano", (0, 22))
 

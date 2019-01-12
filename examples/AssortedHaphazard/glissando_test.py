@@ -1,7 +1,7 @@
 from scamp import *
 import random
 
-session = Session("default")
+session = Session()
 
 piano = session.add_midi_part("piano")
 piano.set_max_pitch_bend(20)

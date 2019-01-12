@@ -4,7 +4,7 @@ To be run after "load_and_play_performance.py", since this loads up that perform
 
 from scamp import *
 
-session = Session("default")
+session = Session()
 session.load_ensemble_from_json(resolve_relative_path("SavedFiles/shakEnsemble.json"))
 
 performance = Performance.load_from_json(resolve_relative_path("SavedFiles/perfShakoboe.json"))

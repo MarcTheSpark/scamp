@@ -1,6 +1,6 @@
 from scamp import *
 
-session = Session("default")
+session = Session()
 
 piano1 = session.add_midi_part("Piano 1", (0, 0))
 piano2 = session.add_midi_part("Piano 2", (0, 0))

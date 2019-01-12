@@ -2,7 +2,7 @@ from scamp import *
 import random
 import math
 
-session = Session("default")
+session = Session()
 
 shaku = session.add_midi_part("shakuhachi", (0, 77))
 oboe = session.add_midi_part("oboe", (0, 68))

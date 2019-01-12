@@ -8,7 +8,7 @@ from clockblocks import Clock
 
 class Session:
 
-    def __init__(self, soundfonts=None, audio_driver=None, midi_output_device=None):
+    def __init__(self, soundfonts="default", audio_driver=None, midi_output_device=None):
         """
         :param soundfonts: the names / paths of the soundfonts this scamp will use
         :param audio_driver: the driver used to output audio (if none, defaults to whatever fluidsynth chooses)

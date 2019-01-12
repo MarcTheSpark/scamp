@@ -1,6 +1,6 @@
 from scamp import *
 
-session = Session("default")
+session = Session()
 
 engraving_settings.tempo.include_guide_marks = True
 

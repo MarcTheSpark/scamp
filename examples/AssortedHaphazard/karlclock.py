@@ -1,7 +1,7 @@
 from scamp import Session
 import random
 
-s = Session("default")
+s = Session()
 piano = s.add_midi_part("piano", (0, 0))
 
 
