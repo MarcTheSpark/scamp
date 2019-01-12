@@ -38,9 +38,8 @@
     "default_audio_driver": "auto",
     "default_max_midi_pitch_bend": 48,
     "default_midi_output_device": null,
-    "default_soundfonts": {
-        "default": "Merlin.sf2",
-        "piano": "GrandPiano.sf2"
+    "named_soundfonts": {
+        "default": "Merlin.sf2"
     },
     "osc_message_addresses": {
         "change_pitch": "change_pitch",

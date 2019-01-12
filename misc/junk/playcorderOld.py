@@ -5,8 +5,8 @@ import logging
 from old.recording_to_xml import save_to_xml_file as save_recording_to_xml
 from old.measures_beats_notes import *
 
-from source.combined_midi_player import CombinedMidiPlayer, register_default_soundfont, \
-    unregister_default_soundfont, get_default_soundfonts
+from source.combined_midi_player import CombinedMidiPlayer, register_named_soundfont, \
+    unregister_named_soundfonts, get_named_soundfonts
 
 from source.simple_rtmidi_wrapper import get_available_midi_output_devices
 
@@ -55,16 +55,16 @@ class Playcorder:
         return get_available_midi_output_devices()
 
     @staticmethod
-    def register_default_soundfont(name, soundfont_path):
-        return register_default_soundfont(name, soundfont_path)
+    def register_named_soundfont(name, soundfont_path):
+        return register_named_soundfont(name, soundfont_path)
 
     @staticmethod
-    def unregister_default_soundfont(name):
-        return unregister_default_soundfont(name)
+    def unregister_named_soundfont(name):
+        return unregister_named_soundfont(name)
 
     @staticmethod
-    def list_default_soundfonts():
-        for a, b in get_default_soundfonts().items():
+    def list_named_soundfonts():
+        for a, b in get_named_soundfonts().items():
             print("{}: {}".format(a, b))
 
     def add_part(self, instrument):

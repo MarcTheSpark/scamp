@@ -5,7 +5,7 @@ import json
 import logging
 
 _playback_settings_factory_defaults = {
-    "default_soundfonts": {
+    "named_soundfonts": {
         "default": "Merlin.sf2",
         "piano": "GrandPiano.sf2"
     },
@@ -32,8 +32,8 @@ _playback_settings_factory_defaults = {
 class PlaybackSettings(SavesToJSON):
 
     def __init__(self, **settings):
-        self.default_soundfonts = _playback_settings_factory_defaults["default_soundfonts"] \
-            if "default_soundfonts" not in settings else settings["default_soundfonts"]
+        self.named_soundfonts = _playback_settings_factory_defaults["named_soundfonts"] \
+            if "named_soundfonts" not in settings else settings["named_soundfonts"]
         self.default_audio_driver = _playback_settings_factory_defaults["default_audio_driver"] \
             if "default_audio_driver" not in settings else settings["default_audio_driver"]
         self.default_midi_output_device = _playback_settings_factory_defaults["default_midi_output_device"] \
@@ -50,30 +50,30 @@ class PlaybackSettings(SavesToJSON):
             self.__dict__[key] = _playback_settings_factory_defaults[key]
         return self
 
-    def register_default_soundfont(self, name: str, soundfont_path: str):
+    def register_named_soundfont(self, name: str, soundfont_path: str):
         """
-        Adds a default named soundfont, so that it can be easily referred to in constructing a Session
-        :param name: the default soundfont name
+        Adds a named soundfont, so that it can be easily referred to in constructing a Session
+        :param name: the soundfont name
         :param soundfont_path: the absolute path to the soundfont, staring with a slash, or a relative path that
-        gets resolved relative to the thirdparty/soundfonts directory
+        gets resolved relative to the soundfonts directory
         """
-        self.default_soundfonts[name] = soundfont_path
+        self.named_soundfonts[name] = soundfont_path
 
-    def unregister_default_soundfont(self, name: str):
+    def unregister_named_soundfont(self, name: str):
         """
-        Same as above, but removes a default named soundfont
+        Same as above, but removes a named soundfont
         :param name: the default soundfont name to remove
         """
-        if name not in self.default_soundfonts:
+        if name not in self.named_soundfonts:
             logging.warning("Tried to unregister default soundfont '{}', but it didn't exist.".format(name))
             return
-        del self.default_soundfonts[name]
+        del self.named_soundfonts[name]
 
-    def get_default_soundfonts(self):
-        return self.default_soundfonts
+    def get_named_soundfonts(self):
+        return self.named_soundfonts
 
-    def list_default_soundfonts(self):
-        for a, b in self.get_default_soundfonts().items():
+    def list_named_soundfonts(self):
+        for a, b in self.get_named_soundfonts().items():
             print("{}: {}".format(a, b))
 
     def make_persistent(self):

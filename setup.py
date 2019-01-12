@@ -1,16 +1,30 @@
-#!/usr/bin/env python
+import setuptools
 
-from distutils.core import setup
+with open("README.md", "r") as fh:
+    long_description = fh.read()
 
-setup(name='Playcorder',
-      version='0.1',
-      description='Python interface for playing notes via pyFluidSynth and saving the result in formats that can be '
-                  'imported to notation programs.',
-      author='Marc Evans',
-      author_email='marc.p.evans@gmail.com',
-      install_requires=['midiutil', 'sf2utils', 'python-rtmidi', 'python-osc', 'abjad'],
-      url='https://github.com/MarcTheSpark/playcorder',
-      packages=['playcorder', "playcorder.thirdparty"],
-      package_dir={'playcorder': 'source'},
-      package_data={'playcorder.thirdparty': ['soundfonts/*']},
-      )
+setuptools.setup(
+    name="scamp",
+    version="0.0.6",
+    author="Marc Evanstein",
+    author_email="marc@marcevanstein.com",
+    description="An algorithmic composition framework that manages the flow of musical time, plays back notes via "
+                "fluidsynth or though osc, and quantizes and saves the result to music notation.",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    url="https://github.com/MarcTheSpark/scamp",
+    packages=setuptools.find_packages(),
+    install_requires=['pymusicxml', 'expenvelope', 'clockblocks', 'pyfluidsynth', 'sf2utils', 'python-osc'],
+    extras_require={
+        'lilypond': 'abjad',
+        'midistream': 'python-rtmidi'
+    },
+    package_data={
+        'scamp': ['settings/*', 'soundfonts/*']
+    },
+    classifiers=[
+        "Programming Language :: Python :: 3.6",
+        "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+        "Operating System :: OS Independent",
+    ],
+)

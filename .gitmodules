@@ -1,9 +1,0 @@
-[submodule "source/clockblocks"]
-	path = clockblocks
-	url = https://github.com/MarcTheSpark/clockblocks/
-[submodule "source/pymusicxml"]
-	path = pymusicxml
-	url = https://github.com/MarcTheSpark/pymusicxml/
-[submodule "expenvelope"]
-	path = expenvelope
-	url = https://github.com/MarcTheSpark/expenvelope

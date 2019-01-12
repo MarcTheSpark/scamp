@@ -71,13 +71,13 @@ class CombinedMidiPlayer(SavesToJSON):
         elif self.synth is None:
             self.initialize_fluidsynth(self._audio_driver)
 
-        default_soundfonts = playback_settings.get_default_soundfonts()
-        if soundfont in default_soundfonts:
-            soundfont_path = default_soundfonts[soundfont]
+        named_soundfonts = playback_settings.get_named_soundfonts()
+        if soundfont in named_soundfonts:
+            soundfont_path = named_soundfonts[soundfont]
             if soundfont_path.startswith("./"):
-                soundfont_path = resolve_relative_path("thirdparty/soundfonts/" + soundfont_path[2:])
+                soundfont_path = resolve_relative_path("soundfonts/" + soundfont_path[2:])
             elif not soundfont_path.startswith("/"):
-                soundfont_path = resolve_relative_path("thirdparty/soundfonts/" + soundfont_path)
+                soundfont_path = resolve_relative_path("soundfonts/" + soundfont_path)
         else:
             soundfont_path = soundfont
 

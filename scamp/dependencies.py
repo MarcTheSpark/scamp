@@ -5,7 +5,9 @@ ABJAD_MINIMUM_VERSION = "3.0.0"
 
 
 try:
-    from scamp.thirdparty import fluidsynth
+    import fluidsynth
+except AttributeError:
+    from . import _fluidsynth as fluidsynth
 except ImportError:
     fluidsynth = None
     logging.warning("Fluidsynth could not be loaded; synth output will not be available.")
