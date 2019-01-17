@@ -1,6 +1,7 @@
 from .instruments import ScampInstrument, MidiScampInstrument, OSCScampInstrument
 from .combined_midi_player import CombinedMidiPlayer
 from .utilities import SavesToJSON
+import logging
 
 
 # TODO: allow a silent MIDI Instrument to be created (e.g. "add_silent_midi_part") that outputs a MIDI stream only
@@ -60,13 +61,14 @@ class Ensemble(SavesToJSON):
         self.instruments.append(instrument)
         return instrument
 
-    def add_midi_part(self, name=None, preset=(0, 0), soundfont_index=0, num_channels=8,
+    def add_midi_part(self, name=None, preset="auto", soundfont_index=0, num_channels=8,
                       midi_output_device=None, midi_output_name=None):
         """
         Constructs a MidiScampInstrument, adds it to the Ensemble, and returns it
         :param name: name used for this instrument in score output and midi output (unless otherwise specified)
         :type name: str
-        :param preset: if an int, assumes bank #0; can also be a tuple of form (bank, preset)
+        :param preset: if an int, assumes bank #0; can also be a tuple of form (bank, preset). If "auto", searches
+        for a preset of the appropriate name.
         :param soundfont_index: the index of the soundfont to use for fluidsynth playback
         :type soundfont_index: int
         :param num_channels: maximum of midi channels available to this midi part. It's wise to use more when doing
@@ -83,11 +85,23 @@ class Ensemble(SavesToJSON):
         if not 0 <= soundfont_index < len(self.midi_player.soundfont_ids):
             raise ValueError("Soundfont index out of bounds.")
 
-        if isinstance(preset, int):
+        if preset == "auto":
+            if name is None:
+                preset = (0, 0)
+            else:
+                # strip any numbers and spaces from the name, so that "Clarinet 1" searches as "clarinet"
+                possible_instruments = self.get_instruments_with_substring(name.strip(" 0123456789"))
+                if len(possible_instruments) > 0:
+                    preset = (possible_instruments[0].bank, possible_instruments[0].preset)
+                else:
+                    logging.warning("Could not find preset matching {}. "
+                                    "Falling back to preset 0 (probably piano).".format(name))
+                    preset = (0, 0)
+        elif isinstance(preset, int):
             preset = (0, preset)
 
         instrument = MidiScampInstrument(self, name, preset, soundfont_index, num_channels,
-                                              midi_output_device, midi_output_name)
+                                         midi_output_device, midi_output_name)
 
         self.add_part(instrument)
         return instrument

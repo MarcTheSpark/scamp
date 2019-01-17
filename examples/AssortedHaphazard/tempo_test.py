@@ -4,7 +4,7 @@ session = Session()
 
 engraving_settings.tempo.include_guide_marks = True
 
-violin = session.add_midi_part("violin", (0, 40))
+violin = session.add_midi_part("violin")
 
 session.master_clock.set_tempo_target(100, 5)
 session.master_clock.set_tempo_target(135, 9, truncate=False)

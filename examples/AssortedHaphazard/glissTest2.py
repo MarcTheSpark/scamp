@@ -3,7 +3,7 @@ import random
 
 session = Session()
 
-piano = session.add_midi_part("violin", (0, 40))
+piano = session.add_midi_part("violin",)
 
 random.seed(1)
 

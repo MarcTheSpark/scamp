@@ -3,7 +3,7 @@ from random import random, seed
 
 session = Session()
 drum = session.add_midi_part("metronome", (0, 116))
-piano = session.add_midi_part("piano", (0, 0))
+piano = session.add_midi_part("piano")
 
 recording = True
 

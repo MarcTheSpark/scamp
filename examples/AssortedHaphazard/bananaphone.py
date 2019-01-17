@@ -6,8 +6,8 @@ session = Session()
 
 session.master_clock.set_tempo_target(300, 20)
 
-violin = session.add_midi_part("violin", (0, 40))
-violin2 = session.add_midi_part("violin2", (0, 40))
+violin = session.add_midi_part("violin")
+violin2 = session.add_midi_part("violin2")
 
 bass_banjo = session.add_midi_part("banjass", (0, 105))
 

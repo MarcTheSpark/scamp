@@ -22,7 +22,7 @@ Listener(on_press=on_press).start()
 s = Session()
 
 
-piano = s.add_midi_part("piano", (0, 0))
+piano = s.add_midi_part("piano")
 
 
 def do_chords(clock):

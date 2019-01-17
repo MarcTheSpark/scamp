@@ -2,7 +2,7 @@ from scamp import Session
 
 session = Session()
 
-piano = session.add_midi_part("piano", (0, 22))
+piano = session.add_midi_part("piano")
 
 while True:
     piano.play_note(65, 1, 0.25)

@@ -4,8 +4,8 @@ import math
 
 session = Session()
 
-shaku = session.add_midi_part("shakuhachi", (0, 77))
-oboe = session.add_midi_part("oboe", (0, 68))
+shaku = session.add_midi_part("shakuhachi")
+oboe = session.add_midi_part("oboe")
 
 session.ensemble.save_to_json(resolve_relative_path("SavedFiles/shakEnsemble.json"))
 
