@@ -1,4 +1,6 @@
 - Fix bug where there's duplicate tempo markings, e.g. in piano phase
+- Check on staccato; doesn't seem to be outputting
+- Make Session a subclass of Clock. Also maybe make clock not note down the start time until its first call to wait?
 - Get recombination of larger notes working
 - add append function to TempoCurve
 - Engraving sudden tempo changes
@@ -14,3 +16,4 @@ be implemented as a parallel stream to the note stream, I think...
 - Engraving slurs?
 - Make outgoing midi stream an addable function?
 - Make expenvelope work in IPython notebook? Maybe other stuff too somehow?
+- Linux Sampler

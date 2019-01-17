@@ -5,10 +5,14 @@ ABJAD_MINIMUM_VERSION = "3.0.0"
 
 
 try:
+    # first choice: import using an installed version of pyfluidsynth
     import fluidsynth
-except AttributeError:
-    from . import _fluidsynth as fluidsynth
+except (ImportError, AttributeError):
+    # if this fails, use the local, tweaked copy that catches a possible attribute error
+    # and loads up the local copy of the windows .dll if one can't be found on the system
+    from .thirdparty import fluidsynth
 except ImportError:
+    # if we're here, it's probably because fluidsynth wasn't installed
     fluidsynth = None
     logging.warning("Fluidsynth could not be loaded; synth output will not be available.")
 
@@ -46,7 +50,7 @@ try:
     import rtmidi
 except ImportError:
     rtmidi = None
-    logging.warning("python-rtmidi was not found; midi input will not be available")
+    logging.warning("python-rtmidi was not found; streaming midi input / output will not be available.")
 
 try:
     import abjad
