@@ -19,7 +19,7 @@ except ImportError:
 if fluidsynth is not None and playback_settings.default_audio_driver == "auto":
     print("Testing for working audio driver...")
     found_driver = False
-    for driver in ['alsa', 'oss', 'coreaudio', 'pulseaudio', 'jack', 'portaudio', 'sndmgr', 'Direct Sound']:
+    for driver in ['alsa', 'coreaudio', 'dsound', 'Direct Sound', 'oss', 'pulseaudio', 'jack', 'portaudio', 'sndmgr']:
         test_synth = fluidsynth.Synth()
         test_synth.start(driver=driver)
         if test_synth.audio_driver is not None:
