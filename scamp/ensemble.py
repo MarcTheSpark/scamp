@@ -80,8 +80,6 @@ class Ensemble(SavesToJSON):
         :rtype : MidiScampInstrument
         """
 
-        name = "Track " + str(len(self.instruments) + 1) if name is None else name
-
         if not 0 <= soundfont_index < len(self.midi_player.soundfont_ids):
             raise ValueError("Soundfont index out of bounds.")
 
@@ -100,6 +98,7 @@ class Ensemble(SavesToJSON):
         elif isinstance(preset, int):
             preset = (0, preset)
 
+        name = "Track " + str(len(self.instruments) + 1) if name is None else name
         instrument = MidiScampInstrument(self, name, preset, soundfont_index, num_channels,
                                          midi_output_device, midi_output_name)
 
