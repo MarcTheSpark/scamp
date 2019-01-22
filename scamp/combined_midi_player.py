@@ -166,7 +166,7 @@ class CombinedMidiInstrument:
         to the instrument, so no such conversion is necessary.
         """
         rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
-        velocity = int(volume_from_0_to_1 * 127)
+        velocity = max(0, min(127, int(volume_from_0_to_1 * 127)))
         if self.combined_midi_player.synth is not None:
             absolute_channel = self.channels[chan]
             self.combined_midi_player.synth.noteon(absolute_channel, pitch, velocity)
@@ -231,7 +231,7 @@ class CombinedMidiInstrument:
 
     def expression(self, chan, expression_from_0_to_1):
         rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
-        expression_val = int(expression_from_0_to_1 * 127)
+        expression_val = max(0, min(127, int(expression_from_0_to_1 * 127)))
         if self.combined_midi_player.synth is not None:
             absolute_channel = self.channels[chan]
             self.combined_midi_player.synth.cc(absolute_channel, 11, expression_val)

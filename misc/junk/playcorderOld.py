@@ -364,8 +364,7 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
         # the starting pitch should just be whatever it is
         start_pitch = pitch.value_at(0) if isinstance(pitch, ParameterCurve) else pitch
 
-        note_id = self._do_start_note(start_pitch, start_volume, properties,
-                                      pitch_changes=is_animating_pitch)
+        note_id = self._do_start_note(start_pitch, start_volume, properties, pitch_changes=is_animating_pitch)
 
         if is_animating_volume or is_animating_pitch:
             temporal_resolution = float("inf")
@@ -378,7 +377,6 @@ class MidiPlaycorderInstrument(PlaycorderInstrument):
                 temporal_resolution = min(temporal_resolution,
                                           MidiPlaycorderInstrument.get_good_pitch_bend_temporal_resolution(pitch))
             temporal_resolution = max(temporal_resolution, 0.01)  # faster than this is wasteful, doesn't seem to help
-            print(temporal_resolution)
 
             def animate_pitch_and_volume():
                 while note_start_time is not None:

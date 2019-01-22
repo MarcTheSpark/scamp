@@ -29,7 +29,7 @@ class Session:
         self._default_spelling_policy = None
 
         # The Performance object created when we record
-        self.performance = None
+        self.performance: Performance = None
 
     # ----------------------------------- Clock Stuff --------------------------------
 

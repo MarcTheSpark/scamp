@@ -31,7 +31,7 @@
         "consider_non_extrema_control_points": false,
         "control_point_policy": "split",
         "include_end_grace_note": true,
-        "inner_grace_relevance_threshold": 4.0,
+        "inner_grace_relevance_threshold": 1.5,
         "max_inner_graces_music_xml": 1
     },
     "ignore_empty_parts": true,

@@ -143,11 +143,11 @@ class ScampInstrument(SavesToJSON):
             if is_animating_volume:
                 volume_curve = volume.normalize_to_duration(length, False)
                 temporal_resolution = min(temporal_resolution,
-                                          MidiScampInstrument.get_good_volume_temporal_resolution(volume_curve))
+                                          ScampInstrument.get_good_volume_temporal_resolution(volume_curve))
             if is_animating_pitch:
                 pitch_curve = pitch.normalize_to_duration(length, False)
                 temporal_resolution = min(temporal_resolution,
-                                          MidiScampInstrument.get_good_pitch_bend_temporal_resolution(pitch_curve))
+                                          ScampInstrument.get_good_pitch_bend_temporal_resolution(pitch_curve))
             temporal_resolution = max(temporal_resolution, 0.01)  # faster than this is wasteful, doesn't seem to help
 
             def animate_pitch_and_volume():

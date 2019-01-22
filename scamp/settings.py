@@ -188,7 +188,7 @@ class GlissandiSettings(ScampSettings):
         # this threshold helps determine which gliss control points are worth expressing in notation
         # the further a control point is from its neighbors, and the further it deviates from
         # the linearly interpolated pitch at that point, the higher its relevance score.
-        "inner_grace_relevance_threshold": 4.0,
+        "inner_grace_relevance_threshold": 1.5,
         "max_inner_graces_music_xml": 1
     }
 
@@ -242,11 +242,16 @@ class EngravingSettings(ScampSettings):
     factory_defaults = {
         "max_voices_per_part": 4,
         "max_dots_allowed": 3,
-        "articulation_split_protocols": {  # can be first, last, or both
+        "articulation_split_protocols": {
+            # can be "first", "last", "both", or "all"
+            # first means the articulation only appears at the beginning of a tied group
+            # last means it only appears at the end
+            # both means it appears at the beginning and the end
+            # and all means that it even appears on inner tied notes
             "staccato": "last",
             "staccatissimo": "last",
             "marcato": "first",
-            "tenuto": "last",
+            "tenuto": "both",
             "accent": "first"
         },
         "default_titles": ["On the Code Again", "The Long and Winding Code", "Code To Joy",
