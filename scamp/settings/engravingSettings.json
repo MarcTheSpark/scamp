@@ -4,7 +4,7 @@
         "marcato": "first",
         "staccatissimo": "last",
         "staccato": "last",
-        "tenuto": "last"
+        "tenuto": "both"
     },
     "default_composers": [
         "HTMLvis",

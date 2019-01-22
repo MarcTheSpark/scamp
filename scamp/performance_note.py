@@ -138,6 +138,28 @@ class PerformanceNote(SavesToJSON):
                 self.properties["_starts_tie"] = True
                 second_part.properties["_ends_tie"] = True
 
+                for articulation in self.properties.articulations:
+                    if articulation in engraving_settings.articulation_split_protocols and \
+                            engraving_settings.articulation_split_protocols[articulation] == "first":
+                        # this articulation is about the attack, so should appear only in the first part
+                        # of a split note, so remove it from the second
+                        second_part.properties.articulations.remove(articulation)
+                    elif articulation in engraving_settings.articulation_split_protocols and \
+                            engraving_settings.articulation_split_protocols[articulation] == "last":
+                        # this articulation is about the release, so should appear only in the second part
+                        # of a split note, so remove it from the first
+                        self.properties.articulations.remove(articulation)
+                    elif articulation in engraving_settings.articulation_split_protocols and \
+                            engraving_settings.articulation_split_protocols[articulation] == "both":
+                        # this articulation is about the attack and release, but it doesn't really make
+                        # sense to play it on a note the middle of a tied group
+                        if self.properties.starts_tie() and self.properties.ends_tie():
+                            self.properties.articulations.remove(articulation)
+                        if second_part.properties.starts_tie() and second_part.properties.ends_tie():
+                            second_part.properties.articulations.remove(articulation)
+                    # note, if the split protocol says "all" (or doesn't exist), then we just
+                    # default to keeping the articulation on everything
+
                 # we also want to keep track of which notes came from the same original note for doing ties and such
                 if "_source_id" in self.properties:
                     second_part.properties["_source_id"] = self.properties["_source_id"]
