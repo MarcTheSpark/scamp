@@ -79,14 +79,25 @@ If you here a piano gesture sweeping inward towards middle C, SCAMP has installe
 
 ### 1) Installing Python 3.6 or greater
 
-___Mac & Windows___
+___Mac___
 
-For Mac and Windows, you can download and install Python 3 here: [https://www.python.org/downloads/](https://www.python.org/downloads/). After installation, open up a terminal and type:
+You can download and install Python 3 here: [https://www.python.org/downloads/](https://www.python.org/downloads/). After installation, open up a terminal and type:
 
 `python3 --version`
 
 You should be greeted with "Python 3.7.2" or something similar in response. If so, you're all set! 
 If you get something like "command not found" instead, it's likely that something went wrong in the process of installation.
+
+___Windows___
+
+As on a Mac, you can download and install Python 3 here: [https://www.python.org/downloads/](https://www.python.org/downloads/). 
+In the installer, be sure to select "Add Python 3.7 to PATH". This allows you to invoke python from the Command Prompt 
+by typing either `python` or `py`, and this should also default to the latest version of python. Test that all went
+according to plan by typing:
+
+`python --version`
+
+You should be greeted with "Python 3.7.2" or something similar in response. If so, you're all set! For all other installation instructions below, use `python` instead of `python3` and `pip` instead of `pip3`.
 
 ___Linux___
 
