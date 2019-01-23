@@ -14,7 +14,6 @@ session.master_clock.set_tempo_target(100, 18, truncate=False)
 session.master_clock.set_tempo_target(89, 27, truncate=False)
 
 session.start_recording()
-session.fast_forward_in_beats(30)
 
 while session.beats() < 30:
     violin.play_note(70 + (session.beats() * 3) % 7, 1.0, 0.25)
