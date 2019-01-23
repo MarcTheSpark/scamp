@@ -1,9 +1,7 @@
-- Fix bug where there's duplicate tempo markings, e.g. in piano phase
-- Check on staccato; doesn't seem to be outputting
-- Make Session a subclass of Clock. Also maybe make clock not note down the start time until its first call to wait?
-- Get recombination of larger notes working
-- add append function to TempoCurve
+- Get the multipleTempo example looking pretty. What are the issues?
 - Engraving sudden tempo changes
+- maybe make clock not note down the start time until its first call to wait?
+- Get recombination of larger notes working
 - Engraving tempo in abjad
 - MIDIScampInstrument: allow preset shifts with keyword string
 - Playback adjustments: allow preset change as a possibility
