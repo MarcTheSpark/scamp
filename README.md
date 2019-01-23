@@ -73,7 +73,7 @@ Each of these steps is described in greater detail below. After configuring the 
 running `pip3 install --user scamp`, you should be able to test the installation by:
 
 1) Opening a terminal and typing `python3` to start an interactive python session.
-2) Typing in `from scamp import test_run` and pressing return.
+2) Typing in `from scamp import test_run; test_run.play()` and pressing return.
 
 If you here a piano gesture sweeping inward towards middle C, SCAMP has installed correctly!
 
