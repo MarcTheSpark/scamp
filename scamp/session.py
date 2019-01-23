@@ -6,7 +6,7 @@ from .spelling import SpellingPolicy
 from clockblocks import Clock
 
 
-class Session:
+class Session(Clock):
 
     def __init__(self, soundfonts="default", audio_driver=None, midi_output_device=None):
         """
@@ -20,7 +20,7 @@ class Session:
         self.set_ensemble(Ensemble(soundfonts, audio_driver, midi_output_device))
 
         # Clock keeps track of time and can spawn subordinate clocks
-        self.master_clock = Clock("MASTER")
+        super().__init__("MASTER")
         self._recording_clock = None
         self._recording_start_time = None
 
@@ -30,91 +30,6 @@ class Session:
 
         # The Performance object created when we record
         self.performance: Performance = None
-
-    # ----------------------------------- Clock Stuff --------------------------------
-
-    def time(self):
-        return self.master_clock.time()
-
-    def beats(self):
-        return self.master_clock.beats()
-
-    @property
-    def beat_length(self):
-        return self.master_clock.beat_length
-
-    @beat_length.setter
-    def beat_length(self, b):
-        self.master_clock.beat_length = b
-
-    @property
-    def rate(self):
-        return self.master_clock.rate
-
-    @rate.setter
-    def rate(self, r):
-        self.master_clock.rate = r
-
-    @property
-    def tempo(self):
-        return self.master_clock.tempo
-
-    @tempo.setter
-    def tempo(self, t):
-        self.master_clock.tempo = t
-
-    def fork(self, process_function, name="", initial_rate=1.0, extra_args=(), kwargs=None):
-        return self.master_clock.fork(process_function, name=name, initial_rate=initial_rate,
-                                      extra_args=extra_args, kwargs=kwargs)
-
-    def fork_unsynchronized(self, process_function, args=(), kwargs=None):
-        self.master_clock.fork_unsynchronized(process_function, args=args, kwargs=kwargs)
-
-    def wait(self, t):
-        self.master_clock.wait(t)
-
-    def sleep(self, t):
-        self.master_clock.wait(t)
-
-    def wait_forever(self):
-        while True:
-            self.wait(1.0)
-
-    def fast_forward_to_time(self, t):
-        self.master_clock.fast_forward_to_time(t)
-
-    def fast_forward_in_time(self, t):
-        self.master_clock.fast_forward_in_time(t)
-
-    def fast_forward_to_beat(self, b):
-        self.master_clock.fast_forward_to_beat(b)
-
-    def fast_forward_in_beats(self, b):
-        self.master_clock.fast_forward_in_beats(b)
-
-    @property
-    def use_precise_timing(self):
-        return self.master_clock.use_precise_timing
-
-    @use_precise_timing.setter
-    def use_precise_timing(self, value):
-        self.master_clock.use_precise_timing = value
-
-    @property
-    def synchronization_policy(self):
-        return self.master_clock.synchronization_policy
-
-    @synchronization_policy.setter
-    def synchronization_policy(self, value):
-        self.master_clock.synchronization_policy = value
-
-    @property
-    def timing_policy(self):
-        return self.master_clock.timing_policy
-
-    @timing_policy.setter
-    def timing_policy(self, value):
-        self.master_clock.timing_policy = value
 
     # ----------------------------------- Listeners ----------------------------------
 
@@ -129,7 +44,7 @@ class Session:
     def register_midi_callback(self, port_number_or_device_name, callback_function,
                                time_resolution=0.005, synchronous=False):
         start_midi_listener(port_number_or_device_name, callback_function,
-                            clock=self.master_clock, time_resolution=time_resolution, synchronous=synchronous)
+                            clock=self, time_resolution=time_resolution, synchronous=synchronous)
 
     # --------------------------------- Ensemble Stuff -------------------------------
 
@@ -215,7 +130,7 @@ class Session:
 
     def start_recording(self, which_parts=None, clock="master"):
         if isinstance(clock, str) and clock == "master":
-            clock = self.master_clock
+            clock = self
         assert clock == "absolute" or isinstance(clock, Clock)
         self._recording_clock = clock
         self._recording_start_time = self.time() if clock == "absolute" else clock.beats()
@@ -231,7 +146,7 @@ class Session:
 
     def get_recording_beat(self):
         if self._recording_clock == "absolute":
-            return self.master_clock.time() - self._recording_start_time
+            return self.time() - self._recording_start_time
         else:
             return self._recording_clock.beats() - self._recording_start_time
 

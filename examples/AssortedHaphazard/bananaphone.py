@@ -4,7 +4,7 @@ import math
 
 session = Session()
 
-session.master_clock.set_tempo_target(300, 20)
+session.set_tempo_target(300, 20)
 
 violin = session.add_midi_part("violin")
 violin2 = session.add_midi_part("violin2")

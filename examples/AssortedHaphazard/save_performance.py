@@ -32,7 +32,7 @@ def shaku_part(clock):
 session.fork(oboe_part)
 session.fork(shaku_part)
 
-session.master_clock.set_tempo_target(300, 30, duration_units="time")
+session.set_tempo_target(300, 30, duration_units="time")
 
 session.wait(15)
 session.start_recording()

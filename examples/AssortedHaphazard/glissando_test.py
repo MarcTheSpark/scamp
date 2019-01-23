@@ -31,4 +31,4 @@ performance.save_to_json(resolve_relative_path("SavedFiles/quantized_glisses.jso
 
 session.wait(2)
 print("playing quantized")
-performance.play(clock=session.master_clock)
+performance.play(clock=session)

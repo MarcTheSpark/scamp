@@ -9,8 +9,8 @@ session.load_ensemble_from_json(resolve_relative_path("SavedFiles/shakEnsemble.j
 
 performance = Performance.load_from_json(resolve_relative_path("SavedFiles/perfShakoboe.json"))
 
-session.master_clock.tempo = 30
-session.master_clock.set_tempo_target(150, 40, duration_units="time")
+session.tempo = 30
+session.set_tempo_target(150, 40, duration_units="time")
 
 while True:
-    performance.play(ensemble=session.ensemble, clock=session.master_clock, blocking=True)
+    performance.play(ensemble=session.ensemble, clock=session, blocking=True)

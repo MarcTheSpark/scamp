@@ -36,8 +36,8 @@ print("Done")
 while True:
     print("Replaying recording with quantization")
     session.wait(1)
-    quantized_performance.play(clock=session.master_clock)
+    quantized_performance.play(clock=session)
 
     print("Replaying recording without quantization")
     session.wait(1)
-    performance.play(clock=session.master_clock)
+    performance.play(clock=session)
