@@ -1,4 +1,7 @@
-- Get the multipleTempo example looking pretty. What are the issues?
+- Get the multipleTempo example looking pretty: The main issue is a fairly deep one: we're acting like the tempo is
+not going to change during the course of a note, but that's not necessarily true. For a long note this could be very
+untrue. ScampInstrument is going to have to be restructured so that play note starts the note and then waits on the
+clock_ until the end.
 - Engraving sudden tempo changes
 - maybe make clock not note down the start time until its first call to wait?
 - Get recombination of larger notes working

@@ -216,5 +216,5 @@ installed the package, you can remove the bulky repo with:
 
 ```
 cd ..
-rm abjad
+rm -r abjad
 ```
