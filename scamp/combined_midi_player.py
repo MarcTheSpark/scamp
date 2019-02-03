@@ -1,12 +1,70 @@
-from .utilities import resolve_relative_path, SavesToJSON
+from .utilities import resolve_relative_path, SavesToJSON, get_average_square_correlation
 from .simple_rtmidi_wrapper import SimpleRtMidiOut
 from .settings import playback_settings
 from .dependencies import fluidsynth, Sf2File
 import logging
 from collections import namedtuple
-
+import re
 
 ScampMidiPreset = namedtuple("ScampMidiPreset", "name preset soundfont_index")
+
+
+_preset_name_substitutions = [
+    # voice types
+    [r"\b(bs)\b", "bass"],
+    [r"\b(bari)\b", "baritone"],
+    [r"\b(alt)\b", "alto"],
+    [r"\b(ten)\b", "tenor"],
+    [r"\b(sop)\b", "soprano"],
+    # winds
+    [r"\b(flt)\b", "flute"],
+    [r"\b(ob)\b", "oboe"],
+    [r"\b(eng)\b", "english"],
+    [r"\b(cl)\b", "clarinet"],
+    [r"\b(bcl)\b", "bass clarinet"],
+    [r"\b(bsn)\b", "bassoon"],
+    [r"\b(cbn)\b", "contrabassoon"],
+    [r"\b(sax)\b", "saxophone"],
+    # brass
+    [r"\b(tpt)\b", "trumpet"],
+    [r"\b(hn)\b", "horn"],
+    [r"\b(hrn)\b", "horn"],
+    [r"\b(tbn)\b", "trombone"],
+    [r"\b(tba)\b", "tuba"],
+    # percussion / assorted
+    [r"\b(timp)\b", "timpani"],
+    [r"\b(perc)\b", "percussion"],
+    [r"\b(xyl)\b", "xylophone"],
+    [r"\b(hrp)\b", "harp"],
+    [r"\b(pno)\b", "piano"],
+    # strings
+    [r"\b(str)\b", "strings"],
+    [r"\b(vln)\b", "violin"],
+    [r"\b(vla)\b", "viola"],
+    [r"\b(vc)\b", "violoncello"],
+    [r"\b(cello)\b", "violoncello"],
+    [r"\b(cbs)\b", "contrabass"],
+    # etc
+    [r"\b(orch)\b", "orchestra"],
+    [r"\b(std)\b", "standard"],
+    [r"\b(gtr)\b", "guitar"],
+    [r"\b(elec)\b", "electric"],
+    [r"\b(pizz)\b", "pizzicato"],
+    [r"(\bgold\b)", ""],  # fixes issue with "flute" getting matched with pan flute instead of flute gold
+    [r"(\bmerlin\b)", ""],  # fixes issue with "piano" getting matched with piano 3 instead of piano merlin
+    [r"(bassoon)\b", "fagotto"],  # this helps avoid confusion between contrabass and contrabassoon
+]
+
+
+def _do_name_substitutions(name: str):
+    for match_string, replace_string in _preset_name_substitutions:
+        match = re.search(match_string, name)
+        if match:
+            if len(match.groups()) > 0:
+                name = name[:match.start(1)] + replace_string + name[match.end(1):]
+            else:
+                name = name[:match.start(0)] + replace_string + name[match.end(0):]
+    return name
 
 
 class CombinedMidiPlayer(SavesToJSON):
@@ -96,14 +154,42 @@ class CombinedMidiPlayer(SavesToJSON):
                     (avoid is None or avoid.lower() not in inst.name.lower())]
         return None
 
-    def iter_presets(self):
-        for soundfont_id, soundfont_instrument_list in enumerate(self.soundfont_instrument_lists):
-            for sf2_preset in soundfont_instrument_list:
+    def get_best_preset_match_for_name(self, name: str, soundfont_id=None):
+        """
+        Does fuzzy string matching to find an appropriate preset for given name
+        :param name: name of the instrument to find a preset for
+        :param soundfont_id: if None, search all soundfonts, otherwise search only the specified soundfont
+        :return: a ScampMidiPreset
+        """
+        best_preset_match = None
+        best_preset_score = 0
+        altered_name = name.lower()
+        altered_name = _do_name_substitutions(altered_name)
+        for scamp_midi_preset in self.iter_presets(soundfont_id=soundfont_id):
+            altered_preset_name = scamp_midi_preset.name.lower()
+            altered_preset_name = _do_name_substitutions(altered_preset_name)
+            score = get_average_square_correlation(altered_name, altered_preset_name)
+            print(scamp_midi_preset.soundfont_index, altered_name, altered_preset_name, score)
+            if score > best_preset_score:
+                best_preset_score = score
+                best_preset_match = scamp_midi_preset
+        return best_preset_match, best_preset_score
+
+    def iter_presets(self, soundfont_id=None):
+        # yield presets from all soundfonts (default) or from a specific soundfont by providing the id
+        if soundfont_id is not None:
+            for sf2_preset in self.soundfont_instrument_lists[soundfont_id]:
                 try:
                     yield ScampMidiPreset(sf2_preset.name, (sf2_preset.bank, sf2_preset.preset), soundfont_id)
                 except AttributeError:
                     pass
-        raise StopIteration
+        else:
+            for soundfont_id, soundfont_instrument_list in enumerate(self.soundfont_instrument_lists):
+                for sf2_preset in soundfont_instrument_list:
+                    try:
+                        yield ScampMidiPreset(sf2_preset.name, (sf2_preset.bank, sf2_preset.preset), soundfont_id)
+                    except AttributeError:
+                        pass
 
     def print_all_soundfont_presets(self):
         for i in range(len(self.soundfonts)):

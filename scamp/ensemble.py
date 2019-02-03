@@ -41,8 +41,8 @@ class Ensemble(SavesToJSON):
     def get_instruments_with_substring(self, word, avoid=None, soundfont_index=0):
         return self.midi_player.get_instruments_with_substring(word, avoid=avoid, soundfont_index=soundfont_index)
 
-    def iter_presets(self):
-        return self.midi_player.iter_presets()
+    def iter_presets(self, soundfont_id=None):
+        return self.midi_player.iter_presets(soundfont_id=soundfont_id)
 
     def print_all_soundfont_presets(self):
         self.midi_player.print_all_soundfont_presets()
@@ -61,7 +61,7 @@ class Ensemble(SavesToJSON):
         self.instruments.append(instrument)
         return instrument
 
-    def add_midi_part(self, name=None, preset="auto", soundfont_index=0, num_channels=8,
+    def add_midi_part(self, name=None, preset="auto", soundfont_index=None, num_channels=8,
                       midi_output_device=None, midi_output_name=None):
         """
         Constructs a MidiScampInstrument, adds it to the Ensemble, and returns it
@@ -80,23 +80,27 @@ class Ensemble(SavesToJSON):
         :rtype : MidiScampInstrument
         """
 
-        if not 0 <= soundfont_index < len(self.midi_player.soundfont_ids):
+        if soundfont_index is not None and not 0 <= soundfont_index < len(self.midi_player.soundfont_ids):
             raise ValueError("Soundfont index out of bounds.")
 
         if preset == "auto":
             if name is None:
                 preset = (0, 0)
             else:
-                # strip any numbers and spaces from the name, so that "Clarinet 1" searches as "clarinet"
-                possible_instruments = self.get_instruments_with_substring(name.strip(" 0123456789"))
-                if len(possible_instruments) > 0:
-                    preset = (possible_instruments[0].bank, possible_instruments[0].preset)
+                preset_match, match_score = \
+                    self.midi_player.get_best_preset_match_for_name(name, soundfont_id=soundfont_index)
+                if match_score > 1.0:
+                    preset = preset_match.preset
+                    soundfont_index = preset_match.soundfont_index
+                    print("Using preset {} for {}".format(preset_match.name, name))
                 else:
                     logging.warning("Could not find preset matching {}. "
                                     "Falling back to preset 0 (probably piano).".format(name))
                     preset = (0, 0)
         elif isinstance(preset, int):
             preset = (0, preset)
+
+        soundfont_index = 0 if soundfont_index is None else soundfont_index
 
         name = "Track " + str(len(self.instruments) + 1) if name is None else name
         instrument = MidiScampInstrument(self, name, preset, soundfont_index, num_channels,

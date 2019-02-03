@@ -63,8 +63,8 @@ class Session(Clock):
     def get_instruments_with_substring(self, word, avoid=None, soundfont_index=0):
         return self._ensemble.get_instruments_with_substring(word, avoid=avoid, soundfont_index=soundfont_index)
 
-    def iter_presets(self):
-        return self._ensemble.iter_presets()
+    def iter_presets(self, soundfont_id=None):
+        return self._ensemble.iter_presets(soundfont_id=soundfont_id)
 
     def print_all_soundfont_presets(self):
         self._ensemble.print_all_soundfont_presets()
@@ -73,7 +73,7 @@ class Session(Clock):
         assert isinstance(instrument, ScampInstrument)
         return self._ensemble.add_part(instrument)
 
-    def add_midi_part(self, name=None, preset="auto", soundfont_index=0, num_channels=8,
+    def add_midi_part(self, name=None, preset="auto", soundfont_index=None, num_channels=8,
                       midi_output_device=None, midi_output_name=None):
         assert isinstance(self._ensemble, Ensemble)
         return self._ensemble.add_midi_part(name, preset, soundfont_index, num_channels,

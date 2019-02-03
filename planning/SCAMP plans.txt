@@ -2,6 +2,7 @@
 not going to change during the course of a note, but that's not necessarily true. For a long note this could be very
 untrue. ScampInstrument is going to have to be restructured so that play note starts the note and then waits on the
 clock_ until the end.
+- Make session inherit from ensemble and make Ensemble inherit from CombinedMidiPlayer, or maybe even merge them?
 - Engraving sudden tempo changes
 - maybe make clock not note down the start time until its first call to wait?
 - Get recombination of larger notes working

@@ -159,6 +159,21 @@ def rotate(l, n):
     """
     return l[n:] + l[:n]
 
+
+# ---------------------------------------------- String Utilities --------------------------------------------------
+
+
+def get_average_square_correlation(test_string: str, template_string: str):
+    square_correlation_sum = 0
+    test_length, template_length = len(test_string), len(template_string)
+    for offset in range(-test_length + 1, template_length):
+        test_string_segment = test_string[max(0, -offset): template_length - offset]
+        template_string_segment = template_string[max(0, offset): max(0, offset) + len(test_string_segment)]
+        correlation_score = sum(a == b for a, b in zip(test_string_segment, template_string_segment))
+        square_correlation_sum += correlation_score ** 2
+    return square_correlation_sum / (test_length + template_length)
+
+
 # ------------------------------------ Indigestibility (a la Clarence Barlow) ------------------------------------
 # All of these are needed for the indispensability stuff below
 
