@@ -6,7 +6,8 @@ import logging
 from collections import namedtuple
 import re
 
-ScampMidiPreset = namedtuple("ScampMidiPreset", "name preset soundfont_index")
+
+ScampSoundfontPreset = namedtuple("ScampSoundfontPreset", "name preset soundfont_index")
 
 
 _preset_name_substitutions = [
@@ -159,7 +160,7 @@ class CombinedMidiPlayer(SavesToJSON):
         Does fuzzy string matching to find an appropriate preset for given name
         :param name: name of the instrument to find a preset for
         :param soundfont_id: if None, search all soundfonts, otherwise search only the specified soundfont
-        :return: a ScampMidiPreset
+        :return: a ScampSoundfontPreset
         """
         best_preset_match = None
         best_preset_score = 0
@@ -169,7 +170,6 @@ class CombinedMidiPlayer(SavesToJSON):
             altered_preset_name = scamp_midi_preset.name.lower()
             altered_preset_name = _do_name_substitutions(altered_preset_name)
             score = get_average_square_correlation(altered_name, altered_preset_name)
-            print(scamp_midi_preset.soundfont_index, altered_name, altered_preset_name, score)
             if score > best_preset_score:
                 best_preset_score = score
                 best_preset_match = scamp_midi_preset
@@ -180,14 +180,14 @@ class CombinedMidiPlayer(SavesToJSON):
         if soundfont_id is not None:
             for sf2_preset in self.soundfont_instrument_lists[soundfont_id]:
                 try:
-                    yield ScampMidiPreset(sf2_preset.name, (sf2_preset.bank, sf2_preset.preset), soundfont_id)
+                    yield ScampSoundfontPreset(sf2_preset.name, (sf2_preset.bank, sf2_preset.preset), soundfont_id)
                 except AttributeError:
                     pass
         else:
             for soundfont_id, soundfont_instrument_list in enumerate(self.soundfont_instrument_lists):
                 for sf2_preset in soundfont_instrument_list:
                     try:
-                        yield ScampMidiPreset(sf2_preset.name, (sf2_preset.bank, sf2_preset.preset), soundfont_id)
+                        yield ScampSoundfontPreset(sf2_preset.name, (sf2_preset.bank, sf2_preset.preset), soundfont_id)
                     except AttributeError:
                         pass
 
