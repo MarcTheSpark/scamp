@@ -28,21 +28,21 @@ class PlaybackImplementer:
         note_id = next(PlaybackImplementer._note_id_generator)
         self._active_note_ids.append(note_id)
         self._note_info_by_id[note_id] = {
-            "start_pitch": pitch,
-            "start_volume": volume,
-            "pitch": pitch,
-            "volume": volume,
-            "parameter_values": {},
-            "properties": properties,
             "start_time": TimeStamp(),
-            "current_pitch_animation_id": -1,
+            "parameter_start_values": {
+                "pitch": pitch,
+                "volume": volume,
+            },
+            "parameter_values": {
+                "pitch": pitch,
+                "volume": volume,
+            },
             "current_animation_ids": {
                 "pitch": -1,
                 "volume": -1,
             },
-            "pitch_change_segments": [],
-            "volume_change_segments": [],
-            "parameter_change_segments": {}
+            "parameter_change_segments": {},
+            "properties": properties,
         }
         return note_id
 
@@ -53,13 +53,13 @@ class PlaybackImplementer:
 
     def _do_change_note_pitch(self, note_id, new_pitch):
         # Changes the pitch of the note with the given id
-        self._note_info_by_id[note_id]["pitch"] = new_pitch
+        self._note_info_by_id[note_id]["parameter_values"]["pitch"] = new_pitch
         print("changing pitch to", new_pitch)
         return note_id
 
     def _do_change_note_volume(self, note_id, new_volume):
         # Changes the expression of the note with the given id
-        self._note_info_by_id[note_id]["volume"] = new_volume
+        self._note_info_by_id[note_id]["parameter_values"]["volume"] = new_volume
         print("changing volume to", new_volume)
         return note_id
 
@@ -165,130 +165,100 @@ class ScampInstrument(PlaybackImplementer):
 
         clock.fork(_pitch_change_process)
 
-    # def _get_pitch_change_process(self, note_id, pitch_target, transition_length, transition_curve_shape, clock):
-    #     note_info = self._note_info_by_id[note_id]
-    #
-    #     if transition_length == 0:
-    #         def _pitch_change_process(child_clock):
-    #             time_stamp = TimeStamp()
-    #             self._do_change_note_pitch(note_id, pitch_target)
-    #             note_info["pitch_change_segments"].append((
-    #                 time_stamp, time_stamp, pitch_target
-    #             ))
-    #     else:
-    #         def _pitch_change_process(child_clock):
-    #             start_time_stamp = TimeStamp()
-    #
-    #             seconds_transition_length = transition_length / clock.absolute_rate()
-    #             wall_start_time = time.time()
-    #             curve = EnvelopeSegment(wall_start_time, wall_start_time + seconds_transition_length,
-    #                                     note_info["pitch"], pitch_target, curve_shape=transition_curve_shape)
-    #             this_pitch_animation_id = note_info["current_pitch_animation_id"] = \
-    #                 note_info["current_pitch_animation_id"] + 1
-    #             # COULD split this into segments
-    #
-    #             segment_aborted = False
-    #
-    #             def animate_pitch():
-    #                 nonlocal segment_aborted
-    #                 time_increment = max(ScampInstrument._get_good_pitch_bend_temporal_resolution(curve), 0.01)
-    #                 while time.time() < wall_start_time + seconds_transition_length:
-    #                     if this_pitch_animation_id != note_info["current_pitch_animation_id"]:
-    #                         segment_aborted = True
-    #                         break
-    #                     self._do_change_note_pitch(note_id, curve.value_at(time.time()))
-    #                     time.sleep(time_increment)
-    #
-    #                 if segment_aborted:
-    #                     note_info["pitch_change_segments"].append((
-    #                         start_time_stamp, TimeStamp(), curve.value_at(time.time())
-    #                     ))
-    #                     child_clock.kill()
-    #                 else:
-    #                     self._do_change_note_pitch(note_id, pitch_target)
-    #
-    #             child_clock.fork_unsynchronized(animate_pitch)
-    #             child_clock.wait(transition_length)
-    #
-    #             if not segment_aborted:
-    #                 note_info["pitch_change_segments"].append((
-    #                     start_time_stamp, TimeStamp(), pitch_target
-    #                 ))
-    #
-    #     return _pitch_change_process
-
     def _get_param_change_process(self, note_id, param_name, target, transition_length, transition_curve_shape, clock):
+        """
+        Returns a function that carries out a single stage of parameter change.
+        :param note_id: which note we're affecting
+        :param param_name: the name of the parameter ("pitch" and "volume" are treated specially)
+        :param target: the target value for the parameter
+        :param transition_length: length of the transition (in beats on the clock we're using)
+        :param transition_curve_shape: shape of the transition (in the sense of an EnvelopeSegment)
+        :param clock: the clock on which this change is carried out
+        :return: a function that we can then fork
+        """
         note_info = self._note_info_by_id[note_id]
 
+        # which function do we use to actually carry out the change of parameter? Pitch and volume are special.
         if param_name == "pitch":
-            change_parameter_function = self._do_change_note_pitch
-            segments_list = note_info["pitch_change_segments"]
+            do_change_parameter = self._do_change_note_pitch
         elif param_name == "volume":
-            change_parameter_function = self._do_change_note_volume
-            segments_list = note_info["volume_change_segments"]
+            do_change_parameter = self._do_change_note_volume
         else:
-            def change_parameter_function(n_id, value): self._do_change_note_parameter(n_id, param_name, value)
-            if param_name in note_info["parameter_change_segments"]:
-                segments_list = note_info["parameter_change_segments"][param_name]
-            else:
-                segments_list = note_info["parameter_change_segments"][param_name] = []
-            if param_name not in note_info["parameter_values"]:
-                raise ValueError("Trying to change a parameter that was not defined at note start.")
+            def do_change_parameter(n_id, value): self._do_change_note_parameter(n_id, param_name, value)
 
+        if param_name not in note_info["parameter_values"]:
+            # this would never get thrown with pitch and volume, since they are always involved, but any other optional
+            # parameter should have been set at a start value when the note starts
+            raise ValueError("Trying to change a parameter that was not defined at note start.")
+
+        # we need to make sure there's a list of the segments of animation for this parameter, creating one if needed
+        if param_name in note_info["parameter_change_segments"]:
+            segments_list = note_info["parameter_change_segments"][param_name]
+        else:
+            segments_list = note_info["parameter_change_segments"][param_name] = []
+
+        # We also need to have a "current animation id" defined for the given parameter. This is used to keep track
+        # of which segment we're currently on and whether a new segment started while an old one was still going
         if param_name not in note_info["current_animation_ids"]:
             note_info["current_animation_ids"] = -1
 
         if transition_length == 0:
+            # if the transition length is zero, no animation is needed. Simply change the parameter, and make a note
+            # of the change in the segments list for that parameter.
+
             def _param_change_process(child_clock):
                 time_stamp = TimeStamp()
-                change_parameter_function(note_id, target)
+                do_change_parameter(note_id, target)
                 segments_list.append((
                     time_stamp, time_stamp, target
                 ))
         else:
+            # if the transition has some actual length, then we'll need to fork an animation thread to carry out the
+            # changes in that parameter. This is done as an unsynchronized fork, because otherwise it has the potential
+            # to gum up the gears of the clocks. (Of course the disadvantage is that, if the clock is rapidly changing
+            # tempo, it may get a little off, but it will only affect playback and not notation.)
+
             def _param_change_process(child_clock):
                 start_time_stamp = TimeStamp()
 
                 # this is an estimate, since it assumes the clock doesn't change absolute rate significantly
                 # even if it does, though, it will just make playback a little wonky and won't affect notation
+                # TODO: CHANGE THIS TO REMAINING TIME AND READJUST TO CLOCK ABSOLUTE RATE EACH FRAME!
                 seconds_transition_length_estimate = transition_length / clock.absolute_rate()
                 wall_start_time = time.time()
 
-                if param_name == "pitch":
-                    current_param_value = note_info["pitch"]
-                elif param_name == "volume":
-                    current_param_value = note_info["volume"]
-                else:
-                    current_param_value = note_info["parameter_values"][param_name]
-
                 curve = EnvelopeSegment(wall_start_time, wall_start_time + seconds_transition_length_estimate,
-                                        current_param_value, target, curve_shape=transition_curve_shape)
+                                        note_info["parameter_values"][param_name], target,
+                                        curve_shape=transition_curve_shape)
 
+                # depending on the (max) rate of change involved in the curve, and the parameter it's affecting, we try
+                # to pick an appropriate time increment for the unsynchronized thread.
+                if param_name == "pitch":
+                    time_increment = max(ScampInstrument._get_good_pitch_bend_temporal_resolution(curve), 0.01)
+                elif param_name == "volume":
+                    time_increment = max(ScampInstrument.get_good_volume_temporal_resolution(curve), 0.01)
+                else:
+                    time_increment = 0.01
+
+                # increment the animation id and hold on to the value. Later we can check if it is still that value.
+                # if not, a new animation thread has been launched for the same parameter and we should abort this one
                 this_animation_id = note_info["current_animation_ids"][param_name] = \
                     note_info["current_animation_ids"][param_name] + 1
-
-                # TODO: COULD split this into segments to improve temporal accuracy?
-
                 segment_aborted = False
 
                 def animate_param():
                     nonlocal segment_aborted
 
-                    if param_name == "pitch":
-                        time_increment = max(ScampInstrument._get_good_pitch_bend_temporal_resolution(curve), 0.01)
-                    elif param_name == "volume":
-                        time_increment = max(ScampInstrument.get_good_volume_temporal_resolution(curve), 0.01)
-                    else:
-                        time_increment = 0.01
-
                     while time.time() < wall_start_time + seconds_transition_length_estimate:
                         if this_animation_id != note_info["current_animation_ids"][param_name]:
+                            # a new animation thread got launched for the same parameter; abort this one
                             segment_aborted = True
                             break
-                        change_parameter_function(note_id, curve.value_at(time.time()))
+                        do_change_parameter(note_id, curve.value_at(time.time()))
                         time.sleep(time_increment)
 
                     if segment_aborted:
+                        # if we're aborting early, add a (truncated) segment to the segments_list
                         segments_list.append((
                             start_time_stamp, TimeStamp(child_clock), curve.value_at(time.time())
                         ))
@@ -296,13 +266,16 @@ class ScampInstrument(PlaybackImplementer):
                     elif this_animation_id == note_info["current_animation_ids"][param_name]:
                         # the segment wasn't aborted, but it's possible that in the very last sleep of time_increment
                         # a new animation of this parameter started (and therefore incremented the animation id).
-                        # If not, set it to the target value once and for all.
-                        change_parameter_function(note_id, target)
+                        # So long as that didn't happen, set it to the target value once and for all.
+                        do_change_parameter(note_id, target)
 
+                # fork unsynchronized process, and then wait in a synchronized fashion so that we get a good time stamp
                 child_clock.fork_unsynchronized(animate_param)
                 child_clock.wait(transition_length)
 
                 if not segment_aborted:
+                    # if the segment was aborted, we added a truncated segment to the segments_list above. Here, for a
+                    # segment that didn't get aborted, we add a non-truncated segment to the segments_list.
                     segments_list.append((
                         start_time_stamp, TimeStamp(), target
                     ))
