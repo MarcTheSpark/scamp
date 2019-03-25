@@ -8,6 +8,34 @@ from typing import Union, Sequence
 from numbers import Number
 
 
+class NoteHandle:
+
+    def __init__(self, note_id, instrument):
+        self.note_id = note_id
+        self.instrument: ScampInstrument = instrument
+
+    def change_parameter(self, param_name, target_value_or_values: Union[Sequence, Number],
+                         transition_length_or_lengths: Union[Sequence, Number] = 0,
+                         transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="auto"):
+        self.instrument.change_note_parameter(self.note_id, param_name, target_value_or_values,
+                                              transition_length_or_lengths, transition_curve_shape_or_shapes, clock)
+
+    def change_pitch(self, target_value_or_values: Union[Sequence, Number],
+                     transition_length_or_lengths: Union[Sequence, Number] = 0,
+                     transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="auto"):
+        self.instrument.change_note_pitch(self.note_id, target_value_or_values, transition_length_or_lengths,
+                                          transition_curve_shape_or_shapes, clock)
+
+    def change_volume(self, target_value_or_values: Union[Sequence, Number],
+                      transition_length_or_lengths: Union[Sequence, Number] = 0,
+                      transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="auto"):
+        self.instrument.change_note_volume(self.note_id, target_value_or_values, transition_length_or_lengths,
+                                           transition_curve_shape_or_shapes, clock)
+
+    def end(self):
+        self.instrument.end_note(self.note_id)
+
+
 class PlaybackImplementer:
 
     _note_id_generator = itertools.count()
@@ -47,24 +75,22 @@ class PlaybackImplementer:
     def _do_end_note(self, note_id):
         # Does the actual sonic implementation of ending a the note with the given id
         self._active_note_ids.remove(note_id)
+        del self._note_info_by_id[note_id]
         return note_id
 
     def _do_change_note_pitch(self, note_id, new_pitch):
         # Changes the pitch of the note with the given id
         self._note_info_by_id[note_id]["parameter_values"]["pitch"] = new_pitch
-        print("changing pitch to", new_pitch)
         return note_id
 
     def _do_change_note_volume(self, note_id, new_volume):
         # Changes the expression of the note with the given id
         self._note_info_by_id[note_id]["parameter_values"]["volume"] = new_volume
-        print("changing volume to", new_volume)
         return note_id
 
     def _do_change_note_parameter(self, note_id, parameter_name, new_value):
         # Changes an arbitrary parameter of the note, for instance when controlling an electronic instrument over osc
         self._note_info_by_id[note_id]["parameter_values"][parameter_name] = new_value
-        print("changing parameter", parameter_name, "to", new_value)
         return note_id
 
 
@@ -200,8 +226,6 @@ class ParameterChangeSegment(EnvelopeSegment):
 
 class ScampInstrument(PlaybackImplementer):
 
-    _note_id_generator = itertools.count()
-
     def __init__(self, name, ensemble=None):
         """
         Base instrument class.
@@ -227,7 +251,7 @@ class ScampInstrument(PlaybackImplementer):
 
     def start_note(self, pitch, volume, properties=None):
         properties = self._standardize_properties(properties)
-        return self._do_start_note(pitch, volume, properties)
+        return NoteHandle(self._do_start_note(pitch, volume, properties), self)
 
     def _standardize_properties(self, raw_properties) -> NotePropertiesDictionary:
         """
@@ -262,6 +286,7 @@ class ScampInstrument(PlaybackImplementer):
         :param transition_curve_shape_or_shapes: curve shape(s) for the transition(s)
         :param clock: which clock all of this happens on, "auto" captures the clock from context
         """
+        note_id = note_id.note_id if isinstance(note_id, NoteHandle) else note_id
         note_info = self._note_info_by_id[note_id]
 
         # which function do we use to actually carry out the change of parameter? Pitch and volume are special.
@@ -342,21 +367,24 @@ class ScampInstrument(PlaybackImplementer):
         Note that this only applies to notes started in an open-ended way with 'start_note', notes created
         using play_note have their lifecycle controlled automatically.
         """
+        note_id = note_id.note_id if isinstance(note_id, NoteHandle) else note_id
+
         if note_id is not None:
             # as specific note_id has been given, so it had better belong to a currently playing note!
             if note_id not in self._active_note_ids:
                 logging.warning("Tried to end a note that was never started!")
                 return
-            self._active_note_ids.remove(note_id)
         elif len(self._active_note_ids) > 0:
             # no specific id was given, so end the oldest note
-            note_id = self._active_note_ids.pop(0)
+            note_id = self._active_note_ids[0]
         else:
             logging.warning("Tried to end a note that was never started!")
             return
 
+        # SEND INFO TO THE TRANSCRIBER!!!
+        print(self._note_info_by_id[note_id]["parameter_change_segments"]["pitch"])
+
         self._do_end_note(note_id)
-        del self._note_info_by_id[note_id]
 
     def end_all_notes(self):
         """
@@ -389,10 +417,36 @@ class ScampInstrument(PlaybackImplementer):
             raise ValueError("Spelling policy not understood.")
 
 
-class MidiPlayback(PlaybackImplementer):
-    # MAKE IT POSSIBLE TO SET A FLAG THAT ELIMINATES THE POSSIBILITY OF BENDING PITCH AND THUS CONSERVES CHANNELS
-    pass
+class MidiPlaybackImplementer(PlaybackImplementer):
 
+    def _do_start_note(self, pitch, volume, properties):
+        note_id = super()._do_start_note(pitch, volume, properties)
+        print("Starting Note", note_id, pitch, volume)
+        return note_id
+
+    def _do_end_note(self, note_id):
+        note_id = super()._do_end_note(note_id)
+        print("Ending Note", note_id)
+        return note_id
+
+    def _do_change_note_pitch(self, note_id, new_pitch):
+        note_id = super()._do_change_note_pitch(note_id, new_pitch)
+        print("Changing Pitch", note_id, new_pitch)
+        return note_id
+
+    def _do_change_note_volume(self, note_id, new_volume):
+        note_id = super()._do_change_note_volume(note_id, new_volume)
+        print("Changing Volume", note_id, new_volume)
+        return note_id
+
+    def _do_change_note_parameter(self, note_id, parameter_name, new_value):
+        note_id = super()._do_change_note_parameter(note_id, parameter_name, new_value)
+        print("Changing Parameter", note_id, parameter_name, new_value)
+        return note_id
+
+
+class MIDIScampInstrument(MidiPlaybackImplementer, ScampInstrument):
+    pass
 
 # class ScampInstrument(PlaybackMethod, SavesToJSON):
 #
