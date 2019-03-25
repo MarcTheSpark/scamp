@@ -4,6 +4,8 @@ from .note_properties import NotePropertiesDictionary
 from clockblocks import *
 import logging
 import time
+from typing import Union, Sequence
+from numbers import Number
 
 
 class PlaybackImplementer:
@@ -71,43 +73,61 @@ class ParameterChangeSegment(EnvelopeSegment):
     def __init__(self, parameter_change_function, start_value, target_value, transition_length, transition_curve_shape,
                  clock, temporal_resolution=0.01):
         """
-
-        :param parameter_change_function:
-        :param start_value:
-        :param target_value:
-        :param transition_length:
-        :param transition_curve_shape:
-        :param clock:
-        :param temporal_resolution: either a number (in seconds), "pitch-based", in which case we derive it based on
-        trying to get a smooth pitch change, or "volume-based", in which case we derive it based on trying to get a
-        smooth volume change.
+        Convenient class for handling interruptable transitions of parameter values and storing info on them
+        :param parameter_change_function: since this is for general parameters, we pass the function to be called
+        to set the parameter. Generally will call _do_change_note_parameter/pitch/volume for a given note_id
+        :param start_value: start value of the parameter in the transition
+        :param target_value: target value of the parameter in the transition
+        :param transition_length: length of the transition in beats on the clock given
+        :param transition_curve_shape: curve shape of the transition
+        :param clock: the clock that all of this happens in reference to
+        :param temporal_resolution: time resolution of the unsynchronized process. One of the following:
+         - just a number (in seconds)
+         - the string "pitch-based", in which case we derive it based on trying to get a smooth pitch change
+         - the string "volume-based", in which case we derive it based on trying to get a smooth volume change.
         """
+        # set this up as an envelope
         super().__init__(0, transition_length, start_value, target_value, transition_curve_shape)
+        # "do_change_parameter" feels more like an action name
         self.do_change_parameter = parameter_change_function
-        # TODO: Sort out the relationship between clock and _running_clock
-        self.clock = clock
-        self.running = False
+
+        self.clock = clock  # the parent clock that this process runs on
+        self._run_clock = None  # the sub-clock created by forking this process
+        self.running = False  # flag used for aborting the unsynchronized process
+
+        # some of the key data that this envelope holds onto are the time stamps at which it starts and finishes
+        # this can be used to construct the appropriate envelope segment on whichever clock we're recording on
         self.start_time_stamp = None
         self.end_time_stamp = None
-        self._run_clock = None
         self.temporal_resolution = temporal_resolution
 
     def run(self):
-
+        """
+        Runs the segment from start to finish, gradually changing the parameter.
+        This function runs as a synchronized clock process (it should be forked), and it starts a parallel,
+        unsynchronized process ("_animation_function") to do the actual calls to change parameter
+        """
+        # if this segment has no duration, no need to do any animation
+        # just set it to the final value and return
         if self.duration == 0:
-            self._run_instantaneous()
+            self.start_time_stamp = self.end_time_stamp = TimeStamp(self.clock)
+            self.do_change_parameter(self.end_level)
             return
 
         self.start_time_stamp = TimeStamp(self.clock)
-        self.running = True
+        self.running = True  # used to kill the unsynchronized process when we abort or this synchronized one ends
+
+        # we note down the clock we're running this on. If abort is called, this clock gets killed
         self._run_clock = current_clock()
 
+        # determine the time increment, perhaps by calculating a good one for the given parameter
         if self.temporal_resolution == "pitch-based":
             time_increment = self._get_good_pitch_bend_temporal_resolution()
         elif self.temporal_resolution == "volume-based":
             time_increment = self._get_good_volume_temporal_resolution()
         else:
             time_increment = self.temporal_resolution
+        # don't animate faster than 10ms though
         time_increment = max(0.01, time_increment)
 
         def _animation_function():
@@ -118,15 +138,15 @@ class ParameterChangeSegment(EnvelopeSegment):
 
             while beats_passed < self.duration and self.running:
                 start = time.time()
-                if beats_passed > 0:  # no need to change the parameter the first time
+                if beats_passed > 0:  # no need to change the parameter the first time, before we had a chance to wait
                     self.do_change_parameter(self.value_at(beats_passed))
                 time.sleep(time_increment)
                 # TODO: Absolute_rate would be great, except that it doesn't update between synchronized clock events
                 beats_passed += (time.time() - start) * self.clock.absolute_rate()
 
-        # waits in a synchronized fashion so that it can save an accurate time stamp at the end
+        # start the unsynchronized animation function
         self.clock.fork_unsynchronized(_animation_function)
-        # wait out the animation, on the clock that we're running this on
+        # waits in a synchronized fashion so that it can save an accurate time stamp at the end
         wait(self.duration)
 
         # we only get here if it wasn't aborted while running, since that will call kill on the child clock
@@ -134,19 +154,19 @@ class ParameterChangeSegment(EnvelopeSegment):
         self.end_time_stamp = TimeStamp(self.clock)
         self.do_change_parameter(self.end_level)
 
-    def _run_instantaneous(self):
-        self.start_time_stamp = self.end_time_stamp = TimeStamp(self.clock)
-        self.do_change_parameter(self.end_level)
-
     def abort_if_running(self):
         if self.running:
+            # if we were running, we save the time stamp at which we aborted as the end time stamp
             self.end_time_stamp = TimeStamp(self.clock)
-            self._run_clock.kill()
+            self._run_clock.kill()  # kill the clock doing the "run" function
+            # since the units of this envelope are beats in self.clock, se how far we got in the envelope by
+            # subtracting converting the start and end time stamps to those beats and subtracting
             how_far_we_got = self.end_time_stamp.time_in_clock(self.clock) - \
                              self.start_time_stamp.time_in_clock(self.clock)
+            # now split there, discarding the rest of the envelope. This makes self.end_level the value we ended up at.
             self.split_at(how_far_we_got)
             self.do_change_parameter(self.end_level)  # set it to where we should be at this point
-        self.running = False
+        self.running = False  # this will make sure to abort the animation function
 
     def completed(self):
         # it's not running, but because it finished, not because it never started
@@ -154,7 +174,7 @@ class ParameterChangeSegment(EnvelopeSegment):
 
     def _get_good_pitch_bend_temporal_resolution(self):
         """
-        Returns a reasonable temporal resolution
+        Returns a reasonable temporal resolution, based on this clock's envelope and rate, assuming it's a pitch curve
         """
         max_cents_per_second = self.max_absolute_slope() * 100 * self.clock.absolute_rate()
         # cents / update * updates / sec = cents / sec   =>  updates_freq = cents_per_second / cents_per_update
@@ -164,7 +184,7 @@ class ParameterChangeSegment(EnvelopeSegment):
 
     def _get_good_volume_temporal_resolution(self):
         """
-        Returns a reasonable temporal resolution
+        Returns a reasonable temporal resolution, based on this clock's envelope and rate, assuming it's a volume curve
         """
         max_volume_per_second = self.max_absolute_slope() * self.clock.absolute_rate()
         # based on the idea that for midi volumes, it's quantized from 0 to 127, so there's not much point in updating
@@ -230,8 +250,18 @@ class ScampInstrument(PlaybackImplementer):
             # if the host doesn't have a default, then don't do anything and it will fall back to playback_settings
         return properties
 
-    def change_note_parameter(self, note_id, param_name, target_value, transition_length=0,
-                              transition_curve_shape=0, clock="auto"):
+    def change_note_parameter(self, note_id, param_name, target_value_or_values: Union[Sequence, Number],
+                              transition_length_or_lengths: Union[Sequence, Number] = 0,
+                              transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="auto"):
+        """
+        Changes the value of parameter of note playback over a given time; can also take a sequence of targets and times
+        :param note_id: which note to affect
+        :param param_name: name of the parameter to affect. "pitch" and "volume" are special cases
+        :param target_value_or_values: target value (or list thereof) for the parameter
+        :param transition_length_or_lengths: transition time(s) in beats to the target value(s)
+        :param transition_curve_shape_or_shapes: curve shape(s) for the transition(s)
+        :param clock: which clock all of this happens on, "auto" captures the clock from context
+        """
         note_info = self._note_info_by_id[note_id]
 
         # which function do we use to actually carry out the change of parameter? Pitch and volume are special.
@@ -257,36 +287,54 @@ class ScampInstrument(PlaybackImplementer):
         else:
             segments_list = note_info["parameter_change_segments"][param_name] = []
 
+        # if there was a previous segment changing this same parameter, and it's not done yet, we should abort it
         if len(segments_list) > 0:
             segments_list[-1].abort_if_running()
 
-        if hasattr(target_value, "__len__"):
+        if hasattr(target_value_or_values, "__len__"):
             # assume linear segments unless otherwise specified
-            transition_curve_shape = [0] * len(target_value) if transition_curve_shape == 0 else transition_curve_shape
-            assert hasattr(transition_length, "__len__") and hasattr(transition_curve_shape, "__len__")
-            assert len(target_value) == len(transition_length) == len(transition_curve_shape), \
+            transition_curve_shape_or_shapes = [0] * len(target_value_or_values) if \
+                transition_curve_shape_or_shapes == 0 else transition_curve_shape_or_shapes
+            assert hasattr(transition_length_or_lengths, "__len__") and \
+                   hasattr(transition_curve_shape_or_shapes, "__len__")
+            assert len(target_value_or_values) == len(transition_length_or_lengths) == \
+                   len(transition_curve_shape_or_shapes), \
                 "The list of target values must be accompanied by a equal length list of transition lengths and shapes."
 
             def do_animation_sequence():
-                for target, length, shape in zip(target_value, transition_length, transition_curve_shape):
+                for target, length, shape in zip(target_value_or_values, transition_length_or_lengths,
+                                                 transition_curve_shape_or_shapes):
                     this_segment = ParameterChangeSegment(
                         parameter_change_function, note_info["parameter_values"][param_name], target,
                         length, shape, clock, temporal_resolution=temporal_resolution)
                     segments_list.append(this_segment)
+                    # note that these segments are not forked individually: they are chained together and called
+                    # directly on a function (do_animation_sequence) that is forked. This means that when we abort
+                    # one of them, we kill the clock that do_animation_sequence is running on, thereby aborting all
+                    # remaining segments as well. This is exactly what we want: if we call change_note_parameter while
+                    # previous change_note_parameter is running, we want to abort all segments of the one that's running
                     this_segment.run()
 
             clock.fork(do_animation_sequence)
         else:
             parameter_change_segment = ParameterChangeSegment(
-                parameter_change_function, note_info["parameter_values"][param_name], target_value, transition_length,
-                transition_curve_shape, clock, temporal_resolution=temporal_resolution)
+                parameter_change_function, note_info["parameter_values"][param_name], target_value_or_values,
+                transition_length_or_lengths, transition_curve_shape_or_shapes, clock,
+                temporal_resolution=temporal_resolution)
             segments_list.append(parameter_change_segment)
             clock.fork(parameter_change_segment.run)
 
-    def change_note_volume(self, note_id, volume_target, transition_length=0):
-        # can take an envelope and implement an animation!
-        # calls self._do_change_note_volume(note_id)
-        pass
+    def change_note_pitch(self, note_id, target_value_or_values: Union[Sequence, Number],
+                          transition_length_or_lengths: Union[Sequence, Number] = 0,
+                          transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="auto"):
+        self.change_note_parameter(note_id, "pitch", target_value_or_values, transition_length_or_lengths,
+                                   transition_curve_shape_or_shapes, clock)
+
+    def change_note_volume(self, note_id, target_value_or_values: Union[Sequence, Number],
+                           transition_length_or_lengths: Union[Sequence, Number] = 0,
+                           transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="auto"):
+        self.change_note_parameter(note_id, "volume", target_value_or_values, transition_length_or_lengths,
+                                   transition_curve_shape_or_shapes, clock)
 
     def end_note(self, note_id=None):
         """
