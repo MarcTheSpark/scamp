@@ -19,7 +19,7 @@ def fm_sines_part():
     while True:
         fm_sines.play_note([random.random() * 20 + 60, random.random() * 20 + 60],
                            [[1, 0], [1], [-2]], random.random() * 3 + 0.3,
-                           {"qualities": {"fm": [random.random() * 30, random.random() * 30]}},
+                           {"fm_param": [random.random() * 30, random.random() * 30]},
                            blocking=False)
         wait(random.random() * 3)
 

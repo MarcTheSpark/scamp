@@ -557,14 +557,11 @@ class OSCScampInstrument(ScampInstrument):
         # This extra bit of implementation for _do_play_note allows us to animate extra qualities that are
         # defined by Envelope values in properties["qualities"]. It's kind of ugly, but it works.
 
-        if "qualities" in properties and isinstance(properties["qualities"], dict):
+        qualities_and_values = list(properties.iterate_extra_parameters_and_values())
+        if len(qualities_and_values) > 0:
             start_time = time.time()
             qualities_being_animated = {}
-            for quality in properties["qualities"]:
-                # if we're given an Envelope in the form of a list, convert it to a Envelope object
-                if isinstance(properties["qualities"][quality], list):
-                    properties["qualities"][quality] = Envelope.from_list(properties["qualities"][quality])
-                value = properties["qualities"][quality]
+            for quality, value in qualities_and_values:
                 if isinstance(value, Envelope):
                     qualities_being_animated[quality] = value.normalize_to_duration(length, False)
             if len(qualities_being_animated) > 0:
@@ -597,14 +594,11 @@ class OSCScampInstrument(ScampInstrument):
         note_id = properties["_osc_note_id"] if "_osc_note_id" in properties else next(_note_id_generator)
         self.client.send_message("/{}/{}".format(self.message_prefix, self._start_note_message),
                                  [note_id, pitch, volume])
-
-        if "qualities" in properties and isinstance(properties["qualities"], dict):
-            for quality in properties["qualities"]:
-                value = properties["qualities"][quality]
-                if isinstance(value, Envelope):
-                    self.change_note_quality(note_id, quality, value.value_at(0))
-                else:
-                    self.change_note_quality(note_id, quality, value)
+        for param, value in properties.iterate_extra_parameters_and_values():
+            if isinstance(value, Envelope):
+                self.change_note_quality(note_id, param, value.value_at(0))
+            else:
+                self.change_note_quality(note_id, param, value)
 
         self._currently_playing.append(note_id)
         return note_id

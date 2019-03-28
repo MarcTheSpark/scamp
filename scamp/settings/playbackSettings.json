@@ -35,7 +35,7 @@
         "notations": {},
         "noteheads": {}
     },
-    "default_audio_driver": "alsa",
+    "default_audio_driver": "auto",
     "default_ensemble_soundfonts": [
         "default"
     ],

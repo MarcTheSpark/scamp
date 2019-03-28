@@ -2,8 +2,39 @@ from .playback_adjustments import *
 from .utilities import SavesToJSON
 from .settings import playback_settings, engraving_settings
 from .spelling import SpellingPolicy
+from expenvelope import Envelope
 from copy import deepcopy
 import logging
+import json
+
+
+def _split_string_at_outer_commas(s):
+    """
+    Splits a string only at those commas that are not inside some sort of parentheses
+    e.g. "hello, [2, 5], {2: 7}" => ["hello", "[2, 5]", "{2: 7}"]
+    """
+    out = []
+    paren_count = square_count = curly_count = 0
+    last_split = i = 0
+    for character in s:
+        i += 1
+        if character == "(":
+            paren_count += 1
+        elif character == "[":
+            square_count += 1
+        elif character == "{":
+            curly_count += 1
+        elif character == ")":
+            paren_count -= 1
+        elif character == "]":
+            square_count -= 1
+        elif character == "}":
+            curly_count -= 1
+        elif character == "," and paren_count == square_count == curly_count == 0:
+            out.append(s[last_split:i-1].strip())
+            last_split = i
+    out.append(s[last_split:].strip())
+    return out
 
 
 class NotePropertiesDictionary(dict, SavesToJSON):
@@ -26,6 +57,7 @@ class NotePropertiesDictionary(dict, SavesToJSON):
             kwargs["temp"] = {}
 
         super().__init__(**kwargs)
+        self._convert_params_to_envelopes_if_needed()
 
     @classmethod
     def from_unknown_format(cls, properties):
@@ -55,7 +87,7 @@ class NotePropertiesDictionary(dict, SavesToJSON):
     @classmethod
     def from_string(cls, properties_string):
         assert isinstance(properties_string, str)
-        return NotePropertiesDictionary.from_list(properties_string.split(","))
+        return NotePropertiesDictionary.from_list(_split_string_at_outer_commas(properties_string))
 
     @classmethod
     def from_list(cls, properties_list):
@@ -103,7 +135,8 @@ class NotePropertiesDictionary(dict, SavesToJSON):
                             properties_dict["spelling_policy"] = SpellingPolicy.from_string(value)
                         except ValueError:
                             logging.warning("Spelling policy \"{}\" not understood".format(value))
-
+                    elif key.startswith("param_") or key.endswith("_param"):
+                        properties_dict[key] = json.loads(value)
                 else:
                     # otherwise, we try to figure out what kind of property we're dealing with
                     note_property = note_property.replace(" ", "")
@@ -116,7 +149,15 @@ class NotePropertiesDictionary(dict, SavesToJSON):
                     elif note_property in ("#", "b", "sharps", "flats"):
                         properties_dict["spelling_policy"] = SpellingPolicy.from_string(note_property)
 
+        properties_dict._convert_params_to_envelopes_if_needed()
         return properties_dict
+
+    def _convert_params_to_envelopes_if_needed(self):
+        # if we've been given extra parameters of playback, and their values are envelopes written as lists, etc.
+        # this converts them all to Envelope objects
+        for key, value in self.items():
+            if key.startswith("param_") or key.endswith("_param") and hasattr(value, "__len__"):
+                self[key] = Envelope.from_list(value)
 
     @property
     def articulations(self):
@@ -174,6 +215,11 @@ class NotePropertiesDictionary(dict, SavesToJSON):
             self["spelling_policy"] = tuple(tuple(x) for x in value)
         else:
             raise ValueError("Spelling policy not understood.")
+
+    def iterate_extra_parameters_and_values(self):
+        for key, value in self.items():
+            if key.startswith("param_") or key.endswith("_param"):
+                yield key.replace("param_", "").replace("_param", ""), value
 
     def starts_tie(self):
         return "_starts_tie" in self and self["_starts_tie"]
