@@ -279,7 +279,7 @@ class NotePropertiesDictionary(dict, SavesToJSON):
             del json_friendly_dict["text"]
         if len(self.playback_adjustments) == 0:
             del json_friendly_dict["playback adjustments"]
-        if self.spelling_policy is None:
+        if self["spelling_policy"] is None:
             del json_friendly_dict["spelling_policy"]
 
         return json_friendly_dict
