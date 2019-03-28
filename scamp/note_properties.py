@@ -137,6 +137,8 @@ class NotePropertiesDictionary(dict, SavesToJSON):
                             logging.warning("Spelling policy \"{}\" not understood".format(value))
                     elif key.startswith("param_") or key.endswith("_param"):
                         properties_dict[key] = json.loads(value)
+                    elif key == "voice":
+                        properties_dict["voice"] = value
                 else:
                     # otherwise, we try to figure out what kind of property we're dealing with
                     note_property = note_property.replace(" ", "")
