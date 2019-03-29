@@ -32,6 +32,9 @@ class NoteHandle:
         self.instrument.change_note_volume(self.note_id, target_value_or_values, transition_length_or_lengths,
                                            transition_curve_shape_or_shapes, clock)
 
+    def split(self, clock="auto"):
+        self.instrument.split_note(self.note_id, clock)
+
     def end(self):
         self.instrument.end_note(self.note_id)
 
@@ -55,10 +58,13 @@ class PlaybackImplementer:
 
     def _do_start_note(self, pitch, volume, properties):
         # does the actual sonic implementation of starting a note and creates an id for it
+        # this base class also maintains a list of active note ids and a dictionary of info about the notes
         note_id = next(PlaybackImplementer._note_id_generator)
         self._active_note_ids.append(note_id)
         self._note_info_by_id[note_id] = {
             "start_time": TimeStamp(),
+            "end_time": None,
+            "split_points": [],
             "parameter_start_values": {
                 "pitch": pitch,
                 "volume": volume,
@@ -74,6 +80,7 @@ class PlaybackImplementer:
 
     def _do_end_note(self, note_id):
         # Does the actual sonic implementation of ending a the note with the given id
+        # this base class also removes the id from the list of active notes and deletes the info about it
         self._active_note_ids.remove(note_id)
         del self._note_info_by_id[note_id]
         return note_id
@@ -133,10 +140,18 @@ class ParameterChangeSegment(EnvelopeSegment):
         This function runs as a synchronized clock process (it should be forked), and it starts a parallel,
         unsynchronized process ("_animation_function") to do the actual calls to change parameter
         """
+        self.start_time_stamp = TimeStamp(self.clock)
+
+        if self.end_level == self.start_level:
+            wait(self.duration)
+            self.end_time_stamp = TimeStamp(self.clock)
+            self.do_change_parameter(self.end_level)
+            return
+
         # if this segment has no duration, no need to do any animation
         # just set it to the final value and return
         if self.duration == 0:
-            self.start_time_stamp = self.end_time_stamp = TimeStamp(self.clock)
+            self.end_time_stamp = TimeStamp(self.clock)
             self.do_change_parameter(self.end_level)
             return
 
@@ -168,6 +183,7 @@ class ParameterChangeSegment(EnvelopeSegment):
                     self.do_change_parameter(self.value_at(beats_passed))
                 time.sleep(time_increment)
                 # TODO: Absolute_rate would be great, except that it doesn't update between synchronized clock events
+                # Is there a way of improving this??
                 beats_passed += (time.time() - start) * self.clock.absolute_rate()
 
         # start the unsynchronized animation function
@@ -190,7 +206,8 @@ class ParameterChangeSegment(EnvelopeSegment):
             how_far_we_got = self.end_time_stamp.time_in_clock(self.clock) - \
                              self.start_time_stamp.time_in_clock(self.clock)
             # now split there, discarding the rest of the envelope. This makes self.end_level the value we ended up at.
-            self.split_at(how_far_we_got)
+            if how_far_we_got < self.end_time:
+                self.split_at(how_far_we_got)
             self.do_change_parameter(self.end_level)  # set it to where we should be at this point
         self.running = False  # this will make sure to abort the animation function
 
@@ -231,6 +248,7 @@ class ScampInstrument(PlaybackImplementer):
         Base instrument class.
         """
         self.name = name
+        # used to help distinguish between identically named instruments in the same ensemble
         self.name_count = ensemble.get_part_name_count(self.name) if ensemble is not None else 0
 
         self.ensemble = ensemble
@@ -246,12 +264,46 @@ class ScampInstrument(PlaybackImplementer):
     Playback methods that make use of the specific implementations defined and overridden above
     """
 
-    def play_note(self, pitch, volume, length, properties=None):
-        pass
+    def play_note(self, pitch, volume, length, properties=None, blocking=True, clock="auto"):
+        properties = self._standardize_properties(properties)
+        pitch = Envelope.from_list(pitch).normalize_to_duration(length) if hasattr(pitch, "__len__") else pitch
+        volume = Envelope.from_list(volume).normalize_to_duration(length) if hasattr(volume, "__len__") else volume
+
+        clock = current_clock() if clock == "auto" else clock
+        if clock is None:
+            clock = Clock()
+
+        start_pitch = pitch.start_level() if isinstance(pitch, Envelope) else pitch
+        start_volume = volume.start_level() if isinstance(volume, Envelope) else volume
+
+        # ISSUE: playback (esp. length) adjustments, staccato
+
+        # if a silent flag is set, just call PlaybackImplementer._do_start_note(self, etc) instead of super()
+        # if we want playback only and no notation, put "do_not_notate" in properties["temp"]
+
+        note_handle = self.start_note(start_pitch, start_volume, properties)
+        if isinstance(pitch, Envelope):
+            note_handle.change_pitch(pitch.levels[1:], pitch.durations, pitch.curve_shapes, clock)
+        if isinstance(volume, Envelope):
+            note_handle.change_volume(volume.levels[1:], volume.durations, volume.curve_shapes, clock)
+        for param, value in properties.iterate_extra_parameters_and_values():
+            if isinstance(value, Envelope):
+                normalized_value = value.normalize_to_duration(length)
+                note_handle.change_parameter(param, normalized_value.levels[1:], normalized_value.durations,
+                                             normalized_value.curve_shapes, clock)
+            else:
+                note_handle.change_parameter(param, value)
 
     def start_note(self, pitch, volume, properties=None):
         properties = self._standardize_properties(properties)
-        return NoteHandle(self._do_start_note(pitch, volume, properties), self)
+        if "silent" in properties["temp"]:
+            return NoteHandle(PlaybackImplementer._do_start_note(self, pitch, volume, properties), self)
+        else:
+            return NoteHandle(self._do_start_note(pitch, volume, properties), self)
+
+    def start_chord(self):
+        # Should return a chord handle, that's maybe a wrapper around a list of note handles?
+        pass
 
     def _standardize_properties(self, raw_properties) -> NotePropertiesDictionary:
         """
@@ -361,12 +413,32 @@ class ScampInstrument(PlaybackImplementer):
         self.change_note_parameter(note_id, "volume", target_value_or_values, transition_length_or_lengths,
                                    transition_curve_shape_or_shapes, clock)
 
-    def end_note(self, note_id=None):
+    def split_note(self, note_id, clock="auto"):
+        """
+        Adds a split point in a note, causing it later to be rendered as tied pieces.
+        :param note_id: Which note or NoteHandle to split
+        :param clock: Probably shouldn't ever need to mess with this. The clock is used to generate a TimeStamp, so
+        all clocks in the same family will lead to the same result.
+        """
+        clock = current_clock() if clock == "auto" else clock
+        if clock is None:
+            clock = Clock()
+
+        note_id = note_id.note_id if isinstance(note_id, NoteHandle) else note_id
+        note_info = self._note_info_by_id[note_id]
+        note_info["split_points"].append(TimeStamp(clock))
+
+    def end_note(self, note_id: Union[int, NoteHandle] = None, clock="auto"):
         """
         Ends the note with the given note id. If none is specified, it ends the note we started longest ago.
         Note that this only applies to notes started in an open-ended way with 'start_note', notes created
         using play_note have their lifecycle controlled automatically.
         """
+        clock = current_clock() if clock == "auto" else clock
+        if clock is None:
+            clock = Clock()
+
+        # in case we're passed a NoteHandle instead of an actual id number, get the number from the handle
         note_id = note_id.note_id if isinstance(note_id, NoteHandle) else note_id
 
         if note_id is not None:
@@ -381,21 +453,28 @@ class ScampInstrument(PlaybackImplementer):
             logging.warning("Tried to end a note that was never started!")
             return
 
-        # SEND INFO TO THE TRANSCRIBER!!!
-        print(self._note_info_by_id[note_id]["parameter_change_segments"]["pitch"])
+        # end any segments that are still changing
+        note_info = self._note_info_by_id[note_id]
+        for param_name in note_info["parameter_change_segments"]:
+            if len(note_info["parameter_change_segments"][param_name]) > 0:
+                note_info["parameter_change_segments"][param_name][-1].abort_if_running()
+
+        note_info["end_time"] = TimeStamp(clock)
+        for transcriber in self._transcribers_to_notify:
+            transcriber.register_note(self, note_info)
 
         self._do_end_note(note_id)
 
     def end_all_notes(self):
         """
-        Ends all notes that have been manually started with 'start_note'
+        Ends all notes currently playing
         """
         while len(self._active_note_ids) > 0:
             self.end_note()
 
     def num_notes_playing(self):
         """
-        Returns the number of notes currently playing that were manually started with 'start_note'
+        Returns the number of notes currently playing.
         """
         return len(self._active_note_ids)
 

@@ -299,6 +299,9 @@ class Performance(SavesToJSON):
     def get_parts_by_name(self, name):
         return [x for x in self.parts if x.name == name]
 
+    def get_parts_by_instrument(self, instrument):
+        return [x for x in self.parts if x.instrument == instrument]
+
     @property
     def end_time(self):
         return max(p.end_time for p in self.parts)
