@@ -203,8 +203,8 @@ class ParameterChangeSegment(EnvelopeSegment):
             self._run_clock.kill()  # kill the clock doing the "run" function
             # since the units of this envelope are beats in self.clock, se how far we got in the envelope by
             # subtracting converting the start and end time stamps to those beats and subtracting
-            how_far_we_got = self.end_time_stamp.time_in_clock(self.clock) - \
-                             self.start_time_stamp.time_in_clock(self.clock)
+            how_far_we_got = self.end_time_stamp.beat_in_clock(self.clock) - \
+                             self.start_time_stamp.beat_in_clock(self.clock)
             # now split there, discarding the rest of the envelope. This makes self.end_level the value we ended up at.
             if how_far_we_got < self.end_time:
                 self.split_at(how_far_we_got)

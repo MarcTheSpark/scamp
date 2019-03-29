@@ -1,6 +1,8 @@
-import itertools
 from .performance import Performance
 from expenvelope import *
+from typing import Sequence
+from clockblocks import Clock, TempoEnvelope
+from .instruments2 import ScampInstrument
 
 
 class Transcriber:
@@ -8,14 +10,17 @@ class Transcriber:
     def __init__(self):
         self._transcriptions_in_progress = []
 
-    def start_recording(self, instruments, clock):
+    def start_recording(self, instruments: Sequence[ScampInstrument], clock: Clock, units="beats"):
         """
         Starts recording new performance on the given clock, consisting of the given instrument
         :param instruments: the instruments we notate in this Performance
-        :param clock: which clock all timings are relative to
+        :param clock: which clock all timings are relative to, or "absolute" to mean time on the master clock
+        :param units: one of ["beats", "time"]. Do we use the beats of the clock or the time?
         :return: the Performance that this transcription writes to, which will be updated as notes are played and acts
         as a handle when calling stop_recording.
         """
+        assert units in ("beats", "time")
+
         performance = Performance()
         for instrument in instruments:
             performance.new_part(instrument)
@@ -23,7 +28,7 @@ class Transcriber:
                 instrument._transcribers_to_notify.append(self)
 
         self._transcriptions_in_progress.append(
-            (performance, clock, clock.beats())
+            (performance, clock, clock.beats(), units)
         )
 
         return performance
@@ -38,9 +43,9 @@ class Transcriber:
         param_change_segments = note_info["parameter_change_segments"]
 
         # loop through all the transcriptions in progress
-        for performance, clock, clock_start_beat in self._transcriptions_in_progress:
+        for performance, clock, clock_start_beat, units in self._transcriptions_in_progress:
             # figure out the start_beat and length relative to this transcription's clock and start beat
-            note_start_beat = note_info["start_time"].time_in_clock(clock) - clock_start_beat
+            note_start_beat = Transcriber._resolve_time_stamp(note_info["start_time"], clock, units) - clock_start_beat
 
             # handle split points (if applicable) by creating a note length sections tuple
             note_length_sections = None
@@ -48,15 +53,15 @@ class Transcriber:
                 note_length_sections = []
                 last_split = note_start_beat
                 for split_point in note_info["split_points"]:
-                    split_point_beat = split_point.time_in_clock(clock)
+                    split_point_beat = Transcriber._resolve_time_stamp(split_point, clock, units)
                     note_length_sections.append(split_point_beat - last_split)
                     last_split = split_point_beat
-                end_beat = note_info["end_time"].time_in_clock(clock)
+                end_beat = Transcriber._resolve_time_stamp(note_info["end_time"], clock, units)
                 if end_beat > last_split:
                     note_length_sections.append(end_beat-last_split)
                 note_length_sections = tuple(note_length_sections)
 
-            note_length = note_info["end_time"].time_in_clock(clock) - note_start_beat
+            note_length = Transcriber._resolve_time_stamp(note_info["end_time"], clock, units) - note_start_beat
 
             # get curves for all the parameters
             extra_parameters = {}
@@ -67,8 +72,10 @@ class Transcriber:
                     durations = []
                     curve_shapes = []
                     for param_change_segment in param_change_segments[param]:
-                        start_beat_in_clock = param_change_segment.start_time_stamp.time_in_clock(clock)
-                        end_beat_in_clock = param_change_segment.end_time_stamp.time_in_clock(clock)
+                        start_beat_in_clock = Transcriber._resolve_time_stamp(param_change_segment.start_time_stamp,
+                                                                              clock, units)
+                        end_beat_in_clock = Transcriber._resolve_time_stamp(param_change_segment.end_time_stamp,
+                                                                              clock, units)
 
                         # if there's a gap between the last level we recorded and this segment, we need to fill it with
                         # a flat segment that holds the last level recorded
@@ -113,6 +120,11 @@ class Transcriber:
                     pitch, volume, note_info["properties"]
                 )
 
+    @staticmethod
+    def _resolve_time_stamp(time_stamp, clock, units):
+        assert units in ("beats", "time")
+        return time_stamp.beat_in_clock(clock) if units == "beats" else time_stamp.time_in_clock(clock)
+
     def stop_recording(self, which_performance=None, tempo_envelope_tolerance=0.001) -> Performance:
         transcription = None
         if which_performance is None:
@@ -127,8 +139,16 @@ class Transcriber:
             if transcription is None:
                 raise ValueError("Cannot stop recording given performance, as it was never started!")
 
-        recorded_performance, recording_clock, recording_start_beat = transcription
-        recorded_performance.tempo_envelope = recording_clock.extract_absolute_tempo_envelope(
-            recording_start_beat, tolerance=tempo_envelope_tolerance
-        )
+        recorded_performance, recording_clock, recording_start_beat, units = transcription
+        if units == "beats":
+            recorded_performance.tempo_envelope = recording_clock.extract_absolute_tempo_envelope(
+                recording_start_beat, tolerance=tempo_envelope_tolerance
+            )
+        elif recording_clock.is_master():
+            # recording time on master, so just copy the tempo envelope
+            recorded_performance.tempo_envelope = TempoEnvelope()
+        else:
+            recorded_performance.tempo_envelope = recording_clock.parent.extract_absolute_tempo_envelope(
+                recording_start_beat, tolerance=tempo_envelope_tolerance
+            )
         return recorded_performance
