@@ -248,7 +248,7 @@ class ScampInstrument(SavesToJSON):
 
         # apply explicit playback adjustments, as well as those implied by articulations and other notations
         unaltered_length = length
-        pitch, volume, length = properties.apply_playback_adjustments(pitch, volume, length)
+        pitch, volume, length, _ = properties.apply_playback_adjustments(pitch, volume, length)
 
         # Note that, even if there's a clock involved we run _do_play_note in a simple thread rather than a sub-clock.
         # That is because the overhead of running in a clock is high for small sleep values like animation of pitch and

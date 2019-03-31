@@ -241,12 +241,22 @@ class NotePropertiesDictionary(dict, SavesToJSON):
         :param length: unadjusted length
         :param include_notation_derived: if true, include adjustments based on notations like staccato, by searching
         the playback_settings.adjustments dictionary
-        :return: adjusted pitch, volume and length
+        :return: adjusted pitch, volume, length, as well as a boolean stating whether anything changed
         """
+        # If the note has a tuple length, indicating adjoined tied segments, we need to replace "length" with the
+        # sum of those segments before adjustment and save the segments themselves in "length_segments"
+        if hasattr(length, "__len__"):
+            length_segments = length
+            length = sum(length)
+        else:
+            length_segments = None
+
+        did_an_adjustment = False
         # first apply all of the explicit playback adjustments
         for adjustment in self.playback_adjustments:
             assert isinstance(adjustment, NotePlaybackAdjustment)
             pitch, volume, length = adjustment.adjust_parameters(pitch, volume, length)
+            did_an_adjustment = True
 
         if include_notation_derived:
             for notation_category in ["articulations", "noteheads", "notations"]:
@@ -255,8 +265,16 @@ class NotePropertiesDictionary(dict, SavesToJSON):
                     if notation_derived_adjustment is not None:
                         assert isinstance(notation_derived_adjustment, NotePlaybackAdjustment)
                         pitch, volume, length = notation_derived_adjustment.adjust_parameters(pitch, volume, length)
+                        did_an_adjustment = True
 
-        return pitch, volume, length
+        # Having made the adjustment, if the length was a tuple of adjoined segments, we now go back
+        # and scale those according to the adjustment made to length
+        if length_segments is not None:
+            length_scale_factor = length / sum(length_segments)
+            length = length_segments if length_scale_factor == 1 else \
+                tuple(segment_length * length_scale_factor for segment_length in length_segments)
+
+        return pitch, volume, length, did_an_adjustment
 
     def mergeable_with(self, other_properties_dict):
         assert isinstance(other_properties_dict, NotePropertiesDictionary)

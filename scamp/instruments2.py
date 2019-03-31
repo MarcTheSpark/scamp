@@ -75,7 +75,9 @@ class PlaybackImplementer:
             },
             "parameter_change_segments": {},
             "properties": properties,
+            "flags": []
         }
+        print("BASE START NOTE", pitch, volume)
         return note_id
 
     def _do_end_note(self, note_id):
@@ -83,21 +85,25 @@ class PlaybackImplementer:
         # this base class also removes the id from the list of active notes and deletes the info about it
         self._active_note_ids.remove(note_id)
         del self._note_info_by_id[note_id]
+        print("BASE END NOTE")
         return note_id
 
     def _do_change_note_pitch(self, note_id, new_pitch):
         # Changes the pitch of the note with the given id
         self._note_info_by_id[note_id]["parameter_values"]["pitch"] = new_pitch
+        print("BASE CHANGE NOTE PITCH", new_pitch)
         return note_id
 
     def _do_change_note_volume(self, note_id, new_volume):
         # Changes the expression of the note with the given id
         self._note_info_by_id[note_id]["parameter_values"]["volume"] = new_volume
+        print("BASE CHANGE NOTE VOLUME", new_volume)
         return note_id
 
     def _do_change_note_parameter(self, note_id, parameter_name, new_value):
         # Changes an arbitrary parameter of the note, for instance when controlling an electronic instrument over osc
         self._note_info_by_id[note_id]["parameter_values"][parameter_name] = new_value
+        print("BASE CHANGE NOTE PARAMETER", parameter_name, new_value)
         return note_id
 
 
@@ -134,19 +140,16 @@ class ParameterChangeSegment(EnvelopeSegment):
         self.end_time_stamp = None
         self.temporal_resolution = temporal_resolution
 
-    def run(self):
+    def run(self, silent=False):
         """
         Runs the segment from start to finish, gradually changing the parameter.
         This function runs as a synchronized clock process (it should be forked), and it starts a parallel,
         unsynchronized process ("_animation_function") to do the actual calls to change parameter
+        :param silent: this flag causes none of the animation to actually happen. This is used when we're trying to
+        notate a note but not play it back, as in the case of a note that has been adjusted (where we playback -- but
+        don't notate -- the adjusted version, while we run -- but don't play back -- the unadjusted version.)
         """
         self.start_time_stamp = TimeStamp(self.clock)
-
-        if self.end_level == self.start_level:
-            wait(self.duration)
-            self.end_time_stamp = TimeStamp(self.clock)
-            self.do_change_parameter(self.end_level)
-            return
 
         # if this segment has no duration, no need to do any animation
         # just set it to the final value and return
@@ -160,6 +163,14 @@ class ParameterChangeSegment(EnvelopeSegment):
 
         # we note down the clock we're running this on. If abort is called, this clock gets killed
         self._run_clock = current_clock()
+
+        # if there's no change, or if we're skipping animation, just wait and finish
+        if self.end_level == self.start_level or silent:
+            wait(self.duration)
+            self.end_time_stamp = TimeStamp(self.clock)
+            self.do_change_parameter(self.end_level)
+            self.running = False
+            return
 
         # determine the time increment, perhaps by calculating a good one for the given parameter
         if self.temporal_resolution == "pitch-based":
@@ -265,41 +276,126 @@ class ScampInstrument(PlaybackImplementer):
     """
 
     def play_note(self, pitch, volume, length, properties=None, blocking=True, clock="auto"):
-        properties = self._standardize_properties(properties)
-        pitch = Envelope.from_list(pitch).normalize_to_duration(length) if hasattr(pitch, "__len__") else pitch
-        volume = Envelope.from_list(volume).normalize_to_duration(length) if hasattr(volume, "__len__") else volume
-
+        """
+        Play a note on this instrument, using the given clock
+        :param pitch: either a number, an Envelope, or a list used to create an Envelope
+        :param volume: either a number, an Envelope, or a list used to create an Envelope
+        :param length: either a number (of beats), or a tuple representing a set of tied segments
+        :param properties: either a string, list, dictionary or NotePropertiesDictionary representing note properties
+        :param blocking: if true, don't return until the note is done playing; if false, return immediately
+        :param clock: which clock to use. If "auto", capture the clock from context.
+        """
         clock = current_clock() if clock == "auto" else clock
         if clock is None:
             clock = Clock()
 
+        properties = self._standardize_properties(properties)
+        pitch = Envelope.from_list(pitch) if hasattr(pitch, "__len__") else pitch
+        volume = Envelope.from_list(volume) if hasattr(volume, "__len__") else volume
+
+        adjusted_pitch, adjusted_volume, adjusted_length, did_an_adjustment = \
+            properties.apply_playback_adjustments(pitch, volume, length)
+
+        if did_an_adjustment:
+            # transcribe, but don't play the unmodified version
+            if blocking:
+                self._do_play_note(clock, pitch, volume, length, properties, silent=True)
+            else:
+                clock.fork(self._do_play_note, extra_args=(pitch, volume, length, properties), kwargs={"silent": True})
+            # play, but don't transcribe the modified version
+            clock.fork(self._do_play_note, extra_args=(adjusted_pitch, adjusted_volume, adjusted_length, properties),
+                       kwargs={"transcribe": False})
+        else:
+            if blocking:
+                self._do_play_note(clock, pitch, volume, length, properties)
+            else:
+                clock.fork(self._do_play_note, extra_args=(pitch, volume, length, properties))
+
+    def _do_play_note(self, clock, pitch, volume, length, properties, silent=False, transcribe=True):
+        """
+        This runs the actual thread that plays the note, and is scheduled when play_note is called.
+        If playback adjustments were made, then we schedule the altered version of _do_play_note to play back, but with
+        "transcribe" set to false, and we schedule an unaltered version of _do_play_note to run silently, but with
+        "transcribe" set to true. This way the transcription is not affected by performance adjustments.
+        :param clock: which clock this plays back on
+        :param pitch: either a number, an Envelope
+        :param volume: either a number, an Envelope
+        :param length: either a number (of beats), or a tuple representing a set of tied segments
+        :param properties: a NotePropertiesDictionary
+        :param silent: if True, don't actually do any of the playback; just go through the motions for transcribing it
+        :param transcribe: if False, don't notify Transcribers at the end of the note
+        """
+        # length can either be a single number of beats or a list/tuple or segments to be split
+        # sum_length will represent the total number of beats in either case
+        sum_length = sum(length) if hasattr(length, "__len__") else length
+
+        # normalize all envelopes to to the duration of the note
+        if isinstance(pitch, Envelope):
+            pitch.normalize_to_duration(sum_length)
+        if isinstance(volume, Envelope):
+            volume.normalize_to_duration(sum_length)
+        for param, value in properties.iterate_extra_parameters_and_values():
+            if isinstance(value, Envelope):
+                value.normalize_to_duration(sum_length)
+
+        # start the note
         start_pitch = pitch.start_level() if isinstance(pitch, Envelope) else pitch
         start_volume = volume.start_level() if isinstance(volume, Envelope) else volume
+        note_handle = self.start_note(start_pitch, start_volume, properties, silent=silent, transcribe=transcribe)
 
-        # ISSUE: playback (esp. length) adjustments, staccato
-
-        # if a silent flag is set, just call PlaybackImplementer._do_start_note(self, etc) instead of super()
-        # if we want playback only and no notation, put "do_not_notate" in properties["temp"]
-
-        note_handle = self.start_note(start_pitch, start_volume, properties)
+        # start all the note animation for pitch, volume, and any extra parameters
+        # note that, if the note is silent, then start_note has added the silent flag to the note_info dict
+        # this will cause unsynchronized animation threads not to fire
         if isinstance(pitch, Envelope):
             note_handle.change_pitch(pitch.levels[1:], pitch.durations, pitch.curve_shapes, clock)
         if isinstance(volume, Envelope):
             note_handle.change_volume(volume.levels[1:], volume.durations, volume.curve_shapes, clock)
         for param, value in properties.iterate_extra_parameters_and_values():
             if isinstance(value, Envelope):
-                normalized_value = value.normalize_to_duration(length)
-                note_handle.change_parameter(param, normalized_value.levels[1:], normalized_value.durations,
-                                             normalized_value.curve_shapes, clock)
+                note_handle.change_parameter(param, value.levels[1:], value.durations, value.curve_shapes, clock)
             else:
                 note_handle.change_parameter(param, value)
 
-    def start_note(self, pitch, volume, properties=None):
-        properties = self._standardize_properties(properties)
-        if "silent" in properties["temp"]:
-            return NoteHandle(PlaybackImplementer._do_start_note(self, pitch, volume, properties), self)
+        if hasattr(length, "__len__"):
+            for length_segment in length:
+                clock.wait(length_segment)
+                note_handle.split(clock)
         else:
-            return NoteHandle(self._do_start_note(pitch, volume, properties), self)
+            clock.wait(length)
+        note_handle.end()
+
+    def start_note(self, pitch, volume, properties=None, silent=False, transcribe=True):
+        """
+        Start a note with the given pitch, volume, and properties
+        :param pitch: the pitch / starting pitch of the note (not an Envelope)
+        :param volume: the volume / starting volume of the note (not an Envelope)
+        :param properties: either a string, list, dictionary or NotePropertiesDictionary representing note properties
+        :param silent: if True, go through the motions of playing back, but don't make sound. Useful if we're trying to
+        notate a note but not actually play it.
+        :param transcribe: if False, don't notify transcribers of this note when it ends
+        :return: a NoteHandle with which to later manipulate the note
+        """
+        # TODO: should pitch, volume be willing to take envelopes?  What do we do with an envelope in another parameter as defined in note properties dict?
+
+        properties = self._standardize_properties(properties)
+
+        if silent:
+            # This is used when we want to have notated pitch/volume/length differ from played length, i.e. when there
+            # some sort of playback alteration like staccato. A "silent" note with the original properties that does
+            # none of the alterations gets notated, while the sounding note gets flagged as non-notated.
+            # Note, here, that we call PlaybackImplementer._do_start_note, rather than self._do_start_note
+            # this skips all the implementation supplied by MidiPlaybackImplementer, etc., which makes it silent
+            handle = NoteHandle(PlaybackImplementer._do_start_note(self, pitch, volume, properties), self)
+            # once we've started the note, we can set the silent flag in the note info dictionary
+            # this way we don't have to pass the method to any of the change_pitch calls, etc. since it's in the note_id
+            self._note_info_by_id[handle.note_id]["flags"].append("silent")
+        else:
+            handle = NoteHandle(self._do_start_note(pitch, volume, properties), self)
+
+        if not transcribe:
+            self._note_info_by_id[handle.note_id]["flags"].append("no_transcribe")
+
+        return handle
 
     def start_chord(self):
         # Should return a chord handle, that's maybe a wrapper around a list of note handles?
@@ -343,13 +439,23 @@ class ScampInstrument(PlaybackImplementer):
 
         # which function do we use to actually carry out the change of parameter? Pitch and volume are special.
         if param_name == "pitch":
-            def parameter_change_function(value): self._do_change_note_pitch(note_id, value)
+            if "silent" in note_info["flags"]:
+                def parameter_change_function(value): PlaybackImplementer._do_change_note_pitch(self, note_id, value)
+            else:
+                def parameter_change_function(value): self._do_change_note_pitch(note_id, value)
             temporal_resolution = "pitch-based"
         elif param_name == "volume":
-            def parameter_change_function(value): self._do_change_note_volume(note_id, value)
+            if "silent" in note_info["flags"]:
+                def parameter_change_function(value): PlaybackImplementer._do_change_note_volume(self, note_id, value)
+            else:
+                def parameter_change_function(value): self._do_change_note_volume(note_id, value)
             temporal_resolution = "volume-based"
         else:
-            def parameter_change_function(value): self._do_change_note_parameter(note_id, param_name, value)
+            if "silent" in note_info["flags"]:
+                def parameter_change_function(value):
+                    PlaybackImplementer._do_change_note_parameter(self, note_id, param_name,value)
+            else:
+                def parameter_change_function(value): self._do_change_note_parameter(note_id, param_name, value)
             temporal_resolution = 0.01
 
         clock = current_clock() if clock == "auto" else clock
@@ -390,7 +496,7 @@ class ScampInstrument(PlaybackImplementer):
                     # one of them, we kill the clock that do_animation_sequence is running on, thereby aborting all
                     # remaining segments as well. This is exactly what we want: if we call change_note_parameter while
                     # previous change_note_parameter is running, we want to abort all segments of the one that's running
-                    this_segment.run()
+                    this_segment.run(silent="silent" in note_info["flags"])
 
             clock.fork(do_animation_sequence)
         else:
@@ -399,7 +505,7 @@ class ScampInstrument(PlaybackImplementer):
                 transition_length_or_lengths, transition_curve_shape_or_shapes, clock,
                 temporal_resolution=temporal_resolution)
             segments_list.append(parameter_change_segment)
-            clock.fork(parameter_change_segment.run)
+            clock.fork(parameter_change_segment.run, kwargs={"silent": "silent" in note_info["flags"]})
 
     def change_note_pitch(self, note_id, target_value_or_values: Union[Sequence, Number],
                           transition_length_or_lengths: Union[Sequence, Number] = 0,
@@ -460,10 +566,15 @@ class ScampInstrument(PlaybackImplementer):
                 note_info["parameter_change_segments"][param_name][-1].abort_if_running()
 
         note_info["end_time"] = TimeStamp(clock)
-        for transcriber in self._transcribers_to_notify:
-            transcriber.register_note(self, note_info)
+        if "no_transcribe" not in note_info["flags"]:
+            for transcriber in self._transcribers_to_notify:
+                transcriber.register_note(self, note_info)
 
-        self._do_end_note(note_id)
+        if "silent" in note_info["flags"]:
+            # if silent, skip all the implementations mixed in and go to the base implementation of _do_end_note
+            PlaybackImplementer._do_end_note(self, note_id)
+        else:
+            self._do_end_note(note_id)
 
     def end_all_notes(self):
         """
