@@ -90,9 +90,9 @@ class PlaybackSettings(ScampSettings):
 
     factory_defaults = {
         "named_soundfonts": {
-            "default": "Merlin.sf2",
+            "general_midi": "Merlin.sf2",
         },
-        "default_ensemble_soundfonts": ["default"],
+        "default_soundfont": "general_midi",
         "default_audio_driver": "auto",
         "default_midi_output_device": None,
         "default_max_midi_pitch_bend": 48,
@@ -118,7 +118,7 @@ class PlaybackSettings(ScampSettings):
 
     def __init__(self, settings_dict=None):
         # This is here to help with auto-completion so that the IDE knows what attributes are available
-        self.named_soundfonts = self.default_ensemble_soundfonts = self.default_audio_driver = \
+        self.named_soundfonts = self.default_soundfont = self.default_audio_driver = \
             self.default_midi_output_device = self.default_max_midi_pitch_bend = self.osc_message_addresses = \
             self.adjustments = None
         super().__init__(settings_dict)
@@ -143,11 +143,8 @@ class PlaybackSettings(ScampSettings):
             return
         del self.named_soundfonts[name]
 
-    def get_named_soundfonts(self):
-        return self.named_soundfonts
-
     def list_named_soundfonts(self):
-        for a, b in self.get_named_soundfonts().items():
+        for a, b in self.named_soundfonts.items():
             print("{}: {}".format(a, b))
 
 

@@ -2,10 +2,69 @@ from .utilities import resolve_relative_path, SavesToJSON, get_average_square_co
 from .settings import playback_settings
 from .dependencies import fluidsynth, Sf2File
 import logging
-from collections import namedtuple
+from collections import OrderedDict
 import re
 
-ScampSoundfontPreset = namedtuple("ScampSoundfontPreset", "name preset soundfont_index")
+
+def get_soundfont_presets(which_soundfont="default"):
+    which_soundfont = playback_settings.default_soundfont if which_soundfont == "default" else which_soundfont
+
+    soundfont_path = playback_settings.named_soundfonts[which_soundfont] \
+        if which_soundfont in playback_settings.named_soundfonts else which_soundfont
+
+    if soundfont_path.startswith("./"):
+        soundfont_path = resolve_relative_path("soundfonts/" + soundfont_path[2:])
+    elif not soundfont_path.startswith("/"):
+        soundfont_path = resolve_relative_path("soundfonts/" + soundfont_path)
+
+    if Sf2File is None:
+        raise ModuleNotFoundError("Cannot inspect soundfont presets; please install sf2utils.")
+
+    # if we have sf2utils, load up the preset info from the soundfonts
+    with open(soundfont_path, "rb") as sf2_file:
+        sf2 = Sf2File(sf2_file)
+        return sf2.presets
+
+
+def print_soundfont_presets(which_soundfont="default"):
+    print("PRESETS FOR {}".format("default ({})".format(playback_settings.default_soundfont)
+                                  if which_soundfont == "default" else which_soundfont))
+    for preset in get_soundfont_presets(which_soundfont):
+        print("   {}".format(preset))
+
+
+def get_soundfont_presets_with_substring(word, avoid=None, which_soundfont="default"):
+    """
+    Returns a list of Sf2Presets containing the given word
+    :param word: string to match
+    :param avoid: string to avoid matching
+    :param which_soundfont: name of the soundfont to inspect
+    """
+    return [preset for preset in get_soundfont_presets(which_soundfont) if word.lower() in preset.name.lower()
+            and (avoid is None or avoid.lower() not in preset.name.lower())]
+
+
+def get_best_preset_match_for_name(name: str, which_soundfont="default"):
+    """
+    Does fuzzy string matching to find an appropriate preset for given name
+    :param name: name of the instrument to find a preset for
+    :param which_soundfont: which soundfont look in
+    :return: a tuple of (Sf2Preset, match score)
+    """
+    if Sf2File is None:
+        raise ModuleNotFoundError("Cannot iterate through soundfont presets; please install sf2utils.")
+    best_preset_match = None
+    best_preset_score = 0
+    altered_name = name.lower()
+    altered_name = _do_name_substitutions(altered_name)
+    for scamp_soundfont_preset in get_soundfont_presets(which_soundfont):
+        altered_preset_name = scamp_soundfont_preset.name.lower()
+        altered_preset_name = _do_name_substitutions(altered_preset_name)
+        score = get_average_square_correlation(altered_name, altered_preset_name)
+        if score > best_preset_score:
+            best_preset_score = score
+            best_preset_match = scamp_soundfont_preset
+    return best_preset_match, best_preset_score
 
 
 class SoundfontHost(SavesToJSON):
@@ -17,101 +76,46 @@ class SoundfontHost(SavesToJSON):
         :param soundfonts: one or several soundfonts to be loaded
         :param audio_driver: the audio driver to use
         """
+        if isinstance(soundfonts, str):
+            soundfonts = (soundfonts, )
 
         if fluidsynth is None:
             raise ModuleNotFoundError("FluidSynth not available.")
 
-        if audio_driver == "default":
-            audio_driver = playback_settings.default_audio_driver
+        self.audio_driver = playback_settings.default_audio_driver if audio_driver == "default" else audio_driver
 
         self.synth = fluidsynth.Synth()
-        self.synth.start(driver=audio_driver)
+        self.synth.start(driver=self.audio_driver)
 
         self.used_channels = 0  # how many channels have we already assigned to various instruments
 
-        self.soundfonts = []
-        self.soundfont_ids = []  # the ids of loaded soundfonts
-        self.soundfont_instrument_lists = []
+        self.soundfont_ids = OrderedDict()  # mapping from soundfont names to the fluidsynth ids of loaded soundfonts
+        self.soundfont_instrument_lists = {}
 
         for soundfont in soundfonts:
             self.load_soundfont(soundfont)
 
-    def add_instrument(self, num_channels, bank_and_preset, soundfont=0):
-        return SoundfontInstrument(self, num_channels, bank_and_preset, self.soundfont_ids[soundfont])
+    def add_instrument(self, num_channels, bank_and_preset, soundfont=None):
+        if soundfont is None:
+            # if no soundfont is specified, use the first soundfont added
+            soundfont_id = next(iter(self.soundfont_ids.items()))
+        else:
+            soundfont_id = self.soundfont_ids[soundfont]
+        return SoundfontInstrument(self, num_channels, bank_and_preset, soundfont_id)
 
     def load_soundfont(self, soundfont):
-        self.soundfonts.append(soundfont)
         soundfont_path = resolve_soundfont_path(soundfont)
 
         if Sf2File is not None:
             # if we have sf2utils, load up the preset info from the soundfonts
             with open(soundfont_path, "rb") as sf2_file:
                 sf2 = Sf2File(sf2_file)
-                self.soundfont_instrument_lists.append(sf2.presets)
+                self.soundfont_instrument_lists[soundfont] = sf2.presets
 
-        self.soundfont_ids.append(self.synth.sfload(soundfont_path))
-
-    def get_instruments_with_substring(self, word, avoid=None, soundfont_index=None):
-        """
-        Returns a list of ScampSoundfontPresets containing the given word
-        :param word: string to match
-        :param avoid: string to avoid matching
-        :param soundfont_index: either the index of the soundfont to look through or None if all soundfonts
-        """
-        return [preset for preset in self.iter_presets(soundfont_index) if word.lower() in preset.name.name.lower() 
-                and (avoid is None or avoid.lower() not in preset.name.lower())]
-
-    def get_best_preset_match_for_name(self, name: str, soundfont_id=None):
-        """
-        Does fuzzy string matching to find an appropriate preset for given name
-        :param name: name of the instrument to find a preset for
-        :param soundfont_id: if None, search all soundfonts, otherwise search only the specified soundfont
-        :return: a ScampSoundfontPreset
-        """
-        if Sf2File is None:
-            raise ModuleNotFoundError("Cannot iterate through soundfont presets; please install sf2utils.")
-        best_preset_match = None
-        best_preset_score = 0
-        altered_name = name.lower()
-        altered_name = _do_name_substitutions(altered_name)
-        for scamp_soundfont_preset in self.iter_presets(soundfont_index=soundfont_id):
-            altered_preset_name = scamp_soundfont_preset.name.lower()
-            altered_preset_name = _do_name_substitutions(altered_preset_name)
-            score = get_average_square_correlation(altered_name, altered_preset_name)
-            if score > best_preset_score:
-                best_preset_score = score
-                best_preset_match = scamp_soundfont_preset
-        return best_preset_match, best_preset_score
-
-    def iter_presets(self, soundfont_index=None):
-        """
-        Yield presets from all soundfonts (default) or from a specific soundfont
-        :param soundfont_index: either the index of the soundfont to iterate through or None if all soundfonts
-        """
-        if Sf2File is None:
-            raise ModuleNotFoundError("Cannot iterate through soundfont presets; please install sf2utils.")
-
-        index_and_instrument_list_pairs = enumerate(self.soundfont_instrument_lists) if soundfont_index is None \
-            else (soundfont_index, self.soundfont_instrument_lists[soundfont_index])
-        
-        for soundfont_index, soundfont_instrument_list in index_and_instrument_list_pairs:
-            for sf2_preset in soundfont_instrument_list:
-                try:
-                    yield ScampSoundfontPreset(sf2_preset.name, (sf2_preset.bank, sf2_preset.preset), soundfont_index)
-                except AttributeError:
-                    # the last preset is a weird end preset and raises an attribute error; just ignore it
-                    pass
-
-    def print_all_soundfont_presets(self):
-        if Sf2File is None:
-            raise ModuleNotFoundError("Cannot iterate through soundfont presets; please install sf2utils.")
-        for i in range(len(self.soundfonts)):
-            print("PRESETS FOR {}".format(self.soundfonts[i]))
-            for preset in self.soundfont_instrument_lists[i]:
-                print("   {}".format(preset))
+        self.soundfont_ids[soundfont] = self.synth.sfload(soundfont_path)
 
     def to_json(self):
-        return {"soundfonts": self.soundfonts, "audio_driver": self._audio_driver}
+        return {"soundfonts": list(self.soundfont_ids.keys()), "audio_driver": self.audio_driver}
 
     @classmethod
     def from_json(cls, json_dict):
@@ -265,8 +269,8 @@ def resolve_soundfont_path(soundfont: str):
     unless they start with a slash.
     :return: an absolute path o the soundfont
     """
-    named_soundfonts = playback_settings.get_named_soundfonts()
-    soundfont_path = named_soundfonts[soundfont] if soundfont in named_soundfonts else soundfont
+    soundfont_path = playback_settings.named_soundfonts[soundfont] \
+        if soundfont in playback_settings.named_soundfonts else soundfont
 
     if soundfont_path.startswith("./"):
         soundfont_path = resolve_relative_path("soundfonts/" + soundfont_path[2:])

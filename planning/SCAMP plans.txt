@@ -6,6 +6,7 @@ clock_ until the end.
 - Engraving sudden tempo changes
 - maybe make clock not note down the start time until its first call to wait?
 - Get recombination of larger notes working
+- Maybe max pitch bend should only get expanded from the default of 2 when a pitch bend is requested that goes beyond that?
 - Engraving tempo in abjad
 - MIDIScampInstrument: allow preset shifts with keyword string
 - Playback adjustments: allow preset change as a possibility

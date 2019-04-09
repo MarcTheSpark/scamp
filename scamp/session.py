@@ -64,7 +64,7 @@ class Session(Clock):
         return self._ensemble.get_instruments_with_substring(word, avoid=avoid, soundfont_index=soundfont_index)
 
     def iter_presets(self, soundfont_id=None):
-        return self._ensemble.iter_presets(soundfont_id=soundfont_id)
+        return self._ensemble.iter_presets(soundfont_index=soundfont_id)
 
     def print_all_soundfont_presets(self):
         self._ensemble.print_all_soundfont_presets()

@@ -189,7 +189,7 @@ class ScampInstrument:
 
     _note_id_generator = itertools.count()
 
-    def __init__(self, name, ensemble=None):
+    def __init__(self, name=None, ensemble=None):
         """
         Base instrument class.
         """
@@ -201,20 +201,12 @@ class ScampInstrument:
         self._transcribers_to_notify = []
 
         self._note_info_by_id = {}
-        self._playback_implementations: List[PlaybackImplementation] = []
+        self.playback_implementations: List[PlaybackImplementation] = []
 
         # A policy for spelling notes used as the default for this instrument. Overrides any broader defaults.
         self._default_spelling_policy = None
 
         super().__init__()
-
-    def register_playback_implementation(self, playback_implementation: PlaybackImplementation):
-        playback_implementation.note_info_dict = self._note_info_by_id
-        self._playback_implementations.append(playback_implementation)
-
-    def remove_playback_implementation(self, playback_implementation: PlaybackImplementation):
-        playback_implementation.note_info_dict = None
-        self._playback_implementations.remove(playback_implementation)
 
     def play_note(self, pitch, volume, length, properties=None, blocking=True, clock="auto"):
         """
@@ -277,9 +269,13 @@ class ScampInstrument:
             if isinstance(value, Envelope):
                 value.normalize_to_duration(sum_length)
 
+        # if we know ahead of time that neither pitch nor volume changes, we can pass
+        fixed = not isinstance(pitch, Envelope) and not isinstance(volume, Envelope)
+
         # start the note. (Note that this will also start the animation of pitch, volume,
         # and any other parameters if they are envelopes.)
-        note_handle = self.start_note(pitch, volume, properties, silent=silent, transcribe=transcribe)
+        note_handle = self.start_note(pitch, volume, properties, silent=silent, transcribe=transcribe, fixed=fixed,
+                                      max_volume=volume.max_level() if isinstance(volume, Envelope) else volume)
 
         if hasattr(length, "__len__"):
             for length_segment in length:
@@ -289,7 +285,8 @@ class ScampInstrument:
             clock.wait(length)
         note_handle.end()
 
-    def start_note(self, pitch, volume, properties=None, clock="auto", silent=False, transcribe=True):
+    def start_note(self, pitch, volume, properties=None, clock="auto", silent=False,
+                   transcribe=True, fixed=False, max_volume=1):
         """
         Start a note with the given pitch, volume, and properties
         :param pitch: the pitch / starting pitch of the note (not an Envelope)
@@ -301,7 +298,17 @@ class ScampInstrument:
         staccato, a "silent" note with the original properties that does none of the alterations gets notated,
         while the sounding note gets flagged as transcribe=False.
         :param transcribe: if False, don't notify transcribers of this note when it ends
+        :param fixed: if True, disables the ability of this note to change pitch or volume; useful for conserving
+        midi_channels, since multiple fixed notes can occupy the same channel.
         :return: a NoteHandle with which to later manipulate the note
+        :param max_volume: This is a bit of a pain, but since midi playback requires us to set the velocity at the
+        beginning of the note, and thereafter vary volume using expression, and since expression can only make the
+        note quieter, we need to start the note with velocity equal to the max desired volume (using expression to
+        adjust it down to the actual start volume). The default will be 1, meaning as loud as possible, since unless we
+        know in advance what the note is going to do, we need to be prepared to go up to full volume. Using play_note,
+        we do actually know in advance how loud the note is going to get, so we can set max volume to the peak of the
+        Envelope. Honestly, I wish I could separate this implementation detail from the ScampInstrument class, but I
+        don't see how this would be possible.
         """
         clock = ScampInstrument._resolve_clock_argument(clock)
 
@@ -326,15 +333,21 @@ class ScampInstrument:
             "parameter_values": dict(other_param_start_values, pitch=start_pitch, volume=start_volume),
             "parameter_change_segments": {},
             "properties": properties,
+            "max_volume": max_volume,
             "flags": []
         }
+
+        if fixed:
+            assert not isinstance(pitch, Envelope) and not isinstance(volume, Envelope), \
+                "The 'fixed' flag can only be used on notes that do not animate pitch or volume."
+            self._note_info_by_id[note_id]["flags"].append("fixed")
 
         if silent:
             # if it's silent, add a flag so that none of the playback implementation happens for the rest of the note
             self._note_info_by_id[note_id]["flags"].append("silent")
         else:
             # otherwise, call all the playback implementation!
-            for playback_implementation in self._playback_implementations:
+            for playback_implementation in self.playback_implementations:
                 playback_implementation.start_note(note_id, start_pitch, start_volume,
                                                    properties, other_param_start_values)
 
@@ -403,6 +416,9 @@ class ScampInstrument:
         note_id = note_id.note_id if isinstance(note_id, NoteHandle) else note_id
         note_info = self._note_info_by_id[note_id]
 
+        if "fixed" in note_info["flags"] and param_name in ("pitch", "volume"):
+            raise Exception("Cannot change pitch or volume of a note with 'fixed' set to True.")
+
         # which function do we use to actually carry out the change of parameter? Pitch and volume are special.
         if "silent" in note_info["flags"]:
             # if it's silent, then we don't actually call any of the implementation, so pass a dummy function
@@ -410,17 +426,17 @@ class ScampInstrument:
             temporal_resolution = None
         elif param_name == "pitch":
             def parameter_change_function(value):
-                for playback_implementation in self._playback_implementations:
+                for playback_implementation in self.playback_implementations:
                     playback_implementation.change_note_pitch(note_id, value)
             temporal_resolution = "pitch-based"
         elif param_name == "volume":
             def parameter_change_function(value):
-                for playback_implementation in self._playback_implementations:
+                for playback_implementation in self.playback_implementations:
                     playback_implementation.change_note_volume(note_id, value)
             temporal_resolution = "volume-based"
         else:
             def parameter_change_function(value):
-                for playback_implementation in self._playback_implementations:
+                for playback_implementation in self.playback_implementations:
                     playback_implementation.change_note_parameter(note_id, param_name, value)
             temporal_resolution = 0.01
 
@@ -534,7 +550,7 @@ class ScampInstrument:
 
         # do the sonic implementation of ending the note, as long as it's not silent
         if "silent" not in note_info["flags"]:
-            for playback_implementation in self. _playback_implementations:
+            for playback_implementation in self. playback_implementations:
                 playback_implementation.end_note(note_id)
 
         # remove from active notes and delete the note info
@@ -554,8 +570,29 @@ class ScampInstrument:
         return len(self._note_info_by_id)
 
     """
+    ---------------------------------------- Adding and removing playback ----------------------------------------
+    """
+
+    def add_soundfont_playback(self, bank_and_preset=(0, 0), soundfont="default", num_channels=8,
+                               audio_driver="default", max_pitch_bend="default"):
+        SoundfontPlaybackImplementation(self, bank_and_preset, soundfont, num_channels,
+                                        audio_driver=audio_driver, max_pitch_bend=max_pitch_bend)
+        return self
+
+    def remove_soundfont_playback(self):
+        for index in reversed(range(len(self.playback_implementations))):
+            if isinstance(self.playback_implementations[index], SoundfontPlaybackImplementation):
+                self.playback_implementations.pop(index)
+                break
+        return self
+
+    """
     ------------------------------------------------- Other -----------------------------------------------------
     """
+
+    def set_max_pitch_bend(self, semitones):
+        for playback_implementation in self.playback_implementations:
+            playback_implementation.set_max_pitch_bend(semitones)
 
     @property
     def default_spelling_policy(self):
@@ -582,9 +619,3 @@ class ScampInstrument:
         if clock is None:
             clock = Clock()
         return clock
-
-
-class MIDIScampInstrument(ScampInstrument):
-    def __init__(self, name, ensemble=None):
-        super().__init__(name, ensemble)
-        self.register_playback_implementation(MidiPlaybackImplementation())
