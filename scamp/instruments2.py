@@ -422,22 +422,25 @@ class ScampInstrument:
         # which function do we use to actually carry out the change of parameter? Pitch and volume are special.
         if "silent" in note_info["flags"]:
             # if it's silent, then we don't actually call any of the implementation, so pass a dummy function
-            def parameter_change_function(value): pass
+            def parameter_change_function(value): note_info["parameter_values"][param_name] = value
             temporal_resolution = None
         elif param_name == "pitch":
             def parameter_change_function(value):
                 for playback_implementation in self.playback_implementations:
                     playback_implementation.change_note_pitch(note_id, value)
+                note_info["parameter_values"][param_name] = value
             temporal_resolution = "pitch-based"
         elif param_name == "volume":
             def parameter_change_function(value):
                 for playback_implementation in self.playback_implementations:
                     playback_implementation.change_note_volume(note_id, value)
+                note_info["parameter_values"][param_name] = value
             temporal_resolution = "volume-based"
         else:
             def parameter_change_function(value):
                 for playback_implementation in self.playback_implementations:
                     playback_implementation.change_note_parameter(note_id, param_name, value)
+                note_info["parameter_values"][param_name] = value
             temporal_resolution = 0.01
 
         assert param_name in note_info["parameter_values"], \
