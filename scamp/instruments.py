@@ -380,7 +380,7 @@ class MidiScampInstrument(ScampInstrument):
                                                                self.midi_output_device, self.midi_output_name)
         self.num_channels = num_channels
 
-        self.set_max_pitch_bend(playback_settings.default_max_midi_pitch_bend)
+        self.set_max_pitch_bend(playback_settings.default_max_soundfont_pitch_bend)
 
         # keep track of what notes are currently playing
         # each entry is an identifying tuple of: (channel, pitch, unique_id)

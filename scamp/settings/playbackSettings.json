@@ -36,9 +36,10 @@
         "noteheads": {}
     },
     "default_audio_driver": "auto",
-    "default_soundfont": "general_midi",
-    "default_max_midi_pitch_bend": 48,
+    "default_max_soundfont_pitch_bend": 48,
+    "default_max_streaming_midi_pitch_bend": 2,
     "default_midi_output_device": null,
+    "default_soundfont": "general_midi",
     "named_soundfonts": {
         "general_midi": "Merlin.sf2"
     },

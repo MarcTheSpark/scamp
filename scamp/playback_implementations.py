@@ -1,5 +1,7 @@
 from .soundfont_host import *
 from .simple_rtmidi_wrapper import *
+from clockblocks import fork_unsynchronized
+import time
 from abc import ABC, abstractmethod
 
 
@@ -80,28 +82,34 @@ class PlaybackImplementation(ABC):
         pass
 
 
-class SoundfontPlaybackImplementation(PlaybackImplementation):
+class _MidiPlaybackImplementation(PlaybackImplementation, ABC):
 
-    def __init__(self, host_instrument, bank_and_preset=(0, 0), soundfont="default",
-                 num_channels=8, audio_driver="default", max_pitch_bend="default"):
+    def __init__(self, host_instrument, num_channels=8):
         super().__init__(host_instrument)
-        self.audio_driver = playback_settings.default_audio_driver if audio_driver == "default" else audio_driver
-        self.soundfont = playback_settings.default_soundfont if soundfont == "default" else soundfont
-
-        soundfont_host_resource_key = "{}_soundfont_host".format(self.audio_driver)
-        if not self.has_shared_resource(soundfont_host_resource_key):
-            self.set_shared_resource(soundfont_host_resource_key, SoundfontHost(self.soundfont, self.audio_driver))
-        self.soundfont_host = self.get_shared_resource(soundfont_host_resource_key)
-
-        if self.soundfont not in self.soundfont_host.soundfont_ids:
-            self.soundfont_host.load_soundfont(self.soundfont)
-
-        self.soundfont_instrument = self.soundfont_host.add_instrument(num_channels, bank_and_preset, self.soundfont)
-
-        self.bank_and_preset = bank_and_preset
         self.num_channels = num_channels
-        self.set_max_pitch_bend(playback_settings.default_max_midi_pitch_bend
-                                if max_pitch_bend == "default" else max_pitch_bend)
+        self.ringing_notes = []
+
+    # -------------------------- Abstract methods to be implemented by subclasses--------------
+
+    @abstractmethod
+    def note_on(self, chan, pitch, velocity_from_0_to_1):
+        pass
+
+    @abstractmethod
+    def note_off(self, chan, pitch):
+        pass
+
+    @abstractmethod
+    def pitch_bend(self, chan, bend_in_semitones):
+        pass
+
+    @abstractmethod
+    def set_max_pitch_bend(self, max_bend_in_semitones):
+        pass
+
+    @abstractmethod
+    def expression(self, chan, expression_from_0_to_1):
+        pass
 
     # -------------------------------- Main Playback Methods --------------------------------
 
@@ -111,8 +119,9 @@ class SoundfontPlaybackImplementation(PlaybackImplementation):
         int_pitch = int(round(pitch))
 
         # make a list of available channels to add this note to, ones that won't cause pitch bend / expression conflicts
-        available_channels = list(range(self.soundfont_instrument.num_channels))
+        available_channels = list(range(self.num_channels))
         oldest_note_id = None
+
         # go through all currently active notes
         for other_note_id, other_note_info in self.note_info_dict.items():
             # check to see that this other note has been handled by this playback implementation (for instance, a silent
@@ -137,6 +146,15 @@ class SoundfontPlaybackImplementation(PlaybackImplementation):
                     if oldest_note_id is None or other_note_id < oldest_note_id:
                         oldest_note_id = other_note_id
 
+        # go through all ringing notes, and remove those channels if note compatible
+        for ringing_channel, ringing_midi_note, ringing_pitch in self.ringing_notes:
+            conflicting_microtonality = (pitch != int_pitch or ringing_midi_note != ringing_pitch) and \
+                                        (round(pitch - int_pitch, 5) !=  # round to fix float error
+                                         round(ringing_pitch - ringing_midi_note, 5))
+            channel_compatible = this_note_fixed and not conflicting_microtonality
+            if not channel_compatible:
+                available_channels.remove(ringing_channel)
+
         # pick the first free channel, or free one up if there are no free channels
         if len(available_channels) > 0:
             # if there's a free channel, return the lowest number available
@@ -146,7 +164,7 @@ class SoundfontPlaybackImplementation(PlaybackImplementation):
             # get the info we stored on this note, related to this specific playback implementation
             # (see end of start_note method for explanation)
             oldest_note_info = self.note_info_dict[oldest_note_id][self]
-            self.soundfont_instrument.note_off(oldest_note_info["channel"], oldest_note_info["midi_note"])
+            self.note_off(oldest_note_info["channel"], oldest_note_info["midi_note"])
             # flag it as prematurely ended so that we send no further midi commands
             oldest_note_info["prematurely_ended"] = True
             # if every channel is playing this pitch, we will end the oldest note so we can
@@ -154,10 +172,10 @@ class SoundfontPlaybackImplementation(PlaybackImplementation):
 
         # start the note on that channel
         # note that we start it at the max volume that it wil lever reach, and use expression to get to the start volume
-        self.soundfont_instrument.note_on(channel, int_pitch, this_note_info["max_volume"])
+        self.note_on(channel, int_pitch, this_note_info["max_volume"])
         if pitch != int_pitch:
-            self.soundfont_instrument.pitch_bend(channel, pitch - int_pitch)
-        self.soundfont_instrument.expression(channel, volume / this_note_info["max_volume"])
+            self.pitch_bend(channel, pitch - int_pitch)
+        self.expression(channel, volume / this_note_info["max_volume"])
         # store the midi note that we pressed for this note, the channel we pressed it on, and make an entry (initially
         # false) for whether or not we ended this note prematurely (to free up a channel for a newer note).
         # Note that we're creating here a dictionary within the note_info dictionary, using this PlaybackImplementation
@@ -174,45 +192,92 @@ class SoundfontPlaybackImplementation(PlaybackImplementation):
         assert self in this_note_info, "Note was never started by the SoundfontPlaybackImplementer; this is bad."
         this_note_implementation_info = this_note_info[self]
         if not this_note_implementation_info["prematurely_ended"]:
-            self.soundfont_instrument.note_off(this_note_implementation_info["channel"],
-                                               this_note_implementation_info["midi_note"])
+            self.note_off(this_note_implementation_info["channel"], this_note_implementation_info["midi_note"])
+            ringing_note_info = (this_note_implementation_info["channel"], this_note_implementation_info["midi_note"],
+                                 this_note_info["parameter_values"]["pitch"])
+
+            # we need to consider this note as potentially still ringing for some period
+            # after it finished. We don't want to  accidentally pitch-shift the release trail
+            self.ringing_notes.append(ringing_note_info)
+
+            def delete_after_pause():
+                time.sleep(0.5)
+                self.ringing_notes.remove(ringing_note_info)
+
+            fork_unsynchronized(delete_after_pause)
 
     def change_note_pitch(self, note_id, new_pitch):
         this_note_info = self.note_info_dict[note_id]
         assert self in this_note_info, "Note was never started by the SoundfontPlaybackImplementer; this is bad."
         this_note_implementation_info = this_note_info[self]
         if not this_note_implementation_info["prematurely_ended"]:
-            self.soundfont_instrument.pitch_bend(
-                this_note_implementation_info["channel"],
-                new_pitch - this_note_implementation_info["midi_note"]
-            )
+            self.pitch_bend(this_note_implementation_info["channel"],
+                            new_pitch - this_note_implementation_info["midi_note"])
 
     def change_note_volume(self, note_id, new_volume):
         this_note_info = self.note_info_dict[note_id]
         assert self in this_note_info, "Note was never started by the SoundfontPlaybackImplementer; this is bad."
         this_note_implementation_info = this_note_info[self]
         if not this_note_implementation_info["prematurely_ended"]:
-            self.soundfont_instrument.expression(this_note_implementation_info["channel"],
-                                                 new_volume / this_note_info["max_volume"])
+            self.expression(this_note_implementation_info["channel"], new_volume / this_note_info["max_volume"])
 
     def change_note_parameter(self, note_id, parameter_name, new_value):
         # parameter changes are not implemented for SoundfontPlaybackImplementer
         # perhaps they could be for some other uses, maybe program changes?
         pass
 
-    # --------------------------------------- Other ---------------------------------------
+
+class SoundfontPlaybackImplementation(_MidiPlaybackImplementation):
+
+    def __init__(self, host_instrument, bank_and_preset=(0, 0), soundfont="default",
+                 num_channels=8, audio_driver="default", max_pitch_bend="default"):
+        super().__init__(host_instrument, num_channels)
+
+        self.audio_driver = playback_settings.default_audio_driver if audio_driver == "default" else audio_driver
+        self.soundfont = playback_settings.default_soundfont if soundfont == "default" else soundfont
+        soundfont_host_resource_key = "{}_soundfont_host".format(self.audio_driver)
+        if not self.has_shared_resource(soundfont_host_resource_key):
+            self.set_shared_resource(soundfont_host_resource_key, SoundfontHost(self.soundfont, self.audio_driver))
+        self.soundfont_host = self.get_shared_resource(soundfont_host_resource_key)
+        if self.soundfont not in self.soundfont_host.soundfont_ids:
+            self.soundfont_host.load_soundfont(self.soundfont)
+        self.soundfont_instrument = self.soundfont_host.add_instrument(num_channels, bank_and_preset, self.soundfont)
+
+        self.bank_and_preset = bank_and_preset
+        self.set_max_pitch_bend(playback_settings.default_max_soundfont_pitch_bend
+                                if max_pitch_bend == "default" else max_pitch_bend)
+
+    # -------------------------------- Main Playback Methods --------------------------------
+
+    def note_on(self, chan, pitch, velocity_from_0_to_1):
+        self.soundfont_instrument.note_on(chan, pitch, velocity_from_0_to_1)
+
+    def note_off(self, chan, pitch):
+        self.soundfont_instrument.note_off(chan, pitch)
+
+    def pitch_bend(self, chan, bend_in_semitones):
+        self.soundfont_instrument.pitch_bend(chan, bend_in_semitones)
 
     def set_max_pitch_bend(self, semitones):
         self.soundfont_instrument.set_max_pitch_bend(semitones)
 
+    def expression(self, chan, expression_from_0_to_1):
+        self.soundfont_instrument.expression(chan, expression_from_0_to_1)
 
-class MIDIStreamPlaybackImplementation(PlaybackImplementation):
 
-    def __init__(self, num_channels, midi_output_device=None, midi_output_name=None):
-        super().__init__()
+class MIDIStreamPlaybackImplementation(_MidiPlaybackImplementation):
+
+    def __init__(self, host_instrument, midi_output_device="default", num_channels=8,
+                 midi_output_name=None, max_pitch_bend="default"):
+        super().__init__(host_instrument)
         self.num_channels = num_channels
-        if midi_output_device is None:
-            midi_output_device = playback_settings.default_midi_output_device
+
+        midi_output_device = playback_settings.default_midi_output_device if midi_output_device == "default" \
+            else midi_output_device
+        if midi_output_name is None:
+            # if no midi output name is given, fall back to the instrument name
+            # if the instrument has no name, fall back to "Unnamed"
+            midi_output_name = "Unnamed" if host_instrument.name is None else host_instrument.name
 
         # since rtmidi can only have 16 output channels, we need to create several output devices if we are using more
         if num_channels <= 16:
@@ -223,23 +288,67 @@ class MIDIStreamPlaybackImplementation(PlaybackImplementation):
                 for chan in range(0, num_channels, 16)
             ]
 
-    def on_register(self):
-        self.set_max_pitch_bend(playback_settings.default_max_midi_pitch_bend)
+        self.max_pitch_bend = None
+        self.set_max_pitch_bend(playback_settings.default_max_streaming_midi_pitch_bend
+                                if max_pitch_bend == "default" else max_pitch_bend)
 
-    def start_note(self, note_id, pitch, volume, properties, other_parameter_values: dict = None):
-        pass
+    def get_rt_simple_out_and_channel(self, chan):
+        assert chan < self.num_channels
+        adjusted_chan = chan % 16
+        rt_simple_out = self.rt_simple_outs[(chan - adjusted_chan) // 16]
+        return rt_simple_out, adjusted_chan
 
-    def end_note(self, note_id):
-        pass
+    def note_on(self, chan, pitch, velocity_from_0_to_1):
+        # unless it's the standard value of two semitones, reinforce the max pitch bend at the start of every note,
+        # since we may start recording partway through
+        if self.max_pitch_bend != 2:
+            self.set_max_pitch_bend(self.max_pitch_bend)
+        rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
+        velocity = max(0, min(127, int(velocity_from_0_to_1 * 127)))
+        rt_simple_out.note_on(chan, pitch, velocity)
 
-    def change_note_pitch(self, note_id, new_pitch):
-        pass
+    def note_off(self, chan, pitch):
+        rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
+        rt_simple_out.note_off(chan, pitch)
 
-    def change_note_volume(self, note_id, new_volume):
-        pass
+    def pitch_bend(self, chan, bend_in_semitones):
+        rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
+        directional_bend_value = int(bend_in_semitones / self.max_pitch_bend * 8192)
 
-    def change_note_parameter(self, note_id, parameter_name, new_value):
-        pass
+        if directional_bend_value > 8192 or directional_bend_value < -8192:
+            logging.warning("Attempted pitch bend beyond maximum range (default is 2 semitones). Call set_max_"
+                            "pitch_bend on your MidiScampInstrument to expand the range.")
+        # we can't have a directional pitch bend popping up to 8192, because we'll go one above the max allowed
+        # on the other hand, -8192 is fine, since that will add up to zero
+        # However, notice above that we don't send a warning about going beyond max pitch bend for a value of exactly
+        # 8192, since that's obnoxious and confusing. Better to just quietly clip it to 8191
+        directional_bend_value = max(-8192, min(directional_bend_value, 8191))
+        rt_simple_out.pitch_bend(chan, directional_bend_value + 8192)
 
-    def set_max_pitch_bend(self, semitones):
-        pass
+    def set_max_pitch_bend(self, max_bend_in_semitones):
+        """
+        Sets the maximum pitch bend to the given number of semitones up and down for all tracks associated
+        with this instrument. Note that, while this will definitely work with fluidsynth, the output of rt_midi
+        must be being recorded already for this to affect subsequent pitch bend, which is slightly awkward.
+        Also, in my experience, even then it may be ignored.
+        :type max_bend_in_semitones: int
+        :return: None
+        """
+        if max_bend_in_semitones != int(max_bend_in_semitones):
+            logging.warning("Max pitch bend must be an integer number of semitones. "
+                            "The value of {} is being rounded up.".format(max_bend_in_semitones))
+            max_bend_in_semitones = int(max_bend_in_semitones) + 1
+
+        for chan in range(self.num_channels):
+            rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
+            rt_simple_out.cc(chan, 101, 0)
+            rt_simple_out.cc(chan, 100, 0)
+            rt_simple_out.cc(chan, 6, max_bend_in_semitones)
+            rt_simple_out.cc(chan, 100, 127)
+
+        self.max_pitch_bend = max_bend_in_semitones
+
+    def expression(self, chan, expression_from_0_to_1):
+        rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
+        expression_val = max(0, min(127, int(expression_from_0_to_1 * 127)))
+        rt_simple_out.expression(chan, expression_val)

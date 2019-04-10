@@ -95,7 +95,8 @@ class PlaybackSettings(ScampSettings):
         "default_soundfont": "general_midi",
         "default_audio_driver": "auto",
         "default_midi_output_device": None,
-        "default_max_midi_pitch_bend": 48,
+        "default_max_soundfont_pitch_bend": 48,
+        "default_max_streaming_midi_pitch_bend": 2,
         "osc_message_addresses": {
             "start_note": "start_note",
             "end_note": "end_note",
@@ -119,7 +120,8 @@ class PlaybackSettings(ScampSettings):
     def __init__(self, settings_dict=None):
         # This is here to help with auto-completion so that the IDE knows what attributes are available
         self.named_soundfonts = self.default_soundfont = self.default_audio_driver = \
-            self.default_midi_output_device = self.default_max_midi_pitch_bend = self.osc_message_addresses = \
+            self.default_midi_output_device = self.default_max_soundfont_pitch_bend = \
+            self.default_max_streaming_midi_pitch_bend = self.osc_message_addresses = \
             self.adjustments = None
         super().__init__(settings_dict)
         assert isinstance(self.adjustments, PlaybackDictionary)

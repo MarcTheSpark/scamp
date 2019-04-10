@@ -589,6 +589,18 @@ class ScampInstrument:
                 break
         return self
 
+    def add_streaming_midi_playback(self, midi_output_device="default", num_channels=8,
+                                    midi_output_name=None, max_pitch_bend="default"):
+        MIDIStreamPlaybackImplementation(self, midi_output_device, num_channels, midi_output_name, max_pitch_bend)
+        return self
+
+    def remove_streaming_midi_playback(self):
+        for index in reversed(range(len(self.playback_implementations))):
+            if isinstance(self.playback_implementations[index], MIDIStreamPlaybackImplementation):
+                self.playback_implementations.pop(index)
+                break
+        return self
+
     """
     ------------------------------------------------- Other -----------------------------------------------------
     """
