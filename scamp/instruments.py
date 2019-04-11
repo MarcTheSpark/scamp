@@ -539,9 +539,9 @@ class OSCScampInstrument(ScampInstrument):
         self._change_volume_message = osc_message_addresses["change_volume"] \
             if isinstance(osc_message_addresses, dict) and "change_volume" in osc_message_addresses \
             else playback_settings.osc_message_addresses["change_volume"]
-        self._change_quality_message = osc_message_addresses["change_quality"] \
-            if isinstance(osc_message_addresses, dict) and "change_quality" in osc_message_addresses \
-            else playback_settings.osc_message_addresses["change_quality"]
+        self._change_quality_message = osc_message_addresses["change_parameter"] \
+            if isinstance(osc_message_addresses, dict) and "change_parameter" in osc_message_addresses \
+            else playback_settings.osc_message_addresses["change_parameter"]
 
         self._currently_playing = []
 

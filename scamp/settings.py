@@ -102,7 +102,7 @@ class PlaybackSettings(ScampSettings):
             "end_note": "end_note",
             "change_pitch": "change_pitch",
             "change_volume": "change_volume",
-            "change_quality": "change_quality"
+            "change_parameter": "change_parameter"
         },
         "adjustments": PlaybackDictionary(articulations={
             "staccato": NotePlaybackAdjustment.scale_params(length_scale=0.5),
