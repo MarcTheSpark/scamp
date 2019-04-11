@@ -3,6 +3,8 @@ from .simple_rtmidi_wrapper import *
 from clockblocks import fork_unsynchronized
 import time
 from abc import ABC, abstractmethod
+import atexit
+from .dependencies import udp_client
 
 
 class PlaybackImplementation(ABC):
@@ -82,7 +84,7 @@ class PlaybackImplementation(ABC):
         pass
 
 
-class _MidiPlaybackImplementation(PlaybackImplementation, ABC):
+class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
 
     def __init__(self, host_instrument, num_channels=8):
         super().__init__(host_instrument)
@@ -222,12 +224,12 @@ class _MidiPlaybackImplementation(PlaybackImplementation, ABC):
             self.expression(this_note_implementation_info["channel"], new_volume / this_note_info["max_volume"])
 
     def change_note_parameter(self, note_id, parameter_name, new_value):
-        # parameter changes are not implemented for SoundfontPlaybackImplementer
+        # parameter changes are not implemented for MidiPlaybackImplementations
         # perhaps they could be for some other uses, maybe program changes?
         pass
 
 
-class SoundfontPlaybackImplementation(_MidiPlaybackImplementation):
+class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
 
     def __init__(self, host_instrument, bank_and_preset=(0, 0), soundfont="default",
                  num_channels=8, audio_driver="default", max_pitch_bend="default"):
@@ -265,7 +267,7 @@ class SoundfontPlaybackImplementation(_MidiPlaybackImplementation):
         self.soundfont_instrument.expression(chan, expression_from_0_to_1)
 
 
-class MIDIStreamPlaybackImplementation(_MidiPlaybackImplementation):
+class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
 
     def __init__(self, host_instrument, midi_output_device="default", num_channels=8,
                  midi_output_name=None, max_pitch_bend="default"):
@@ -325,14 +327,10 @@ class MIDIStreamPlaybackImplementation(_MidiPlaybackImplementation):
         directional_bend_value = max(-8192, min(directional_bend_value, 8191))
         rt_simple_out.pitch_bend(chan, directional_bend_value + 8192)
 
-    def set_max_pitch_bend(self, max_bend_in_semitones):
+    def set_max_pitch_bend(self, max_bend_in_semitones: int):
         """
         Sets the maximum pitch bend to the given number of semitones up and down for all tracks associated
-        with this instrument. Note that, while this will definitely work with fluidsynth, the output of rt_midi
-        must be being recorded already for this to affect subsequent pitch bend, which is slightly awkward.
-        Also, in my experience, even then it may be ignored.
-        :type max_bend_in_semitones: int
-        :return: None
+        with this instrument. Note that this will often be ignored by midi receivers.
         """
         if max_bend_in_semitones != int(max_bend_in_semitones):
             logging.warning("Max pitch bend must be an integer number of semitones. "
@@ -352,3 +350,71 @@ class MIDIStreamPlaybackImplementation(_MidiPlaybackImplementation):
         rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
         expression_val = max(0, min(127, int(expression_from_0_to_1 * 127)))
         rt_simple_out.expression(chan, expression_val)
+
+
+class OSCPlaybackImplementation(PlaybackImplementation):
+
+    def __init__(self, host_instrument, port=None, ip_address="127.0.0.1", message_prefix=None,
+                 osc_message_addresses="default"):
+        super().__init__(host_instrument)
+        # the output client for OSC messages
+        # by default the IP address is the local 127.0.0.1
+        self.ip_address = ip_address
+        assert port is not None, "OSCScampInstrument must set an output port."
+        self.port = port
+        self.client = udp_client.SimpleUDPClient(ip_address, port)
+        # the first part of the osc message; used to distinguish between instruments
+        # by default uses the name of the instrument with spaces removed
+        self.message_prefix = message_prefix if message_prefix is not None \
+            else (self.host_instrument.name.replace(" ", "") if self.host_instrument.name is not None else "unnamed")
+
+        self._start_note_message = osc_message_addresses["start_note"] \
+            if isinstance(osc_message_addresses, dict) and "start_note" in osc_message_addresses \
+            else playback_settings.osc_message_addresses["start_note"]
+        self._end_note_message = osc_message_addresses["end_note"] \
+            if isinstance(osc_message_addresses, dict) and "end_note" in osc_message_addresses \
+            else playback_settings.osc_message_addresses["end_note"]
+        self._change_pitch_message = osc_message_addresses["change_pitch"] \
+            if isinstance(osc_message_addresses, dict) and "change_pitch" in osc_message_addresses \
+            else playback_settings.osc_message_addresses["change_pitch"]
+        self._change_volume_message = osc_message_addresses["change_volume"] \
+            if isinstance(osc_message_addresses, dict) and "change_volume" in osc_message_addresses \
+            else playback_settings.osc_message_addresses["change_volume"]
+        self._change_parameter_message = osc_message_addresses["change_parameter"] \
+            if isinstance(osc_message_addresses, dict) and "change_parameter" in osc_message_addresses \
+            else playback_settings.osc_message_addresses["change_parameter"]
+
+        self._currently_playing = []
+
+        def clean_up():
+            for note_id in list(self._currently_playing):
+                self.end_note(note_id)
+
+        atexit.register(clean_up)
+
+    def start_note(self, note_id, pitch, volume, properties, other_parameter_values: dict = None):
+        self.client.send_message("/{}/{}".format(self.message_prefix, self._start_note_message),
+                                 [note_id, pitch, volume])
+        self._currently_playing.append(note_id)
+        for param, value in other_parameter_values.items():
+            self.change_note_parameter(note_id, param, value)
+
+    def end_note(self, note_id):
+        self.client.send_message("/{}/{}".format(self.message_prefix, self._end_note_message), [note_id])
+        if note_id in self._currently_playing:
+            self._currently_playing.remove(note_id)
+
+    def change_note_pitch(self, note_id, new_pitch):
+        self.client.send_message("/{}/{}".format(self.message_prefix, self._change_pitch_message),
+                                 [note_id, new_pitch])
+
+    def change_note_volume(self, note_id, new_volume):
+        self.client.send_message("/{}/{}".format(self.message_prefix, self._change_volume_message),
+                                 [note_id, new_volume])
+
+    def change_note_parameter(self, note_id, parameter_name, new_value):
+        self.client.send_message("/{}/{}/{}".format(
+            self.message_prefix, self._change_parameter_message, parameter_name), [note_id, new_value])
+
+    def set_max_pitch_bend(self, semitones):
+        pass

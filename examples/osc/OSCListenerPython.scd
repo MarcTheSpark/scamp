@@ -1,10 +1,11 @@
 NetAddr.langPort;  // Run this line to get the port to send to from Python
-
+MarcUtilities.setOutputLimiter(0.1, 0.1)
 ( // Define the Synths
 
 // Simple FM Sine thing
-SynthDef(\testSynth, { |out=0, freq=440, gain=0.1, modulationFreq=20|
-	Out.ar(out, (SinOsc.ar(freq) * SinOsc.ar(modulationFreq) * gain) ! 2);
+SynthDef(\testSynth, { |out=0, freq=440, gain=0.1, modulationFreq=20, gate=1|
+	var synth = EnvGen.ar(Env.asr(releaseTime:0.5), gate, doneAction: 2) * (SinOsc.ar(freq) * SinOsc.ar(modulationFreq) * gain);
+	Out.ar(out, synth ! 2);
 }).add;
 
 // (from https://sccode.org/1-54H)
@@ -27,12 +28,14 @@ SynthDef("hihat", {arg out = 0, gain = 0.5, att = 0.01, rel = 0.2, ffreq = 6000;
 o = OSCFunc({ arg msg, time, addr, recvPort;
 	var id = msg[1], pitch = msg[2], volume = msg[3];
 	~notesPlaying.put(id, Synth(\testSynth, [\freq, pitch.midicps, \gain, (-40 * (1-volume)).dbamp]));
+	"starting ".post; id.postln;
 }, '/fm_sines/start_note');
 
 // END NOTE
 o = OSCFunc({ arg msg, time, addr, recvPort;
 	var id = msg[1];
-	~notesPlaying[id].free;
+	~notesPlaying[id].set(\gate, 0);
+	"ending ".post; id.postln;
 	~notesPlaying.removeAt(id);
 }, '/fm_sines/end_note');
 
@@ -52,7 +55,7 @@ o = OSCFunc({ arg msg, time, addr, recvPort;
 o = OSCFunc({ arg msg, time, addr, recvPort;
 	var id = msg[1], fm = msg[2];
 	~notesPlaying[id].set(\modulationFreq, fm);
-}, '/fm_sines/change_quality/fm');
+}, '/fm_sines/change_parameter/fm');
 
 
 // -------------------- HiHat -----------------------

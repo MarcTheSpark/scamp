@@ -44,8 +44,8 @@
         "general_midi": "Merlin.sf2"
     },
     "osc_message_addresses": {
-        "change_pitch": "change_pitch",
         "change_parameter": "change_parameter",
+        "change_pitch": "change_pitch",
         "change_volume": "change_volume",
         "end_note": "end_note",
         "start_note": "start_note"
