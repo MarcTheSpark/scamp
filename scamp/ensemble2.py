@@ -10,6 +10,15 @@ import logging
 class Ensemble(SavesToJSON):
 
     def __init__(self, default_audio_driver="default", default_soundfont="default", default_midi_output_device=None):
+        """
+        Host for multiple ScampInstruments, keeping shared resources, and shared default settings
+        :param default_audio_driver: the audio driver instruments in this ensemble will default to. If "default", then
+        this defers to the scamp global playback_settings default.
+        :param default_soundfont: the soundfont that instruments in this ensemble will default to. If "default", then
+        this defers to the scamp global playback_settings default.
+        :param default_midi_output_device: the midi output device that instruments in this ensemble will default to.
+        If "default", then this defers to the scamp global playback_settings default.
+        """
         self.default_audio_driver = default_audio_driver
         self.default_soundfont = default_soundfont
         self.default_midi_output_device = default_midi_output_device
@@ -49,6 +58,12 @@ class Ensemble(SavesToJSON):
         :param audio_driver: which audio driver to use for this instrument (defaults to ensemble default)
         :param max_pitch_bend: max pitch bend to use for this instrument
         """
+        # Resolve soundfont and audio driver to ensemble defaults if necessary (these may well be the string
+        # "default", in which case it gets resolved to the playback_settings default)
+        soundfont = self.default_soundfont if soundfont == "default" else soundfont
+        audio_driver = self.default_audio_driver if audio_driver == "default" else audio_driver
+
+        # if preset is auto, try to find a match in the soundfont
         if preset == "auto":
             if name is None:
                 preset = (0, 0)
@@ -84,6 +99,8 @@ class Ensemble(SavesToJSON):
         :param midi_output_name: name of this part
         :param max_pitch_bend: max pitch bend to use for this instrument
         """
+        midi_output_device = self.default_midi_output_device if midi_output_device == "default" else midi_output_device
+
         name = "Track " + str(len(self.instruments) + 1) if name is None else name
 
         instrument = self.new_silent_part(name)
