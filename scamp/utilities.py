@@ -7,6 +7,7 @@ import math
 import itertools
 import pickle
 import json
+import copy
 from abc import ABC, abstractmethod
 
 

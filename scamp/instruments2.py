@@ -601,7 +601,7 @@ class ScampInstrument:
                 break
         return self
 
-    def add_osc_playback(self, port=None, ip_address="127.0.0.1", message_prefix=None, osc_message_addresses="default"):
+    def add_osc_playback(self, port, ip_address="127.0.0.1", message_prefix=None, osc_message_addresses="default"):
         OSCPlaybackImplementation(self, port, ip_address, message_prefix, osc_message_addresses)
         return self
 

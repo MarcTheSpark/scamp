@@ -83,6 +83,17 @@ class PlaybackImplementation(ABC):
         # way of changing the max pitch bend.
         pass
 
+    @abstractmethod
+    def to_json(self):
+        pass
+
+    @abstractmethod
+    def from_json(self, json_object, host_instrument):
+        # PlaybackImplementations implement a version of from_json that requires us to pass the host instrument
+        # this avoids the circularity of the host instrument containing references to the playback implementations
+        # and the playback implementations containing a reference to the host_instrument
+        pass
+
 
 class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
 
@@ -235,17 +246,24 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
                  num_channels=8, audio_driver="default", max_pitch_bend="default"):
         super().__init__(host_instrument, num_channels)
 
-        self.audio_driver = playback_settings.default_audio_driver if audio_driver == "default" else audio_driver
+        # we hold onto these arguments for the purposes of json serialization
+        # note that if the audio_driver said "default", then we save it as "default",
+        # rather than what that default resolved to.
+        self.num_channels = num_channels
+        self.audio_driver = audio_driver
+
+        audio_driver = playback_settings.default_audio_driver if audio_driver == "default" else audio_driver
         self.soundfont = playback_settings.default_soundfont if soundfont == "default" else soundfont
-        soundfont_host_resource_key = "{}_soundfont_host".format(self.audio_driver)
+        soundfont_host_resource_key = "{}_soundfont_host".format(audio_driver)
         if not self.has_shared_resource(soundfont_host_resource_key):
-            self.set_shared_resource(soundfont_host_resource_key, SoundfontHost(self.soundfont, self.audio_driver))
+            self.set_shared_resource(soundfont_host_resource_key, SoundfontHost(self.soundfont, audio_driver))
         self.soundfont_host = self.get_shared_resource(soundfont_host_resource_key)
         if self.soundfont not in self.soundfont_host.soundfont_ids:
             self.soundfont_host.load_soundfont(self.soundfont)
         self.soundfont_instrument = self.soundfont_host.add_instrument(num_channels, bank_and_preset, self.soundfont)
 
         self.bank_and_preset = bank_and_preset
+        self.max_pitch_bend = None
         self.set_max_pitch_bend(playback_settings.default_max_soundfont_pitch_bend
                                 if max_pitch_bend == "default" else max_pitch_bend)
 
@@ -262,9 +280,23 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
 
     def set_max_pitch_bend(self, semitones):
         self.soundfont_instrument.set_max_pitch_bend(semitones)
+        self.max_pitch_bend = semitones
 
     def expression(self, chan, expression_from_0_to_1):
         self.soundfont_instrument.expression(chan, expression_from_0_to_1)
+
+    def to_json(self):
+        return {
+            "bank_and_preset": self.bank_and_preset,
+            "soundfont": self.soundfont,
+            "num_channels": self.num_channels,
+            "audio_driver": self.audio_driver,
+            "max_pitch_bend": self.max_pitch_bend
+        }
+
+    @classmethod
+    def from_json(cls, json_object, host_instrument):
+        return cls(host_instrument, **json_object)
 
 
 class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
@@ -272,7 +304,13 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
     def __init__(self, host_instrument, midi_output_device="default", num_channels=8,
                  midi_output_name=None, max_pitch_bend="default"):
         super().__init__(host_instrument)
+
+        # we hold onto these arguments for the purposes of json serialization
+        # note that if the midi_output_device or midi_output_name said "default",
+        # then we save it as "default", rather than what that default resolved to.
         self.num_channels = num_channels
+        self.midi_output_device = midi_output_device
+        self.midi_output_name = midi_output_name
 
         midi_output_device = playback_settings.default_midi_output_device if midi_output_device == "default" \
             else midi_output_device
@@ -351,38 +389,43 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
         expression_val = max(0, min(127, int(expression_from_0_to_1 * 127)))
         rt_simple_out.expression(chan, expression_val)
 
+    def to_json(self):
+        return {
+            "midi_output_device": self.midi_output_device,
+            "num_channels": self.num_channels,
+            "midi_output_name": self.midi_output_name,
+            "max_pitch_bend": self.max_pitch_bend
+        }
+
+    @classmethod
+    def from_json(cls, json_object, host_instrument):
+        return cls(host_instrument, **json_object)
+
 
 class OSCPlaybackImplementation(PlaybackImplementation):
 
-    def __init__(self, host_instrument, port=None, ip_address="127.0.0.1", message_prefix=None,
+    def __init__(self, host_instrument, port, ip_address="127.0.0.1", message_prefix=None,
                  osc_message_addresses="default"):
         super().__init__(host_instrument)
         # the output client for OSC messages
         # by default the IP address is the local 127.0.0.1
         self.ip_address = ip_address
-        assert port is not None, "OSCScampInstrument must set an output port."
         self.port = port
+
         self.client = udp_client.SimpleUDPClient(ip_address, port)
         # the first part of the osc message; used to distinguish between instruments
         # by default uses the name of the instrument with spaces removed
         self.message_prefix = message_prefix if message_prefix is not None \
             else (self.host_instrument.name.replace(" ", "") if self.host_instrument.name is not None else "unnamed")
 
-        self._start_note_message = osc_message_addresses["start_note"] \
-            if isinstance(osc_message_addresses, dict) and "start_note" in osc_message_addresses \
-            else playback_settings.osc_message_addresses["start_note"]
-        self._end_note_message = osc_message_addresses["end_note"] \
-            if isinstance(osc_message_addresses, dict) and "end_note" in osc_message_addresses \
-            else playback_settings.osc_message_addresses["end_note"]
-        self._change_pitch_message = osc_message_addresses["change_pitch"] \
-            if isinstance(osc_message_addresses, dict) and "change_pitch" in osc_message_addresses \
-            else playback_settings.osc_message_addresses["change_pitch"]
-        self._change_volume_message = osc_message_addresses["change_volume"] \
-            if isinstance(osc_message_addresses, dict) and "change_volume" in osc_message_addresses \
-            else playback_settings.osc_message_addresses["change_volume"]
-        self._change_parameter_message = osc_message_addresses["change_parameter"] \
-            if isinstance(osc_message_addresses, dict) and "change_parameter" in osc_message_addresses \
-            else playback_settings.osc_message_addresses["change_parameter"]
+        self.osc_message_addresses = playback_settings.osc_message_addresses
+        if osc_message_addresses != "default":
+            assert isinstance(osc_message_addresses, dict), "osc_message_addresses argument must be a complete or " \
+                                                            "incomplete dictionary of alternate osc messages"
+            # for each type of osc message, use the one specified in the osc_message_addresses argument if available,
+            # falling back to the one in playback_settings if it's not available
+            self.osc_message_addresses = {key: osc_message_addresses[key] if key in osc_message_addresses else value
+                                          for key, value in playback_settings.osc_message_addresses.items()}
 
         self._currently_playing = []
 
@@ -393,28 +436,40 @@ class OSCPlaybackImplementation(PlaybackImplementation):
         atexit.register(clean_up)
 
     def start_note(self, note_id, pitch, volume, properties, other_parameter_values: dict = None):
-        self.client.send_message("/{}/{}".format(self.message_prefix, self._start_note_message),
+        self.client.send_message("/{}/{}".format(self.message_prefix, self.osc_message_addresses["start_note"]),
                                  [note_id, pitch, volume])
         self._currently_playing.append(note_id)
         for param, value in other_parameter_values.items():
             self.change_note_parameter(note_id, param, value)
 
     def end_note(self, note_id):
-        self.client.send_message("/{}/{}".format(self.message_prefix, self._end_note_message), [note_id])
+        self.client.send_message("/{}/{}".format(self.message_prefix, self.osc_message_addresses["end_note"]), [note_id])
         if note_id in self._currently_playing:
             self._currently_playing.remove(note_id)
 
     def change_note_pitch(self, note_id, new_pitch):
-        self.client.send_message("/{}/{}".format(self.message_prefix, self._change_pitch_message),
+        self.client.send_message("/{}/{}".format(self.message_prefix, self.osc_message_addresses["change_pitch"]),
                                  [note_id, new_pitch])
 
     def change_note_volume(self, note_id, new_volume):
-        self.client.send_message("/{}/{}".format(self.message_prefix, self._change_volume_message),
+        self.client.send_message("/{}/{}".format(self.message_prefix, self.osc_message_addresses["change_volume"]),
                                  [note_id, new_volume])
 
     def change_note_parameter(self, note_id, parameter_name, new_value):
         self.client.send_message("/{}/{}/{}".format(
-            self.message_prefix, self._change_parameter_message, parameter_name), [note_id, new_value])
+            self.message_prefix, self.osc_message_addresses["change_parameter"], parameter_name), [note_id, new_value])
 
     def set_max_pitch_bend(self, semitones):
         pass
+
+    def to_json(self):
+        return {
+            "port": self.port,
+            "ip_address": self.ip_address,
+            "message_prefix": self.message_prefix,
+            "osc_message_addresses": self.osc_message_addresses
+        }
+
+    @classmethod
+    def from_json(cls, json_object, host_instrument):
+        return cls(host_instrument, **json_object)
