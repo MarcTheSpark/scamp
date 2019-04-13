@@ -11,6 +11,19 @@ import copy
 from abc import ABC, abstractmethod
 
 
+# ------------------------------------------- General Utilities ---------------------------------------------
+
+
+def iterate_all_subclasses(type_name: type):
+    """
+    Iterates all generations of subclasses of a type
+    """
+    for subclass in type_name.__subclasses__():
+        yield subclass
+        for x in iterate_all_subclasses(subclass):
+            yield x
+
+
 def resolve_relative_path(file_name, from_root_process=False):
     """
     Resolves the relative path file_name into an absolute path.

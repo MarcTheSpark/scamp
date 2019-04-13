@@ -220,6 +220,10 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
             fork_unsynchronized(delete_after_pause)
 
     def change_note_pitch(self, note_id, new_pitch):
+        if note_id not in self.note_info_dict:
+            # theoretically could happen if the end_note call happens right before this is called in the
+            # asynchronous animation function. We don't want to cause a KeyError, so this avoids that possibility
+            return
         this_note_info = self.note_info_dict[note_id]
         assert self in this_note_info, "Note was never started by the SoundfontPlaybackImplementer; this is bad."
         this_note_implementation_info = this_note_info[self]
@@ -228,6 +232,10 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
                             new_pitch - this_note_implementation_info["midi_note"])
 
     def change_note_volume(self, note_id, new_volume):
+        if note_id not in self.note_info_dict:
+            # theoretically could happen if the end_note call happens right before this is called in the
+            # asynchronous animation function. We don't want to cause a KeyError, so this avoids that possibility
+            return
         this_note_info = self.note_info_dict[note_id]
         assert self in this_note_info, "Note was never started by the SoundfontPlaybackImplementer; this is bad."
         this_note_implementation_info = this_note_info[self]
@@ -287,16 +295,19 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
 
     def to_json(self):
         return {
-            "bank_and_preset": self.bank_and_preset,
-            "soundfont": self.soundfont,
-            "num_channels": self.num_channels,
-            "audio_driver": self.audio_driver,
-            "max_pitch_bend": self.max_pitch_bend
+            "type": "SoundfontPlaybackImplementation",
+            "args": {
+                "bank_and_preset": self.bank_and_preset,
+                "soundfont": self.soundfont,
+                "num_channels": self.num_channels,
+                "audio_driver": self.audio_driver,
+                "max_pitch_bend": self.max_pitch_bend
+            }
         }
 
     @classmethod
     def from_json(cls, json_object, host_instrument):
-        return cls(host_instrument, **json_object)
+        return cls(host_instrument, **json_object["args"])
 
 
 class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
@@ -391,15 +402,18 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
 
     def to_json(self):
         return {
-            "midi_output_device": self.midi_output_device,
-            "num_channels": self.num_channels,
-            "midi_output_name": self.midi_output_name,
-            "max_pitch_bend": self.max_pitch_bend
+            "type": "MIDIStreamPlaybackImplementation",
+            "args": {
+                "midi_output_device": self.midi_output_device,
+                "num_channels": self.num_channels,
+                "midi_output_name": self.midi_output_name,
+                "max_pitch_bend": self.max_pitch_bend
+            }
         }
 
     @classmethod
     def from_json(cls, json_object, host_instrument):
-        return cls(host_instrument, **json_object)
+        return cls(host_instrument, **json_object["args"])
 
 
 class OSCPlaybackImplementation(PlaybackImplementation):
@@ -464,12 +478,15 @@ class OSCPlaybackImplementation(PlaybackImplementation):
 
     def to_json(self):
         return {
-            "port": self.port,
-            "ip_address": self.ip_address,
-            "message_prefix": self.message_prefix,
-            "osc_message_addresses": self.osc_message_addresses
+            "type": "OSCPlaybackImplementation",
+            "args": {
+                "port": self.port,
+                "ip_address": self.ip_address,
+                "message_prefix": self.message_prefix,
+                "osc_message_addresses": self.osc_message_addresses
+            }
         }
 
     @classmethod
     def from_json(cls, json_object, host_instrument):
-        return cls(host_instrument, **json_object)
+        return cls(host_instrument, **json_object["args"])

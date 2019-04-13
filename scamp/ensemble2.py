@@ -148,16 +148,16 @@ class Ensemble(SavesToJSON):
 
     def to_json(self):
         return {
-            "midi_player": self.midi_player.to_json(),
-            "instruments": [
-                instrument.to_json() for instrument in self.instruments
-            ]
+            "default_audio_driver": self.default_audio_driver,
+            "default_soundfont": self.default_soundfont,
+            "default_midi_output_device": self.default_midi_output_device,
+            "instruments": [instrument.to_json() for instrument in self.instruments]
         }
 
     @classmethod
-    def from_json(cls, json_dict, host_session=None):
-        ensemble = cls(host_session)
-        ensemble.midi_player = CombinedMidiPlayer.from_json(json_dict["midi_player"])
-        for json_instrument in json_dict["instruments"]:
-            ensemble.add_part(ScampInstrument.from_json(json_instrument, ensemble))
+    def from_json(cls, json_dict):
+        json_instruments = json_dict.pop("instruments")
+        ensemble = cls(**json_dict)
+        ensemble.instruments = [ScampInstrument.from_json(json_instrument, ensemble)
+                                for json_instrument in json_instruments]
         return ensemble

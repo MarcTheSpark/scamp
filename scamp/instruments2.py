@@ -2,6 +2,7 @@ import itertools
 from .spelling import SpellingPolicy
 from .note_properties import NotePropertiesDictionary
 from .playback_implementations import *
+from scamp.utilities import iterate_all_subclasses
 from clockblocks import *
 import logging
 import time
@@ -185,7 +186,7 @@ class ParameterChangeSegment(EnvelopeSegment):
         )
 
 
-class ScampInstrument:
+class ScampInstrument(SavesToJSON):
 
     _note_id_generator = itertools.count()
 
@@ -645,3 +646,30 @@ class ScampInstrument:
         if clock is None:
             clock = Clock()
         return clock
+
+    """
+    --------------------------------------------- To / from JSON -------------------------------------------------
+    """
+
+    def to_json(self):
+        return {
+            "name": self.name,
+            "playback_implementations": [playback_implementation.to_json()
+                                         for playback_implementation in self.playback_implementations]
+        }
+
+    @classmethod
+    def from_json(cls, json_object, ensemble=None):
+        """
+        :param json_object: the json object we're loading from
+        :param ensemble: this allows us to pass the ensemble to the instruments we're reconstructing when we're
+        reconstructing an ensemble from json.
+        """
+        assert isinstance(json_object, dict)
+        instrument = cls(json_object["name"] if "name" in json_object else None, ensemble=ensemble)
+        for playback_implementation_json in json_object["playback_implementations"]:
+            for playback_implementation_type in iterate_all_subclasses(PlaybackImplementation):
+                if playback_implementation_json["type"] == playback_implementation_type.__name__:
+                    playback_implementation_type.from_json(playback_implementation_json, host_instrument=instrument)
+                    break
+        return instrument
