@@ -5,9 +5,10 @@ from .spelling import SpellingPolicy
 from .instruments import ScampInstrument
 from clockblocks import Clock
 from typing import Sequence
+from .utilities import SavesToJSON
 
 
-class Session(Clock, Ensemble, Transcriber):
+class Session(Clock, Ensemble, Transcriber, SavesToJSON):
 
     def __init__(self, tempo=60, default_soundfont="default", default_audio_driver="default",
                  default_midi_output_device="default"):
@@ -19,6 +20,7 @@ class Session(Clock, Ensemble, Transcriber):
         :param default_midi_output_device: the default midi_output_device for outgoing midi streams. (Again, can be
         overridden at instrument creation.
         """
+
         # noinspection PyArgumentList
         Clock.__init__(self, name="MASTER", initial_tempo=tempo)
         Ensemble.__init__(self, default_soundfont=default_soundfont, default_audio_driver=default_audio_driver,
@@ -69,3 +71,18 @@ class Session(Clock, Ensemble, Transcriber):
             self._default_spelling_policy = SpellingPolicy.from_string(value)
         else:
             raise ValueError("Spelling policy not understood.")
+
+    def to_json(self):
+        json_object = Ensemble.to_json(self)
+        json_object["tempo"] = self.tempo
+        return json_object
+
+    @classmethod
+    def from_json(cls, json_dict):
+        json_instruments = json_dict.pop("instruments")
+        default_spelling_policy = json_dict.pop("default_spelling_policy")
+        session = cls(**json_dict)
+        session.default_spelling_policy = default_spelling_policy
+        session.instruments = [ScampInstrument.from_json(json_instrument, session)
+                               for json_instrument in json_instruments]
+        return session
