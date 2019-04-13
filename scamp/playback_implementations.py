@@ -154,7 +154,8 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
                                              round(other_note_pitch - other_note_int_pitch, 5))
                 channel_compatible = this_note_fixed and other_note_fixed and not conflicting_microtonality
                 if not channel_compatible:
-                    available_channels.remove(other_note_channel)
+                    if other_note_channel in available_channels:
+                        available_channels.remove(other_note_channel)
                     # keep track of the oldest note that's holding onto a channel
                     if oldest_note_id is None or other_note_id < oldest_note_id:
                         oldest_note_id = other_note_id
@@ -165,13 +166,18 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
                                         (round(pitch - int_pitch, 5) !=  # round to fix float error
                                          round(ringing_pitch - ringing_midi_note, 5))
             channel_compatible = this_note_fixed and not conflicting_microtonality
-            if not channel_compatible:
+            if not channel_compatible and ringing_channel in available_channels:
                 available_channels.remove(ringing_channel)
 
         # pick the first free channel, or free one up if there are no free channels
         if len(available_channels) > 0:
             # if there's a free channel, return the lowest number available
             channel = available_channels[0]
+        elif oldest_note_id is None:
+            # this would only happen if all of the channels are off limits due to ringing tones, with no currently
+            # active tones available to end. Realistically could only happen with lots of fast microtonal stuff
+            # anyway, use the oldest ringing note's channel and remove it from the list295
+            channel, _, _ = self.ringing_notes.pop(0)
         else:
             # otherwise, we'll have to kill an old note to find a free channel
             # get the info we stored on this note, related to this specific playback implementation
@@ -215,7 +221,8 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
 
             def delete_after_pause():
                 time.sleep(0.5)
-                self.ringing_notes.remove(ringing_note_info)
+                if ringing_note_info in self.ringing_notes:
+                    self.ringing_notes.remove(ringing_note_info)
 
             fork_unsynchronized(delete_after_pause)
 

@@ -129,8 +129,8 @@ class ParameterChangeSegment(EnvelopeSegment):
         if self.running:
             self.end_time_stamp = TimeStamp(self.clock)
             self._synchronized_child_clock.kill()
-            how_far_we_got = self.end_time_stamp.time_in_clock(self.clock) - \
-                             self.start_time_stamp.time_in_clock(self.clock)
+            how_far_we_got = self.end_time_stamp.beat_in_clock(self.clock) - \
+                             self.start_time_stamp.beat_in_clock(self.clock)
             self.split_at(how_far_we_got)
             self.do_change_parameter(self.end_level)  # set it to where we should be at this point
         self.running = False

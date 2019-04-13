@@ -2,7 +2,7 @@ from .performance import Performance
 from expenvelope import *
 from typing import Sequence
 from clockblocks import Clock, TempoEnvelope
-from .instruments2 import ScampInstrument
+from .instruments import ScampInstrument
 
 
 class Transcriber:

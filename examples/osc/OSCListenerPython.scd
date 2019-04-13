@@ -1,5 +1,5 @@
 NetAddr.langPort;  // Run this line to get the port to send to from Python
-MarcUtilities.setOutputLimiter(0.1, 0.1)
+MarcUtilities.setOutputLimiter(0.4, 0.4)
 ( // Define the Synths
 
 // Simple FM Sine thing
@@ -28,15 +28,12 @@ SynthDef("hihat", {arg out = 0, gain = 0.5, att = 0.01, rel = 0.2, ffreq = 6000;
 o = OSCFunc({ arg msg, time, addr, recvPort;
 	var id = msg[1], pitch = msg[2], volume = msg[3];
 	~notesPlaying.put(id, Synth(\testSynth, [\freq, pitch.midicps, \gain, (-40 * (1-volume)).dbamp]));
-	"starting ".post; id.postln;
 }, '/fm_sines/start_note');
 
 // END NOTE
 o = OSCFunc({ arg msg, time, addr, recvPort;
 	var id = msg[1];
 	~notesPlaying[id].set(\gate, 0);
-	"ending ".post; id.postln;
-	~notesPlaying.removeAt(id);
 }, '/fm_sines/end_note');
 
 // CHANGE PITCH
