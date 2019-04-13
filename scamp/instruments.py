@@ -257,19 +257,24 @@ class ScampInstrument(SavesToJSON):
             properties.apply_playback_adjustments(pitch, volume, length)
 
         if did_an_adjustment:
-            # play, but don't transcribe the modified version
-            clock.fork(self._do_play_note, extra_args=(adjusted_pitch, adjusted_volume, adjusted_length, properties),
-                       kwargs={"transcribe": False})
+            # play, but don't transcribe the modified version (though only if the clock is not fast-forwarding)
+            if not clock.is_fast_forwarding():
+                clock.fork(self._do_play_note,
+                           extra_args=(adjusted_pitch, adjusted_volume, adjusted_length, properties),
+                           kwargs={"transcribe": False})
             # transcribe, but don't play the unmodified version
             if blocking:
                 self._do_play_note(clock, pitch, volume, length, properties, silent=True)
             else:
                 clock.fork(self._do_play_note, extra_args=(pitch, volume, length, properties), kwargs={"silent": True})
         else:
+            # No adjustments, so no need to separate transcription from playback
+            # (However, if the clock is fast-forwarding, make it silent)
             if blocking:
-                self._do_play_note(clock, pitch, volume, length, properties)
+                self._do_play_note(clock, pitch, volume, length, properties, silent=clock.is_fast_forwarding())
             else:
-                clock.fork(self._do_play_note, extra_args=(pitch, volume, length, properties))
+                clock.fork(self._do_play_note, extra_args=(pitch, volume, length, properties),
+                           kwargs={"silent": clock.is_fast_forwarding()})
 
     def _do_play_note(self, clock, pitch, volume, length, properties, silent=False, transcribe=True):
         """
