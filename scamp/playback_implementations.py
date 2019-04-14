@@ -160,7 +160,8 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
                     if oldest_note_id is None or other_note_id < oldest_note_id:
                         oldest_note_id = other_note_id
 
-        # go through all ringing notes, and remove those channels if note compatible
+        # go through all ringing notes, and remove those channels if not compatible
+        # this means a note that has ended, which was microtonal, and which may still be ringing
         for ringing_channel, ringing_midi_note, ringing_pitch in self.ringing_notes:
             conflicting_microtonality = (pitch != int_pitch or ringing_midi_note != ringing_pitch) and \
                                         (round(pitch - int_pitch, 5) !=  # round to fix float error
@@ -173,17 +174,20 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
         if len(available_channels) > 0:
             # if there's a free channel, return the lowest number available
             channel = available_channels[0]
-        elif oldest_note_id is None:
-            # this would only happen if all of the channels are off limits due to ringing tones, with no currently
-            # active tones available to end. Realistically could only happen with lots of fast microtonal stuff
-            # anyway, use the oldest ringing note's channel and remove it from the list295
+        elif len(self.ringing_notes) > 0:
+            # if there are any channels we avoided because they have ringing microtonal pitches, we turn to those first
             channel, _, _ = self.ringing_notes.pop(0)
+            # also, need to make sure to zero-out the pitch bend. (This would happen at the end of "delete_after_pause"
+            # below, but we need the channel to be ready to go early.)
+            self.pitch_bend(channel, 0)
         else:
             # otherwise, we'll have to kill an old note to find a free channel
             # get the info we stored on this note, related to this specific playback implementation
             # (see end of start_note method for explanation)
             oldest_note_info = self.note_info_dict[oldest_note_id][self]
             self.note_off(oldest_note_info["channel"], oldest_note_info["midi_note"])
+            # reset the pitch bend on that channel
+            self.pitch_bend(oldest_note_info["channel"], 0)
             # flag it as prematurely ended so that we send no further midi commands
             oldest_note_info["prematurely_ended"] = True
             # if every channel is playing this pitch, we will end the oldest note so we can
@@ -223,6 +227,7 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
                 time.sleep(0.5)
                 if ringing_note_info in self.ringing_notes:
                     self.ringing_notes.remove(ringing_note_info)
+                self.pitch_bend(ringing_note_info[0], 0)
 
             fork_unsynchronized(delete_after_pause)
 

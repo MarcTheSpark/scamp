@@ -257,6 +257,10 @@ class ScampInstrument(SavesToJSON):
             properties.apply_playback_adjustments(pitch, volume, length)
 
         if did_an_adjustment:
+            adjusted_pitch = Envelope.from_list(adjusted_pitch) \
+                if hasattr(adjusted_pitch, "__len__") else adjusted_pitch
+            adjusted_volume = Envelope.from_list(adjusted_volume) \
+                if hasattr(adjusted_volume, "__len__") else adjusted_volume
             # play, but don't transcribe the modified version (though only if the clock is not fast-forwarding)
             if not clock.is_fast_forwarding():
                 clock.fork(self._do_play_note,
