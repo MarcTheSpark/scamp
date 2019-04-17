@@ -68,13 +68,13 @@ def quantize_performance_part(part, quantization_scheme, onset_weighting="defaul
     :param inner_split_weighting: How much do we care about inner segmentation timing (e.g. tuple note lengths)
     :return: a QuantizationRecord, detailing all of the time signatures, beat divisions selected, etc.
     """
-    if isinstance(quantization_scheme, (str, TimeSignature)):
+    if isinstance(quantization_scheme, (str, tuple, TimeSignature)):
         quantization_scheme = QuantizationScheme.from_time_signature(quantization_scheme)
-    elif isinstance(quantization_scheme, list) and \
-            all(isinstance(x, (str, TimeSignature)) for x in quantization_scheme):
+    elif hasattr(quantization_scheme, "__len__") and \
+            all(isinstance(x, (str, tuple, TimeSignature)) for x in quantization_scheme):
         # make it easy to loop a series of time signatures by adding the string "loop" at the end
         loop = False
-        if quantization_scheme[-1].lower() == "loop":
+        if isinstance(quantization_scheme[-1], str) and quantization_scheme[-1].lower() == "loop":
             quantization_scheme.pop()
             loop = True
         quantization_scheme = QuantizationScheme.from_time_signature_list(quantization_scheme, loop=loop)
