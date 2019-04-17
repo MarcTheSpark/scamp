@@ -105,11 +105,11 @@ class PlaybackSettings(ScampSettings):
             "change_parameter": "change_parameter"
         },
         "adjustments": PlaybackDictionary(articulations={
-            "staccato": NotePlaybackAdjustment.scale_params(length_scale=0.5),
-            "staccatissimo": NotePlaybackAdjustment.scale_params(length_scale=0.3),
-            "tenuto": NotePlaybackAdjustment.scale_params(length_scale=1.2),
-            "accent": NotePlaybackAdjustment.scale_params(volume_scale=1.2),
-            "marcato": NotePlaybackAdjustment.scale_params(volume_scale=1.5),
+            "staccato": NotePlaybackAdjustment.scale_params(length=0.5),
+            "staccatissimo": NotePlaybackAdjustment.scale_params(length=0.3),
+            "tenuto": NotePlaybackAdjustment.scale_params(length=1.2),
+            "accent": NotePlaybackAdjustment.scale_params(volume=1.2),
+            "marcato": NotePlaybackAdjustment.scale_params(volume=1.5),
         })
     }
 
