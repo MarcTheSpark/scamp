@@ -1,8 +1,5 @@
-- Get the multipleTempo example looking pretty: The main issue is a fairly deep one: we're acting like the tempo is
-not going to change during the course of a note, but that's not necessarily true. For a long note this could be very
-untrue. ScampInstrument is going to have to be restructured so that play note starts the note and then waits on the
-clock_ until the end.
-- Make session inherit from ensemble and make Ensemble inherit from CombinedMidiPlayer, or maybe even merge them?
+- engraving text! Also, microtonal adjustments
+- allow time signatures to be given as floats as well as strings, where the floats represent the number of beats
 - Engraving sudden tempo changes
 - maybe make clock not note down the start time until its first call to wait?
 - Get recombination of larger notes working
