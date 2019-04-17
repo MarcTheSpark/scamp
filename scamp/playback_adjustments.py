@@ -1,8 +1,38 @@
 from .utilities import SavesToJSON
 from .engraving_translations import *
+from expenvelope import Envelope
+import json
 
 
 # TODO: would be great if this included preset switches
+
+def _split_string_at_outer_spaces(s):
+    """
+    Splits a string only at those commas that are not inside some sort of parentheses
+    e.g. "hello, [2, 5], {2: 7}" => ["hello", "[2, 5]", "{2: 7}"]
+    """
+    out = []
+    paren_count = square_count = curly_count = 0
+    last_split = i = 0
+    for character in s:
+        i += 1
+        if character == "(":
+            paren_count += 1
+        elif character == "[":
+            square_count += 1
+        elif character == "{":
+            curly_count += 1
+        elif character == ")":
+            paren_count -= 1
+        elif character == "]":
+            square_count -= 1
+        elif character == "}":
+            curly_count -= 1
+        elif character == " " and paren_count == square_count == curly_count == 0:
+            out.append(s[last_split:i-1].strip())
+            last_split = i
+    out.append(s[last_split:].strip())
+    return out
 
 
 class ParamPlaybackAdjustment(SavesToJSON):
@@ -19,6 +49,10 @@ class ParamPlaybackAdjustment(SavesToJSON):
     def scale(cls, value):
         return cls(value)
 
+    @classmethod
+    def add(cls, value):
+        return cls(1, value)
+
     def adjust_value(self, param_value):
         # in case the param value is a Envelope, it's best to leave out the multiply if it's zero
         # for instance, if param_value is a Envelope, multiply is zero and add is a Envelope,
@@ -33,7 +67,7 @@ class ParamPlaybackAdjustment(SavesToJSON):
         return cls(**json_object)
 
     def __repr__(self):
-        return "PlaybackParamAdjustment({}, {})".format(self.multiply, self.add)
+        return "ParamPlaybackAdjustment({}, {})".format(self.multiply, self.add)
 
 
 class NotePlaybackAdjustment(SavesToJSON):
@@ -47,11 +81,48 @@ class NotePlaybackAdjustment(SavesToJSON):
         self.length_adjustment = length_adjustment
 
     @classmethod
-    def scale_params(cls, pitch_scale=1, volume_scale=1, length_scale=1):
+    def from_string(cls, string: str):
+        tokens = _split_string_at_outer_spaces(string.strip().lower())
+        assert (string.startswith("scale") or string.startswith("add") or string.startswith("set")) and \
+            len(tokens) // 2 != len(tokens) / 2 and len(tokens) >= 3, \
+            "Bad playback adjustment initialization string format."
+        kwargs = NotePlaybackAdjustment._parse_to_kwargs(tokens)
+        if len(kwargs) > 0:
+            if tokens[0] == "scale":
+                return cls.scale_params(**kwargs)
+            elif tokens[0] == "add":
+                return cls.add_to_params(**kwargs)
+            elif tokens[0] == "set":
+                return cls.set_params(**kwargs)
+            else:
+                raise ValueError("Bad playback adjustment initialization string format.")
+
+    @staticmethod
+    def _parse_to_kwargs(tokens):
+        kwargs = {}
+        for param, factor in zip(tokens[1::2], tokens[2::2]):
+            param, factor = param.strip(), factor.strip()
+            if "[" in factor:
+                factor = Envelope.from_list(json.loads(factor))
+            else:
+                factor = float(factor)
+            if param in ("pitch", "volume", "length"):
+                kwargs[param] = factor
+        return kwargs
+
+    @classmethod
+    def scale_params(cls, pitch=1, volume=1, length=1):
         """Constructs a NotePlaybackAdjustment that scales the parameters"""
-        return cls(ParamPlaybackAdjustment.scale(pitch_scale) if pitch_scale != 1 else None,
-                   ParamPlaybackAdjustment.scale(volume_scale) if volume_scale != 1 else None,
-                   ParamPlaybackAdjustment.scale(length_scale) if length_scale != 1 else None)
+        return cls(ParamPlaybackAdjustment.scale(pitch) if pitch != 1 else None,
+                   ParamPlaybackAdjustment.scale(volume) if volume != 1 else None,
+                   ParamPlaybackAdjustment.scale(length) if length != 1 else None)
+
+    @classmethod
+    def add_to_params(cls, pitch=None, volume=None, length=None):
+        """Constructs a NotePlaybackAdjustment that adds to the parameters"""
+        return cls(ParamPlaybackAdjustment.add(pitch) if pitch is not None else None,
+                   ParamPlaybackAdjustment.add(volume) if volume is not None else None,
+                   ParamPlaybackAdjustment.add(length) if length is not None else None)
 
     @classmethod
     def set_params(cls, pitch=None, volume=None, length=None):
