@@ -28,7 +28,7 @@
         "Hit the Code, Jack"
     ],
     "glissandi": {
-        "consider_non_extrema_control_points": false,
+        "consider_non_extrema_control_points": true,
         "control_point_policy": "split",
         "include_end_grace_note": true,
         "inner_grace_relevance_threshold": 1.5,

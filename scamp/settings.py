@@ -183,7 +183,7 @@ class GlissandiSettings(ScampSettings):
         "control_point_policy": "split",
         # if true, we consider all control points in the engraving process.
         # If false, we only consider local extrema.
-        "consider_non_extrema_control_points": False,
+        "consider_non_extrema_control_points": True,
         # if true, the final pitch reached is expressed as a gliss up to a headless grace note
         "include_end_grace_note": True,
         # this threshold helps determine which gliss control points are worth expressing in notation
