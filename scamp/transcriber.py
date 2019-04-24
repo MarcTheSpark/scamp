@@ -1,6 +1,6 @@
 from .performance import Performance
 from expenvelope import *
-from typing import Sequence
+from typing import Sequence, Union
 from clockblocks import Clock, TempoEnvelope
 from .instruments import ScampInstrument
 
@@ -10,7 +10,8 @@ class Transcriber:
     def __init__(self):
         self._transcriptions_in_progress = []
 
-    def start_recording(self, instruments: Sequence[ScampInstrument], clock: Clock, units="beats"):
+    def start_recording(self, instrument_or_instruments: Union[ScampInstrument, Sequence[ScampInstrument]],
+                        clock: Clock, units="beats"):
         """
         Starts recording new performance on the given clock, consisting of the given instrument
         :param instruments: the instruments we notate in this Performance
@@ -21,8 +22,11 @@ class Transcriber:
         """
         assert units in ("beats", "time")
 
+        if not hasattr(instrument_or_instruments, "__len__"):
+            instrument_or_instruments = [instrument_or_instruments]
+
         performance = Performance()
-        for instrument in instruments:
+        for instrument in instrument_or_instruments:
             performance.new_part(instrument)
             if self not in instrument._transcribers_to_notify:
                 instrument._transcribers_to_notify.append(self)
