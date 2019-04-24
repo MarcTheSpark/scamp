@@ -78,8 +78,13 @@ class PerformanceNote(SavesToJSON):
         For instance, if length = (3, 2, 4) and the split_point = 4.5, this gives us the tuple (3, 1.5) and (0.5, 4)
         :param length: a note length, either a number or a tuple of numbers representing tied segments
         :param split_point: where to split the length
-        :return: tuple of (first half length, second half length)
+        :return: tuple of (first half length, second half length). Each of these lengths may themselves be a tuple,
+        or may be a single number if they are not split.
         """
+        # raise an error if we try to split at a non-positive value or a value greater than the length
+        if split_point <= 0 or split_point >= (sum(length) if hasattr(length, "__len__") else length):
+            raise ValueError("Split point outside of length tuple.")
+
         if hasattr(length, "__len__"):
             # tuple length
             part_sum = 0
@@ -96,13 +101,9 @@ class PerformanceNote(SavesToJSON):
                     second_part = (part_sum + segment_length - split_point,) + length[i + 1:]
                     return first_part if len(first_part) > 1 else first_part[0], \
                            second_part if len(second_part) > 1 else second_part[0]
-            raise ValueError("Split point outside of length tuple.")
         else:
             # simple length, not a tuple
-            if not 0 < split_point < length:
-                raise ValueError("Split point outside of length tuple.")
-            else:
-                return split_point, length - split_point
+            return split_point, length - split_point
 
     def split_at_beat(self, split_beat):
         """
@@ -111,7 +112,11 @@ class PerformanceNote(SavesToJSON):
         :return: tuple of (first half note, second half note) if split beat is within the note.
         Otherwise just return the unchanged note in a length-1 tuple.
         """
-        if self.start_time < split_beat < self.end_time:
+        if not self.start_time < split_beat < self.end_time:
+            # if we're asked to split at a beat that is outside the note, it has no effect
+            # since the expectation is a tuple as return value, return the note unaltered in a length-1 tuple
+            return self,
+        else:
             second_part = deepcopy(self)
             second_part.start_time = split_beat
             self.length, second_part.length = PerformanceNote._split_length(self.length, split_beat - self.start_time)
@@ -167,10 +172,6 @@ class PerformanceNote(SavesToJSON):
                     second_part.properties["_source_id"] = self.properties["_source_id"] = PerformanceNote.next_id()
 
             return self, second_part
-        else:
-            # since the expectation is a tuple as return value, in the event that the split does
-            # nothing we return the note unaltered in a length-1 tuple
-            return self,
 
     def split_at_length_divisions(self):
         """
