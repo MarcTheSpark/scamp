@@ -147,6 +147,9 @@ class Ensemble(SavesToJSON):
                     imperfect_match = instrument if imperfect_match is None else imperfect_match
         return imperfect_match
 
+    def print_default_soundfont_presets(self):
+        print_soundfont_presets(self.default_soundfont)
+
     @property
     def default_spelling_policy(self):
         return self._default_spelling_policy
@@ -178,3 +181,6 @@ class Ensemble(SavesToJSON):
         ensemble.instruments = [ScampInstrument.from_json(json_instrument, ensemble)
                                 for json_instrument in json_instruments]
         return ensemble
+
+    def __repr__(self):
+        return "Ensemble.from_json({})".format(self.to_json())

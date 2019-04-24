@@ -86,3 +86,6 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         session.instruments = [ScampInstrument.from_json(json_instrument, session)
                                for json_instrument in json_instruments]
         return session
+
+    def __repr__(self):
+        return "Session.from_json({})".format(self.to_json())

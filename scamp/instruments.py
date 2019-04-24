@@ -817,3 +817,6 @@ class ScampInstrument(SavesToJSON):
                     playback_implementation_type.from_json(playback_implementation_json, host_instrument=instrument)
                     break
         return instrument
+
+    def __repr__(self):
+        return "ScampInstrument.from_json({})".format(self.to_json())
