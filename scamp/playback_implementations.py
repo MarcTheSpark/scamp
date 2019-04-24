@@ -147,12 +147,14 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
                 other_note_int_pitch = other_note_info[self]["midi_note"]
                 # this new note only share a midi channel with the old note if:
                 #   1) both notes are fixed (i.e. will not do a pitch or expression change, which is channel-wide)
-                #   2) the notes don't have conflicting microtonality (i.e. one or both need a pitch bend, and it's
+                #   2) the notes are not on the same midi key (since that will make a note off in one affect the other)
+                #   3) the notes don't have conflicting microtonality (i.e. one or both need a pitch bend, and it's
                 # not the exact same pitch bend.)
                 conflicting_microtonality = (pitch != int_pitch or other_note_pitch != other_note_int_pitch) and \
                                             (round(pitch - int_pitch, 5) !=  # round to fix float error
                                              round(other_note_pitch - other_note_int_pitch, 5))
-                channel_compatible = this_note_fixed and other_note_fixed and not conflicting_microtonality
+                channel_compatible = this_note_fixed and other_note_fixed \
+                                     and int_pitch != other_note_int_pitch and not conflicting_microtonality
                 if not channel_compatible:
                     if other_note_channel in available_channels:
                         available_channels.remove(other_note_channel)
@@ -166,6 +168,9 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
             conflicting_microtonality = (pitch != int_pitch or ringing_midi_note != ringing_pitch) and \
                                         (round(pitch - int_pitch, 5) !=  # round to fix float error
                                          round(ringing_pitch - ringing_midi_note, 5))
+            # Note that here, unlike above, there's no need to check if the other note is fixed, since it's done
+            # and just ringing. Also, it's okay if the other note is of the same pitch, since the note_off message
+            # has already been sent.
             channel_compatible = this_note_fixed and not conflicting_microtonality
             if not channel_compatible and ringing_channel in available_channels:
                 available_channels.remove(ringing_channel)
