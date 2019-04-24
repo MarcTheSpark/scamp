@@ -40,6 +40,47 @@ class NoteHandle:
     def end(self):
         self.instrument.end_note(self.note_id)
 
+    def __repr__(self):
+        return "NoteHandle({}, {})".format(self.note_id, self.instrument)
+
+
+class ChordHandle:
+
+    def __init__(self, note_handles: Sequence[NoteHandle], intervals: Sequence[Number]):
+        self.note_handles = tuple(note_handles) if not isinstance(note_handles, tuple) else note_handles
+        self.intervals = tuple(intervals) if not isinstance(intervals, tuple) else intervals
+
+    def change_parameter(self, param_name, target_value_or_values: Union[Sequence, Number],
+                         transition_length_or_lengths: Union[Sequence, Number] = 0,
+                         transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="auto"):
+        for note_handle in self.note_handles:
+            note_handle.change_parameter(param_name, target_value_or_values, transition_length_or_lengths,
+                                         transition_curve_shape_or_shapes, clock)
+
+    def change_pitch(self, target_value_or_values: Union[Sequence, Number],
+                     transition_length_or_lengths: Union[Sequence, Number] = 0,
+                     transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="auto"):
+        for note_handle, interval in zip(self.note_handles, self.intervals):
+            this_note_pitch_targets = [target_value + interval for target_value in target_value_or_values] \
+                if hasattr(target_value_or_values, "__len__") else target_value_or_values + interval
+            note_handle.change_pitch(this_note_pitch_targets, transition_length_or_lengths,
+                                     transition_curve_shape_or_shapes, clock)
+
+    def change_volume(self, target_value_or_values: Union[Sequence, Number],
+                      transition_length_or_lengths: Union[Sequence, Number] = 0,
+                      transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="auto"):
+        for note_handle in self.note_handles:
+            note_handle.change_volume(target_value_or_values, transition_length_or_lengths,
+                                      transition_curve_shape_or_shapes, clock)
+
+    def split(self, clock="auto"):
+        for note_handle in self.note_handles:
+            note_handle.split(clock)
+
+    def end(self):
+        for note_handle in self.note_handles:
+            note_handle.end()
+
 
 class ParameterChangeSegment(EnvelopeSegment):
 
@@ -409,9 +450,39 @@ class ScampInstrument(SavesToJSON):
 
         return handle
 
-    def start_chord(self):
-        # Should return a chord handle, that's maybe a wrapper around a list of note handles?
-        pass
+    def start_chord(self, pitches, volume, properties=None, clock="auto", silent=False,
+                    transcribe=True, fixed=False, max_volume=1):
+        """
+        Simple utility for starting chords without having to start each note individually.
+        Simply supply a list of pitches.
+        Returns a ChordHandle, which is used to manipulate the chord thereafter
+        """
+        assert hasattr(pitches, "__len__")
+
+        properties = self._standardize_properties(properties)
+
+        # we should either be given a number of noteheads equal to the number of pitches or just one notehead for all
+        assert len(properties.noteheads) == len(pitches) or len(properties.noteheads) == 1, \
+            "Wrong number of noteheads for chord."
+
+        note_handles = []
+
+        pitches = [Envelope.from_list(pitch) if hasattr(pitch, "__len__") else pitch for pitch in pitches]
+
+        first_pitch_start_level = pitches[0].start_level() if isinstance(pitches[0], Envelope) else pitches[0]
+        intervals = [(pitch.start_level() if isinstance(pitch, Envelope) else pitch) - first_pitch_start_level
+                     for pitch in pitches]
+
+        for i, pitch in enumerate(pitches):
+            # for all but the last pitch, play it without blocking, so we can start all the others
+            # also copy the properties dictionary, and pick out the correct notehead if we've been given several
+            properties_copy = deepcopy(properties)
+            if len(properties.noteheads) > 1:
+                properties_copy.noteheads = [properties_copy.noteheads[i]]
+            note_handles.append(self.start_note(pitch, volume, properties=properties_copy, clock=clock, silent=silent,
+                                                transcribe=transcribe, fixed=fixed, max_volume=max_volume))
+
+        return ChordHandle(note_handles, intervals)
 
     def _standardize_properties(self, raw_properties) -> NotePropertiesDictionary:
         """
