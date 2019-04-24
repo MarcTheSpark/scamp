@@ -46,10 +46,17 @@ class Transcriber:
         assert note_info["end_time"] is not None, "Cannot register unfinished note!"
         param_change_segments = note_info["parameter_change_segments"]
 
+        if note_info["start_time"].time_in_master == note_info["end_time"].time_in_master:
+            return
+
         # loop through all the transcriptions in progress
         for performance, clock, clock_start_beat, units in self._transcriptions_in_progress:
             # figure out the start_beat and length relative to this transcription's clock and start beat
-            note_start_beat = Transcriber._resolve_time_stamp(note_info["start_time"], clock, units) - clock_start_beat
+            start_beat_in_clock = Transcriber._resolve_time_stamp(note_info["start_time"], clock, units)
+            end_beat_in_clock = Transcriber._resolve_time_stamp(note_info["end_time"], clock, units)
+
+            note_start_beat = start_beat_in_clock - clock_start_beat
+            note_length = end_beat_in_clock - start_beat_in_clock
 
             # handle split points (if applicable) by creating a note length sections tuple
             note_length_sections = None
@@ -60,19 +67,17 @@ class Transcriber:
                     split_point_beat = Transcriber._resolve_time_stamp(split_point, clock, units)
                     note_length_sections.append(split_point_beat - last_split)
                     last_split = split_point_beat
-                end_beat = Transcriber._resolve_time_stamp(note_info["end_time"], clock, units)
-                if end_beat > last_split:
-                    note_length_sections.append(end_beat-last_split)
+                if end_beat_in_clock > last_split:
+                    note_length_sections.append(end_beat_in_clock - last_split)
                 note_length_sections = tuple(note_length_sections)
-
-            note_length = Transcriber._resolve_time_stamp(note_info["end_time"], clock, units) - note_start_beat
 
             # get curves for all the parameters
             extra_parameters = {}
             for param in note_info["parameter_start_values"]:
                 if param in param_change_segments and len(param_change_segments[param]) > 0:
                     levels = [note_info["parameter_start_values"][param]]
-                    beat_of_last_level_recorded = note_start_beat  # keep track of this in case of gaps between segments
+                    # keep track of this in case of gaps between segments
+                    beat_of_last_level_recorded = start_beat_in_clock
                     durations = []
                     curve_shapes = []
                     for param_change_segment in param_change_segments[param]:
@@ -81,23 +86,23 @@ class Transcriber:
                                 param_change_segment.end_level == param_change_segment.start_level:
                             continue
 
-                        start_beat_in_clock = Transcriber._resolve_time_stamp(param_change_segment.start_time_stamp,
-                                                                              clock, units)
-                        end_beat_in_clock = Transcriber._resolve_time_stamp(param_change_segment.end_time_stamp,
-                                                                              clock, units)
+                        param_start_beat_in_clock = Transcriber._resolve_time_stamp(
+                            param_change_segment.start_time_stamp, clock, units)
+                        param_end_beat_in_clock = Transcriber._resolve_time_stamp(
+                            param_change_segment.end_time_stamp, clock, units)
 
                         # if there's a gap between the last level we recorded and this segment, we need to fill it with
                         # a flat segment that holds the last level recorded
-                        if start_beat_in_clock > beat_of_last_level_recorded:
-                            durations.append(start_beat_in_clock - beat_of_last_level_recorded)
+                        if param_start_beat_in_clock > beat_of_last_level_recorded:
+                            durations.append(param_start_beat_in_clock - beat_of_last_level_recorded)
                             levels.append(levels[-1])
                             curve_shapes.append(0)
 
-                        durations.append(end_beat_in_clock - start_beat_in_clock)
+                        durations.append(param_end_beat_in_clock - param_start_beat_in_clock)
                         levels.append(param_change_segment.end_level)
                         curve_shapes.append(param_change_segment.curve_shape)
 
-                        beat_of_last_level_recorded = end_beat_in_clock
+                        beat_of_last_level_recorded = param_end_beat_in_clock
 
                     # again, if we end the curve early, then we need to add a flat filler segment
                     if beat_of_last_level_recorded < note_start_beat + note_length:
@@ -107,11 +112,23 @@ class Transcriber:
 
                     # assign to specific variables for pitch and volume, otherwise put in a dictionary of extra params
                     if param == "pitch":
-                        pitch = Envelope.from_levels_and_durations(levels, durations, curve_shapes)
+                        # note that if the length of levels is 1, then there's been no meaningful animation
+                        # so just act like it's not animated. This probably shouldn't really come up. (It was
+                        # coming up before with zero-length notes, but now those are just skipped anyway.)
+                        if len(levels) == 1:
+                            pitch = levels[0]
+                        else:
+                            pitch = Envelope.from_levels_and_durations(levels, durations, curve_shapes)
                     elif param == "volume":
-                        volume = Envelope.from_levels_and_durations(levels, durations, curve_shapes)
+                        if len(levels) == 1:
+                            volume = levels[0]
+                        else:
+                            volume = Envelope.from_levels_and_durations(levels, durations, curve_shapes)
                     else:
-                        extra_parameters[param] = Envelope.from_levels_and_durations(levels, durations, curve_shapes)
+                        if len(levels) == 1:
+                            extra_parameters[param] = levels[0]
+                        else:
+                            extra_parameters[param] = Envelope.from_levels_and_durations(levels, durations, curve_shapes)
                 else:
                     # assign to specific variables for pitch and volume, otherwise put in a dictionary of extra params
                     if param == "pitch":
