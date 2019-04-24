@@ -86,7 +86,7 @@ class ChordHandle:
 class ParameterChangeSegment(EnvelopeSegment):
 
     def __init__(self, parameter_change_function, start_value, target_value, transition_length, transition_curve_shape,
-                 clock, temporal_resolution=0.01):
+                 clock, call_priority, temporal_resolution=0.01):
         """
         Convenient class for handling interruptable transitions of parameter values and storing info on them
         :param parameter_change_function: since this is for general parameters, we pass the function to be called
@@ -96,6 +96,8 @@ class ParameterChangeSegment(EnvelopeSegment):
         :param transition_length: length of the transition in beats on the clock given
         :param transition_curve_shape: curve shape of the transition
         :param clock: the clock that all of this happens in reference to
+        :param call_priority: this is used to determine which call to change_parameter happened first, since once these
+        things get spawned in threads, the order gets indeterminate.
         :param temporal_resolution: time resolution of the unsynchronized process. One of the following:
          - just a number (in seconds)
          - the string "pitch-based", in which case we derive it based on trying to get a smooth pitch change
@@ -114,6 +116,8 @@ class ParameterChangeSegment(EnvelopeSegment):
         # this can be used to construct the appropriate envelope segment on whichever clock we're recording on
         self.start_time_stamp = None
         self.end_time_stamp = None
+        self.call_priority = call_priority
+
         self.temporal_resolution = temporal_resolution
 
     def run(self, silent=False):
@@ -239,6 +243,7 @@ class ParameterChangeSegment(EnvelopeSegment):
 class ScampInstrument(SavesToJSON):
 
     _note_id_generator = itertools.count()
+    _change_param_call_counter = itertools.count()
 
     def __init__(self, name=None, ensemble=None):
         """
@@ -420,6 +425,7 @@ class ScampInstrument(SavesToJSON):
             "parameter_start_values": dict(other_param_start_values, pitch=start_pitch, volume=start_volume),
             "parameter_values": dict(other_param_start_values, pitch=start_pitch, volume=start_volume),
             "parameter_change_segments": {},
+            "segments_list_lock": Lock(),
             "properties": properties,
             "max_volume": max_volume,
             "flags": []
@@ -572,6 +578,10 @@ class ScampInstrument(SavesToJSON):
         if len(segments_list) > 0:
             segments_list[-1].abort_if_running()
 
+        # this helps to keep track of which call to change_note_parameter happened first, since when
+        # do_animation_sequence gets forked, order can become indeterminate (see comment there)
+        call_priority = next(ScampInstrument._change_param_call_counter)
+
         if hasattr(target_value_or_values, "__len__"):
             # assume linear segments unless otherwise specified
             transition_curve_shape_or_shapes = [0] * len(target_value_or_values) if \
@@ -585,10 +595,25 @@ class ScampInstrument(SavesToJSON):
             def do_animation_sequence():
                 for target, length, shape in zip(target_value_or_values, transition_length_or_lengths,
                                                  transition_curve_shape_or_shapes):
-                    this_segment = ParameterChangeSegment(
-                        parameter_change_function, note_info["parameter_values"][param_name], target,
-                        length, shape, clock, temporal_resolution=temporal_resolution)
-                    segments_list.append(this_segment)
+                    with note_info["segments_list_lock"]:
+                        if len(segments_list) > 0 and segments_list[-1].running:
+                            # if two segments are started at the exact same (clock) time, then we want to abort the one
+                            # that was called first. Often that will happen in the call to segments_list[-1].abort_if_
+                            # running() above. However, it may be that they both make it through that check before
+                            # either is added to the segments list. This checks in on that case, and aborts whichever
+                            # segment came from the earlier call to change_note_parameter
+                            if call_priority > segments_list[-1].call_priority:
+                                # this call to change_note_parameter happened after, abort the other one
+                                segments_list[-1].abort_if_running()
+                            else:
+                                # this call to change_note_parameter happened before, abort
+                                return
+
+                        this_segment = ParameterChangeSegment(
+                            parameter_change_function, note_info["parameter_values"][param_name], target,
+                            length, shape, clock, call_priority, temporal_resolution=temporal_resolution)
+
+                        segments_list.append(this_segment)
                     # note that these segments are not forked individually: they are chained together and called
                     # directly on a function (do_animation_sequence) that is forked. This means that when we abort
                     # one of them, we kill the clock that do_animation_sequence is running on, thereby aborting all
@@ -600,9 +625,10 @@ class ScampInstrument(SavesToJSON):
         else:
             parameter_change_segment = ParameterChangeSegment(
                 parameter_change_function, note_info["parameter_values"][param_name], target_value_or_values,
-                transition_length_or_lengths, transition_curve_shape_or_shapes, clock,
+                transition_length_or_lengths, transition_curve_shape_or_shapes, clock, call_priority,
                 temporal_resolution=temporal_resolution)
-            segments_list.append(parameter_change_segment)
+            with note_info["segments_list_lock"]:
+                segments_list.append(parameter_change_segment)
             clock.fork(parameter_change_segment.run, kwargs={"silent": "silent" in note_info["flags"]})
 
     def change_note_pitch(self, note_id, target_value_or_values: Union[Sequence, Number],
