@@ -76,6 +76,11 @@ class Transcriber:
                     durations = []
                     curve_shapes = []
                     for param_change_segment in param_change_segments[param]:
+                        # no need to transcribe a param_change_segment that was aborted immediately
+                        if param_change_segment.duration == 0 and \
+                                param_change_segment.end_level == param_change_segment.start_level:
+                            continue
+
                         start_beat_in_clock = Transcriber._resolve_time_stamp(param_change_segment.start_time_stamp,
                                                                               clock, units)
                         end_beat_in_clock = Transcriber._resolve_time_stamp(param_change_segment.end_time_stamp,

@@ -8,6 +8,7 @@ import logging
 import time
 from typing import Union, Sequence, List
 from numbers import Number
+from threading import Lock
 
 
 class NoteHandle:
@@ -191,9 +192,17 @@ class ParameterChangeSegment(EnvelopeSegment):
             # subtracting converting the start and end time stamps to those beats and subtracting
             how_far_we_got = self.end_time_stamp.beat_in_clock(self.clock) - \
                              self.start_time_stamp.beat_in_clock(self.clock)
+
             # now split there, discarding the rest of the envelope. This makes self.end_level the value we ended up at.
-            if how_far_we_got < self.end_time:
+            if self.start_time < how_far_we_got < self.end_time:
                 self.split_at(how_far_we_got)
+            elif self.start_time == how_far_we_got:
+                # this was aborted before it even got going. Later, the transcriber will ignore this nothing segment
+                self.end_time = self.start_time
+                self.end_level = self.start_level
+                self.running = False
+                return
+
             self.do_change_parameter(self.end_level)  # set it to where we should be at this point
         self.running = False  # this will make sure to abort the animation function
 
