@@ -4,6 +4,7 @@ from collections import namedtuple
 from .settings import quantization_settings, engraving_settings
 from expenvelope import Envelope
 from .dependencies import abjad
+from numbers import Number
 import textwrap
 
 QuantizedBeat = namedtuple("QuantizedBeat", "start_time start_time_in_measure length divisor")
@@ -68,10 +69,13 @@ def quantize_performance_part(part, quantization_scheme, onset_weighting="defaul
     :param inner_split_weighting: How much do we care about inner segmentation timing (e.g. tuple note lengths)
     :return: a QuantizationRecord, detailing all of the time signatures, beat divisions selected, etc.
     """
-    if isinstance(quantization_scheme, (str, tuple, TimeSignature)):
+    if isinstance(quantization_scheme, (str, Number, TimeSignature)) or isinstance(quantization_scheme, tuple) and \
+            len(quantization_scheme) == 2 and all(isinstance(x, int) for x in quantization_scheme):
+        # note that a tuple of length 2 with two integers is interpreted as a single time signature, but any other tuple
+        # filled with numbers will be interpreted as a list of measure lengths
         quantization_scheme = QuantizationScheme.from_time_signature(quantization_scheme)
     elif hasattr(quantization_scheme, "__len__") and \
-            all(isinstance(x, (str, tuple, TimeSignature)) for x in quantization_scheme):
+            all(isinstance(x, (str, tuple, Number, TimeSignature)) for x in quantization_scheme):
         # make it easy to loop a series of time signatures by adding the string "loop" at the end
         loop = False
         if isinstance(quantization_scheme[-1], str) and quantization_scheme[-1].lower() == "loop":
@@ -79,7 +83,8 @@ def quantize_performance_part(part, quantization_scheme, onset_weighting="defaul
             loop = True
         quantization_scheme = QuantizationScheme.from_time_signature_list(quantization_scheme, loop=loop)
 
-    assert isinstance(quantization_scheme, QuantizationScheme)
+    if not isinstance(quantization_scheme, QuantizationScheme):
+        raise ValueError("Couldn't understand quantization scheme.")
 
     part.voice_quantization_records = {}
 
@@ -505,6 +510,12 @@ class TimeSignature(SavesToJSON):
         return beat_lengths
 
     @classmethod
+    def from_measure_length(cls, measure_length: Number):
+        fraction_length = Fraction(measure_length)
+        numerator, denominator = fraction_length.numerator, fraction_length.denominator * 4
+        return cls(numerator, denominator)
+
+    @classmethod
     def from_string(cls, time_signature_string):
         assert isinstance(time_signature_string, str) and len(time_signature_string.split("/")) == 2
         numerator_string, denominator_string = time_signature_string.split("/")
@@ -571,6 +582,9 @@ class MeasureQuantizationScheme:
             time_signature = TimeSignature.from_string(time_signature)
         elif isinstance(time_signature, tuple):
             time_signature = TimeSignature(*time_signature)
+        elif isinstance(time_signature, Number):
+            time_signature = TimeSignature.from_measure_length(time_signature)
+
         assert isinstance(time_signature, TimeSignature)
 
         # now we convert the beat lengths to BeatQuantizationSchemes and construct our object
