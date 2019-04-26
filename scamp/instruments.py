@@ -159,8 +159,8 @@ class ParameterChangeSegment(EnvelopeSegment):
             time_increment = self._get_good_volume_temporal_resolution()
         else:
             time_increment = self.temporal_resolution
-        # don't animate faster than 10ms though
-        time_increment = max(0.01, time_increment)
+        # don't animate faster than 4ms though
+        time_increment = max(0.004, time_increment)
 
         def _animation_function():
             # does the intermediate changing of values; since it's sleeping in small time increments, we fork it
@@ -325,14 +325,16 @@ class ScampInstrument(SavesToJSON):
             if blocking:
                 self._do_play_note(clock, pitch, volume, length, properties, silent=True)
             else:
-                clock.fork(self._do_play_note, extra_args=(pitch, volume, length, properties), kwargs={"silent": True})
+                clock.fork(self._do_play_note, name="DO_PLAY_NOTE",
+                           extra_args=(pitch, volume, length, properties), kwargs={"silent": True})
         else:
             # No adjustments, so no need to separate transcription from playback
             # (However, if the clock is fast-forwarding, make it silent)
             if blocking:
                 self._do_play_note(clock, pitch, volume, length, properties, silent=clock.is_fast_forwarding())
             else:
-                clock.fork(self._do_play_note, extra_args=(pitch, volume, length, properties),
+                clock.fork(self._do_play_note, name="DO_PLAY_NOTE",
+                           extra_args=(pitch, volume, length, properties),
                            kwargs={"silent": clock.is_fast_forwarding()})
 
     def _do_play_note(self, clock, pitch, volume, length, properties, silent=False, transcribe=True):
@@ -367,8 +369,9 @@ class ScampInstrument(SavesToJSON):
 
         # start the note. (Note that this will also start the animation of pitch, volume,
         # and any other parameters if they are envelopes.)
-        note_handle = self.start_note(pitch, volume, properties, silent=silent, transcribe=transcribe, fixed=fixed,
-                                      max_volume=volume.max_level() if isinstance(volume, Envelope) else volume)
+        note_handle = self.start_note(
+            pitch, volume, properties, clock=clock, silent=silent, transcribe=transcribe, fixed=fixed,
+            max_volume=volume.max_level() if isinstance(volume, Envelope) else volume)
 
         if hasattr(length, "__len__"):
             for length_segment in length:
@@ -619,9 +622,12 @@ class ScampInstrument(SavesToJSON):
                     # one of them, we kill the clock that do_animation_sequence is running on, thereby aborting all
                     # remaining segments as well. This is exactly what we want: if we call change_note_parameter while
                     # previous change_note_parameter is running, we want to abort all segments of the one that's running
-                    this_segment.run(silent="silent" in note_info["flags"])
+                    try:
+                        this_segment.run(silent="silent" in note_info["flags"])
+                    except Exception as e:
+                        raise e
 
-            clock.fork(do_animation_sequence)
+            clock.fork(do_animation_sequence, name="PARAM_ANIMATION({})".format(param_name))
         else:
             parameter_change_segment = ParameterChangeSegment(
                 parameter_change_function, note_info["parameter_values"][param_name], target_value_or_values,
