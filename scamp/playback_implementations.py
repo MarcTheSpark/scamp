@@ -205,6 +205,8 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
         self.note_on(channel, int_pitch, this_note_info["max_volume"])
         if pitch != int_pitch:
             self.pitch_bend(channel, pitch - int_pitch)
+        else:
+            self.pitch_bend(channel, 0)
         self.expression(channel, volume / this_note_info["max_volume"] if this_note_info["max_volume"] > 0 else 0)
         # store the midi note that we pressed for this note, the channel we pressed it on, and make an entry (initially
         # false) for whether or not we ended this note prematurely (to free up a channel for a newer note).
