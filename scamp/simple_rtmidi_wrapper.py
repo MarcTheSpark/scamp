@@ -76,8 +76,8 @@ class SimpleRtMidiOut:
             # midi pitch bend data takes two midi data bytes; a least significant 7-bit number and
             # a most significant 7-bit number. These combine to form an integer from 0 to 16383
             lsb = value % 128
-            msb = (value - lsb) / 128
-            self.midiout.send_message([0xE0 + chan, lsb, msb])  # note on call of 0 velocity implementation
+            msb = (value - lsb) // 128
+            self.midiout.send_message([0xE0 + chan, lsb, msb])
 
     def expression(self, chan, value):
         if rtmidi is not None:
