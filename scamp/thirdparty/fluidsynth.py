@@ -40,12 +40,16 @@ if lib is None:
     import os
     if platform.system() == "Windows":
         # Backup plan for windows. If we can't find the library, use a copy located inside of scamp
-        lib = os.path.join(os.path.dirname(__file__), "libfluidsynth.dll")
+        try:
+            _fl = CDLL(os.path.join(os.path.dirname(__file__), "libfluidsynth64.dll"))
+        except OSError:
+            _fl = CDLL(os.path.join(os.path.dirname(__file__), "libfluidsynth.dll"))
+
     else:
         raise ImportError("Couldn't find the FluidSynth library.")
-
-# Dynamically link the FluidSynth library
-_fl = CDLL(lib)
+else:
+    # Dynamically link the FluidSynth library
+    _fl = CDLL(lib)
 
 
 # Helper function for declaring function prototypes
