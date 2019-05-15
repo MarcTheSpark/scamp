@@ -238,6 +238,9 @@ class PerformancePart(SavesToJSON):
             return self.quantized(quantization_scheme).to_staff_group()
         return StaffGroup.from_quantized_performance_part(self)
 
+    def name_count(self):
+        return self._instrument_id[1]
+
     def __repr__(self):
         voice_strings = [
             "{}: [\n{}\n]".format("'" + voice_name + "'" if isinstance(voice_name, str) else voice_name,

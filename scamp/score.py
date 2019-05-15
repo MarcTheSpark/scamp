@@ -480,9 +480,13 @@ class StaffGroup(ScoreComponent, ScoreContainer):
 
         fragments = StaffGroup._separate_voices_into_fragments(quantized_performance_part)
         measure_voice_grid = StaffGroup._create_measure_voice_grid(fragments, quantized_performance_part.num_measures())
+        staff_group_name = quantized_performance_part.name
+        if quantized_performance_part.name_count() > 0:
+            staff_group_name += " [{}]".format(quantized_performance_part.name_count() + 1)
+
         return StaffGroup.from_measure_voice_grid(
             measure_voice_grid, quantized_performance_part.get_longest_quantization_record(),
-            name=quantized_performance_part.name
+            name=staff_group_name
         )
 
     @staticmethod
