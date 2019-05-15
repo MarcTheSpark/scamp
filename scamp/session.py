@@ -42,7 +42,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         print_available_ports_and_devices()
 
     def register_midi_callback(self, port_number_or_device_name, callback_function,
-                               time_resolution=0.005, synchronous=False):
+                               time_resolution=0.005, synchronous=True):
         start_midi_listener(port_number_or_device_name, callback_function,
                             clock=self, time_resolution=time_resolution, synchronous=synchronous)
 

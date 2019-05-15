@@ -25,7 +25,7 @@ def get_port_number_of_device(device_name):
     return None
 
 
-def start_midi_listener(port_number_or_device_name, callback_function, clock, time_resolution=0.005, synchronous=False):
+def start_midi_listener(port_number_or_device_name, callback_function, clock, time_resolution=0.005, synchronous=True):
     port_number = get_port_number_of_device(port_number_or_device_name) \
         if isinstance(port_number_or_device_name, str) else port_number_or_device_name
 
@@ -41,7 +41,7 @@ def start_midi_listener(port_number_or_device_name, callback_function, clock, ti
     assert port_number is not None and 0 <= port_number < midi_in.get_port_count(), "Invalid midi listener port number."
     midi_in.open_port(port_number)
 
-    def _midi_listener(sub_clock=None):
+    def _midi_listener(sub_clock):
         while True:
             message = midi_in.get_message()
             if message is not None:
@@ -54,8 +54,7 @@ def start_midi_listener(port_number_or_device_name, callback_function, clock, ti
                 time.sleep(time_resolution)
             else:
                 sub_clock.wait(time_resolution)
-
     if synchronous:
         clock.fork(_midi_listener)
     else:
-        clock.fork_unsynchronized(_midi_listener)
+        clock.fork_unsynchronized(_midi_listener, args=(None, ))
