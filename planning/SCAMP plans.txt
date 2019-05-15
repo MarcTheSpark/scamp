@@ -1,7 +1,8 @@
+- Make it so that when the master clock is woken up early (by setting its "wake_event", it then re-orients itself and
+all child clocks.
 - engraving text! Also, microtonal adjustments
-- allow time signatures to be given as floats as well as strings, where the floats represent the number of beats
+- mordents as well as all other articulation marks
 - Engraving sudden tempo changes
-- maybe make clock not note down the start time until its first call to wait?
 - Get recombination of larger notes working
 - Maybe max pitch bend should only get expanded from the default of 2 when a pitch bend is requested that goes beyond that?
 - Engraving tempo in abjad
