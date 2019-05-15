@@ -6,16 +6,13 @@ session = Session()
 
 session.set_tempo_target(300, 20)
 
-violin = session.add_midi_part("violin")
-violin2 = session.add_midi_part("violin2")
+violin = session.new_part("violin")
+violin2 = session.new_part("violin2")
 
-bass_banjo = session.add_midi_part("banjass", (0, 105))
+bass_banjo = session.new_part("banjass", (0, 105))
 
 engraving_settings.max_voices_per_part = 1
 engraving_settings.glissandi.control_point_policy = "grace"
-
-
-# session.start_recording()
 
 
 def violins():
@@ -48,6 +45,9 @@ session.fork(banjass)
 session.fork(sine_glisses)
 session.start_recording()
 session.wait(20)
+violin.end_all_notes()
+violin2.end_all_notes()
+bass_banjo.end_all_notes()
 performance = session.stop_recording()
 engraving_settings.ignore_empty_parts = False
 quantized_performance = performance.quantize(["4/4", "3/4", "loop"])

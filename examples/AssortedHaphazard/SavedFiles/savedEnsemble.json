@@ -6,14 +6,14 @@
     "instruments": [
         {
             "default_spelling_policy": null,
-            "name": "shakuhachi",
+            "name": "piano",
             "playback_implementations": [
                 {
                     "args": {
                         "audio_driver": "default",
                         "bank_and_preset": [
                             0,
-                            77
+                            0
                         ],
                         "max_pitch_bend": 48,
                         "num_channels": 8,
@@ -25,14 +25,33 @@
         },
         {
             "default_spelling_policy": null,
-            "name": "oboe",
+            "name": "flute",
             "playback_implementations": [
                 {
                     "args": {
                         "audio_driver": "default",
                         "bank_and_preset": [
                             0,
-                            68
+                            73
+                        ],
+                        "max_pitch_bend": 48,
+                        "num_channels": 8,
+                        "soundfont": "general_midi"
+                    },
+                    "type": "SoundfontPlaybackImplementation"
+                }
+            ]
+        },
+        {
+            "default_spelling_policy": null,
+            "name": "strings",
+            "playback_implementations": [
+                {
+                    "args": {
+                        "audio_driver": "default",
+                        "bank_and_preset": [
+                            0,
+                            40
                         ],
                         "max_pitch_bend": 48,
                         "num_channels": 8,
@@ -42,6 +61,5 @@
                 }
             ]
         }
-    ],
-    "tempo": 60.0
+    ]
 }

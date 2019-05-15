@@ -11,8 +11,8 @@ import random
 session = Session()
 
 # The port here must match the result of NetAddr.langPort in SuperCollider
-fm_sines = session.add_osc_part(57120, name="fm_sines")
-hihat = session.add_osc_part(57120, name="hihat")
+fm_sines = session.new_osc_part("fm_sines", 57120)
+hihat = session.new_osc_part("hihat", 57120)
 
 
 def fm_sines_part():

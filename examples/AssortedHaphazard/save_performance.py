@@ -2,12 +2,16 @@ from scamp import *
 import random
 import math
 
+from scamp.settings import playback_settings
+
+playback_settings.make_persistent()
+
 session = Session()
 
-shaku = session.add_midi_part("shakuhachi")
-oboe = session.add_midi_part("oboe")
+shaku = session.new_part("shakuhachi")
+oboe = session.new_part("oboe")
 
-session.ensemble.save_to_json(resolve_relative_path("SavedFiles/shakEnsemble.json"))
+session.save_to_json(resolve_relative_path("SavedFiles/shakEnsemble.json"))
 
 
 def oboe_part(clock):

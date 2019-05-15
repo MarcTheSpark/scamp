@@ -2,7 +2,7 @@ from scamp import Session
 import random
 
 s = Session()
-piano = s.add_midi_part("piano")
+piano = s.new_part("piano")
 
 
 def do_chords():

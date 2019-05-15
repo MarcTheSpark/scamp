@@ -4,9 +4,9 @@ import random
 
 session = Session()
 
-flute = session.add_midi_part("flute")
-clarinet = session.add_midi_part("clarinet")
-bassoon = session.add_midi_part("bassoon")
+flute = session.new_part("flute")
+clarinet = session.new_part("clarinet")
+bassoon = session.new_part("bassoon")
 
 
 def flute_part(clock: Clock):
@@ -18,7 +18,7 @@ def flute_part(clock: Clock):
 def clarinet_part(clock: Clock):
     clock.apply_tempo_function(lambda t: 60 + 30 * sin(t), duration_units="time")
     while True:
-        clarinet.play_note(int(65 + (clock.rate - 1) * 20 + random.random() * 8), 0.8, 0.25)
+        clarinet.play_note(int(65 + (clock.rate - 1) * 20 + random.random() * 8), 0.8, 0.25, "staccato")
 
 
 def bassoon_part(clock: Clock):
@@ -27,14 +27,16 @@ def bassoon_part(clock: Clock):
         bassoon.play_chord([40, 44, 50], 0.8, 0.5, "staccatissimo")
 
 
-flute_clock = session.fork(flute_part)
-clarinet_clock = session.fork(clarinet_part)
-bassoon_clock = session.fork(bassoon_part)
+flute_clock = session.fork(flute_part, name="Flute")
+clarinet_clock = session.fork(clarinet_part, name="Clarinet")
+bassoon_clock = session.fork(bassoon_part, name="Bassoon")
 
-session.start_recording(clock=flute_clock)
-# session.start_recording(clock=clarinet_clock)
-# session.start_recording(clock=bassoon_clock)
 
-session.fast_forward_in_beats(30)
+performance1 = session.start_recording(clock=flute_clock)
+performance2 = session.start_recording(clock=clarinet_clock)
+performance3 = session.start_recording(clock=bassoon_clock)
+
 session.wait(30)
-session.stop_recording().to_score().show_xml()
+session.stop_recording(performance1).quantized().to_score(title="Recorded on flute clock").show_xml()
+# session.stop_recording(performance2).quantized().to_score(title="Recorded on clarinet clock").show_xml()
+# session.stop_recording(performance3).quantized().to_score(title="Recorded on bassoon clock").show_xml()

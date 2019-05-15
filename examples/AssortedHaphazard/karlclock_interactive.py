@@ -21,8 +21,7 @@ Listener(on_press=on_press).start()
 
 s = Session()
 
-
-piano = s.add_midi_part("piano")
+piano = s.new_part("piano", num_channels=40)
 
 
 def do_chords(clock):

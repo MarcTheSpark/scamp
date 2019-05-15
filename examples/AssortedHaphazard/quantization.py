@@ -2,8 +2,8 @@ from scamp import *
 from random import random, seed
 
 session = Session()
-drum = session.add_midi_part("metronome", (0, 116))
-piano = session.add_midi_part("piano")
+drum = session.new_part("metronome", (0, 116))
+piano = session.new_part("piano")
 
 recording = True
 

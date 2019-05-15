@@ -3,13 +3,13 @@ from scamp import Ensemble
 
 def construct_ensemble():
     global piano, flute, strings, ensemble
-    ensemble = Ensemble("default", "pulseaudio")
+    ensemble = Ensemble()
 
-    ensemble.print_all_soundfont_presets()
+    ensemble.print_default_soundfont_presets()
 
-    piano = ensemble.add_midi_part("piano", (0, 0))
-    flute = ensemble.add_midi_part("flute", (0, 73))
-    strings = ensemble.add_midi_part("strings", (0, 40))
+    piano = ensemble.new_part("piano")
+    flute = ensemble.new_part("flute")
+    strings = ensemble.new_part("strings", (0, 40))
 
 
 def play_some_stuff():
@@ -22,10 +22,10 @@ def play_some_stuff():
 construct_ensemble()
 
 # # ------- Use this line to save the Ensemble so that it can be reloaded -------
-# ensemble.save_to_json("savedEnsemble.json")
+# ensemble.save_to_json("SavedFiles/savedEnsemble.json")
 
 # # ------- Use this line to reloaded the Ensemble from the saved file -------
-# ensemble = Ensemble.load_from_json("savedEnsemble.json")
+# ensemble = Ensemble.load_from_json("SavedFiles/savedEnsemble.json")
 # piano, flute, strings = ensemble.instruments
 
 play_some_stuff()

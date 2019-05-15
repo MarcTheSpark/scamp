@@ -3,7 +3,7 @@ import random
 
 session = Session()
 
-piano = session.add_midi_part("piano")
+piano = session.new_part("piano")
 piano.set_max_pitch_bend(20)
 
 random.seed(1)
@@ -32,3 +32,5 @@ performance.save_to_json(resolve_relative_path("SavedFiles/quantized_glisses.jso
 session.wait(2)
 print("playing quantized")
 performance.play(clock=session)
+
+performance.to_score().show()

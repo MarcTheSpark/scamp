@@ -1,5 +1,7 @@
 - Make it so that when the master clock is woken up early (by setting its "wake_event", it then re-orients itself and
 all child clocks.
+- probably related to the last one: solve the "midwait" bug. If a clock's tempo is changed in the middle of a wait call,
+it should probably be woken up and recalculated, right?
 - engraving text! Also, microtonal adjustments
 - mordents as well as all other articulation marks
 - Engraving sudden tempo changes
