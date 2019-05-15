@@ -306,9 +306,10 @@ class NotePropertiesDictionary(dict, SavesToJSON):
 
     @classmethod
     def from_json(cls, json_object):
-        # convert all adjustments from dictionaries to NotePlaybackAdjustments
-        json_object["playback adjustments"] = [NotePlaybackAdjustment.from_json(x)
-                                               for x in json_object["playback adjustments"]]
+        # if the object has playback adjustments convert all adjustments from dictionaries to NotePlaybackAdjustments
+        if "playback adjustments" in json_object:
+            json_object["playback adjustments"] = [NotePlaybackAdjustment.from_json(x)
+                                                   for x in json_object["playback adjustments"]]
         if "spelling_policy" in json_object:
             json_object["spelling_policy"] = SpellingPolicy.from_json(json_object["spelling_policy"])
         return cls(**json_object)

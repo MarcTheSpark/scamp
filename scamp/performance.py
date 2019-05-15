@@ -108,7 +108,8 @@ class PerformancePart(SavesToJSON):
     def end_time(self):
         if len(self.voices) == 0:
             return 0
-        return max(max(n.start_time + n.length_sum() for n in voice) for voice in self.voices.values())
+        return max(max(n.start_time + n.length_sum() for n in voice) if len(voice) > 0 else 0
+                   for voice in self.voices.values())
 
     def get_note_iterator(self, start_time=0, stop_time=None, selected_voices=None):
         # we can be given a list of voices to play, or if none is specified, we play all of them

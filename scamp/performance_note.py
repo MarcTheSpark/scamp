@@ -277,6 +277,8 @@ class PerformanceNote(SavesToJSON):
         if hasattr(json_object["length"], "__len__"):
             json_object["length"] = tuple(json_object["length"])
 
+        json_object["properties"] = NotePropertiesDictionary.from_json(json_object["properties"])
+
         return PerformanceNote(**json_object)
 
     def __repr__(self):
