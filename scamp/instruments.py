@@ -725,9 +725,29 @@ class ScampInstrument(SavesToJSON):
     ---------------------------------------- Adding and removing playback ----------------------------------------
     """
 
-    def add_soundfont_playback(self, bank_and_preset=(0, 0), soundfont="default", num_channels=8,
+    def add_soundfont_playback(self, preset="auto", soundfont="default", num_channels=8,
                                audio_driver="default", max_pitch_bend="default"):
-        SoundfontPlaybackImplementation(self, bank_and_preset, soundfont, num_channels,
+        """
+        Add a soundfont playback implementation for this instrument
+
+        :param preset: either a tuple of (bank, preset), a string giving a name to search the soundfont for, or
+            the string "auto" in which case the name of this instrument is used to search for a preset.
+        :param soundfont: which soundfont to use. If this instrument belongs to an Ensemble, "default" means use the
+            Ensemble default; if not, we will fall back to the default provided in playbacK_settings
+        :param num_channels: how many channels to allocate for managing pitch bends, etc.
+        :param audio_driver: which driver to use
+        :param max_pitch_bend: max pitch bend to allow
+        :return: self
+        """
+        soundfont = self.ensemble.default_soundfont \
+            if self.ensemble is not None and soundfont == "default" else soundfont
+
+        if isinstance(preset, str):
+            from .ensemble import Ensemble
+            preset = Ensemble.resolve_preset_from_name(self.name if preset == "auto" else preset, soundfont)
+        elif isinstance(preset, int):
+            preset = (0, preset)
+        SoundfontPlaybackImplementation(self, preset, soundfont, num_channels,
                                         audio_driver=audio_driver, max_pitch_bend=max_pitch_bend)
         return self
 

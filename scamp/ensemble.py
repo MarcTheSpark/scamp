@@ -45,6 +45,22 @@ class Ensemble(SavesToJSON):
         """
         return self.add_instrument(ScampInstrument(name, self))
 
+    @staticmethod
+    def resolve_preset_from_name(name, soundfont):
+        # if preset is auto, try to find a match in the soundfont
+        if name is None:
+            preset = (0, 0)
+        else:
+            preset_match, match_score = get_best_preset_match_for_name(name, which_soundfont=soundfont)
+            if match_score > 1.0:
+                preset = preset_match.bank, preset_match.preset
+                print("Using preset {} for {}".format(preset_match.name, name))
+            else:
+                logging.warning("Could not find preset matching {}. "
+                                "Falling back to preset 0 (probably piano).".format(name))
+                preset = (0, 0)
+        return preset
+
     def new_part(self, name=None, preset="auto", soundfont="default", num_channels=8,
                  audio_driver="default", max_pitch_bend="default"):
         """
@@ -66,17 +82,7 @@ class Ensemble(SavesToJSON):
 
         # if preset is auto, try to find a match in the soundfont
         if preset == "auto":
-            if name is None:
-                preset = (0, 0)
-            else:
-                preset_match, match_score = get_best_preset_match_for_name(name, which_soundfont=soundfont)
-                if match_score > 1.0:
-                    preset = preset_match.bank, preset_match.preset
-                    print("Using preset {} for {}".format(preset_match.name, name))
-                else:
-                    logging.warning("Could not find preset matching {}. "
-                                    "Falling back to preset 0 (probably piano).".format(name))
-                    preset = (0, 0)
+            preset = Ensemble.resolve_preset_from_name(name, soundfont)
         elif isinstance(preset, int):
             preset = (0, preset)
 
