@@ -4,7 +4,7 @@ from . import Session
 def play():
     session = Session()
 
-    piano = session.add_midi_part()
+    piano = session.new_part()
 
     session.set_rate_target(4, 10)
 
