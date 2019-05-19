@@ -3,7 +3,7 @@ from .utilities import indigestibility, is_multiple, is_x_pow_of_y, round_to_mul
 from collections import namedtuple
 from .settings import quantization_settings, engraving_settings
 from expenvelope import Envelope
-from .dependencies import abjad
+from ._dependencies import abjad
 from numbers import Number
 import textwrap
 
@@ -62,6 +62,7 @@ def quantize_performance_part(part, quantization_scheme, onset_weighting="defaul
                               inner_split_weighting="default"):
     """
     Quantizes a performance part (in place) and sets its voice_quantization_records
+
     :param part: a PerformancePart
     :param quantization_scheme: a QuantizationScheme
     :param onset_weighting: How much do we care about accurate onsets
@@ -118,6 +119,7 @@ def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="def
                                 inner_split_weighting="default"):
     """
     Quantizes a voice (modifying notes in place) and returns a QuantizationRecord
+
     :param voice: a single voice (list of PerformanceNotes) from a PerformancePart
     :param quantization_scheme: a QuantizationScheme
     :param onset_weighting: How much do we care about accurate onsets
@@ -249,6 +251,7 @@ def _collapse_chords(notes):
     """
     Modifies a list of PerformanceNotes in place so that simultaneous notes become chords
     (i.e. they become PerformanceNotes with a tuple of different values for the pitch.)
+
     :param notes: a list of PerformanceNotes
     """
     i = 1
@@ -265,6 +268,7 @@ def _collapse_chords(notes):
 def _separate_into_non_overlapping_voices(notes, max_overlap=1e-10):
     """
     Takes a list of PerformanceNotes and breaks it up into separate voices that don't overlap more than max_overlap
+
     :param notes: a list of PerformanceNotes
     :return: a list of voices, each of which is a non-overlapping list of PerformanceNotes
     """
@@ -330,11 +334,12 @@ def _get_best_divisor_for_beat(beat_scheme, beat_start_time, onsets_in_beat, ter
 def _construct_quantization_record(beat_divisors, end_time, quantization_scheme):
     """
     Constructs a QuantizationRecord from the given scheme and divisors
+
     :param beat_divisors: a list of beat divisors resulting from quantization
     :param end_time: This helps us cover the special case in which the last note ends at the very end of a measure.
-    In this case, it's termination gets quantized in the first beat of the next measure, so we have a beat divisor
-    in that measure but no actual notes there. By checking if we've hit the end_time we can avoid constructing
-    that extra measure.
+        In this case, it's termination gets quantized in the first beat of the next measure, so we have a beat divisor
+        in that measure but no actual notes there. By checking if we've hit the end_time we can avoid constructing
+        that extra measure.
     :param quantization_scheme: the quantization scheme being used
     :return: a QuantizationRecord
     """
@@ -358,14 +363,15 @@ class BeatQuantizationScheme:
     def __init__(self, length, divisors, simplicity_preference="default"):
         """
         A scheme for making a decision about which divisor to use to quantize a beat
+
         :param length: In quarter-notes
         :param divisors: A list of allowed divisors or a list of tuples of (divisor, undesirability). If just
-        divisors are given, the undesirability for wach will be calculated based on its indigestibility.
+            divisors are given, the undesirability for wach will be calculated based on its indigestibility.
         :param simplicity_preference: ranges 0 - whatever. A simplicity_preference of 0 means, all divisions are
-        treated equally; a 7 is as good as a 4. A simplicity_preference of 1 means that the most desirable division
-        is left alone, the most undesirable division gets its error doubled, and all other divisions are somewhere in
-        between. Simplicity preference can be greater than 1, in which case the least desirable division gets its
-        error multiplied by (simplicity_preference + 1)
+            treated equally; a 7 is as good as a 4. A simplicity_preference of 1 means that the most desirable division
+            is left alone, the most undesirable division gets its error doubled, and all other divisions are somewhere in
+            between. Simplicity preference can be greater than 1, in which case the least desirable division gets its
+            error multiplied by (simplicity_preference + 1)
         """
         # load default if not specified
         if simplicity_preference == "default":
@@ -466,10 +472,11 @@ class TimeSignature(SavesToJSON):
     def __init__(self, numerator, denominator, beat_lengths=None):
         """
         Class representing a time signature
+
         :param numerator: self-explanatory
         :param denominator: self-explanatory
         :param beat_lengths: This is a hint as to how the time signature is divided up into beats. By default,
-        it is None, meaning that a sensible default will be constructed.
+            it is None, meaning that a sensible default will be constructed.
         """
         self.numerator = numerator
         # For now, and the foreseeable future, I don't want to deal with time signatures like 4/7

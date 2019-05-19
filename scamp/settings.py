@@ -129,15 +129,17 @@ class PlaybackSettings(ScampSettings):
     def register_named_soundfont(self, name: str, soundfont_path: str):
         """
         Adds a named soundfont, so that it can be easily referred to in constructing a Session
+
         :param name: the soundfont name
         :param soundfont_path: the absolute path to the soundfont, staring with a slash, or a relative path that
-        gets resolved relative to the soundfonts directory
+            gets resolved relative to the soundfonts directory
         """
         self.named_soundfonts[name] = soundfont_path
 
     def unregister_named_soundfont(self, name: str):
         """
         Same as above, but removes a named soundfont
+
         :param name: the default soundfont name to remove
         """
         if name not in self.named_soundfonts:

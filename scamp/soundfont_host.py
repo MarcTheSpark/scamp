@@ -1,6 +1,6 @@
 from .utilities import resolve_relative_path, SavesToJSON, get_average_square_correlation
 from .settings import playback_settings
-from .dependencies import fluidsynth, Sf2File
+from ._dependencies import fluidsynth, Sf2File
 import logging
 from collections import OrderedDict
 import re
@@ -36,6 +36,7 @@ def print_soundfont_presets(which_soundfont="default"):
 def get_soundfont_presets_with_substring(word, avoid=None, which_soundfont="default"):
     """
     Returns a list of Sf2Presets containing the given word
+
     :param word: string to match
     :param avoid: string to avoid matching
     :param which_soundfont: name of the soundfont to inspect
@@ -47,6 +48,7 @@ def get_soundfont_presets_with_substring(word, avoid=None, which_soundfont="defa
 def get_best_preset_match_for_name(name: str, which_soundfont="default"):
     """
     Does fuzzy string matching to find an appropriate preset for given name
+
     :param name: name of the instrument to find a preset for
     :param which_soundfont: which soundfont look in
     :return: a tuple of (Sf2Preset, match score)
@@ -73,6 +75,7 @@ class SoundfontHost(SavesToJSON):
         """
         A SoundfontHost hosts an instance of fluidsynth with one or several soundfonts loaded.
         It can be called upon to add or remove instruments from that synth
+
         :param soundfonts: one or several soundfonts to be loaded
         :param audio_driver: the audio driver to use
         """
@@ -128,6 +131,7 @@ class SoundfontInstrument:
         """
         A SoundfontInstrument represents all the channels in the host dedicated to the same instrument
         On initialization, it loads the appropriate preset from the correct soundfont into those channels
+
         :param soundfont_host: a SoundfontHost
         :param num_channels: how many channels this instrument gets
         :param bank_and_preset: tuple consisting of the bank and preset to use
@@ -179,6 +183,7 @@ class SoundfontInstrument:
         with this instrument. Note that, while this will definitely work with fluidsynth, the output of rt_midi
         must be being recorded already for this to affect subsequent pitch bend, which is slightly awkward.
         Also, in my experience, even then it may be ignored.
+
         :type max_bend_in_semitones: int
         :return: None
         """
@@ -265,6 +270,7 @@ def _do_name_substitutions(name: str):
 def resolve_soundfont_path(soundfont: str):
     """
     Consults playback settings and returns the path to the given soundfont
+
     :param soundfont: either the name of a named soundfont or an explicit soundfont path. Paths are resolved relatively
     unless they start with a slash.
     :return: an absolute path o the soundfont

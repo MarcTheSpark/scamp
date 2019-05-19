@@ -2,6 +2,10 @@ from . import Session
 
 
 def play():
+    """
+    Simple method for determining if scamp was installed correctly. Should play a sequence of pitches telescoping
+    towards middle C
+    """
     session = Session()
 
     piano = session.new_part()

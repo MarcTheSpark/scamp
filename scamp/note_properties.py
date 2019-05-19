@@ -63,6 +63,7 @@ class NotePropertiesDictionary(dict, SavesToJSON):
     def from_unknown_format(cls, properties):
         """
         Interprets a number of data formats as a NotePropertiesDictionary
+
         :param properties: can be of several formats:
             - a dictionary of note properties, using the standard format
             - a list of properties, each of which is a string or a NotePlaybackAdjustment. Each string may be
@@ -236,11 +237,12 @@ class NotePropertiesDictionary(dict, SavesToJSON):
     def apply_playback_adjustments(self, pitch, volume, length, include_notation_derived=True):
         """
         Applies both explicit and (if flag is set) derived playback adjustments to the given pitch, volume, and length
+
         :param pitch: unadjusted pitch
         :param volume: unadjusted volume
         :param length: unadjusted length
         :param include_notation_derived: if true, include adjustments based on notations like staccato, by searching
-        the playback_settings.adjustments dictionary
+            the playback_settings.adjustments dictionary
         :return: adjusted pitch, volume, length, as well as a boolean stating whether anything changed
         """
         # If the note has a tuple length, indicating adjoined tied segments, we need to replace "length" with the

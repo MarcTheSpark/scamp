@@ -385,26 +385,27 @@ class ScampInstrument(SavesToJSON):
                    transcribe=True, fixed=False, max_volume=1):
         """
         Start a note with the given pitch, volume, and properties
+
         :param pitch: the pitch / starting pitch of the note (not an Envelope)
         :param volume: the volume / starting volume of the note (not an Envelope)
         :param properties: either a string, list, dictionary or NotePropertiesDictionary representing note properties
         :param clock: the clock to run any animation of pitch, volume, etc. on, if applicable
         :param silent: if True, go through the motions of playing back, but don't make sound. Useful if we're trying to
-        notate a note but not actually play it. For instance, i.e. when there is some sort of playback alteration like
-        staccato, a "silent" note with the original properties that does none of the alterations gets notated,
-        while the sounding note gets flagged as transcribe=False.
+            notate a note but not actually play it. For instance, i.e. when there is some sort of playback alteration
+            like staccato, a "silent" note with the original properties that does none of the alterations gets notated,
+            while the sounding note gets flagged as transcribe=False.
         :param transcribe: if False, don't notify transcribers of this note when it ends
         :param fixed: if True, disables the ability of this note to change pitch or volume; useful for conserving
-        midi_channels, since multiple fixed notes can occupy the same channel.
-        :return: a NoteHandle with which to later manipulate the note
+            midi_channels, since multiple fixed notes can occupy the same channel.
         :param max_volume: This is a bit of a pain, but since midi playback requires us to set the velocity at the
-        beginning of the note, and thereafter vary volume using expression, and since expression can only make the
-        note quieter, we need to start the note with velocity equal to the max desired volume (using expression to
-        adjust it down to the actual start volume). The default will be 1, meaning as loud as possible, since unless we
-        know in advance what the note is going to do, we need to be prepared to go up to full volume. Using play_note,
-        we do actually know in advance how loud the note is going to get, so we can set max volume to the peak of the
-        Envelope. Honestly, I wish I could separate this implementation detail from the ScampInstrument class, but I
-        don't see how this would be possible.
+            beginning of the note, and thereafter vary volume using expression, and since expression can only make the
+            note quieter, we need to start the note with velocity equal to the max desired volume (using expression to
+            adjust it down to the actual start volume). The default will be 1, meaning as loud as possible, since unless
+            we know in advance what the note is going to do, we need to be prepared to go up to full volume. Using
+            play_note, we do actually know in advance how loud the note is going to get, so we can set max volume to the
+            peak of the Envelope. Honestly, I wish I could separate this implementation detail from the ScampInstrument
+            class, but I don't see how this would be possible.
+        :return: a NoteHandle with which to later manipulate the note
         """
         clock = ScampInstrument._resolve_clock_argument(clock)
 
@@ -471,9 +472,19 @@ class ScampInstrument(SavesToJSON):
     def start_chord(self, pitches, volume, properties=None, clock="auto", silent=False,
                     transcribe=True, fixed=False, max_volume=1):
         """
-        Simple utility for starting chords without having to start each note individually.
-        Simply supply a list of pitches.
-        Returns a ChordHandle, which is used to manipulate the chord thereafter
+        Simple utility for starting chords without starting each note individually.
+
+        :param pitches: a list of pitches
+        :param volume: see start_note
+        :param properties: see start_note. In general, properties are cloned to all members of the chord. However,
+        noteheads can be separately defined using this syntax: "noteheads: diamond / normal / cross"
+        :param clock: see start_note
+        :param silent: see start_note
+        :param transcribe: see start_note
+        :param fixed: see start_note
+        :param max_volume: see start_note
+        :return: a ChordHandle, which is used to manipulate the chord thereafter. Pitch change calls on the ChordHandle
+        are based on the first note of the chord; all other notes are shifted in parallel
         """
         assert hasattr(pitches, "__len__")
 
@@ -505,6 +516,7 @@ class ScampInstrument(SavesToJSON):
     def _standardize_properties(self, raw_properties) -> NotePropertiesDictionary:
         """
         Turns the properties given into the standard form of a NotePropertiesDictionary
+
         :param raw_properties: can be None, a string, a list, or a dict
         :return: a NotePropertiesDictionary
         """
@@ -530,7 +542,8 @@ class ScampInstrument(SavesToJSON):
                               transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="auto"):
         """
         Changes the value of parameter of note playback over a given time; can also take a sequence of targets and times
-        :param note_id: which note to affect
+
+        :param note_id: which note to affect (an id or a NoteHandle)
         :param param_name: name of the parameter to affect. "pitch" and "volume" are special cases
         :param target_value_or_values: target value (or list thereof) for the parameter
         :param transition_length_or_lengths: transition time(s) in beats to the target value(s)
@@ -640,18 +653,37 @@ class ScampInstrument(SavesToJSON):
     def change_note_pitch(self, note_id, target_value_or_values: Union[Sequence, Number],
                           transition_length_or_lengths: Union[Sequence, Number] = 0,
                           transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="auto"):
+        """
+        Change the pitch of an already started note; can also take a sequence of targets and times
+
+        :param note_id: which note to affect (an id or a NoteHandle)
+        :param target_value_or_values: target value (or list thereof) for the parameter
+        :param transition_length_or_lengths: transition time(s) in beats to the target value(s)
+        :param transition_curve_shape_or_shapes: curve shape(s) for the transition(s)
+        :param clock: which clock all of this happens on, "auto" captures the clock from context
+        """
         self.change_note_parameter(note_id, "pitch", target_value_or_values, transition_length_or_lengths,
                                    transition_curve_shape_or_shapes, clock)
 
     def change_note_volume(self, note_id, target_value_or_values: Union[Sequence, Number],
                            transition_length_or_lengths: Union[Sequence, Number] = 0,
                            transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="auto"):
+        """
+        Change the volume of an already started note; can also take a sequence of targets and times
+
+        :param note_id: which note to affect (an id or a NoteHandle)
+        :param target_value_or_values: target value (or list thereof) for the parameter
+        :param transition_length_or_lengths: transition time(s) in beats to the target value(s)
+        :param transition_curve_shape_or_shapes: curve shape(s) for the transition(s)
+        :param clock: which clock all of this happens on, "auto" captures the clock from context
+        """
         self.change_note_parameter(note_id, "volume", target_value_or_values, transition_length_or_lengths,
                                    transition_curve_shape_or_shapes, clock)
 
     def split_note(self, note_id, clock="auto"):
         """
         Adds a split point in a note, causing it later to be rendered as tied pieces.
+
         :param note_id: Which note or NoteHandle to split
         :param clock: Probably shouldn't ever need to mess with this. The clock is used to generate a TimeStamp, so
         all clocks in the same family will lead to the same result.
@@ -667,6 +699,7 @@ class ScampInstrument(SavesToJSON):
         Ends the note with the given note id. If none is specified, it ends the note we started longest ago.
         Note that this only applies to notes started in an open-ended way with 'start_note', notes created
         using play_note have their lifecycle controlled automatically.
+
         :param note_id: either the id itself or a NoteHandle with that id
         :param clock: just used to capture the ending TimeStamp
         """
@@ -752,6 +785,11 @@ class ScampInstrument(SavesToJSON):
         return self
 
     def remove_soundfont_playback(self):
+        """
+        Remove the most recent SoundfontPlaybackImplementation from this instrument
+
+        :return self
+        """
         for index in reversed(range(len(self.playback_implementations))):
             if isinstance(self.playback_implementations[index], SoundfontPlaybackImplementation):
                 self.playback_implementations.pop(index)
@@ -760,10 +798,24 @@ class ScampInstrument(SavesToJSON):
 
     def add_streaming_midi_playback(self, midi_output_device="default", num_channels=8,
                                     midi_output_name=None, max_pitch_bend="default"):
+        """
+        Add a streaming MIDI playback implementation for this instrument
+
+        :param midi_output_device: name or number of the device to use
+        :param num_channels: how many channels to allocate for managing pitch bends, etc.
+        :param midi_output_name: name given to the output stream
+        :param max_pitch_bend: max pitch bend to allow
+        :return: self
+        """
         MIDIStreamPlaybackImplementation(self, midi_output_device, num_channels, midi_output_name, max_pitch_bend)
         return self
 
     def remove_streaming_midi_playback(self):
+        """
+        Remove the most recent MIDIStreamPlaybackImplementation from this instrument
+
+        :return self
+        """
         for index in reversed(range(len(self.playback_implementations))):
             if isinstance(self.playback_implementations[index], MIDIStreamPlaybackImplementation):
                 self.playback_implementations.pop(index)
@@ -771,10 +823,26 @@ class ScampInstrument(SavesToJSON):
         return self
 
     def add_osc_playback(self, port, ip_address="127.0.0.1", message_prefix=None, osc_message_addresses="default"):
+        """
+        Add an OSC playback implementation for this instrument
+
+        :param port: port to use
+        :param ip_address: ip address to use
+        :param message_prefix: the prefix to give to all outgoing osc messages; defaults to the instrument name
+            with all spaces removed.
+        :param osc_message_addresses: the specifix message addresses to be used for each type of message. Defaults are
+            defined in playback_settings
+        :return: self
+        """
         OSCPlaybackImplementation(self, port, ip_address, message_prefix, osc_message_addresses)
         return self
 
     def remove_osc_playback(self):
+        """
+        Remove the most recent OSCPlaybackImplementation from this instrument
+
+        :return self
+        """
         for index in reversed(range(len(self.playback_implementations))):
             if isinstance(self.playback_implementations[index], OSCPlaybackImplementation):
                 self.playback_implementations.pop(index)
@@ -786,11 +854,17 @@ class ScampInstrument(SavesToJSON):
     """
 
     def set_max_pitch_bend(self, semitones):
+        """
+        Set the max pitch bend for all midi playback implementations on this instrument
+        """
         for playback_implementation in self.playback_implementations:
             playback_implementation.set_max_pitch_bend(semitones)
 
     @property
     def default_spelling_policy(self):
+        """
+        Set the default spelling policy for notes played back by this instrument
+        """
         return self._default_spelling_policy
 
     @default_spelling_policy.setter

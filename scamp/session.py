@@ -14,13 +14,14 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
                  default_midi_output_device="default"):
         """
         A Session combines the functionality of a master clock, an ensemble, and a transcriber.
+
         :param tempo: the initial tempo of the master clock
         :param default_soundfont: the default soundfont used by instruments in this session. (Can be overridden at
-        instrument creation.)
+            instrument creation.)
         :param default_audio_driver: the default driver used by (soundfont) instruments to output audio. (Can be
-        overridden at instrument creation.)
+            overridden at instrument creation.)
         :param default_midi_output_device: the default midi_output_device for outgoing midi streams. (Again, can be
-        overridden at instrument creation.)
+            overridden at instrument creation.)
         """
 
         # noinspection PyArgumentList
@@ -53,13 +54,14 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
                                time_resolution=0.005, synchronous=True):
         """
         Register a callback_function to respond to incoming midi events from port_number_or_device_name
+
         :param port_number_or_device_name: either the port number to be used, or an device name for which the port
-        number will be determined.
+            number will be determined.
         :param callback_function: the callback function used when a new midi event arrives. Should take either one
-        argument (the midi message) or two arguments (the midi message, and the dt since the last message)
+            argument (the midi message) or two arguments (the midi message, and the dt since the last message)
         :param time_resolution: time resolution used in checking for midi events
-        :param synchronous: controls whether this callback operates as a synchronous child clock or as an asynchronous
-        parallel thread
+        :param synchronous: controls whether this callback operates as a synchronous child clock or as an
+            asynchronous parallel thread
         """
         start_midi_listener(port_number_or_device_name, callback_function,
                             clock=self, time_resolution=time_resolution, synchronous=synchronous)
@@ -69,6 +71,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
     def start_recording(self, instruments: Sequence[ScampInstrument] = None, clock: Clock = None, units="beats"):
         """
         Starts a recording, defaults to using the session (master) clock and all session instruments
+
         :param instruments: which instruments to record
         :param clock: which clock to record on, i.e. what are all the timings notated relative to
         :param units: one of ["beats", "time"]. Do we use the beats of the clock or the time?
@@ -76,22 +79,6 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         """
         return super().start_recording(self.instruments if instruments is None else instruments,
                                        self if clock is None else clock, units=units)
-
-    @property
-    def default_spelling_policy(self):
-        """
-        Default spelling policy used for recordings made with this Session.
-        """
-        return self._default_spelling_policy
-
-    @default_spelling_policy.setter
-    def default_spelling_policy(self, value):
-        if value is None or isinstance(value, SpellingPolicy):
-            self._default_spelling_policy = value
-        elif isinstance(value, str):
-            self._default_spelling_policy = SpellingPolicy.from_string(value)
-        else:
-            raise ValueError("Spelling policy not understood.")
 
     def to_json(self):
         json_object = Ensemble.to_json(self)

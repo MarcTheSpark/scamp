@@ -78,10 +78,11 @@ class PerformanceNote(SavesToJSON):
         """
         Utility method for splitting a note length into two pieces, including the case that the length is a tuple
         For instance, if length = (3, 2, 4) and the split_point = 4.5, this gives us the tuple (3, 1.5) and (0.5, 4)
+
         :param length: a note length, either a number or a tuple of numbers representing tied segments
         :param split_point: where to split the length
         :return: tuple of (first half length, second half length). Each of these lengths may themselves be a tuple,
-        or may be a single number if they are not split.
+            or may be a single number if they are not split.
         """
         # raise an error if we try to split at a non-positive value or a value greater than the length
         if split_point <= 0 or split_point >= (sum(length) if hasattr(length, "__len__") else length):
@@ -110,6 +111,7 @@ class PerformanceNote(SavesToJSON):
     def split_at_beat(self, split_beat):
         """
         Splits this note at the given beat, returning a tuple of the pieces created
+
         :param split_beat: where to split (relative to the performance start time, not the note start time)
         :return: tuple of (first half note, second half note) if split beat is within the note.
         Otherwise just return the unchanged note in a length-1 tuple.
@@ -178,6 +180,7 @@ class PerformanceNote(SavesToJSON):
     def split_at_length_divisions(self):
         """
         If the self.length is a tuple, indicating a set of tied constituents, splits this into separate PerformanceNotes
+
         :return: a list of pieces
         """
 
@@ -192,6 +195,7 @@ class PerformanceNote(SavesToJSON):
     def attempt_chord_merger_with(self, other):
         """
         Try to merge this note with another note to form a chord.
+
         :param other: another PerformanceNote
         :return: True if the merger works, False otherwise
         """

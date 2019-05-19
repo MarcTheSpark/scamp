@@ -1,4 +1,4 @@
-from .dependencies import rtmidi
+from ._dependencies import rtmidi
 
 
 def get_best_name_match(names_list, desired_name):
@@ -6,6 +6,7 @@ def get_best_name_match(names_list, desired_name):
     Looks initially for first exact case-sensitive match for desired_name in names_list. Then looks for
     first case insensitive match. Then looks for anything containing desired_name (case insensitive).
     Outputs None if this all fails
+
     :param names_list: list of names to search through
     :param desired_name: name to match
     :return: str of best match to desired name in names_list

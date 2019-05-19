@@ -4,10 +4,10 @@ from .quantization import QuantizationRecord, QuantizationScheme, TimeSignature
 from .performance_note import PerformanceNote
 from .utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y, \
     ceil_to_multiple, floor_to_multiple
-from .engraving_translations import get_xml_notehead, get_lilypond_notehead_name, articulation_to_xml_element_name
+from ._engraving_translations import get_xml_notehead, get_lilypond_notehead_name, articulation_to_xml_element_name
 from .note_properties import NotePropertiesDictionary
 import pymusicxml
-from .dependencies import abjad
+from ._dependencies import abjad
 import math
 from fractions import Fraction
 from itertools import permutations
@@ -198,6 +198,7 @@ stemless = {
     def _to_abjad(self):
         """
         Convert this to an abjad representation
+
         :return: the abjad translation of this score component, possibly missing needed definitions and overrides
         """
         pass
@@ -223,6 +224,7 @@ stemless = {
     def to_abjad(self):
         """
         This wrapper around the _to_abjad implementation details makes sure we incorporate the appropriate definitions
+
         :return: the abjad translation of this score component, ready to show
         """
         assert abjad is not None, "Abjad is required for this operation."
@@ -533,11 +535,12 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         If there's a measure break but not a rest, we're probably in the middle of a melodic gesture, so don't want to
         separate. If there's a rest but not a measure break then we should also probably keep the notes together in a
         single voice, since they were specified to be in the same voice.
+
         :param quantized_performance_part: a quantized PerformancePart
         :return: a tuple of (numbered_fragments, named_fragments), where the numbered_fragments come from numbered voices
-        and are of the form (voice_num, notes_list, start_measure_num, end_measure_num, measure_quantization_schemes),
-        while the named_fragments are of the form (notes_list, start_measure_num, end_measure_num,
-        measure_quantization_schemes)
+            and are of the form (voice_num, notes_list, start_measure_num, end_measure_num, measure_quantization_schemes),
+            while the named_fragments are of the form (notes_list, start_measure_num, end_measure_num,
+            measure_quantization_schemes)
         """
         fragments = []
 
@@ -649,6 +652,7 @@ class StaffGroup(ScoreComponent, ScoreContainer):
     def from_measure_voice_grid(cls, measure_bins, quantization_record, name=None):
         """
         Creates a StaffGroup with Staves that accommodate engraving_settings.max_voices_per_part voices each
+
         :param measure_bins: a list of voice lists (can be many voices each)
         :param quantization_record: a QuantizationRecord
         :param name: name for the staff group; the staves will get named, e.g. "piano [1]", "piano [2]", etc.
@@ -970,6 +974,7 @@ class Voice(ScoreComponent, ScoreContainer):
     def from_performance_voice(cls, notes, measure_quantization):
         """
         This is where a lot of the magic of converting performed notes to written symbols occurs.
+
         :param notes: the list of PerformanceNotes played in this measure
         :param measure_quantization: the quantization used for this measure for this voice
         :return: a Voice object containing all the notation
@@ -1227,6 +1232,7 @@ class NoteLike(ScoreComponent):
     def __init__(self, pitch, written_length, properties):
         """
         Represents note, chord, or rest that can be notated without ties
+
         :param pitch: tuple if a pitch, None if a rest
         """
         self.pitch = pitch
@@ -1264,6 +1270,7 @@ class NoteLike(ScoreComponent):
         The idea here is that the control points that matter are the ones that aren't near others or an endpoint
         (temporal_relevance) and are a significant deviation in pitch from the assumed interpolated pitch if we
         didn't notate them (pitch_deviation).
+
         :param pitch_envelope: a pitch Envelope (gliss)
         :return: a list of the important control points
         """
@@ -1318,9 +1325,10 @@ class NoteLike(ScoreComponent):
         """
         Convert this NoteLike to an abjad note, chord, or rest, along with possibly some headless grace notes to
         represent important changes of direction in a glissando, if the glissando engraving setting are set to do so
+
         :param source_id_dict: a dictionary keeping track of which abjad notes come from the same original
-        PerformanceNote. This is populated here when the abjad notes are generated, and then later, once a whole
-        staff of notes has been generated, ties and glissandi are added accordingly.
+            PerformanceNote. This is populated here when the abjad notes are generated, and then later, once a whole
+            staff of notes has been generated, ties and glissandi are added accordingly.
         :return: an abjad note, chord, or rest, possibly with an attached AfterGraceContainer
         """
         # abjad duration

@@ -4,7 +4,7 @@ from clockblocks import fork_unsynchronized
 import time
 from abc import ABC, abstractmethod
 import atexit
-from .dependencies import udp_client
+from ._dependencies import udp_client
 
 
 class PlaybackImplementation(ABC):

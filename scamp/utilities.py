@@ -32,6 +32,7 @@ def resolve_relative_path(file_name, from_root_process=False):
     If this is running in any other context, then we inspect the stack to find the module that made
     this call, and resolve the path relative to the directory in which that module resides.
     Optionally, if the 'from_root_process' flag is on, we resolve relative to this root module
+
     :param file_name: a relative path to be resolved
     :type file_name: str
     :param from_root_process: whether or not to resolve based on the location of the root module
@@ -144,6 +145,7 @@ def prime_factor(n):
 def make_flat_list(l, indivisible=None):
     """
     Flattens a list, including ones containing multiple levels of nesting. Certain types can be excluded from expansion
+
     :param l: a list or similar iterable
     :param indivisible: a type or tuple of types that should not be expanded out. E.g. a custom named tuple
     :return: a flattened version of the list
@@ -167,6 +169,7 @@ def make_flat_list(l, indivisible=None):
 def rotate(l, n):
     """
     rotates a list such that it starts at the nth index and loops back to end at the (n-1)st
+
     :param l: the input list
     :param n: the new start index
     :return: the rotated list

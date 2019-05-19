@@ -1,5 +1,5 @@
 from .utilities import SavesToJSON
-from .engraving_translations import *
+from ._engraving_translations import *
 from expenvelope import Envelope
 import json
 

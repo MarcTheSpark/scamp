@@ -16,11 +16,12 @@ class PerformancePart(SavesToJSON):
     def __init__(self, instrument=None, name=None, voices=None, instrument_id=None, voice_quantization_records=None):
         """
         Recording of the notes played by a ScampInstrument. Can be saved to json and played back on a clock.
+
         :param instrument: the ScampInstrument associated with this part; used for playback
         :param name: The name of this part
         :param voices: either a list of PerformanceNotes (which is interpreted as one unnamed voice), a list of lists
-        of PerformanceNotes (which is interpreted as several numbered voices), or a dictionary mapping voice names
-        to lists of notes.
+            of PerformanceNotes (which is interpreted as several numbered voices), or a dictionary mapping voice names
+            to lists of notes.
         :param instrument_id: a json serializable record of the instrument used
         :param voice_quantization_records: a record of how this part was quantized if it has been quantized
         """

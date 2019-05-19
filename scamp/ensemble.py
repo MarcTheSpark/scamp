@@ -11,12 +11,13 @@ class Ensemble(SavesToJSON):
                  default_midi_output_device="default"):
         """
         Host for multiple ScampInstruments, keeping shared resources, and shared default settings
+
         :param default_audio_driver: the audio driver instruments in this ensemble will default to. If "default", then
-        this defers to the scamp global playback_settings default.
+            this defers to the scamp global playback_settings default.
         :param default_soundfont: the soundfont that instruments in this ensemble will default to. If "default", then
-        this defers to the scamp global playback_settings default.
+            this defers to the scamp global playback_settings default.
         :param default_midi_output_device: the midi output device that instruments in this ensemble will default to.
-        If "default", then this defers to the scamp global playback_settings default.
+            If "default", then this defers to the scamp global playback_settings default.
         """
         self.default_soundfont = default_soundfont
         self.default_audio_driver = default_audio_driver
@@ -30,7 +31,7 @@ class Ensemble(SavesToJSON):
     def add_instrument(self, instrument: ScampInstrument):
         """
         Adds an instance of ScampInstrument to this Ensemble. Generally this will be done indirectly
-        by calling one of the "new_instrument" methods
+        by calling one of the "new_instrument" methods.
         """
         assert isinstance(instrument, ScampInstrument)
         if not hasattr(instrument, "name") or instrument.name is None:
@@ -66,12 +67,13 @@ class Ensemble(SavesToJSON):
         """
         The default "new_part" is going to employ the SoundfontPlaybackImplementation, and by default,
         it will search for a preset that matches the name given.
+
         :param name: name used for this instrument in score, etc.
         :param preset: if an int, assumes bank #0; can also be a tuple of form (bank, preset). If "auto", searches
-        for a preset of the appropriate name.
+            for a preset of the appropriate name.
         :param soundfont: the name of the soundfont to use for fluidsynth playback
         :param num_channels: maximum of midi channels available to this midi part. It's wise to use more when doing
-        microtonal playback, since pitch bends are applied per channel.
+            microtonal playback, since pitch bends are applied per channel.
         :param audio_driver: which audio driver to use for this instrument (defaults to ensemble default)
         :param max_pitch_bend: max pitch bend to use for this instrument
         """
@@ -97,12 +99,12 @@ class Ensemble(SavesToJSON):
                       midi_output_name=None, max_pitch_bend="default"):
         """
         Adds a part implementing a MIDIStreamPlaybackImplementation
-        :param name: name used for this instrument in score, etc.
-        for a preset of the appropriate name.
+
+        :param name: name used for this instrument in score, etc. for a preset of the appropriate name.
         :param midi_output_device: device used to output midi. Call get_available_midi_output_devices to check
-        what's available.
+            what's available.
         :param num_channels: maximum of midi channels available to this midi part. It's wise to use more when doing
-        microtonal playback, since pitch bends are applied per channel.
+            microtonal playback, since pitch bends are applied per channel.
         :param midi_output_name: name of this part
         :param max_pitch_bend: max pitch bend to use for this instrument
         """
@@ -119,14 +121,14 @@ class Ensemble(SavesToJSON):
                      osc_message_addresses="default"):
         """
         Adds a part implementing a MIDIStreamPlaybackImplementation
-        :param name: name used for this instrument in score, etc.
-        for a preset of the appropriate name.
+
+        :param name: name used for this instrument in score, etc. for a preset of the appropriate name.
         :param port: port osc messages are sent to
         :param ip_address: ip_address osc messages are sent to
         :param message_prefix: prefix used for this instrument in osc messages
         :param osc_message_addresses: dictionary defining the address used for each type of playback message. defaults
-        to using "start_note", "end_note", "change_pitch", "change_volume", "change_parameter". The default can
-        be changed in playback settings.
+            to using "start_note", "end_note", "change_pitch", "change_volume", "change_parameter". The default can
+            be changed in playback settings.
         """
         name = "Track " + str(len(self.instruments) + 1) if name is None else name
 
@@ -154,10 +156,16 @@ class Ensemble(SavesToJSON):
         return imperfect_match
 
     def print_default_soundfont_presets(self):
+        """
+        Print a list of presets available with the default soundfont.
+        """
         print_soundfont_presets(self.default_soundfont)
 
     @property
     def default_spelling_policy(self):
+        """
+        Default spelling policy used for recordings made with this Session.
+        """
         return self._default_spelling_policy
 
     @default_spelling_policy.setter
