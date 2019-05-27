@@ -423,6 +423,7 @@ class ScampInstrument(SavesToJSON):
         # generate a new id for this note, and set up all of its info
         note_id = next(ScampInstrument._note_id_generator)
         self._note_info_by_id[note_id] = {
+            "clock": clock,
             "start_time": TimeStamp(clock),
             "end_time": None,
             "split_points": [],
@@ -539,7 +540,7 @@ class ScampInstrument(SavesToJSON):
 
     def change_note_parameter(self, note_id, param_name, target_value_or_values: Union[Sequence, Number],
                               transition_length_or_lengths: Union[Sequence, Number] = 0,
-                              transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="auto"):
+                              transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="from_note"):
         """
         Changes the value of parameter of note playback over a given time; can also take a sequence of targets and times
 
@@ -548,12 +549,16 @@ class ScampInstrument(SavesToJSON):
         :param target_value_or_values: target value (or list thereof) for the parameter
         :param transition_length_or_lengths: transition time(s) in beats to the target value(s)
         :param transition_curve_shape_or_shapes: curve shape(s) for the transition(s)
-        :param clock: which clock all of this happens on, "auto" captures the clock from context
+        :param clock: which clock all of this happens on; "auto" captures the clock from context, and "from_note"
+            simply reuses the clock that the note started on.
         """
-        clock = ScampInstrument._resolve_clock_argument(clock)
-
         note_id = note_id.note_id if isinstance(note_id, NoteHandle) else note_id
         note_info = self._note_info_by_id[note_id]
+
+        if clock == "from_note":
+            clock = note_info["clock"]
+        else:
+            clock = ScampInstrument._resolve_clock_argument(clock)
 
         if "fixed" in note_info["flags"] and param_name in ("pitch", "volume"):
             raise Exception("Cannot change pitch or volume of a note with 'fixed' set to True.")
@@ -652,7 +657,7 @@ class ScampInstrument(SavesToJSON):
 
     def change_note_pitch(self, note_id, target_value_or_values: Union[Sequence, Number],
                           transition_length_or_lengths: Union[Sequence, Number] = 0,
-                          transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="auto"):
+                          transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="from_note"):
         """
         Change the pitch of an already started note; can also take a sequence of targets and times
 
@@ -667,7 +672,7 @@ class ScampInstrument(SavesToJSON):
 
     def change_note_volume(self, note_id, target_value_or_values: Union[Sequence, Number],
                            transition_length_or_lengths: Union[Sequence, Number] = 0,
-                           transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="auto"):
+                           transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="from_note"):
         """
         Change the volume of an already started note; can also take a sequence of targets and times
 
@@ -680,31 +685,35 @@ class ScampInstrument(SavesToJSON):
         self.change_note_parameter(note_id, "volume", target_value_or_values, transition_length_or_lengths,
                                    transition_curve_shape_or_shapes, clock)
 
-    def split_note(self, note_id, clock="auto"):
+    def split_note(self, note_id, clock="from_note"):
         """
         Adds a split point in a note, causing it later to be rendered as tied pieces.
 
         :param note_id: Which note or NoteHandle to split
-        :param clock: Probably shouldn't ever need to mess with this. The clock is used to generate a TimeStamp, so
-        all clocks in the same family will lead to the same result.
+        :param clock: Probably shouldn't ever need to mess with this. "from_note" just reuses the clock that the note
+            started on. At any rate, the clock is just used to generate a TimeStamp, so all clocks in the same family
+            will lead to the same result.
         """
-        clock = ScampInstrument._resolve_clock_argument(clock)
-
         note_id = note_id.note_id if isinstance(note_id, NoteHandle) else note_id
         note_info = self._note_info_by_id[note_id]
+
+        if clock == "from_note":
+            clock = note_info["clock"]
+        else:
+            clock = ScampInstrument._resolve_clock_argument(clock)
+
         note_info["split_points"].append(TimeStamp(clock))
 
-    def end_note(self, note_id=None, clock="auto"):
+    def end_note(self, note_id=None, clock="from_note"):
         """
         Ends the note with the given note id. If none is specified, it ends the note we started longest ago.
         Note that this only applies to notes started in an open-ended way with 'start_note', notes created
         using play_note have their lifecycle controlled automatically.
 
         :param note_id: either the id itself or a NoteHandle with that id
-        :param clock: just used to capture the ending TimeStamp
+        :param clock: just used to capture the ending TimeStamp. "from_note" just reuses the clock that the note
+            started on.
         """
-        clock = ScampInstrument._resolve_clock_argument(clock)
-
         # in case we're passed a NoteHandle instead of an actual id number, get the number from the handle
         note_id = note_id.note_id if isinstance(note_id, NoteHandle) else note_id
 
@@ -721,8 +730,15 @@ class ScampInstrument(SavesToJSON):
             logging.warning("Tried to end a note that was never started!")
             return
 
-        # end any segments that are still changing
         note_info = self._note_info_by_id[note_id]
+
+        # resolve the clock to use
+        if clock == "from_note":
+            clock = note_info["clock"]
+        else:
+            clock = ScampInstrument._resolve_clock_argument(clock)
+
+        # end any segments that are still changing
         for param_name in note_info["parameter_change_segments"]:
             if len(note_info["parameter_change_segments"][param_name]) > 0:
                 note_info["parameter_change_segments"][param_name][-1].abort_if_running()
