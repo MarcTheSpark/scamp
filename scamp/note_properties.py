@@ -159,7 +159,7 @@ class NotePropertiesDictionary(dict, SavesToJSON):
         # if we've been given extra parameters of playback, and their values are envelopes written as lists, etc.
         # this converts them all to Envelope objects
         for key, value in self.items():
-            if key.startswith("param_") or key.endswith("_param") and hasattr(value, "__len__"):
+            if key.startswith("param_") or key.endswith("_param") and isinstance(value, (list, tuple)):
                 self[key] = Envelope.from_list(value)
 
     @property
@@ -304,6 +304,12 @@ class NotePropertiesDictionary(dict, SavesToJSON):
         if self["spelling_policy"] is None:
             del json_friendly_dict["spelling_policy"]
 
+        # when saving to json, any extra playback parameters that are envelopes must be converted
+        # to a json-friendly dictionary representation of the envelope
+        for key, value in json_friendly_dict.items():
+            if (key.startswith("param_") or key.endswith("_param")) and isinstance(value, Envelope):
+                json_friendly_dict[key] = value.to_json()
+
         return json_friendly_dict
 
     @classmethod
@@ -314,6 +320,13 @@ class NotePropertiesDictionary(dict, SavesToJSON):
                                                    for x in json_object["playback adjustments"]]
         if "spelling_policy" in json_object:
             json_object["spelling_policy"] = SpellingPolicy.from_json(json_object["spelling_policy"])
+
+        # if there are extra parameters of playback which were given envelopes, those envelopes will be have been
+        # converted to their json-friendly dictionary representations, This converts them back to envelopes
+        for key, value in json_object.items():
+            if key.startswith("param_") or key.endswith("_param") and isinstance(value, dict):
+                json_object[key] = Envelope.from_json(value)
+
         return cls(**json_object)
 
     def __repr__(self):
