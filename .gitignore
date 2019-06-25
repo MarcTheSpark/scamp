@@ -4,3 +4,6 @@ build
 dist
 *.egg-info
 *__pycache__
+docs
+!docs/persistent
+!docs/conf.py
