@@ -199,11 +199,9 @@ For any other _python-rtmidi_ installation woes, take a look at the installation
 
 ### 4) (Optional) Installing abjad
 
-For lilypond output, you will need the [_abjad_](http://abjad.mbrsi.org/installation.html) library. In future, this should be as simple as:
-
-`pip3 install --user abjad`
-
-...however, currently you will need the newest version of abjad from the github repository. You can install this with the following:
+For lilypond output, you will need the [_abjad_](http://abjad.mbrsi.org/installation.html) library. Currently, SCAMP 
+requires the latest version from the _abjad_ github repository, since there have been some changes that make the version 
+on PyPI (which is what `pip` uses) incompatible. In order to install the latest version, run the following:
 
 ```
 git clone https://github.com/Abjad/abjad.git
@@ -211,10 +209,15 @@ cd abjad
 pip3 install .
 ```
 
-The first line might take a while, since the git repository is hundreds of megabytes. Once you've
-installed the package, you can remove the bulky repo with:
+Note that this requires you to have `git` installed. If you need to install git, it should be fairly straightforward 
+to follow the [instructions on this website](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
+
+The first line might take a while, since it's downloading the whole history of the abjad repository, which is hundreds 
+of megabytes. Once you've installed the package, you can remove the bulky repo with:
 
 ```
 cd ..
 rm -r abjad
 ```
+
+In the future, once a new version of abjad is pushed to PyPI, this process will be replaced by a much easier one-line pip install.
