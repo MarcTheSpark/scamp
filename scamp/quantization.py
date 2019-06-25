@@ -380,6 +380,8 @@ class BeatQuantizationScheme:
         # actual length of the beat
         self.length = float(length)
         self.length_as_fraction = Fraction(length).limit_denominator()
+        assert is_x_pow_of_y(self.length_as_fraction.denominator, 2), \
+            "Beat length must be some multiple of a power of 2 division of the bar."
 
         # now we populate a self.quantization_divisions with tuples consisting of the allowed divisions and
         # their undesirabilities. Undesirability is a factor by which the error in a given quantization option
