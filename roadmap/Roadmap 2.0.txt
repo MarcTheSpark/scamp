@@ -1,0 +1,26 @@
+Quantization:
+    - Incorporate Paul Nauert's Q-Grid quantization ideas.
+
+Playback:
+    - Switch to LinuxSampler as default, enabling use of .sfz files
+    - Key-switches that allow the nature of the playback of a single instrument to change. This would be done via the
+    properties dictionary, I think, maybe also affecting notation?
+
+Engraving:
+    - Engraving Dynamics, both at the note level and the phrase level. Perhaps do this by allowing the user to define
+    dynamics notations along with their effect on playback. These would then affect both playback and notation. An
+    other possibility might be to define DynamicEnvelope("fp<f") objects, in which a string is parsed into both a volume
+    envelope and a notation.
+    - Engraving slurs?
+    - Should it be possible to signal notations that are not written as notes. E.g. a key-switch maybe should be a
+    notation that affects from then on? Or a clef change -- how do we do that?
+    - Engraving nested tuplets, representing them in the Score object.
+
+Pymusicxml:
+    - Make nested tuplets possible
+
+Clockblocks:
+    - Add "run_with_latency" to clocks, maybe using a pyaudio callback? Use this to play notes.
+
+Other:
+    - Possible integration with IPython notebook? Maybe start with expenvelope?

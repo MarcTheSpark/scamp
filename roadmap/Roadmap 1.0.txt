@@ -1,0 +1,32 @@
+Documentation:
+    - Basic Tutorial, intermixing the examples in the tutorial directory with text
+    - Add "anatomy of a play_note call" (start and end note stuff) to the paper, right after the blocking example.
+    Then add an explanation / example of changing parameters mid-note after discussing envelopes and glissandi
+    - Add quantization explanation to the paper, and a reference to the future possibility of using Q-grids
+
+Quantization:
+    - Make quantization parameters accessible without creating a whole quantization scheme. Some cleanup is needed in
+    that whole interface.
+
+Engraving:
+    - Get recombination of larger notes working
+    - Get Tempo curves working in abjad
+    - Engraving sudden tempo changes correctly, test this thoroughly
+    - Engraving Microtonal adjustments: make it chords, as well as for glissandi, and in both abjad and MusicXML.
+    - Engraving of correct clef for a part as a whole. Maybe by using instrument defaults based on name and then falling
+    back to the average pitch.
+    - Arbitrary text annotations passed through the properties dictionary. Should there by a CombinedPropertyChange
+    class that allows for a notation and playback change?
+    - Dynamics (just as annotations to notes)
+    - Engraving Trills, mordents and other symbol notations like that (perhaps, for now, affect playback by adding a
+    square wave for a trill, similar thing with mordent).
+
+Clockblocks:
+    - Make it so that when the master clock is woken up early (by setting its "wake_event", it then re-orients itself
+    and all child clocks.
+    - Maybe then allow that to lead to good midi input
+    - Specifying metric phase goals with clocks
+
+Bugs:
+    - Solve the "midwait" bug. If a clock's tempo is changed in the middle of a wait call, it should probably be woken
+    up and recalculated, right? This is related to the need to make clockblocks wake-able.
