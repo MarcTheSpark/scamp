@@ -4,6 +4,9 @@ from .playback_adjustments import PlaybackDictionary, NotePlaybackAdjustment
 from .spelling import SpellingPolicy
 import logging
 import json
+import platform
+import shutil
+import subprocess
 
 
 class ScampSettings(SimpleNamespace, SavesToJSON):
@@ -267,7 +270,7 @@ class EngravingSettings(ScampSettings):
         "glissandi": GlissandiSettings(),
         "tempo": TempoSettings(),
         "pad_incomplete_parts": True,
-        "show_music_xml_command_line": "musescore",
+        "show_music_xml_command_line": "auto",
     }
 
     _settings_name = "Engraving settings"
@@ -282,6 +285,52 @@ class EngravingSettings(ScampSettings):
         self.glissandi: GlissandiSettings = None
         self.tempo: TempoSettings = None
         super().__init__(settings_dict)
+        if self.show_music_xml_command_line is None or self.show_music_xml_command_line == "auto":
+            self._auto_set_music_xml_open_command()
+            self.make_persistent()
+
+    def _auto_set_music_xml_open_command(self):
+        print("Testing for software to open MusicXML files...")
+        app_names_to_try = ["MuseScore", "Sibelius", "Finale", "Dorico"]
+        platform_system = platform.system().lower()
+        if platform_system in ("linux", "windows"):
+            for cmd in [x.lower() for x in app_names_to_try] + app_names_to_try:
+                if shutil.which(cmd) is not None:
+                    print("Found application {}. This has been made the default, "
+                          "but it can be altered via the engraving settings.".format(cmd))
+                    self.set_show_music_xml_application(cmd)
+                    return
+            # if we can't find the appropriate application, set it to a generic open command
+            print("Could not find an appropriate application; falling back to generic open command.")
+            self.set_show_music_xml_application()
+        elif platform_system == "darwin":
+            for app_name in app_names_to_try:
+                if subprocess.call(["open", "-Ra", app_name]) == 0:
+                    print("Found application {}. This has been made the default, "
+                          "but it can be altered via the engraving settings.".format(app_name))
+                    self.set_show_music_xml_application(app_name)
+                    return
+            # if we can't find the appropriate application, set it to a generic open command
+            print("Could not find an appropriate application; falling back to generic open command.")
+            self.set_show_music_xml_application()
+        else:
+            raise Exception("Cannot run \"show_xml\" on unrecognized platform {}".format(platform_system))
+
+    def set_show_music_xml_application(self, application_name=None):
+        platform_system = platform.system().lower()
+        if platform_system == "linux":
+            # generic open command on linux is "xdg-open"
+            self.show_music_xml_command_line = application_name if application_name is not None else "xdg-open"
+        elif platform_system == "darwin":
+            # generic open command on mac is "open"
+            self.show_music_xml_command_line = "open -a {}".format(application_name) \
+                if application_name is not None else "open"
+        elif platform_system == "Windows":
+            # generic open command on windows is "start"
+            self.show_music_xml_command_line = "start \"\" \"{}\"".format(application_name) \
+                if application_name is not None else "start"
+        else:
+            raise Exception("Cannot run \"show_xml\" on unrecognized platform {}".format(platform_system))
 
     def get_default_title(self):
         if isinstance(self.default_titles, list):
