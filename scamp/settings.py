@@ -271,6 +271,7 @@ class EngravingSettings(ScampSettings):
         "tempo": TempoSettings(),
         "pad_incomplete_parts": True,
         "show_music_xml_command_line": "auto",
+        "show_microtonal_annotations": False,
     }
 
     _settings_name = "Engraving settings"
@@ -281,7 +282,7 @@ class EngravingSettings(ScampSettings):
         # This is here to help with auto-completion so that the IDE knows what attributes are available
         self.max_voices_per_part = self.max_dots_allowed = self.articulation_split_protocols = self.default_titles = \
             self.default_composers = self.default_spelling_policy = self.ignore_empty_parts = \
-            self.pad_incomplete_parts = self.show_music_xml_command_line = None
+            self.pad_incomplete_parts = self.show_music_xml_command_line = self.show_microtonal_annotations = None
         self.glissandi: GlissandiSettings = None
         self.tempo: TempoSettings = None
         super().__init__(settings_dict)

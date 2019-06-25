@@ -1483,13 +1483,23 @@ class NoteLike(ScoreComponent):
         if self.is_rest():
             return pymusicxml.Rest(self.written_length),
         elif self.is_chord():
+            start_pitches = tuple(p.start_level() if isinstance(p, Envelope) else p for p in self.pitch)
+
+            # if any of the starting pitches are not integers, and we are showing microtonal annotations,
+            # add a text direction stating what the true pitches of the chord should be
+            if any(x != int(x) for x in start_pitches) and engraving_settings.show_microtonal_annotations:
+                directions = (pymusicxml.TextAnnotation("({})".format(
+                    "; ".join(str(round(p, 3)) for p in start_pitches)
+                ), italic=True), )
+            else:
+                directions = ()
+
             out = [pymusicxml.Chord(
-                tuple(self.properties.spelling_policy.resolve_music_xml_pitch(
-                    p.start_level() if isinstance(p, Envelope) else p
-                ) for p in self.pitch),
+                tuple(self.properties.spelling_policy.resolve_music_xml_pitch(p) for p in start_pitches),
                 self.written_length, ties=self._get_xml_tie_state(),
                 noteheads=tuple(get_xml_notehead(notehead) if notehead != "normal" else None
-                                for notehead in self.properties.noteheads)
+                                for notehead in self.properties.noteheads),
+                directions=directions
             )]
             if self.does_glissando():
                 grace_points = self._get_grace_points(engraving_settings.glissandi.max_inner_graces_music_xml)
@@ -1505,13 +1515,21 @@ class NoteLike(ScoreComponent):
                         ))
 
         else:
+            start_pitch = self.pitch.start_level() if isinstance(self.pitch, Envelope) else self.pitch
+
+            # if the starting pitch is not an integer, and we are showing microtonal annotations,
+            # add a text direction stating what the true pitch of the note should be
+            if start_pitch != int(start_pitch) and engraving_settings.show_microtonal_annotations:
+                directions = (pymusicxml.TextAnnotation("({})".format(round(start_pitch, 3)), italic=True), )
+            else:
+                directions = ()
+
             out = [pymusicxml.Note(
-                self.properties.spelling_policy.resolve_music_xml_pitch(
-                    self.pitch.start_level() if isinstance(self.pitch, Envelope) else self.pitch
-                ),
+                self.properties.spelling_policy.resolve_music_xml_pitch(start_pitch),
                 self.written_length, ties=self._get_xml_tie_state(),
                 notehead=(get_xml_notehead(self.properties.noteheads[0])
-                          if self.properties.noteheads[0] != "normal" else None)
+                          if self.properties.noteheads[0] != "normal" else None),
+                directions=directions
             )]
             if self.does_glissando():
                 grace_points = self._get_grace_points(engraving_settings.glissandi.max_inner_graces_music_xml)
