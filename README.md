@@ -1,6 +1,6 @@
-# SCAMP (Suite for Composing Algorithmic Music in Python)
+# SCAMP (Suite for Computer-Assisted Music in Python)
 
-SCAMP is an algorithmic composition framework in Python that manages the flow of musical time, plays back notes via [FluidSynth](http://www.fluidsynth.org/) or over OSC, and quantizes and exports the result to music notation in the form of MusicXML or Lilypond. This framework is the distillation of years of practice composing algorithmic music in Python and aims to address pervasive technical challenges while imposing as little as possible on the aesthetic choices of the user. 
+SCAMP is an computer-assisted composition framework in Python that manages the flow of musical time, plays back notes via [FluidSynth](http://www.fluidsynth.org/) or over OSC, and quantizes and exports the result to music notation in the form of MusicXML or Lilypond. This framework is the distillation of years of practice composing algorithmic and computer-assisted music in Python and aims to address pervasive technical challenges while imposing as little as possible on the aesthetic choices of the user. 
 
 ## Features
 
