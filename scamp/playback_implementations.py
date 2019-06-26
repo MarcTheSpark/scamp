@@ -131,13 +131,13 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
         this_note_fixed = "fixed" in this_note_info["flags"]
         int_pitch = int(round(pitch))
 
-        # make a list of available channels to add this note to, ones that won't cause pitch bend / expression conflicts
+        # make a list of available channels to add this note to that won't cause pitch bend / expression conflicts
         available_channels = list(range(self.num_channels))
         oldest_note_id = None
 
         # go through all currently active notes
         for other_note_id, other_note_info in self.note_info_dict.items():
-            # check to see that this other note has been handled by this playback implementation (for instance, a silent
+            # check that this other note has been handled by this playback implementation (for instance, a silent
             # note will be skipped, since it was never passed to the playback implementations). Also check that it
             # hasn't been prematurely ended.
             if self in other_note_info and not other_note_info[self]["prematurely_ended"]:
@@ -147,7 +147,7 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
                 other_note_int_pitch = other_note_info[self]["midi_note"]
                 # this new note only share a midi channel with the old note if:
                 #   1) both notes are fixed (i.e. will not do a pitch or expression change, which is channel-wide)
-                #   2) the notes are not on the same midi key (since that will make a note off in one affect the other)
+                #   2) the notes aren't on the same midi key (since a note off in one would affect the other)
                 #   3) the notes don't have conflicting microtonality (i.e. one or both need a pitch bend, and it's
                 # not the exact same pitch bend.)
                 conflicting_microtonality = (pitch != int_pitch or other_note_pitch != other_note_int_pitch) and \
@@ -180,10 +180,10 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
             # if there's a free channel, return the lowest number available
             channel = available_channels[0]
         elif len(self.ringing_notes) > 0:
-            # if there are any channels we avoided because they have ringing microtonal pitches, we turn to those first
+            # if we avoided any channels because they have ringing microtonal pitches, we turn to those first
             channel, _, _ = self.ringing_notes.pop(0)
-            # also, need to make sure to zero-out the pitch bend and reset expression. (This would happen at the end
-            # of "delete_after_pause" below, but we need the channel to be ready to go early.)
+            # also, need to make sure to zero-out the pitch bend and reset expression. (This would happen
+            # at the end of "delete_after_pause" below, but we need the channel to be ready to go early.)
             self.pitch_bend(channel, 0)
             self.expression(channel, 1)
         else:
@@ -200,19 +200,20 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
             # if every channel is playing this pitch, we will end the oldest note so we can
             channel = oldest_note_info["channel"]
 
-        # start the note on that channel
-        # note that we start it at the max volume that it wil lever reach, and use expression to get to the start volume
-        self.note_on(channel, int_pitch, this_note_info["max_volume"])
+        # start the note on that channel by first setting pitch bend and expression and then sending a note on
         if pitch != int_pitch:
             self.pitch_bend(channel, pitch - int_pitch)
         else:
             self.pitch_bend(channel, 0)
+        # start it at the max volume that it will ever reach, and use expression to get to the start volume
         self.expression(channel, volume / this_note_info["max_volume"] if this_note_info["max_volume"] > 0 else 0)
-        # store the midi note that we pressed for this note, the channel we pressed it on, and make an entry (initially
-        # false) for whether or not we ended this note prematurely (to free up a channel for a newer note).
-        # Note that we're creating here a dictionary within the note_info dictionary, using this PlaybackImplementation
-        # instance as the key. This way, there can never be conflict between data stored by this PlaybackImplementation
-        # and data stored by other PlaybackImplementations
+        self.note_on(channel, int_pitch, this_note_info["max_volume"])
+
+        # store the midi note that we pressed for this note, the channel we pressed it on, and make an entry
+        # initially false) for whether or not we ended this note prematurely (to free up a channel for a newer
+        # note). Note that we're creating here a dictionary within the note_info dictionary, using this
+        # PlaybackImplementation instance as the key. This way, there can never be conflict between data
+        # stored by this PlaybackImplementation and data stored by other PlaybackImplementations
         this_note_info[self] = {
             "midi_note": int_pitch,
             "channel": channel,
@@ -225,7 +226,8 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
         this_note_implementation_info = this_note_info[self]
         if not this_note_implementation_info["prematurely_ended"]:
             self.note_off(this_note_implementation_info["channel"], this_note_implementation_info["midi_note"])
-            ringing_note_info = (this_note_implementation_info["channel"], this_note_implementation_info["midi_note"],
+            ringing_note_info = (this_note_implementation_info["channel"],
+                                 this_note_implementation_info["midi_note"],
                                  this_note_info["parameter_values"]["pitch"])
 
             # we need to consider this note as potentially still ringing for some period
@@ -234,8 +236,21 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
 
             def delete_after_pause():
                 time.sleep(0.5)
+                # make sure this note is still in self.ringing_notes. If not, it's channel was probably reused
                 if ringing_note_info in self.ringing_notes:
+                    # this note is done ringing, so remove it from the ringing notes list
                     self.ringing_notes.remove(ringing_note_info)
+
+                    # if there's another active note on this channel, don't reset the pitch and expression
+                    for other_note_id, other_note_info in self.note_info_dict.items():
+                        if self in other_note_info and other_note_info[self]["channel"] == ringing_note_info[0]:
+                            return
+
+                    # likewise if there's another ringing note on this channel
+                    for other_ringing_note in self.ringing_notes:
+                        if other_ringing_note[0] == ringing_note_info[0]:
+                            return
+
                     self.pitch_bend(ringing_note_info[0], 0)
                     self.expression(ringing_note_info[0], 1)
 
