@@ -263,6 +263,9 @@ class ScampInstrument(SavesToJSON):
         # (Has a getter and setter method allowing constructor strings to be passed.)
         self._default_spelling_policy = None
 
+        # this lock stops multiple threads from simultaneously accessing the self._note_info_by_id
+        self.note_info_lock = Lock()
+
         super().__init__()
 
     def play_chord(self, pitches, volume, length, properties=None, blocking=True, clock="auto"):
@@ -420,53 +423,54 @@ class ScampInstrument(SavesToJSON):
         other_param_start_values = {param: value.start_level() if isinstance(value, Envelope) else value
                                     for param, value in properties.iterate_extra_parameters_and_values()}
 
-        # generate a new id for this note, and set up all of its info
-        note_id = next(ScampInstrument._note_id_generator)
-        self._note_info_by_id[note_id] = {
-            "clock": clock,
-            "start_time": TimeStamp(clock),
-            "end_time": None,
-            "split_points": [],
-            "parameter_start_values": dict(other_param_start_values, pitch=start_pitch, volume=start_volume),
-            "parameter_values": dict(other_param_start_values, pitch=start_pitch, volume=start_volume),
-            "parameter_change_segments": {},
-            "segments_list_lock": Lock(),
-            "properties": properties,
-            "max_volume": max_volume,
-            "flags": []
-        }
+        with self.note_info_lock:
+            # generate a new id for this note, and set up all of its info
+            note_id = next(ScampInstrument._note_id_generator)
+            self._note_info_by_id[note_id] = {
+                "clock": clock,
+                "start_time": TimeStamp(clock),
+                "end_time": None,
+                "split_points": [],
+                "parameter_start_values": dict(other_param_start_values, pitch=start_pitch, volume=start_volume),
+                "parameter_values": dict(other_param_start_values, pitch=start_pitch, volume=start_volume),
+                "parameter_change_segments": {},
+                "segments_list_lock": Lock(),
+                "properties": properties,
+                "max_volume": max_volume,
+                "flags": []
+            }
 
-        if fixed:
-            assert not isinstance(pitch, Envelope) and not isinstance(volume, Envelope), \
-                "The 'fixed' flag can only be used on notes that do not animate pitch or volume."
-            self._note_info_by_id[note_id]["flags"].append("fixed")
+            if fixed:
+                assert not isinstance(pitch, Envelope) and not isinstance(volume, Envelope), \
+                    "The 'fixed' flag can only be used on notes that do not animate pitch or volume."
+                self._note_info_by_id[note_id]["flags"].append("fixed")
 
-        if silent:
-            # if it's silent, add a flag so that none of the playback implementation happens for the rest of the note
-            self._note_info_by_id[note_id]["flags"].append("silent")
-        else:
-            # otherwise, call all the playback implementation!
-            for playback_implementation in self.playback_implementations:
-                playback_implementation.start_note(note_id, start_pitch, start_volume,
-                                                   properties, other_param_start_values)
+            if silent:
+                # if silent, add a flag so that none of the playback implementation happens for the rest of the note
+                self._note_info_by_id[note_id]["flags"].append("silent")
+            else:
+                # otherwise, call all the playback implementation!
+                for playback_implementation in self.playback_implementations:
+                    playback_implementation.start_note(note_id, start_pitch, start_volume,
+                                                       properties, other_param_start_values)
 
-        # if we don't want to transcribe it, set that flag
-        if not transcribe:
-            self._note_info_by_id[note_id]["flags"].append("no_transcribe")
+            # if we don't want to transcribe it, set that flag
+            if not transcribe:
+                self._note_info_by_id[note_id]["flags"].append("no_transcribe")
 
-        # create a handle for this note
-        handle = NoteHandle(note_id, self)
+            # create a handle for this note
+            handle = NoteHandle(note_id, self)
 
-        # start all the note animation for pitch, volume, and any extra parameters
-        # note that, if the note is silent, then start_note has added the silent flag to the note_info dict
-        # this will cause unsynchronized animation threads not to fire
-        if isinstance(pitch, Envelope):
-            handle.change_pitch(pitch.levels[1:], pitch.durations, pitch.curve_shapes, clock)
-        if isinstance(volume, Envelope):
-            handle.change_volume(volume.levels[1:], volume.durations, volume.curve_shapes, clock)
-        for param, value in properties.iterate_extra_parameters_and_values():
-            if isinstance(value, Envelope):
-                handle.change_parameter(param, value.levels[1:], value.durations, value.curve_shapes, clock)
+            # start all the note animation for pitch, volume, and any extra parameters
+            # note that, if the note is silent, then start_note has added the silent flag to the note_info dict
+            # this will cause unsynchronized animation threads not to fire
+            if isinstance(pitch, Envelope):
+                handle.change_pitch(pitch.levels[1:], pitch.durations, pitch.curve_shapes, clock)
+            if isinstance(volume, Envelope):
+                handle.change_volume(volume.levels[1:], volume.durations, volume.curve_shapes, clock)
+            for param, value in properties.iterate_extra_parameters_and_values():
+                if isinstance(value, Envelope):
+                    handle.change_parameter(param, value.levels[1:], value.durations, value.curve_shapes, clock)
 
         return handle
 
@@ -552,108 +556,110 @@ class ScampInstrument(SavesToJSON):
         :param clock: which clock all of this happens on; "auto" captures the clock from context, and "from_note"
             simply reuses the clock that the note started on.
         """
-        note_id = note_id.note_id if isinstance(note_id, NoteHandle) else note_id
-        note_info = self._note_info_by_id[note_id]
+        with self.note_info_lock:
+            note_id = note_id.note_id if isinstance(note_id, NoteHandle) else note_id
+            note_info = self._note_info_by_id[note_id]
 
-        if clock == "from_note":
-            clock = note_info["clock"]
-        else:
-            clock = ScampInstrument._resolve_clock_argument(clock)
+            if clock == "from_note":
+                clock = note_info["clock"]
+            else:
+                clock = ScampInstrument._resolve_clock_argument(clock)
 
-        if "fixed" in note_info["flags"] and param_name in ("pitch", "volume"):
-            raise Exception("Cannot change pitch or volume of a note with 'fixed' set to True.")
+            if "fixed" in note_info["flags"] and param_name in ("pitch", "volume"):
+                raise Exception("Cannot change pitch or volume of a note with 'fixed' set to True.")
 
-        # which function do we use to actually carry out the change of parameter? Pitch and volume are special.
-        if "silent" in note_info["flags"]:
-            # if it's silent, then we don't actually call any of the implementation, so pass a dummy function
-            def parameter_change_function(value): note_info["parameter_values"][param_name] = value
-            temporal_resolution = None
-        elif param_name == "pitch":
-            def parameter_change_function(value):
-                for playback_implementation in self.playback_implementations:
-                    playback_implementation.change_note_pitch(note_id, value)
-                note_info["parameter_values"][param_name] = value
-            temporal_resolution = "pitch-based"
-        elif param_name == "volume":
-            def parameter_change_function(value):
-                for playback_implementation in self.playback_implementations:
-                    playback_implementation.change_note_volume(note_id, value)
-                note_info["parameter_values"][param_name] = value
-            temporal_resolution = "volume-based"
-        else:
-            def parameter_change_function(value):
-                for playback_implementation in self.playback_implementations:
-                    playback_implementation.change_note_parameter(note_id, param_name, value)
-                note_info["parameter_values"][param_name] = value
-            temporal_resolution = 0.01
+            # which function do we use to actually carry out the change of parameter? Pitch and volume are special.
+            if "silent" in note_info["flags"]:
+                # if it's silent, then we don't actually call any of the implementation, so pass a dummy function
+                def parameter_change_function(value): note_info["parameter_values"][param_name] = value
+                temporal_resolution = None
+            elif param_name == "pitch":
+                def parameter_change_function(value):
+                    for playback_implementation in self.playback_implementations:
+                        playback_implementation.change_note_pitch(note_id, value)
+                    note_info["parameter_values"][param_name] = value
+                temporal_resolution = "pitch-based"
+            elif param_name == "volume":
+                def parameter_change_function(value):
+                    for playback_implementation in self.playback_implementations:
+                        playback_implementation.change_note_volume(note_id, value)
+                    note_info["parameter_values"][param_name] = value
+                temporal_resolution = "volume-based"
+            else:
+                def parameter_change_function(value):
+                    for playback_implementation in self.playback_implementations:
+                        playback_implementation.change_note_parameter(note_id, param_name, value)
+                    note_info["parameter_values"][param_name] = value
+                temporal_resolution = 0.01
 
-        assert param_name in note_info["parameter_values"], \
-            "Cannot change parameter {}, as it was undefined at note start.".format(param_name)
+            assert param_name in note_info["parameter_values"], \
+                "Cannot change parameter {}, as it was undefined at note start.".format(param_name)
 
-        if param_name in note_info["parameter_change_segments"]:
-            segments_list = note_info["parameter_change_segments"][param_name]
-        else:
-            segments_list = note_info["parameter_change_segments"][param_name] = []
+            if param_name in note_info["parameter_change_segments"]:
+                segments_list = note_info["parameter_change_segments"][param_name]
+            else:
+                segments_list = note_info["parameter_change_segments"][param_name] = []
 
-        # if there was a previous segment changing this same parameter, and it's not done yet, we should abort it
-        if len(segments_list) > 0:
-            segments_list[-1].abort_if_running()
+            # if there was a previous segment changing this same parameter, and it's not done yet, we should abort it
+            if len(segments_list) > 0:
+                segments_list[-1].abort_if_running()
 
-        # this helps to keep track of which call to change_note_parameter happened first, since when
-        # do_animation_sequence gets forked, order can become indeterminate (see comment there)
-        call_priority = next(ScampInstrument._change_param_call_counter)
+            # this helps to keep track of which call to change_note_parameter happened first, since when
+            # do_animation_sequence gets forked, order can become indeterminate (see comment there)
+            call_priority = next(ScampInstrument._change_param_call_counter)
 
-        if hasattr(target_value_or_values, "__len__"):
-            # assume linear segments unless otherwise specified
-            transition_curve_shape_or_shapes = [0] * len(target_value_or_values) if \
-                transition_curve_shape_or_shapes == 0 else transition_curve_shape_or_shapes
-            assert hasattr(transition_length_or_lengths, "__len__") and \
-                   hasattr(transition_curve_shape_or_shapes, "__len__")
-            assert len(target_value_or_values) == len(transition_length_or_lengths) == \
-                   len(transition_curve_shape_or_shapes), \
-                "The list of target values must be accompanied by a equal length list of transition lengths and shapes."
+            if hasattr(target_value_or_values, "__len__"):
+                # assume linear segments unless otherwise specified
+                transition_curve_shape_or_shapes = [0] * len(target_value_or_values) if \
+                    transition_curve_shape_or_shapes == 0 else transition_curve_shape_or_shapes
+                assert hasattr(transition_length_or_lengths, "__len__") and \
+                       hasattr(transition_curve_shape_or_shapes, "__len__")
+                assert len(target_value_or_values) == len(transition_length_or_lengths) == \
+                       len(transition_curve_shape_or_shapes), \
+                    "List of target values must be accompanied by a equal length list of transition lengths and shapes."
 
-            def do_animation_sequence():
-                for target, length, shape in zip(target_value_or_values, transition_length_or_lengths,
-                                                 transition_curve_shape_or_shapes):
-                    with note_info["segments_list_lock"]:
-                        if len(segments_list) > 0 and segments_list[-1].running:
-                            # if two segments are started at the exact same (clock) time, then we want to abort the one
-                            # that was called first. Often that will happen in the call to segments_list[-1].abort_if_
-                            # running() above. However, it may be that they both make it through that check before
-                            # either is added to the segments list. This checks in on that case, and aborts whichever
-                            # segment came from the earlier call to change_note_parameter
-                            if call_priority > segments_list[-1].call_priority:
-                                # this call to change_note_parameter happened after, abort the other one
-                                segments_list[-1].abort_if_running()
-                            else:
-                                # this call to change_note_parameter happened before, abort
-                                return
+                def do_animation_sequence():
+                    for target, length, shape in zip(target_value_or_values, transition_length_or_lengths,
+                                                     transition_curve_shape_or_shapes):
+                        with note_info["segments_list_lock"]:
+                            if len(segments_list) > 0 and segments_list[-1].running:
+                                # if two segments are started at the exact same (clock) time, then we want to abort the
+                                # one that was called first. Often that will happen in the call to segments_list[-1].
+                                # abort_if_running() above. However, it may be that they both make it through that check
+                                # before either is added to the segments list. This checks in on that case, and aborts
+                                # whichever segment came from the earlier call to change_note_parameter
+                                if call_priority > segments_list[-1].call_priority:
+                                    # this call to change_note_parameter happened after, abort the other one
+                                    segments_list[-1].abort_if_running()
+                                else:
+                                    # this call to change_note_parameter happened before, abort
+                                    return
 
-                        this_segment = ParameterChangeSegment(
-                            parameter_change_function, note_info["parameter_values"][param_name], target,
-                            length, shape, clock, call_priority, temporal_resolution=temporal_resolution)
+                            this_segment = ParameterChangeSegment(
+                                parameter_change_function, note_info["parameter_values"][param_name], target,
+                                length, shape, clock, call_priority, temporal_resolution=temporal_resolution)
 
-                        segments_list.append(this_segment)
-                    # note that these segments are not forked individually: they are chained together and called
-                    # directly on a function (do_animation_sequence) that is forked. This means that when we abort
-                    # one of them, we kill the clock that do_animation_sequence is running on, thereby aborting all
-                    # remaining segments as well. This is exactly what we want: if we call change_note_parameter while
-                    # previous change_note_parameter is running, we want to abort all segments of the one that's running
-                    try:
-                        this_segment.run(silent="silent" in note_info["flags"])
-                    except Exception as e:
-                        raise e
+                            segments_list.append(this_segment)
+                        # note that these segments are not forked individually: they are chained together and called
+                        # directly on a function (do_animation_sequence) that is forked. This means that when we abort
+                        # one of them, we kill the clock that do_animation_sequence is running on, thereby aborting all
+                        # remaining segments as well. This is exactly what we want: if we call change_note_parameter
+                        # while a previous change_note_parameter is running, we want to abort all segments of the
+                        # one that's running
+                        try:
+                            this_segment.run(silent="silent" in note_info["flags"])
+                        except Exception as e:
+                            raise e
 
-            clock.fork(do_animation_sequence, name="PARAM_ANIMATION({})".format(param_name))
-        else:
-            parameter_change_segment = ParameterChangeSegment(
-                parameter_change_function, note_info["parameter_values"][param_name], target_value_or_values,
-                transition_length_or_lengths, transition_curve_shape_or_shapes, clock, call_priority,
-                temporal_resolution=temporal_resolution)
-            with note_info["segments_list_lock"]:
-                segments_list.append(parameter_change_segment)
-            clock.fork(parameter_change_segment.run, kwargs={"silent": "silent" in note_info["flags"]})
+                clock.fork(do_animation_sequence, name="PARAM_ANIMATION({})".format(param_name))
+            else:
+                parameter_change_segment = ParameterChangeSegment(
+                    parameter_change_function, note_info["parameter_values"][param_name], target_value_or_values,
+                    transition_length_or_lengths, transition_curve_shape_or_shapes, clock, call_priority,
+                    temporal_resolution=temporal_resolution)
+                with note_info["segments_list_lock"]:
+                    segments_list.append(parameter_change_segment)
+                clock.fork(parameter_change_segment.run, kwargs={"silent": "silent" in note_info["flags"]})
 
     def change_note_pitch(self, note_id, target_value_or_values: Union[Sequence, Number],
                           transition_length_or_lengths: Union[Sequence, Number] = 0,
@@ -694,15 +700,16 @@ class ScampInstrument(SavesToJSON):
             started on. At any rate, the clock is just used to generate a TimeStamp, so all clocks in the same family
             will lead to the same result.
         """
-        note_id = note_id.note_id if isinstance(note_id, NoteHandle) else note_id
-        note_info = self._note_info_by_id[note_id]
+        with self.note_info_lock:
+            note_id = note_id.note_id if isinstance(note_id, NoteHandle) else note_id
+            note_info = self._note_info_by_id[note_id]
 
-        if clock == "from_note":
-            clock = note_info["clock"]
-        else:
-            clock = ScampInstrument._resolve_clock_argument(clock)
+            if clock == "from_note":
+                clock = note_info["clock"]
+            else:
+                clock = ScampInstrument._resolve_clock_argument(clock)
 
-        note_info["split_points"].append(TimeStamp(clock))
+            note_info["split_points"].append(TimeStamp(clock))
 
     def end_note(self, note_id=None, clock="from_note"):
         """
@@ -714,48 +721,49 @@ class ScampInstrument(SavesToJSON):
         :param clock: just used to capture the ending TimeStamp. "from_note" just reuses the clock that the note
             started on.
         """
-        # in case we're passed a NoteHandle instead of an actual id number, get the number from the handle
-        note_id = note_id.note_id if isinstance(note_id, NoteHandle) else note_id
+        with self.note_info_lock:
+            # in case we're passed a NoteHandle instead of an actual id number, get the number from the handle
+            note_id = note_id.note_id if isinstance(note_id, NoteHandle) else note_id
 
-        if note_id is not None:
-            # as specific note_id has been given, so it had better belong to a currently playing note!
-            if note_id not in self._note_info_by_id:
+            if note_id is not None:
+                # as specific note_id has been given, so it had better belong to a currently playing note!
+                if note_id not in self._note_info_by_id:
+                    logging.warning("Tried to end a note that was never started!")
+                    return
+            elif len(self._note_info_by_id) > 0:
+                # no specific id was given, so end the oldest note
+                # (note that ids just count up, so the lowest active id is the oldest)
+                note_id = min(self._note_info_by_id.keys())
+            else:
                 logging.warning("Tried to end a note that was never started!")
                 return
-        elif len(self._note_info_by_id) > 0:
-            # no specific id was given, so end the oldest note
-            # (note that ids just count up, so the lowest active id is the oldest)
-            note_id = min(self._note_info_by_id.keys())
-        else:
-            logging.warning("Tried to end a note that was never started!")
-            return
 
-        note_info = self._note_info_by_id[note_id]
+            note_info = self._note_info_by_id[note_id]
 
-        # resolve the clock to use
-        if clock == "from_note":
-            clock = note_info["clock"]
-        else:
-            clock = ScampInstrument._resolve_clock_argument(clock)
+            # resolve the clock to use
+            if clock == "from_note":
+                clock = note_info["clock"]
+            else:
+                clock = ScampInstrument._resolve_clock_argument(clock)
 
-        # end any segments that are still changing
-        for param_name in note_info["parameter_change_segments"]:
-            if len(note_info["parameter_change_segments"][param_name]) > 0:
-                note_info["parameter_change_segments"][param_name][-1].abort_if_running()
+            # end any segments that are still changing
+            for param_name in note_info["parameter_change_segments"]:
+                if len(note_info["parameter_change_segments"][param_name]) > 0:
+                    note_info["parameter_change_segments"][param_name][-1].abort_if_running()
 
-        # transcribe the note, if applicable
-        note_info["end_time"] = TimeStamp(clock)
-        if "no_transcribe" not in note_info["flags"]:
-            for transcriber in self._transcribers_to_notify:
-                transcriber.register_note(self, note_info)
+            # transcribe the note, if applicable
+            note_info["end_time"] = TimeStamp(clock)
+            if "no_transcribe" not in note_info["flags"]:
+                for transcriber in self._transcribers_to_notify:
+                    transcriber.register_note(self, note_info)
 
-        # do the sonic implementation of ending the note, as long as it's not silent
-        if "silent" not in note_info["flags"]:
-            for playback_implementation in self. playback_implementations:
-                playback_implementation.end_note(note_id)
+            # do the sonic implementation of ending the note, as long as it's not silent
+            if "silent" not in note_info["flags"]:
+                for playback_implementation in self. playback_implementations:
+                    playback_implementation.end_note(note_id)
 
-        # remove from active notes and delete the note info
-        del self._note_info_by_id[note_id]
+            # remove from active notes and delete the note info
+            del self._note_info_by_id[note_id]
 
     def end_all_notes(self):
         """
