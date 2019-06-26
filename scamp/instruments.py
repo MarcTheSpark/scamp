@@ -458,19 +458,20 @@ class ScampInstrument(SavesToJSON):
             if not transcribe:
                 self._note_info_by_id[note_id]["flags"].append("no_transcribe")
 
-            # create a handle for this note
-            handle = NoteHandle(note_id, self)
+        # we now exit the lock, since otherwise the following calls will not be able to happen
+        # create a handle for this note
+        handle = NoteHandle(note_id, self)
 
-            # start all the note animation for pitch, volume, and any extra parameters
-            # note that, if the note is silent, then start_note has added the silent flag to the note_info dict
-            # this will cause unsynchronized animation threads not to fire
-            if isinstance(pitch, Envelope):
-                handle.change_pitch(pitch.levels[1:], pitch.durations, pitch.curve_shapes, clock)
-            if isinstance(volume, Envelope):
-                handle.change_volume(volume.levels[1:], volume.durations, volume.curve_shapes, clock)
-            for param, value in properties.iterate_extra_parameters_and_values():
-                if isinstance(value, Envelope):
-                    handle.change_parameter(param, value.levels[1:], value.durations, value.curve_shapes, clock)
+        # start all the note animation for pitch, volume, and any extra parameters
+        # note that, if the note is silent, then start_note has added the silent flag to the note_info dict
+        # this will cause unsynchronized animation threads not to fire
+        if isinstance(pitch, Envelope):
+            handle.change_pitch(pitch.levels[1:], pitch.durations, pitch.curve_shapes, clock)
+        if isinstance(volume, Envelope):
+            handle.change_volume(volume.levels[1:], volume.durations, volume.curve_shapes, clock)
+        for param, value in properties.iterate_extra_parameters_and_values():
+            if isinstance(value, Envelope):
+                handle.change_parameter(param, value.levels[1:], value.durations, value.curve_shapes, clock)
 
         return handle
 
