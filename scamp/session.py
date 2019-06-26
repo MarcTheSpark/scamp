@@ -1,11 +1,11 @@
 from .ensemble import Ensemble
 from .transcriber import Transcriber
 from .midi_listener import *
-from .spelling import SpellingPolicy
 from .instruments import ScampInstrument
-from clockblocks import Clock
+from clockblocks import Clock, wait, current_clock
 from typing import Sequence
 from .utilities import SavesToJSON
+from threading import Thread, current_thread
 
 
 class Session(Clock, Ensemble, Transcriber, SavesToJSON):
@@ -77,6 +77,10 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         :param units: one of ["beats", "time"]. Do we use the beats of the clock or the time?
         :return the Performance we will be recording to
         """
+        if instruments is None and len(self.instruments) == 0:
+            raise ValueError("Can't record with empty ensemble; did you call \"start_recording\" before adding "
+                             "parts to the session?")
+
         return super().start_recording(self.instruments if instruments is None else instruments,
                                        self if clock is None else clock, units=units)
 

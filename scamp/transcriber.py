@@ -26,6 +26,9 @@ class Transcriber:
         if not hasattr(instrument_or_instruments, "__len__"):
             instrument_or_instruments = [instrument_or_instruments]
 
+        if len(instrument_or_instruments) == 0:
+            raise ValueError("No instruments specified for transcription!")
+
         performance = Performance()
         for instrument in instrument_or_instruments:
             performance.new_part(instrument)
