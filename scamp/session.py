@@ -34,6 +34,24 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         # Useful if the entire session is in a particular key, for instance
         self._default_spelling_policy = None
 
+    def run_as_server(self, time_step=0.01):
+        """
+        Runs this session on a parallel thread so that it can act as a server. This is the approach that should be taken
+        if running scamp from an interactive terminal session. Simply type "s = Session().run_as_server()"
+
+        :param time_step: time step for the server loop.
+        :return: self
+        """
+        def run_server():
+            current_thread().__clock__ = self
+            while True:
+                wait(time_step)
+
+        Thread(target=run_server, daemon=True).start()
+        # don't have the thread that called this recognize the Session as its clock anymore
+        current_thread().__clock__ = None
+        return self
+
     # ----------------------------------- Listeners ----------------------------------
 
     @staticmethod

@@ -19,23 +19,23 @@ class NoteHandle:
 
     def change_parameter(self, param_name, target_value_or_values: Union[Sequence, Number],
                          transition_length_or_lengths: Union[Sequence, Number] = 0,
-                         transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="auto"):
+                         transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="from_note"):
         self.instrument.change_note_parameter(self.note_id, param_name, target_value_or_values,
                                               transition_length_or_lengths, transition_curve_shape_or_shapes, clock)
 
     def change_pitch(self, target_value_or_values: Union[Sequence, Number],
                      transition_length_or_lengths: Union[Sequence, Number] = 0,
-                     transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="auto"):
+                     transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="from_note"):
         self.instrument.change_note_pitch(self.note_id, target_value_or_values, transition_length_or_lengths,
                                           transition_curve_shape_or_shapes, clock)
 
     def change_volume(self, target_value_or_values: Union[Sequence, Number],
                       transition_length_or_lengths: Union[Sequence, Number] = 0,
-                      transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="auto"):
+                      transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="from_note"):
         self.instrument.change_note_volume(self.note_id, target_value_or_values, transition_length_or_lengths,
                                            transition_curve_shape_or_shapes, clock)
 
-    def split(self, clock="auto"):
+    def split(self, clock="from_note"):
         self.instrument.split_note(self.note_id, clock)
 
     def end(self):
@@ -53,14 +53,14 @@ class ChordHandle:
 
     def change_parameter(self, param_name, target_value_or_values: Union[Sequence, Number],
                          transition_length_or_lengths: Union[Sequence, Number] = 0,
-                         transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="auto"):
+                         transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="from_note"):
         for note_handle in self.note_handles:
             note_handle.change_parameter(param_name, target_value_or_values, transition_length_or_lengths,
                                          transition_curve_shape_or_shapes, clock)
 
     def change_pitch(self, target_value_or_values: Union[Sequence, Number],
                      transition_length_or_lengths: Union[Sequence, Number] = 0,
-                     transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="auto"):
+                     transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="from_note"):
         for note_handle, interval in zip(self.note_handles, self.intervals):
             this_note_pitch_targets = [target_value + interval for target_value in target_value_or_values] \
                 if hasattr(target_value_or_values, "__len__") else target_value_or_values + interval
@@ -69,12 +69,12 @@ class ChordHandle:
 
     def change_volume(self, target_value_or_values: Union[Sequence, Number],
                       transition_length_or_lengths: Union[Sequence, Number] = 0,
-                      transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="auto"):
+                      transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="from_note"):
         for note_handle in self.note_handles:
             note_handle.change_volume(target_value_or_values, transition_length_or_lengths,
                                       transition_curve_shape_or_shapes, clock)
 
-    def split(self, clock="auto"):
+    def split(self, clock="from_note"):
         for note_handle in self.note_handles:
             note_handle.split(clock)
 
@@ -305,7 +305,22 @@ class ScampInstrument(SavesToJSON):
         :param blocking: if true, don't return until the note is done playing; if false, return immediately
         :param clock: which clock to use. If "auto", capture the clock from context.
         """
-        clock = ScampInstrument._resolve_clock_argument(clock)
+        if clock == "auto":
+            # first try to just get the clock operating on the current thread
+            clock = current_clock()
+            if clock is None:
+                # if there's no clock operating on the current thread,,,
+                if isinstance(self.ensemble, Clock):
+                    # ...but this instrument belongs to a Session (i.e. an ensemble that's also a clock),
+                    # then we use that session as our clock
+                    clock = self.ensemble
+                    # we're also going to not want to block execution, since that will involve a call to wait
+                    # on the session that's probably running as a server (and therefore doing its own wait calls)
+                    # on a parallel thread
+                    blocking = False
+                else:
+                    # otherwise, just create a clock to run this all on
+                    clock = Clock()
 
         properties = self._standardize_properties(properties)
         pitch = Envelope.from_list(pitch) if hasattr(pitch, "__len__") else pitch
@@ -410,7 +425,18 @@ class ScampInstrument(SavesToJSON):
             class, but I don't see how this would be possible.
         :return: a NoteHandle with which to later manipulate the note
         """
-        clock = ScampInstrument._resolve_clock_argument(clock)
+        if clock == "auto":
+            # first try to just get the clock operating on the current thread
+            clock = current_clock()
+            if clock is None:
+                # if there's no clock operating on the current thread,,,
+                if isinstance(self.ensemble, Clock):
+                    # ...but this instrument belongs to a Session (i.e. an ensemble that's also a clock),
+                    # then we use that session as our clock
+                    clock = self.ensemble
+                else:
+                    # otherwise, just create a clock to run this all on
+                    clock = Clock()
 
         # standardize properties if necessary, turn pitch and volume into lists if necessary
         properties = self._standardize_properties(properties)
@@ -554,8 +580,7 @@ class ScampInstrument(SavesToJSON):
         :param target_value_or_values: target value (or list thereof) for the parameter
         :param transition_length_or_lengths: transition time(s) in beats to the target value(s)
         :param transition_curve_shape_or_shapes: curve shape(s) for the transition(s)
-        :param clock: which clock all of this happens on; "auto" captures the clock from context, and "from_note"
-            simply reuses the clock that the note started on.
+        :param clock: which clock all of this happens on; "from_note" simply reuses the clock that the note started on.
         """
         with self.note_info_lock:
             note_id = note_id.note_id if isinstance(note_id, NoteHandle) else note_id
@@ -563,8 +588,7 @@ class ScampInstrument(SavesToJSON):
 
             if clock == "from_note":
                 clock = note_info["clock"]
-            else:
-                clock = ScampInstrument._resolve_clock_argument(clock)
+            assert isinstance(clock, Clock), "Invalid clock argument."
 
             if "fixed" in note_info["flags"] and param_name in ("pitch", "volume"):
                 raise Exception("Cannot change pitch or volume of a note with 'fixed' set to True.")
@@ -672,7 +696,7 @@ class ScampInstrument(SavesToJSON):
         :param target_value_or_values: target value (or list thereof) for the parameter
         :param transition_length_or_lengths: transition time(s) in beats to the target value(s)
         :param transition_curve_shape_or_shapes: curve shape(s) for the transition(s)
-        :param clock: which clock all of this happens on, "auto" captures the clock from context
+        :param clock: which clock all of this happens on; "from_note" simply reuses the clock that the note started on.
         """
         self.change_note_parameter(note_id, "pitch", target_value_or_values, transition_length_or_lengths,
                                    transition_curve_shape_or_shapes, clock)
@@ -687,7 +711,7 @@ class ScampInstrument(SavesToJSON):
         :param target_value_or_values: target value (or list thereof) for the parameter
         :param transition_length_or_lengths: transition time(s) in beats to the target value(s)
         :param transition_curve_shape_or_shapes: curve shape(s) for the transition(s)
-        :param clock: which clock all of this happens on, "auto" captures the clock from context
+        :param clock: which clock all of this happens on; "from_note" simply reuses the clock that the note started on.
         """
         self.change_note_parameter(note_id, "volume", target_value_or_values, transition_length_or_lengths,
                                    transition_curve_shape_or_shapes, clock)
@@ -707,8 +731,7 @@ class ScampInstrument(SavesToJSON):
 
             if clock == "from_note":
                 clock = note_info["clock"]
-            else:
-                clock = ScampInstrument._resolve_clock_argument(clock)
+            assert isinstance(clock, Clock), "Invalid clock argument."
 
             note_info["split_points"].append(TimeStamp(clock))
 
@@ -744,8 +767,7 @@ class ScampInstrument(SavesToJSON):
             # resolve the clock to use
             if clock == "from_note":
                 clock = note_info["clock"]
-            else:
-                clock = ScampInstrument._resolve_clock_argument(clock)
+            assert isinstance(clock, Clock), "Invalid clock argument."
 
             # end any segments that are still changing
             for param_name in note_info["parameter_change_segments"]:
@@ -900,19 +922,6 @@ class ScampInstrument(SavesToJSON):
             self._default_spelling_policy = SpellingPolicy.from_string(value)
         else:
             raise ValueError("Spelling policy not understood.")
-
-    @staticmethod
-    def _resolve_clock_argument(clock):
-        """
-        Just a really common code fragment, so I made it a static method.
-        Takes the clock argument given to a playback method, resolves it using current_clock() if "auto", and
-        generates a new master clock if still none (i.e. if "None" was passed explicitly, or if current_clock()
-        returns "None", since there isn't an active clock.
-        """
-        clock = current_clock() if clock == "auto" else clock
-        if clock is None:
-            clock = Clock()
-        return clock
 
     """
     --------------------------------------------- To / from JSON -------------------------------------------------
