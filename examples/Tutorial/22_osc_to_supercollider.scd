@@ -59,11 +59,11 @@ OSCFunc({ arg msg, time, addr, recvPort;
 OSCFunc({ arg msg, time, addr, recvPort;
 	var id = msg[1], freq = msg[2];
 	~notesPlaying[id].set(\vibFreq, freq);
-}, '/vibrato/change_parameter/vib_freq');
+}, '/vibrato/change_parameter/vibFreq');
 
 // CHANGE VIBRATO WIDTH
 OSCFunc({ arg msg, time, addr, recvPort;
 	var id = msg[1], width = msg[2];
 	~notesPlaying[id].set(\vibWidth, width);
-}, '/vibrato/change_parameter/vib_width');
+}, '/vibrato/change_parameter/vibWidth');
 )

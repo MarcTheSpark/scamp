@@ -10,6 +10,7 @@ from scamp import *
 # import the random module from
 # the python standard library
 import random
+
 # construct a session object
 s = Session()
 # add a new violin part to the session
