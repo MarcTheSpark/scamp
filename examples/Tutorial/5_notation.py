@@ -10,7 +10,7 @@ s = Session()
 violin = s.new_part("Violin")
 
 # begin recording (defaults to transcribing all instruments within the session)
-s.start_recording()
+s.start_transcribing()
 for pitch in [60, 64, 67, 72]:
     violin.play_note(pitch, 1, 0.5)
     # stop the recording and save the recorded
@@ -18,7 +18,7 @@ for pitch in [60, 64, 67, 72]:
 
 # a Performance is essentially a note event list representing exactly
 # when and how notes were played back, in continuous time
-performance = s.stop_recording()
+performance = s.stop_transcribing()
 # quantize and convert the performance to a Score object and
 # open it as a PDF (by default this is done via abjad)
 performance.to_score().show()

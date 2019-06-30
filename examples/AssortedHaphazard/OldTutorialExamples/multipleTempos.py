@@ -32,11 +32,11 @@ clarinet_clock = session.fork(clarinet_part, name="Clarinet")
 bassoon_clock = session.fork(bassoon_part, name="Bassoon")
 
 
-performance1 = session.start_recording(clock=flute_clock)
-performance2 = session.start_recording(clock=clarinet_clock)
-performance3 = session.start_recording(clock=bassoon_clock)
+performance1 = session.start_transcribing(clock=flute_clock)
+performance2 = session.start_transcribing(clock=clarinet_clock)
+performance3 = session.start_transcribing(clock=bassoon_clock)
 
 session.wait(30)
-session.stop_recording(performance1).quantized().to_score(title="Recorded on flute clock").show_xml()
-# session.stop_recording(performance2).quantized().to_score(title="Recorded on clarinet clock").show_xml()
-# session.stop_recording(performance3).quantized().to_score(title="Recorded on bassoon clock").show_xml()
+session.stop_transcribing(performance1).quantized().to_score(title="Recorded on flute clock").show_xml()
+# session.stop_transcribing(performance2).quantized().to_score(title="Recorded on clarinet clock").show_xml()
+# session.stop_transcribing(performance3).quantized().to_score(title="Recorded on bassoon clock").show_xml()

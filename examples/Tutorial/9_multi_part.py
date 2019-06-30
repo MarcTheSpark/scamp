@@ -38,11 +38,11 @@ def bassoon_part():
         )
 
 
-s.start_recording()
+s.start_transcribing()
 # start the oboe and bassoon parts as two parallel child processes
 s.fork(oboe_part)
 s.fork(bassoon_part)
 # have the session wait for the child processes to finish (return)
 s.wait_for_children_to_finish()
-performance = s.stop_recording()
+performance = s.stop_transcribing()
 performance.to_score().show()

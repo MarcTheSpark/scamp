@@ -12,7 +12,7 @@ s = Session()
 
 violin = s.new_part("violin")
 
-s.start_recording()
+s.start_transcribing()
 
 # start a violin note on middle C with volume 1
 note_handle1 = violin.start_note(60, 1.0)
@@ -33,4 +33,4 @@ note_handle2.change_volume(0, 2)
 wait(2)
 note_handle2.end()
 
-s.stop_recording().to_score().show()
+s.stop_transcribing().to_score().show()

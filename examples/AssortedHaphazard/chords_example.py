@@ -4,7 +4,7 @@ session = Session()
 
 piano = session.new_part("piano")
 
-session.start_recording()
+session.start_transcribing()
 
 # this makes the whole chord diamond noteheads
 handle = piano.start_chord(([60, 56], 64, 69), 0.5, "notehead: diamond")
@@ -28,4 +28,4 @@ piano.play_chord((64, 60, 69), 0.5, 2.0, "noteheads: diamond / normal / cross")
 # piano.play_chord((64, 60, 69), 0.5, 2.0, "noteheads: diamond / normal")
 
 session.wait(0)
-session.stop_recording().to_score().show()
+session.stop_transcribing().to_score().show()

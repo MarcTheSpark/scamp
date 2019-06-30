@@ -11,7 +11,7 @@ def play(show_lilypond=False, show_xml=False):
     piano = s.new_part()
 
     if show_xml or show_lilypond:
-        s.start_recording()
+        s.start_transcribing()
 
     s.set_rate_target(4, 10)
 
@@ -21,7 +21,7 @@ def play(show_lilypond=False, show_xml=False):
     piano.play_note(60, 1.0, 6.25)
 
     if show_xml or show_lilypond:
-        score = s.stop_recording().to_score()
+        score = s.stop_transcribing().to_score()
         if show_lilypond:
             score.show()
         if show_xml:

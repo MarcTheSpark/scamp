@@ -39,11 +39,11 @@ session.fork(shaku_part)
 session.set_tempo_target(300, 30, duration_units="time")
 
 session.wait(15)
-session.start_recording()
-print("Starting recording...")
+session.start_transcribing()
+print("Starting transcription...")
 session.wait(15)
-performance = session.stop_recording()
-print("Finished. Saving recording.")
+performance = session.stop_transcribing()
+print("Finished. Saving transcription.")
 
 performance.save_to_json(resolve_relative_path("SavedFiles/perfShakoboe.json"))
 

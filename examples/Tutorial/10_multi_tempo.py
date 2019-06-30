@@ -42,11 +42,11 @@ s.set_tempo_target(100, 9)
 # It will be influenced both by its own
 # tempo and that of the session
 s.fork(trumpet_part)
-s.start_recording()
+s.start_transcribing()
 # Play quarter notes for 12 beats
 while s.beats() < 12:
     trombone.play_note(60, 1, 1)
 
 # Stop recording and show the result
-performance = s.stop_recording()
+performance = s.stop_transcribing()
 performance.to_score("3/4").show_xml()

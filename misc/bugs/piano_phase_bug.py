@@ -20,9 +20,9 @@ clock1.tempo = 100
 clock2 = session.fork(piano_part, extra_args=(piano2, ))
 clock2.tempo = 98
 
-session.start_recording(clock=clock1)
+session.start_transcribing(clock=clock1)
 session.wait(10)
 
-performance = session.stop_recording()
+performance = session.stop_transcribing()
 print(performance)
 performance.to_score(QuantizationScheme.from_time_signature("3/4", 16)).show()

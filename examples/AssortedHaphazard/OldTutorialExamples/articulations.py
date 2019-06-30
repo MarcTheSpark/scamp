@@ -3,7 +3,7 @@ from scamp import *
 session = Session()
 piano = session.new_part("piano")
 
-session.start_recording()
+session.start_transcribing()
 
 for _ in range(2):
     piano.play_note(65, 0.5, 1.25, "accent")
@@ -17,4 +17,4 @@ for _ in range(2):
 
 piano.play_chord([65, 77], 0.5, 2, "tenuto")
 
-session.stop_recording().to_score().show()
+session.stop_transcribing().to_score().show()

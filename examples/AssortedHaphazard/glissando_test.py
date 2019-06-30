@@ -8,7 +8,7 @@ piano.set_max_pitch_bend(20)
 
 random.seed(1)
 
-session.start_recording()
+session.start_transcribing()
 
 while session.time() < 12:
     gliss = Envelope.from_levels_and_durations(
@@ -24,7 +24,7 @@ while session.time() < 12:
         session.wait(random.random() * 2)
 
 
-performance = session.stop_recording()
+performance = session.stop_transcribing()
 
 performance.quantize(QuantizationScheme.from_time_signature("5/4"))
 performance.save_to_json(resolve_relative_path("SavedFiles/quantized_glisses.json"))

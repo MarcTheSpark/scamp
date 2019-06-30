@@ -5,7 +5,7 @@ session = Session()
 piano = session.new_part("piano")
 
 session.tempo = 120
-session.start_recording()
+session.start_transcribing()
 
 pitches = range(60, 85)
 note_lengths = [0.25] * 24 + [2.0]
@@ -38,6 +38,6 @@ for pitch, length in zip(pitches, note_lengths):
     # piano.play_note(pitch, 1.0, 0.25, "key: D locrian")
     pitch += 1
 
-performance = session.stop_recording()
+performance = session.stop_transcribing()
 
 performance.to_score().show()

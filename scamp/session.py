@@ -84,23 +84,23 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         start_midi_listener(port_number_or_device_name, callback_function,
                             clock=self, time_resolution=time_resolution, synchronous=synchronous)
 
-    # --------------------------------- Recording Stuff -------------------------------
+    # --------------------------------- Transcription Stuff -------------------------------
 
-    def start_recording(self, instruments: Sequence[ScampInstrument] = None, clock: Clock = None, units="beats"):
+    def start_transcribing(self, instruments: Sequence[ScampInstrument] = None, clock: Clock = None, units="beats"):
         """
-        Starts a recording, defaults to using the session (master) clock and all session instruments
+        Starts a transcription, defaults to using the session (master) clock and all session instruments
 
-        :param instruments: which instruments to record
+        :param instruments: which instruments to transcribe
         :param clock: which clock to record on, i.e. what are all the timings notated relative to
         :param units: one of ["beats", "time"]. Do we use the beats of the clock or the time?
-        :return the Performance we will be recording to
+        :return the Performance we will be transcribing to
         """
         if instruments is None and len(self.instruments) == 0:
-            raise ValueError("Can't record with empty ensemble; did you call \"start_recording\" before adding "
+            raise ValueError("Can't record with empty ensemble; did you call \"start_transcribing\" before adding "
                              "parts to the session?")
 
-        return super().start_recording(self.instruments if instruments is None else instruments,
-                                       self if clock is None else clock, units=units)
+        return super().start_transcribing(self.instruments if instruments is None else instruments,
+                                          self if clock is None else clock, units=units)
 
     def to_json(self):
         json_object = Ensemble.to_json(self)

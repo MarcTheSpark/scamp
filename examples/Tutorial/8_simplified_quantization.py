@@ -12,7 +12,7 @@ s = Session()
 violin = s.new_part("Violin")
 
 # begin recording
-s.start_recording()
+s.start_transcribing()
 
 for _ in range(2):  # loop twice
     for pitch in [60, 64, 67, 72]:
@@ -24,7 +24,7 @@ for _ in range(2):  # loop twice
             # clock is the Session as a whole.
             wait(random.random())
 
-performance = s.stop_recording()
+performance = s.stop_transcribing()
 
 # impose a max divisor of 4 this time
 performance.to_score(

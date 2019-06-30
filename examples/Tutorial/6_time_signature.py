@@ -15,14 +15,14 @@ violin = s.new_part("Violin")
 
 # begin recording (defaults to transcribing
 # all instruments within the session)
-s.start_recording()
+s.start_transcribing()
 for _ in range(4):
     for pitch in [60, 64, 67, 72]:
         violin.play_note(pitch, 1, 0.5)
         # stop the recording and save the recorded
         # note events as a performance
 
-performance = s.stop_recording()
+performance = s.stop_transcribing()
 # quantize and convert the performance to a Score object and open it as a PDF,
 # this time imposing a time signature of 3/8
 performance.to_score("3/8").show()

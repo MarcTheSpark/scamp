@@ -14,8 +14,8 @@ e = Envelope.from_levels_and_durations(
     curve_shapes=[2, -2, -2]
 )
 
-s.start_recording()
+s.start_transcribing()
 
 viola.play_note(e, 1.0, 4)
 
-s.stop_recording().to_score().show()
+s.stop_transcribing().to_score().show()

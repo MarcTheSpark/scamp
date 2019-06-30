@@ -10,16 +10,16 @@ class Transcriber:
     def __init__(self):
         self._transcriptions_in_progress = []
 
-    def start_recording(self, instrument_or_instruments: Union[ScampInstrument, Sequence[ScampInstrument]],
-                        clock: Clock, units="beats"):
+    def start_transcribing(self, instrument_or_instruments: Union[ScampInstrument, Sequence[ScampInstrument]],
+                           clock: Clock, units="beats"):
         """
-        Starts recording new performance on the given clock, consisting of the given instrument
+        Starts transcribing new performance on the given clock, consisting of the given instrument
 
-        :param instruments: the instruments we notate in this Performance
+        :param instrument_or_instruments: the instruments we notate in this Performance
         :param clock: which clock all timings are relative to, or "absolute" to mean time on the master clock
         :param units: one of ["beats", "time"]. Do we use the beats of the clock or the time?
         :return: the Performance that this transcription writes to, which will be updated as notes are played and acts
-            as a handle when calling stop_recording.
+            as a handle when calling stop_transcribing.
         """
         assert units in ("beats", "time")
 
@@ -144,7 +144,7 @@ class Transcriber:
 
             for instrument_part in performance.get_parts_by_instrument(instrument):
                 # it'd be kind of weird for more than one part to have the same instrument, but if they did,
-                # I suppose that each part should record the note
+                # I suppose that each part should transcribe the note
                 instrument_part.new_note(
                     note_start_beat, note_length_sections if note_length_sections is not None else note_length,
                     pitch, volume, note_info["properties"]
@@ -155,11 +155,11 @@ class Transcriber:
         assert units in ("beats", "time")
         return time_stamp.beat_in_clock(clock) if units == "beats" else time_stamp.time_in_clock(clock)
 
-    def stop_recording(self, which_performance=None, tempo_envelope_tolerance=0.001) -> Performance:
+    def stop_transcribing(self, which_performance=None, tempo_envelope_tolerance=0.001) -> Performance:
         transcription = None
         if which_performance is None:
             if len(self._transcriptions_in_progress) == 0:
-                raise ValueError("Cannot stop recording performance, as none has been started!")
+                raise ValueError("Cannot stop transcribing performance, as none has been started!")
             transcription = self._transcriptions_in_progress.pop(0)
         else:
             for i, transcription in enumerate(self._transcriptions_in_progress):
@@ -167,18 +167,18 @@ class Transcriber:
                     transcription = self._transcriptions_in_progress.pop(i)
                     break
             if transcription is None:
-                raise ValueError("Cannot stop recording given performance, as it was never started!")
+                raise ValueError("Cannot stop transcribing given performance, as it was never started!")
 
-        recorded_performance, recording_clock, recording_start_beat, units = transcription
+        transcribed_performance, transcription_clock, transcription_start_beat, units = transcription
         if units == "beats":
-            recorded_performance.tempo_envelope = recording_clock.extract_absolute_tempo_envelope(
-                recording_start_beat, tolerance=tempo_envelope_tolerance
+            transcribed_performance.tempo_envelope = transcription_clock.extract_absolute_tempo_envelope(
+                transcription_start_beat, tolerance=tempo_envelope_tolerance
             )
-        elif recording_clock.is_master():
-            # recording time on master, so just copy the tempo envelope
-            recorded_performance.tempo_envelope = TempoEnvelope()
+        elif transcription_clock.is_master():
+            # transcribing based on master time, so there can't be any tempo changes; just use a blank TempoEnvelope
+            transcribed_performance.tempo_envelope = TempoEnvelope()
         else:
-            recorded_performance.tempo_envelope = recording_clock.parent.extract_absolute_tempo_envelope(
-                recording_start_beat, tolerance=tempo_envelope_tolerance
+            transcribed_performance.tempo_envelope = transcription_clock.parent.extract_absolute_tempo_envelope(
+                transcription_start_beat, tolerance=tempo_envelope_tolerance
             )
-        return recorded_performance
+        return transcribed_performance

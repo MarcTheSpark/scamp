@@ -27,7 +27,7 @@ vib = s.new_supercollider_part("vibrato", r"""
 }, [\ir, 0.1, 0.1, 0.1, 0.1, \kr])
 """)
 
-s.start_recording()
+s.start_transcribing()
 
 # any property entries starting or ending
 # with "param" will be treated as extra
@@ -52,6 +52,6 @@ while s.beats() < 20:
     )
     wait(random.uniform(0.5, 3))
 
-performance = s.stop_recording()
+performance = s.stop_transcribing()
 engraving_settings.max_voices_per_part = 1
 performance.to_score().show()

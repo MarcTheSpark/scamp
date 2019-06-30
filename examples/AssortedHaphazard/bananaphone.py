@@ -43,16 +43,16 @@ def sine_glisses(this_clock):
 session.fork(violins)
 session.fork(banjass)
 session.fork(sine_glisses)
-session.start_recording()
+session.start_transcribing()
 session.wait(20)
 violin.end_all_notes()
 violin2.end_all_notes()
 bass_banjo.end_all_notes()
-performance = session.stop_recording()
+performance = session.stop_transcribing()
 engraving_settings.ignore_empty_parts = False
 quantized_performance = performance.quantize(["4/4", "3/4", "loop"])
 score = quantized_performance.to_score()
 score.show()
 
-# performance = session.stop_recording()
+# performance = session.stop_transcribing()
 

@@ -13,7 +13,7 @@ from scamp import *
 s = Session()
 piano = s.new_part("piano")
 
-s.start_recording()
+s.start_transcribing()
 
 # passing comma-separated key value pairs
 piano.play_note(60, 0.5, 1,
@@ -27,4 +27,4 @@ piano.play_chord([60, 65], 0.5, 1,
 piano.play_note(60, 0.5, 1, {
     "articulations": ["tenuto", "accent"],
 })
-s.stop_recording().to_score().show()
+s.stop_transcribing().to_score().show()

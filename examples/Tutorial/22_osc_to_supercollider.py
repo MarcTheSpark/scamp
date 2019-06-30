@@ -15,7 +15,7 @@ s = Session()
 # and OSC messages as well as the usual
 vib = s.new_osc_part("vibrato", 57120)
 
-s.start_recording()
+s.start_transcribing()
 
 # any property entries starting or ending
 # with "param" will be treated as extra
@@ -40,6 +40,6 @@ while s.beats() < 20:
     )
     wait(random.uniform(0.5, 3))
 
-performance = s.stop_recording()
+performance = s.stop_transcribing()
 engraving_settings.max_voices_per_part = 1
 performance.to_score().show()

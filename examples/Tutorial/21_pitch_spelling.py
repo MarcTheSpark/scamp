@@ -10,7 +10,7 @@ from scamp import *
 s = Session()
 piano = s.new_part("piano")
 
-s.start_recording()
+s.start_transcribing()
 
 # play and spell a note with a flat no matter what
 piano.play_note(63, 1.0, 1.0, "b")
@@ -30,4 +30,4 @@ for pitch, dur in zip(pitches, durations):
 for pitch, dur in zip(pitches, durations):
     piano.play_note(pitch, 1.0, dur, "key: B major")
 
-s.stop_recording().to_score().show()
+s.stop_transcribing().to_score().show()

@@ -21,12 +21,12 @@ def piano_part():
 session.fork(piano_part)
 
 print("Making Recording...", end="")
-session.start_recording()
+session.start_transcribing()
 for _ in range(8):
     drum.play_note(80, 1, 1)
 
 recording = False
-performance = session.stop_recording()
+performance = session.stop_transcribing()
 quantized_performance = performance.quantized(
     QuantizationScheme([MeasureQuantizationScheme.from_time_signature("4/4", max_divisor=5, max_indigestibility=3)])
 )

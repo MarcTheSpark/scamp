@@ -38,11 +38,11 @@ s.set_tempo_target(100, 9)
 # fork returns the Clock associated
 # with the newly forked process
 trumpet_clock = s.fork(trumpet_part)
-s.start_recording(clock=trumpet_clock)
+s.start_transcribing(clock=trumpet_clock)
 # Play quarter notes for 12 beats
 while s.beats() < 12:
     trombone.play_note(60, 1, 1)
 
 # Stop recording and show the result
-performance = s.stop_recording()
+performance = s.stop_transcribing()
 performance.to_score("3/4").show_xml()

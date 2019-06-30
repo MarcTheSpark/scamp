@@ -164,7 +164,7 @@ class Ensemble(SavesToJSON):
     @property
     def default_spelling_policy(self):
         """
-        Default spelling policy used for recordings made with this Session.
+        Default spelling policy used for transcriptionss made with this Session.
         """
         return self._default_spelling_policy
 
