@@ -995,7 +995,7 @@ class Voice(ScoreComponent, ScoreContainer):
         notes = Voice._split_notes_at_beats(notes, [beat.start_time_in_measure for beat in measure_quantization.beats])
 
         # construct the processed contents of this voice (made up of NoteLikes Tuplets)
-        processed_contents = []
+        processed_beats = []
         for beat_quantization in measure_quantization.beats:
             notes_from_this_beat = []
 
@@ -1004,7 +1004,9 @@ class Voice(ScoreComponent, ScoreContainer):
                 # go through all the notes in this beat
                 notes_from_this_beat.append(notes.pop(0))
 
-            processed_contents.extend(Voice._process_and_convert_beat(notes_from_this_beat, beat_quantization))
+            processed_beats.append(Voice._process_and_convert_beat(notes_from_this_beat, beat_quantization))
+
+        processed_contents = Voice._recombine_processed_beats(processed_beats)
 
         # instantiate and return the constructed voice
         return cls(processed_contents, measure_quantization.time_signature)
@@ -1102,6 +1104,53 @@ class Voice(ScoreComponent, ScoreContainer):
             note_list.extend(note_parts)
 
         return [tuplet] if tuplet is not None else note_list
+
+    @staticmethod
+    def _recombine_processed_beats(processed_beats):
+        """
+        Recombine any full-beat notes that come from the same original source id where possible. E.g. make two full
+        quarter-note beats into a half note, etc.
+
+        :param processed_beats: list of beat bins (lists) of NoteLike objects
+        :return: processed list of NoteLike objects
+        """
+        processed_contents = []
+        current_beat = 0
+        while current_beat < len(processed_beats):
+            beat_notes = processed_beats[current_beat]
+            if Voice._is_simple_mergeable_beat(beat_notes):
+                potential_beat_merger = [beat_notes[0]]
+                for next_beat in processed_beats[current_beat + 1:]:
+                    if Voice._is_simple_mergeable_beat(next_beat) and \
+                            (next_beat[0].source_id() == beat_notes[0].source_id() or next_beat[0].is_rest()):
+                        potential_beat_merger.append(next_beat[0])
+                    else:
+                        break
+                # now, we can only merge if it all adds up to the length of a single note, so remove notes until it does
+                while not is_single_note_length(sum(x.written_length for x in potential_beat_merger)):
+                    potential_beat_merger.pop()
+
+                if len(potential_beat_merger) > 1:
+                    current_beat += len(potential_beat_merger)
+                    # if there's still multiple notes in there, we can merge them!
+                    merged_note = potential_beat_merger[0]
+                    for note in potential_beat_merger[1:]:
+                        merged_note.properties.articulations.extend(note.properties.articulations)
+                        merged_note.written_length += note.written_length
+                    processed_contents.append(merged_note)
+                else:
+                    processed_contents.append(beat_notes[0])
+                    current_beat += 1
+            else:
+                processed_contents.extend(beat_notes)
+                current_beat += 1
+        return processed_contents
+
+    @staticmethod
+    def _is_simple_mergeable_beat(beat_bin):
+        # when recombining beats into longer notes, this tests for a beat simple enough to merge
+        return len(beat_bin) == 1 and not isinstance(beat_bin[0], Tuplet) and not beat_bin[0].does_glissando() \
+               and (beat_bin[0].is_rest() or beat_bin[0].source_id() is not None)
 
     def _to_abjad(self, source_id_dict=None):
         if len(self.contents) == 0:  # empty voice
@@ -1605,6 +1654,12 @@ class NoteLike(ScoreComponent):
             return "start"
         elif self.properties.ends_tie():
             return "stop"
+        else:
+            return None
+
+    def source_id(self):
+        if "_source_id" in self.properties:
+            return self.properties["_source_id"]
         else:
             return None
 

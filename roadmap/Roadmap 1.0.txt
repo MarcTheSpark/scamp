@@ -9,7 +9,8 @@ Quantization:
     that whole interface.
 
 Engraving:
-    - Get recombination of larger notes working
+    - Change list of bar lengths to list of beats to place bars on
+    - Perhaps dotted notes even when they cross a beat?
     - Get Tempo curves working in abjad
     - Engraving sudden tempo changes correctly, test this thoroughly
     - Engraving Microtonal adjustments: make it chords, as well as for glissandi, and in both abjad and MusicXML.
