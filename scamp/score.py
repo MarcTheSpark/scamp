@@ -10,11 +10,13 @@ import pymusicxml
 from ._dependencies import abjad
 import math
 from fractions import Fraction
-from itertools import permutations
+from itertools import accumulate
 import textwrap
 from collections import namedtuple
 from abc import ABC, abstractmethod
 import logging
+
+from ._metric_layer import MetricLayer
 
 # TODO:
 # - looking through for situations like tied eighths on and of 1 and 2 combining into quarters
@@ -57,6 +59,10 @@ def is_single_note_length(length):
         return False
 
 
+def is_undotted_length(length):
+    return length in length_to_note_type
+
+
 def length_to_undotted_constituents(length):
     # fix any floating point inaccuracies
     length = Fraction(length).limit_denominator()
@@ -91,6 +97,171 @@ def _get_beat_division_indispensabilities(beat_length, beat_divisor):
             # pushed to the front last and end up at the very beginning of the queue)
 
     return get_standard_indispensability_array(divisor_factors, normalize=True)
+
+
+def _get_beat_division_hierarchy(beat_length, beat_divisor, small_to_big=True):
+    # In general, it's best to divide a beat into the smaller prime factors first. For instance, a 6 tuple is probably
+    # easiest as two groups of 3 rather than 3 groups of 2. (This is definitely debatable and context dependent.)
+    # An special case occurs when the beat naturally wants to divide a certain way. For instance, a beat of length 1.5
+    # divided into 6 will prefer to divide into 3s first and then 2s.
+
+    # first, get the divisor prime factors from to small
+    divisor_factors = sorted(prime_factor(beat_divisor), reverse=not small_to_big)
+
+    # then get the natural divisors of the beat length from big to small
+    natural_factors = sorted(prime_factor(Fraction(beat_length).limit_denominator().numerator), reverse=True)
+
+    # now for each natural factor
+    for natural_factor in natural_factors:
+        # if it's a factor of the divisor
+        if natural_factor in divisor_factors:
+            # then pop it and move it to the front
+            divisor_factors.pop(divisor_factors.index(natural_factor))
+            divisor_factors.insert(0, natural_factor)
+            # (Note that we sorted the natural factors from big to small so that the small ones get
+            # pushed to the front last and end up at the very beginning of the queue)
+
+    return MetricLayer.from_string("*".join(str(x) for x in divisor_factors), True).get_beat_depths()
+
+
+def _worsen_hierarchy_tuples(hierarchy, how_much=1):
+    """
+    Takes a beat hierarchy list and bumps everything surrounding a tuple up by how_much at each layer of structure.
+    Essentially, this increases the distance between the layers, making triplet subdivisions act more like subdivisions
+    of 4 than subdivisions of 2.
+
+    :param hierarchy: the original hierarchy list
+    :return: the altered hierarchy list (also alters in place)
+    """
+    for level in reversed(range(1, max(hierarchy) + 1)):
+        last_lower_value_at = None
+        streak = 0
+        for i, value in enumerate(hierarchy):
+            if value < level:
+                # check if we had a streak
+                if streak > 1:
+                    # if so, that indicates a tuple a this level of hierarchy. We boost everything since we
+                    # saw a lower level, including higher numbers than the current level
+                    for j in range(last_lower_value_at + 1, i):
+                        hierarchy[j] += how_much
+                # ... regardless, reset the streak counter, and last time we saw a lower level
+                streak = 0
+                last_lower_value_at = i
+            elif value == level:
+                streak += 1
+        if streak > 1:
+            for j in range(last_lower_value_at + 1, len(hierarchy)):
+                hierarchy[j] += how_much
+
+    return hierarchy
+
+
+# TODO: MEMOIZE THE SHIT OUT OF THIS!!!
+def _get_beat_division_grids(beat_hierarchy):
+    out = []
+    for thresh in range(max(beat_hierarchy)):
+        out.append([x for x in range(len(beat_hierarchy)) if beat_hierarchy[x] <= thresh])
+    return out
+
+
+# should maybe memoize?
+def is_single_note_viable_grouping(length_in_subdivisions, max_dots=1):
+    """
+    This tests if a note that is length_in_subdivisions subdivisions long can be represented by a single note.
+    For instance, suppose the subdivision is a 16th note: if length_in_subdivisions is 7, we're asking whether we
+    can represent, with one notehead, a not of length 7 16th notes. The answer is False with max_dots = 1, but
+    True with max_dots = 2, since a double-dotted quarter satisfies our requirement.
+
+    :param length_in_subdivisions: how many subdivisions we wish to combine
+    :param max_dots: max dots we are allowing
+    """
+    dot_multipliers = [2 - 2**(-x) for x in range(max_dots+1)]
+    for dot_multiplier in dot_multipliers:
+        if Fraction(math.log2(length_in_subdivisions / dot_multiplier)).limit_denominator().denominator == 1:
+            return True
+    return False
+
+
+def _get_best_recombination_given_beat_hierarchy(note_division_points, beat_hierarchy_list,
+                                                 beat_hierarchy_spacing=2.0, num_divisions_penalty=0.2):
+    """
+    Takes a list of points on an isochronous grid representing the start and end times of the components of a note,
+        along with a list of the beat hierarchies for that grid. Returns a merged list of component start and end
+        times, in which important division point are preserved and less important ones are removed.
+
+    :param note_division_points: list of the points on the isochronous grid representing note component starts and ends
+    :param beat_hierarchy_list: the result of _get_beat_division_hierarchy; a list of values for each beat in an
+        isochronous grid, where 0 is the most important beat (always the downbeat), 1 is the next most important kind
+        of beat, etc.
+    :param beat_hierarchy_spacing: the factor that the badness goes up from one rung of the beat hierarchy to the
+        next. A high value makes greater differentiation between important and less important beats, probably leading
+        to less recombination in favor of clearer delineation of the beat structure.
+    :param num_divisions_penalty: ranging from 0 to 1, this penalizes using more than one component to represent a note.
+        It acts as a counterbalance to beat_hierarchy_spacing, as it encourages recombination. The balance of the two
+        parameters needs to be correct if we want to get notation that expresses the beat hierarchy, but with as few
+        tied notes as possible.
+    :return: a new, better, I dare say shinier, list of note division points.
+    """
+    adjusted_hierarchies = [beat_hierarchy_spacing ** x for x in beat_hierarchy_list]
+
+    # translate time-points on the isochronous grid to durations in isochronous units after the start of the note
+    component_lengths = [division - last_division
+                         for last_division, division in zip(note_division_points[:-1], note_division_points[1:])]
+    assert all(is_single_note_viable_grouping(x, max_dots=engraving_settings.max_dots_allowed)
+               for x in component_lengths), "Somehow we got an division of a note into un-notatable components"
+    # get every possible combination of these components that keeps each component representable as a single note
+    recombination_options_lengths = [
+        option for option in _get_recombination_options(*component_lengths)
+        if all(is_single_note_viable_grouping(component, max_dots=engraving_settings.max_dots_allowed)
+               for component in option)
+    ]
+    # now, finally, we make ourselves a list options for division-point lists, each of which represents a recombination
+    # option. These are now time-points (rather than durations), so we can check them against the beat_hierarchy_list
+    # to see which one finds the best balance between expressing the metric structure and doing so with few components
+    recombination_options = [tuple(note_division_points[0] + x for x in accumulate((0, ) + option))
+                             for option in recombination_options_lengths]
+
+    if len(recombination_options) == 1:
+        return recombination_options[0], 0
+
+    best_score = float("inf")
+    best_option = None
+    num_beats = len(beat_hierarchy_list)
+    for option in recombination_options:
+        # adjusted_hierarchies[x] represents the badness of a given division point, since we want to divide on
+        # important beats, and important beats have low values in the beat_hierarchy_list
+        # if num_divisions_penalty is 0, we're dividing by the number of scores, so it's basically average badness
+        # if num_divisions_penalty is 1, we're dividing by 1, so it's total badness
+        score = sum(adjusted_hierarchies[x % num_beats] for x in option) / len(option) ** (1 - num_divisions_penalty)
+        if score < best_score:
+            best_option = option
+            best_score = score
+        elif score == best_score:
+            if _get_num_bad_crossings(option, adjusted_hierarchies) < \
+                    _get_num_bad_crossings(best_option, adjusted_hierarchies):
+                best_option = option
+                best_score = score
+    return best_option, best_score
+
+
+def _get_num_bad_crossings(recombination_option, hierarchies):
+    # we generally want to avoid crossing important beats with components that start or end with less important ones
+    # e.g. in 9/8, with hierarchies [0, 2, 2, 1, 2, 2, 1, 2, 2], the tie combination (2, 3, 9) should be preferable
+    # to the combination (2, 6, 9) since even though they land on the same kinds of beats, the latter option has a
+    # component from 2 to 6 that crosses the important beat 3 but starts on the weak beat 2
+
+    for start_segment, end_segment in zip(recombination_option[:-1], recombination_option[1:]):
+        # it's not looking through each segment!
+        threshold = max(hierarchies[start_segment], hierarchies[end_segment % len(hierarchies)])
+        return sum(hierarchies[x] < threshold for x in range(start_segment+1, end_segment))
+
+
+def _get_recombination_options(*component_lengths):
+    if len(component_lengths) == 1:
+        return component_lengths,
+    else:
+        return _get_recombination_options(component_lengths[0] + component_lengths[1], *component_lengths[2:]) + \
+               tuple((component_lengths[0], ) + x for x in _get_recombination_options(*component_lengths[1:]))
 
 
 # ---------------------------------------------- Score Classes --------------------------------------------
@@ -1059,39 +1230,56 @@ class Voice(ScoreComponent, ScoreContainer):
         dilation_factor = 1 if tuplet is None else tuplet.dilation_factor()
         written_division_length = beat_quantization.length / divisor * dilation_factor
 
-        division_indispensabilities = _get_beat_division_indispensabilities(beat_quantization.length, divisor)
+        # these versions go from small to big prime factors and vice-versa
+        # so for one 6 is 3x2, for the other it's 2x3. We try both options in case one fits better
+        beat_division_hierarchy = _get_beat_division_hierarchy(beat_quantization.length, divisor)
+        beat_division_hierarchy2 = _get_beat_division_hierarchy(beat_quantization.length, divisor, False)
+
+        # if they're identical (e.g. if there's only one type of prime anyway) we only need to care about one version
+        if beat_division_hierarchy == beat_division_hierarchy2:
+            beat_division_hierarchy2 = None
+
+        # makes triplets get treated as worse than duplets
+        _worsen_hierarchy_tuples(beat_division_hierarchy)
+        if beat_division_hierarchy2 is not None:
+            _worsen_hierarchy_tuples(beat_division_hierarchy2)
 
         note_list = tuplet.contents if tuplet is not None else []
 
+        note_division_points_list = []
+        if beat_division_hierarchy2 is not None:
+            note_division_points_list2 = []
+            hierarchy1_badness = 0
+            hierarchy2_badness = 0
+
         for note in beat_notes:
-            written_length = note.length * dilation_factor
-            if is_single_note_length(written_length):
-                written_length_components = [written_length]
-            else:
-                written_length_components = length_to_undotted_constituents(written_length)
+            start_division = int(round((note.start_time - beat_start_time) / beat_quantization.length * divisor))
+            length_in_divisions = int(round(note.length / beat_quantization.length * divisor))
+            end_division = start_division + length_in_divisions
 
-            # try every permutation of the length constituents. Get a score for it by multiplying the length of
-            # each constituent with the indispensability of that pulse within the beat and summing them.
-            best_permutation = written_length_components
-            best_score = 0
+            division_points1, score1 = \
+                Voice._get_division_points_for_note(start_division, end_division, beat_division_hierarchy)
+            note_division_points_list.append(division_points1)
 
-            for permutation in permutations(written_length_components):
-                accumulated_length = note.start_time - beat_start_time
-                division_indices = [int(round(accumulated_length / written_division_length))]
-                for component_length in permutation[:-1]:
-                    accumulated_length += component_length
-                    division_indices.append(int(round(accumulated_length / written_division_length)))
+            if beat_division_hierarchy2 is not None:
+                division_points2, score2 = \
+                    Voice._get_division_points_for_note(start_division, end_division, beat_division_hierarchy2)
+                hierarchy1_badness += score1
+                hierarchy2_badness += score2
+                note_division_points_list2.append(division_points2)
 
-                score = sum(segment_length * division_indispensabilities[division_index]
-                            for division_index, segment_length in zip(division_indices, permutation))
+        if beat_division_hierarchy2 is not None and hierarchy2_badness < hierarchy1_badness:
+            note_division_points_list = note_division_points_list2
 
-                if score > best_score:
-                    best_score = score
-                    best_permutation = permutation
+        for note, division_points in zip(beat_notes, note_division_points_list):
+            written_length_components = [
+                (div_point - last_div_point) * written_division_length
+                for last_div_point, div_point in zip(division_points[:-1], division_points[1:])
+            ]
 
             note_parts = []
             remainder = note
-            for segment_length in best_permutation:
+            for segment_length in written_length_components:
 
                 split_note = remainder.split_at_beat(remainder.start_time + segment_length / dilation_factor)
                 if len(split_note) > 1:
@@ -1104,6 +1292,45 @@ class Voice(ScoreComponent, ScoreContainer):
             note_list.extend(note_parts)
 
         return [tuplet] if tuplet is not None else note_list
+
+    @staticmethod
+    def _get_division_points_for_note(start_division, end_division, beat_division_hierarchy):
+        beat_division_grids = _get_beat_division_grids(beat_division_hierarchy)[1:]
+        current_division = start_division
+        division_points = [current_division]
+
+        go_again = True
+        while go_again:
+            go_again = False
+
+            # otherwise...
+            # starting with the widest grid, going down to the narrowest
+            for beat_division_grid in beat_division_grids:
+                # go through all the division points in this grid, and see if we can make it to them directly
+                for division_point in beat_division_grid + [len(beat_division_hierarchy)]:
+                    # if the division point is past where we are and not beyond the end of the note
+                    # and if we can get there in a single note
+                    if current_division < division_point <= end_division \
+                            and is_single_note_viable_grouping(division_point - current_division,
+                                                               engraving_settings.max_dots_allowed):
+                        division_points.append(division_point)
+                        current_division = division_point
+                        if division_point != end_division:
+                            go_again = True
+                        break
+                else:
+                    continue
+                break
+
+        if current_division < end_division:
+            for x in length_to_undotted_constituents(end_division - current_division):
+                division_points.append(int(round(x)) + division_points[-1])
+
+        # TODO: Maybe make these settings adjustable
+        division_points, score = _get_best_recombination_given_beat_hierarchy(
+            division_points, beat_division_hierarchy, beat_hierarchy_spacing=2.4, num_divisions_penalty=0.6)
+
+        return division_points, score
 
     @staticmethod
     def _recombine_processed_beats(processed_beats):
