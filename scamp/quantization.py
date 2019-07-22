@@ -1,7 +1,7 @@
 from fractions import Fraction
 from .utilities import indigestibility, is_multiple, is_x_pow_of_y, round_to_multiple, sum_nested_list, prime_factor, \
     SavesToJSON, memoize
-from ._metric_layer import MetricLayer
+from ._metric_structure import MetricStructure
 from collections import namedtuple
 from .settings import quantization_settings, engraving_settings
 from expenvelope import Envelope
@@ -598,7 +598,7 @@ class MeasureQuantizationScheme:
         else:
             if sum_nested_list(beat_groupings) != len(beat_schemes):
                 raise ValueError("Wrong number of beats in beat groupings.")
-            self.beat_groupings = MetricLayer(*beat_groupings)
+            self.beat_groupings = MetricStructure(*beat_groupings)
 
     @classmethod
     def from_time_signature(cls, time_signature, max_divisor="default", max_indigestibility="default",
@@ -651,8 +651,8 @@ class MeasureQuantizationScheme:
         groups.append(current_group_length)
 
         # for each group make a metric layer out of the prime-factored length, breaking up large primes
-        return MetricLayer(*(MetricLayer.from_string("*".join(str(x) for x in sorted(prime_factor(group))), True)
-                             for group in groups))
+        return MetricStructure(*(MetricStructure.from_string("*".join(str(x) for x in sorted(prime_factor(group))), True)
+                                 for group in groups))
 
     @memoize
     def get_beat_hierarchies(self, subdivision_length):
@@ -686,33 +686,33 @@ class MeasureQuantizationScheme:
                 # (Note that we sorted the natural factors from big to small so that the small ones get
                 # pushed to the front last and end up at the very beginning of the queue)
 
-        return MetricLayer.from_string("*".join(str(x) for x in divisor_factors), True)
+        return MetricStructure.from_string("*".join(str(x) for x in divisor_factors), True)
 
     @staticmethod
-    def _inscribe_beats(beat_structure: MetricLayer, beat_metric_layers):
+    def _inscribe_beats(beat_structure: MetricStructure, beat_metric_layers):
         """
-        Takes a MetricLayer representing the beat structure, and a list of MetricLayers representing the interior
-        structure of each beat in order, and returns the MetricLayer that combines these two, inscribing the beat
-        structures into the outer MetricLayer that represents the beat organization.
+        Takes a MetricStructure representing the beat structure, and a list of MetricLayers representing the interior
+        structure of each beat in order, and returns the MetricStructure that combines these two, inscribing the beat
+        structures into the outer MetricStructure that represents the beat organization.
 
-        :param beat_structure: MetricLayer representing the beat structure; each leaf is a beat
+        :param beat_structure: MetricStructure representing the beat structure; each leaf is a beat
         :param beat_metric_layers: list of MetricLayers representing how each beat is subdivided
-        :return: full structure of the measure as a MetricLayer
+        :return: full structure of the measure as a MetricStructure
         """
         if len(beat_metric_layers) != beat_structure.num_pulses():
             raise ValueError("Wrong number of beat metric layers to inscribe.")
         new_groups = []
         for group in beat_structure.groups:
             if isinstance(group, int):
-                new_groups.append(MetricLayer(*beat_metric_layers[:group]))
+                new_groups.append(MetricStructure(*beat_metric_layers[:group]))
                 beat_metric_layers = beat_metric_layers[group:]
-            elif isinstance(group, MetricLayer):
+            elif isinstance(group, MetricStructure):
                 pulses_in_group = group.num_pulses()
                 new_groups.append(inscribe_beats(group, beat_metric_layers[:pulses_in_group]))
                 beat_metric_layers = beat_metric_layers[pulses_in_group:]
             else:
                 raise ValueError("Bad group.")
-        return MetricLayer(*new_groups)
+        return MetricStructure(*new_groups)
 
     def __str__(self):
         return "MeasureQuantizationScheme({})".format(self.time_signature.as_string())

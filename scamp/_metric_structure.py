@@ -1,5 +1,8 @@
 """
-Re-implementation and extension of Clarence Barlow's concept of rhythmic indispensability such that it works for
+Contains the MetricStructure class, which represents the beat/subdivision groups of a beat, measure or other span of
+metered time. This class allows us to get an indispensability array for such a structure, or to get an array of
+beat depths, representing how many layers of subdivision a particular time point occurs at. The indispensability array
+is my own reimplementation and extension of Clarence Barlow's concept of indispensibility such that it works for
 additive meters (even nested additive meters).
 """
 
@@ -80,7 +83,7 @@ class MeterArithmeticGroup:
 
     def __init__(self, elements, operation):
         """
-        This class exists as an aid to parsing arithmetic expressions into MetricLayers.
+        This class exists as an aid to parsing arithmetic expressions into MetricStructures.
         The basic issue was that I didn't want addition to be associative; there needed to be a difference between
         (4 + 2) + 3, 4 + (2 + 3), and 4 + 2 + 3. The first two establish a hierarchy, while the latter places each
         group on an even footing.
@@ -168,14 +171,14 @@ class MeterArithmeticGroup:
         else:
             return MeterArithmeticGroup([int(input_string)], None)
 
-    def to_metric_layer(self, break_up_large_numbers=False):
+    def to_metric_structure(self, break_up_large_numbers=False):
         if self.operation is None:
-            return MetricLayer(self.elements[0], break_up_large_numbers=break_up_large_numbers)
+            return MetricStructure(self.elements[0], break_up_large_numbers=break_up_large_numbers)
         elif self.operation == "+":
-            return MetricLayer(*[x.to_metric_layer(break_up_large_numbers) for x in self.elements],
-                               break_up_large_numbers=break_up_large_numbers)
+            return MetricStructure(*[x.to_metric_structure(break_up_large_numbers) for x in self.elements],
+                                   break_up_large_numbers=break_up_large_numbers)
         else:
-            return functools.reduce(operator.mul, (x.to_metric_layer(break_up_large_numbers) for x in self.elements))
+            return functools.reduce(operator.mul, (x.to_metric_structure(break_up_large_numbers) for x in self.elements))
 
     def __repr__(self):
         return "ArithmeticGroup({}, \"{}\")".format(self.elements, self.operation)
@@ -195,7 +198,7 @@ def flatten_beat_groups(beat_groups, upbeats_before_group_length=True):
         the next most indispensable beat should be the second eighth note, since it is the pickup to the second most
         indispensable beat! This would yield indispensabilities [4, 1, 3, 0, 2], which also makes sense. I've chosen
         to make this latter approach the default; I think it generally sounds more correct.
-    :return: a (perhaps still nested) list of beat groups with the outer layer unraveled so that it a layer less deep
+    :return: a (perhaps still nested) list of beat groups with the outer layer unraveled so that it's a layer less deep
     """
     beat_groups = deepcopy(beat_groups)
     out = []
@@ -234,24 +237,24 @@ def return_first_from_nested_list(l):
         return l
 
 
-class MetricLayer:
+class MetricStructure:
 
     def __init__(self, *groups, break_up_large_numbers=False):
         """
-        A single metric layer formed by the additive concatenation of the given groups. These groups can themselves
-        be metric layers, which allows for nested additive structures.
+        A metric structure formed by the additive concatenation of the given groups. Each group can either be a
+        number of pulses or a metric structure itself, which allows for nested additive structures.
 
         :param groups: list of additively combined groups. If all integers, then this is like a simple additive meter
             without considering subdivisions. For instance, (2, 4, 3) is like the time signature (2+4+3)/8. However,
-            any component of this layer can instead be itself a MetricLayer, allowing for nesting.
+            any component of this structure can instead be itself a MetricStructure, allowing for nesting. Nested
+            structures can also be created by having one of the groups be a tuple, or tuple of tuples, etc.
         :param break_up_large_numbers: if True, groups with number greater than 3 are broken up into a sum of 2's
             followed by one 3 if odd. This is the Barlow approach.
-        Each one can either be a number or a Metric layer
         """
-        if not all(isinstance(x, (int, list, tuple, MetricLayer)) for x in groups):
-            raise ValueError("Metric layer groups must either be integers, list/tuples or MetricLayers themselves")
+        if not all(isinstance(x, (int, list, tuple, MetricStructure)) for x in groups):
+            raise ValueError("Groups must either be integers, list/tuples or MetricStructures themselves")
 
-        self.groups = [MetricLayer(*x) if isinstance(x, (tuple, list)) else x for x in groups]
+        self.groups = [MetricStructure(*x) if isinstance(x, (tuple, list)) else x for x in groups]
 
         if break_up_large_numbers:
             self.break_up_large_numbers()
@@ -260,27 +263,27 @@ class MetricLayer:
 
     @classmethod
     def from_string(cls, input_string: str, break_up_large_numbers=False):
-        return MeterArithmeticGroup.parse(input_string).to_metric_layer(break_up_large_numbers)
+        return MeterArithmeticGroup.parse(input_string).to_metric_structure(break_up_large_numbers)
 
     def break_up_large_numbers(self):
         for i, group in enumerate(self.groups):
             if isinstance(group, int):
                 if group > 3:
-                    self.groups[i] = MetricLayer(*decompose_to_twos_and_threes(group))
+                    self.groups[i] = MetricStructure(*decompose_to_twos_and_threes(group))
             else:
                 self.groups[i].break_up_large_numbers()
         return self
 
     def _remove_redundant_nesting(self):
         """
-        Since MetricLayer(MetricLayer(*)) = MetricLayer(*), this method removes those unnecessary nestings.
+        Since MetricStructure(MetricStructure(*)) = MetricStructure(*), this method removes those unnecessary nestings.
         """
-        if len(self.groups) == 1 and isinstance(self.groups[0], MetricLayer):
+        if len(self.groups) == 1 and isinstance(self.groups[0], MetricStructure):
             self.groups = self.groups[0].groups
             self._remove_redundant_nesting()
         else:
             for i, group in enumerate(self.groups):
-                if isinstance(group, MetricLayer):
+                if isinstance(group, MetricStructure):
                     group._remove_redundant_nesting()
                     if len(group.groups) == 1 and isinstance(group.groups[0], int):
                         self.groups[i] = group.groups[0]
@@ -288,13 +291,13 @@ class MetricLayer:
 
     @staticmethod
     def _count_nested_list(l):
-        return sum(MetricLayer._count_nested_list(x) if hasattr(x, "__len__") else 1 for x in l)
+        return sum(MetricStructure._count_nested_list(x) if hasattr(x, "__len__") else 1 for x in l)
 
     @staticmethod
     def _increment_nested_list(l, increment):
         for i, element in enumerate(l):
             if isinstance(element, list):
-                MetricLayer._increment_nested_list(element, increment)
+                MetricStructure._increment_nested_list(element, increment)
             else:
                 l[i] += increment
         return l
@@ -304,8 +307,8 @@ class MetricLayer:
         beat = 0
         for group in reversed(self.groups):
             beat_group = list(range(group)) if isinstance(group, int) else group.get_nested_beat_groups()
-            MetricLayer._increment_nested_list(beat_group, beat)
-            beat += MetricLayer._count_nested_list(beat_group)
+            MetricStructure._increment_nested_list(beat_group, beat)
+            beat += MetricStructure._count_nested_list(beat_group)
             beat_groups.append(beat_group)
         return beat_groups
 
@@ -326,7 +329,7 @@ class MetricLayer:
         if len(nested_beat_groups) == 1 and hasattr(nested_beat_groups[0], "__len__"):
             # when it's just a single layer, for some reason it's getting wrapped twice, leading to erroneous values
             nested_beat_groups = nested_beat_groups[0]
-        beat_depths = [0] + [None] * (MetricLayer._count_nested_list(nested_beat_groups) - 1)
+        beat_depths = [0] + [None] * (MetricStructure._count_nested_list(nested_beat_groups) - 1)
         current_depth = 1
 
         while depth(nested_beat_groups) > 1:
@@ -368,75 +371,50 @@ class MetricLayer:
             return indispensability_array
 
     def num_pulses(self):
-        return sum(x.num_pulses() if isinstance(x, MetricLayer) else x for x in self.groups)
+        return sum(x.num_pulses() if isinstance(x, MetricStructure) else x for x in self.groups)
 
-    def extend(self, other_metric_layer, in_place=True):
+    def extend(self, other_metric_structure, in_place=True):
         """
-        Extend this layer by appending the groups of another metric layer
+        Extend this structure by appending the groups of another metric structure
         """
         if in_place:
-            self.groups.extend(other_metric_layer.groups)
+            self.groups.extend(other_metric_structure.groups)
             return self._remove_redundant_nesting()
         else:
-            return MetricLayer(*self.groups, *other_metric_layer.groups)
+            return MetricStructure(*self.groups, *other_metric_structure.groups)
 
-    def append(self, other_metric_layer, in_place=True):
+    def append(self, other_metric_structure, in_place=True):
         if in_place:
-            self.groups.append(other_metric_layer)
+            self.groups.append(other_metric_structure)
             return self._remove_redundant_nesting()
         else:
-            return MetricLayer(*self.groups, other_metric_layer)
+            return MetricStructure(*self.groups, other_metric_structure)
 
-    def join(self, other_metric_layer):
-        return MetricLayer(self, other_metric_layer)
+    def join(self, other_metric_structure):
+        return MetricStructure(self, other_metric_structure)
 
     def __add__(self, other):
         return self.join(other)
 
     def __mul__(self, other):
         if isinstance(other, int):
-            return self * MetricLayer(other)
+            return self * MetricStructure(other)
         else:
-            return MetricLayer(*(group * other for group in self.groups))
+            return MetricStructure(*(group * other for group in self.groups))
 
     def __rmul__(self, other):
         if other == 1:
             return self
-        return MetricLayer(*([self] * other))
+        return MetricStructure(*([self] * other))
 
     def __radd__(self, other):
         if other == 0:
             # This allows the "sum" command in __mul__ above to work
             return self
         elif isinstance(other, int):
-            return MetricLayer(other) + self
+            return MetricStructure(other) + self
         else:
             return other + self
 
     def __repr__(self):
-        return "MetricLayer({})".format(", ".join(str(x) for x in self.groups))
-
-
-def indispensability_array_from_expression(meter_arithmetic_expression: str, normalize=False,
-                                           split_large_numbers=False, upbeats_before_group_length=True):
-    return MeterArithmeticGroup.parse(meter_arithmetic_expression) \
-        .to_metric_layer(split_large_numbers) \
-        .get_indispensability_array(normalize=normalize, upbeats_before_group_length=upbeats_before_group_length)
-
-
-def indispensability_array_from_strata(*rhythmic_strata, normalize=False,
-                                       split_large_numbers=False, upbeats_before_group_length=True):
-    expression = "*".join(
-        ("("+"+".join(str(y) for y in x)+")" if hasattr(x, "__len__") else str(x)) for x in rhythmic_strata
-    )
-    return indispensability_array_from_expression(
-        expression, normalize=normalize, split_large_numbers=split_large_numbers,
-        upbeats_before_group_length=upbeats_before_group_length
-    )
-
-
-def barlow_style_indispensability_array(*rhythmic_strata, normalize=False):
-    if not all(isinstance(x, int) for x in rhythmic_strata):
-        raise ValueError("Standard Barlow indispensability arrays must be based on from integer strata.")
-    return indispensability_array_from_expression("*".join(str(x) for x in rhythmic_strata), normalize=normalize,
-                                                  split_large_numbers=True, upbeats_before_group_length=False)
+        return "MetricStructure({})".format(", ".join(str(x) for x in self.groups))

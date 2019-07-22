@@ -15,7 +15,7 @@ from collections import namedtuple
 from abc import ABC, abstractmethod
 import logging
 
-from ._metric_layer import MetricLayer
+from ._metric_structure import MetricStructure
 
 
 # ---------------------------------------------- Duration Utilities --------------------------------------------
@@ -93,7 +93,7 @@ def _get_beat_division_hierarchy(beat_length, beat_divisor, small_to_big=True):
             # (Note that we sorted the natural factors from big to small so that the small ones get
             # pushed to the front last and end up at the very beginning of the queue)
 
-    return MetricLayer.from_string("*".join(str(x) for x in divisor_factors), True).get_beat_depths()
+    return MetricStructure.from_string("*".join(str(x) for x in divisor_factors), True).get_beat_depths()
 
 
 def _worsen_hierarchy_tuples(hierarchy, how_much=1, in_place=True):
