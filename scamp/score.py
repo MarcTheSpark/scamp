@@ -1205,8 +1205,12 @@ class Voice(ScoreComponent, ScoreContainer):
                 constituent_lengths = length_to_undotted_constituents(length)
                 return [NoteLike(pitch, l, properties) for l in constituent_lengths]
 
-        # if the divisor requires a tuplet, we construct it
-        tuplet = Tuplet.from_length_and_divisor(beat_quantization.length, divisor) if divisor is not None else None
+        if len(beat_notes) == 1:
+            # if there's only one note in the beat, it's silly to make a tuplet
+            tuplet = None
+        else:
+            # otherwise, if the divisor requires a tuplet, we construct it
+            tuplet = Tuplet.from_length_and_divisor(beat_quantization.length, divisor) if divisor is not None else None
 
         dilation_factor = 1 if tuplet is None else tuplet.dilation_factor()
         written_division_length = beat_quantization.length / divisor * dilation_factor
@@ -1517,11 +1521,25 @@ class Tuplet(ScoreComponent, ScoreContainer):
 
     @classmethod
     def from_length_and_divisor(cls, length, divisor):
-        # constructs the appropriate tuplet from the length and the divisor
+        """
+        Constructs and returns the appropriate tuplet from the length and the divisor. Returns None if no tuplet needed.
 
-        # consider a beat length of 1.5 and a tuplet of 11
-        # normal_divisions gets set initially to 3 and normal type gets set to 8, since it's 3 eighth notes long
+        :param length: length of the beat in quarters
+        :param divisor: divisor for the beat
+        :return: a Tuplet, or None
+        """
         beat_length_fraction = Fraction(length).limit_denominator()
+
+        # 1.5 / 2 can be represented as two dotted 8ths or as a duple tuplet of 8ths.
+        # if we don't want duple tuplets in compound time (i.e. beat lengths of 1.5, etc.),
+        # then whenever the length of the beat division is duple, we don't use a tuplet.
+        if not engraving_settings.allow_duple_tuplets_in_compound_time and \
+                is_x_pow_of_y((beat_length_fraction / divisor).denominator, 2):
+            return None
+
+        # We have to figure out the ratio of tuplet divisions to normal divisions and the note type associated with
+        # the normal divisions. E.g. consider a beat length of 1.5 and a tuplet of 11: normal_divisions gets set
+        # initially to 3 and normal type gets set to 8, since it's 3 eighth notes long
         normal_divisions = beat_length_fraction.numerator
         # (if denominator is 1, normal type is quarter note, 2 -> eighth note, etc.)
         normal_type = 4 * beat_length_fraction.denominator

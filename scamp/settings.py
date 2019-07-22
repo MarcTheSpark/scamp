@@ -246,6 +246,7 @@ class TempoSettings(ScampSettings):
 class EngravingSettings(ScampSettings):
 
     factory_defaults = {
+        "allow_duple_tuplets_in_compound_time": True,
         "max_voices_per_part": 4,
         "max_dots_allowed": 3,
         # Should be >= 1. Larger numbers treat the various nested levels of beat subdivision as further apart, leading

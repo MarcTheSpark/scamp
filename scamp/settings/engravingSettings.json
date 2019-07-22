@@ -1,4 +1,5 @@
 {
+    "allow_duple_tuplets_in_compound_time": true,
     "articulation_split_protocols": {
         "accent": "first",
         "marcato": "first",
