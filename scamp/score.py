@@ -2,8 +2,7 @@ from .settings import quantization_settings, engraving_settings
 from expenvelope import Envelope
 from .quantization import QuantizationRecord, QuantizationScheme, TimeSignature
 from .performance_note import PerformanceNote
-from .utilities import get_standard_indispensability_array, prime_factor, floor_x_to_pow_of_y, \
-    ceil_to_multiple, floor_to_multiple
+from .utilities import prime_factor, floor_x_to_pow_of_y, is_x_pow_of_y, ceil_to_multiple, floor_to_multiple
 from ._engraving_translations import get_xml_notehead, get_lilypond_notehead_name, articulation_to_xml_element_name
 from .note_properties import NotePropertiesDictionary
 import pymusicxml
@@ -18,8 +17,6 @@ import logging
 
 from ._metric_layer import MetricLayer
 
-# TODO:
-# - looking through for situations like tied eighths on and of 1 and 2 combining into quarters
 
 # ---------------------------------------------- Duration Utilities --------------------------------------------
 
@@ -74,38 +71,13 @@ def length_to_undotted_constituents(length):
     return length_parts
 
 
-def _get_beat_division_indispensabilities(beat_length, beat_divisor):
-    # In general, it's best to divide a beat into the smaller prime factors first. For instance, a 6 tuple is probably
-    # easiest as two groups of 3 rather than 3 groups of 2. (This is definitely debatable and context dependent.)
-    # An special case occurs when the beat naturally wants to divide a certain way. For instance, a beat of length 1.5
-    # divided into 6 will prefer to divide into 3s first and then 2s.
-
-    # first, get the divisor prime factors from to small
-    divisor_factors = sorted(prime_factor(beat_divisor))
-
-    # then get the natural divisors of the beat length from big to small
-    natural_factors = sorted(prime_factor(Fraction(beat_length).limit_denominator().numerator), reverse=True)
-
-    # now for each natural factor
-    for natural_factor in natural_factors:
-        # if it's a factor of the divisor
-        if natural_factor in divisor_factors:
-            # then pop it and move it to the front
-            divisor_factors.pop(divisor_factors.index(natural_factor))
-            divisor_factors.insert(0, natural_factor)
-            # (Note that we sorted the natural factors from big to small so that the small ones get
-            # pushed to the front last and end up at the very beginning of the queue)
-
-    return get_standard_indispensability_array(divisor_factors, normalize=True)
-
-
 def _get_beat_division_hierarchy(beat_length, beat_divisor, small_to_big=True):
     # In general, it's best to divide a beat into the smaller prime factors first. For instance, a 6 tuple is probably
     # easiest as two groups of 3 rather than 3 groups of 2. (This is definitely debatable and context dependent.)
     # An special case occurs when the beat naturally wants to divide a certain way. For instance, a beat of length 1.5
     # divided into 6 will prefer to divide into 3s first and then 2s.
 
-    # first, get the divisor prime factors from to small
+    # first, get the divisor prime factors from big to small (or small to big if set)
     divisor_factors = sorted(prime_factor(beat_divisor), reverse=not small_to_big)
 
     # then get the natural divisors of the beat length from big to small
@@ -124,15 +96,19 @@ def _get_beat_division_hierarchy(beat_length, beat_divisor, small_to_big=True):
     return MetricLayer.from_string("*".join(str(x) for x in divisor_factors), True).get_beat_depths()
 
 
-def _worsen_hierarchy_tuples(hierarchy, how_much=1):
+def _worsen_hierarchy_tuples(hierarchy, how_much=1, in_place=True):
     """
     Takes a beat hierarchy list and bumps everything surrounding a tuple up by how_much at each layer of structure.
-    Essentially, this increases the distance between the layers, making triplet subdivisions act more like subdivisions
+    Essentially, this increases the distance between the layers, making tuplet subdivisions act more like subdivisions
     of 4 than subdivisions of 2.
 
     :param hierarchy: the original hierarchy list
+    :param how_much, how much to worsen tuples more than 2 by
+    :param in_place: modify hierarchy in place
     :return: the altered hierarchy list (also alters in place)
     """
+    if not in_place:
+        hierarchy = list(hierarchy)
     for level in reversed(range(1, max(hierarchy) + 1)):
         last_lower_value_at = None
         streak = 0
@@ -182,8 +158,7 @@ def is_single_note_viable_grouping(length_in_subdivisions, max_dots=1):
     return False
 
 
-def _get_best_recombination_given_beat_hierarchy(note_division_points, beat_hierarchy_list,
-                                                 beat_hierarchy_spacing=2.0, num_divisions_penalty=0.2):
+def _get_best_recombination_given_beat_hierarchy(note_division_points, beat_hierarchy_list, is_rest=False):
     """
     Takes a list of points on an isochronous grid representing the start and end times of the components of a note,
         along with a list of the beat hierarchies for that grid. Returns a merged list of component start and end
@@ -193,15 +168,21 @@ def _get_best_recombination_given_beat_hierarchy(note_division_points, beat_hier
     :param beat_hierarchy_list: the result of _get_beat_division_hierarchy; a list of values for each beat in an
         isochronous grid, where 0 is the most important beat (always the downbeat), 1 is the next most important kind
         of beat, etc.
-    :param beat_hierarchy_spacing: the factor that the badness goes up from one rung of the beat hierarchy to the
-        next. A high value makes greater differentiation between important and less important beats, probably leading
-        to less recombination in favor of clearer delineation of the beat structure.
-    :param num_divisions_penalty: ranging from 0 to 1, this penalizes using more than one component to represent a note.
-        It acts as a counterbalance to beat_hierarchy_spacing, as it encourages recombination. The balance of the two
-        parameters needs to be correct if we want to get notation that expresses the beat hierarchy, but with as few
-        tied notes as possible.
+    :param is_rest: changes the settings, by default in such a way that less recombination happens
     :return: a new, better, I dare say shinier, list of note division points.
     """
+    # the factor that the badness goes up from one rung of the beat hierarchy to the next.
+    # A high value makes greater differentiation between important and less important beats, probably
+    # leading to less recombination in favor of clearer delineation of the beat structure.
+    beat_hierarchy_spacing = engraving_settings.rest_beat_hierarchy_spacing if is_rest \
+        else engraving_settings.beat_hierarchy_spacing
+    # ranging from 0 to 1, this penalizes using more than one component to represent a note.
+    # It acts as a counterbalance to beat_hierarchy_spacing, as it encourages recombination. The balance of the two
+    # parameters needs to be correct if we want to get notation that expresses the beat hierarchy, but with as few
+    # tied notes as possible.
+    num_divisions_penalty = engraving_settings.rest_num_divisions_penalty if is_rest \
+        else engraving_settings.num_divisions_penalty
+
     adjusted_hierarchies = [beat_hierarchy_spacing ** x for x in beat_hierarchy_list]
 
     # translate time-points on the isochronous grid to durations in isochronous units after the start of the note
@@ -1177,7 +1158,7 @@ class Voice(ScoreComponent, ScoreContainer):
 
             processed_beats.append(Voice._process_and_convert_beat(notes_from_this_beat, beat_quantization))
 
-        processed_contents = Voice._recombine_processed_beats(processed_beats)
+        processed_contents = Voice._recombine_processed_beats(processed_beats, measure_quantization)
 
         # instantiate and return the constructed voice
         return cls(processed_contents, measure_quantization.time_signature)
@@ -1257,13 +1238,15 @@ class Voice(ScoreComponent, ScoreContainer):
             length_in_divisions = int(round(note.length / beat_quantization.length * divisor))
             end_division = start_division + length_in_divisions
 
-            division_points1, score1 = \
-                Voice._get_division_points_for_note(start_division, end_division, beat_division_hierarchy)
+            division_points1, score1 = Voice._get_division_points_for_note(
+                start_division, end_division, beat_division_hierarchy, is_rest=note.pitch is None
+            )
             note_division_points_list.append(division_points1)
 
             if beat_division_hierarchy2 is not None:
-                division_points2, score2 = \
-                    Voice._get_division_points_for_note(start_division, end_division, beat_division_hierarchy2)
+                division_points2, score2 = Voice._get_division_points_for_note(
+                    start_division, end_division, beat_division_hierarchy2, is_rest=note.pitch is None
+                )
                 hierarchy1_badness += score1
                 hierarchy2_badness += score2
                 note_division_points_list2.append(division_points2)
@@ -1294,7 +1277,7 @@ class Voice(ScoreComponent, ScoreContainer):
         return [tuplet] if tuplet is not None else note_list
 
     @staticmethod
-    def _get_division_points_for_note(start_division, end_division, beat_division_hierarchy):
+    def _get_division_points_for_note(start_division, end_division, beat_division_hierarchy, is_rest=False):
         beat_division_grids = _get_beat_division_grids(beat_division_hierarchy)[1:]
         current_division = start_division
         division_points = [current_division]
@@ -1326,14 +1309,14 @@ class Voice(ScoreComponent, ScoreContainer):
             for x in length_to_undotted_constituents(end_division - current_division):
                 division_points.append(int(round(x)) + division_points[-1])
 
-        # TODO: Maybe make these settings adjustable
         division_points, score = _get_best_recombination_given_beat_hierarchy(
-            division_points, beat_division_hierarchy, beat_hierarchy_spacing=2.4, num_divisions_penalty=0.6)
+            division_points, beat_division_hierarchy, is_rest=is_rest
+        )
 
         return division_points, score
 
     @staticmethod
-    def _recombine_processed_beats(processed_beats):
+    def _recombine_processed_beats(processed_beats, measure_quantization):
         """
         Recombine any full-beat notes that come from the same original source id where possible. E.g. make two full
         quarter-note beats into a half note, etc.
@@ -1341,37 +1324,112 @@ class Voice(ScoreComponent, ScoreContainer):
         :param processed_beats: list of beat bins (lists) of NoteLike objects
         :return: processed list of NoteLike objects
         """
-        processed_contents = []
-        current_beat = 0
-        while current_beat < len(processed_beats):
-            beat_notes = processed_beats[current_beat]
-            if Voice._is_simple_mergeable_beat(beat_notes):
-                potential_beat_merger = [beat_notes[0]]
-                for next_beat in processed_beats[current_beat + 1:]:
-                    if Voice._is_simple_mergeable_beat(next_beat) and \
-                            (next_beat[0].source_id() == beat_notes[0].source_id() or next_beat[0].is_rest()):
-                        potential_beat_merger.append(next_beat[0])
-                    else:
-                        break
-                # now, we can only merge if it all adds up to the length of a single note, so remove notes until it does
-                while not is_single_note_length(sum(x.written_length for x in potential_beat_merger)):
-                    potential_beat_merger.pop()
+        duple_subdivision, measure_beat_depths = measure_quantization.beat_depths
 
-                if len(potential_beat_merger) > 1:
-                    current_beat += len(potential_beat_merger)
-                    # if there's still multiple notes in there, we can merge them!
-                    merged_note = potential_beat_merger[0]
-                    for note in potential_beat_merger[1:]:
-                        merged_note.properties.articulations.extend(note.properties.articulations)
-                        merged_note.written_length += note.written_length
-                    processed_contents.append(merged_note)
+        measure_beat_depths = _worsen_hierarchy_tuples(measure_beat_depths, 2, in_place=False)
+
+        combinable_groups = []
+        current_group = []
+
+        def hit_a_stopper():
+            # ran into a note that can't combine with previous notes, so any current combinable group is ended
+            nonlocal current_group, combinable_groups
+            if len(current_group) > 1:
+                combinable_groups.append(current_group)
+                current_group = []
+            elif len(current_group) == 1:
+                combinable_groups.append(current_group[0])
+                current_group = []
+
+        t = 0
+        for beat in processed_beats:
+            if isinstance(beat[0], Tuplet):
+                # we're only looking for non-tuplet combinations here, so a tuplet is a stopper
+                hit_a_stopper()
+                # it also doesn't start a new group
+                combinable_groups.append(beat[0])
+                t += beat[0].length()
+                continue
+            for note in beat:
+                # to be combinable, first the note has to not be a gliss and be a duple length
+                if is_x_pow_of_y(note.written_length.denominator, 2) and not note.does_glissando():
+                    if len(current_group) == 0:
+                        # if it's starting a group it has to be a rest or part of a single-source group
+                        is_combinable = note.is_rest() or note.source_id() is not None
+                    elif current_group[-1].is_rest():
+                        # if it's joining a rest group, it must be a rest
+                        is_combinable = note.is_rest()
+                    else:
+                        # if it's joining a note group, it must have the same id
+                        is_combinable = current_group[-1].source_id() == note.source_id()
                 else:
-                    processed_contents.append(beat_notes[0])
-                    current_beat += 1
+                    is_combinable = False
+
+                if is_combinable:
+                    note.properties["temp"]["beat_index"] = int(round(t / duple_subdivision))
+                    current_group.append(note)
+                else:
+                    hit_a_stopper()
+                    # even though this note can't combine with previous, it could be part of a new group
+                    if is_x_pow_of_y(note.written_length.denominator, 2) and not note.does_glissando() \
+                            and (note.is_rest() or note.source_id() is not None):
+                        note.properties["temp"]["beat_index"] = int(round(t / duple_subdivision))
+                        current_group.append(note)
+                    else:
+                        # ... or not
+                        combinable_groups.append(note)
+                t += note.written_length
+
+        # the end of the measure is also a stopper
+        hit_a_stopper()
+
+        processed_contents = []
+        for group in combinable_groups:
+            if isinstance(group, list):
+                note_division_points = [x.properties["temp"]["beat_index"] for x in group]
+                note_division_points.append(note_division_points[-1] +
+                                            int(round(group[-1].written_length / duple_subdivision)))
+
+                recombined_division_points = Voice._try_all_sub_recombinations(
+                    note_division_points, measure_beat_depths, group[0].is_rest()
+                )
+
+                merged_group = [group[0]]
+                for note, division_point in zip(group[1:], note_division_points[1:-1]):
+                    if division_point in recombined_division_points:
+                        merged_group.append(note)
+                    else:
+                        merged_group[-1].merge_with(note)
+
+                processed_contents.extend(merged_group)
             else:
-                processed_contents.extend(beat_notes)
-                current_beat += 1
+                processed_contents.append(group)
         return processed_contents
+
+    @staticmethod
+    def _try_all_sub_recombinations(note_division_points, measure_beat_depths, is_rest=False):
+        note_division_points = tuple(note_division_points) \
+            if not isinstance(note_division_points, tuple) else note_division_points
+        if len(note_division_points) < 3:
+            return note_division_points
+        recombo, _ = _get_best_recombination_given_beat_hierarchy(
+            note_division_points, measure_beat_depths, is_rest=is_rest
+        )
+        if len(recombo) <= 3:
+            return recombo
+        else:
+            recombo_size = len(recombo) - 1
+            i = 0
+            while i + recombo_size <= len(recombo):
+                sub_recombo_attempt = recombo[:i] + Voice._try_all_sub_recombinations(
+                    recombo[i: i + recombo_size], measure_beat_depths, is_rest=is_rest
+                ) + recombo[i + recombo_size:]
+                if recombo == sub_recombo_attempt:
+                    i += 1
+                else:
+                    recombo = sub_recombo_attempt
+
+        return recombo
 
     @staticmethod
     def _is_simple_mergeable_beat(beat_bin):
@@ -1539,6 +1597,20 @@ class NoteLike(ScoreComponent):
         # articulations to be placed on the inner notes of a gliss
         return [a for a in self.properties.articulations if a not in engraving_settings.articulation_split_protocols
                 or engraving_settings.articulation_split_protocols[a] == "all"]
+
+    def merge_with(self, other_notelike):
+        """
+        Merges other_notelike into this note, adding its length and combining its articulations
+
+        :param other_notelike: another NoteLike
+        :return: self
+        """
+        if self.is_rest() and other_notelike.is_rest() or other_notelike.source_id() == self.source_id() is not None:
+            self.properties.articulations.extend(other_notelike.properties.articulations)
+            self.written_length += other_notelike.written_length
+            self.properties["_starts_tie"] = other_notelike.properties.starts_tie()
+        else:
+            raise ValueError("Notes are not compatible for merger.")
 
     @staticmethod
     def _get_relevant_gliss_control_points(pitch_envelope, max_points_to_keep=None):

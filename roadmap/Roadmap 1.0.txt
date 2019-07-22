@@ -10,7 +10,6 @@ Quantization:
 
 Engraving:
     - Change list of bar lengths to list of beats to place bars on
-    - Perhaps dotted notes even when they cross a beat?
     - Get Tempo curves working in abjad
     - Engraving sudden tempo changes correctly, test this thoroughly
     - Engraving Microtonal adjustments: make it chords, as well as for glissandi, and in both abjad and MusicXML.
@@ -21,6 +20,7 @@ Engraving:
     - Dynamics (just as annotations to notes)
     - Engraving Trills, mordents and other symbol notations like that (perhaps, for now, affect playback by adding a
     square wave for a trill, similar thing with mordent).
+    - Two eighth note rests in a triplet shouldn't combine
 
 Clockblocks:
     - Make it so that when the master clock is woken up early (by setting its "wake_event", it then re-orients itself

@@ -40,6 +40,8 @@
     "max_voices_per_part": 4,
     "num_divisions_penalty": 0.6,
     "pad_incomplete_parts": true,
+    "rest_beat_hierarchy_spacing": 20,
+    "rest_num_divisions_penalty": 0.2,
     "show_microtonal_annotations": false,
     "show_music_xml_command_line": "auto",
     "tempo": {

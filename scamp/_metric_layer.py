@@ -248,10 +248,10 @@ class MetricLayer:
             followed by one 3 if odd. This is the Barlow approach.
         Each one can either be a number or a Metric layer
         """
-        if not all(isinstance(x, (int, MetricLayer))for x in groups):
-            raise ValueError("Metric layer groups must either be integers or metric groups themselves")
+        if not all(isinstance(x, (int, list, tuple, MetricLayer)) for x in groups):
+            raise ValueError("Metric layer groups must either be integers, list/tuples or MetricLayers themselves")
 
-        self.groups = list(groups)
+        self.groups = [MetricLayer(*x) if isinstance(x, (tuple, list)) else x for x in groups]
 
         if break_up_large_numbers:
             self.break_up_large_numbers()
@@ -366,6 +366,9 @@ class MetricLayer:
             return [float(x) / max_val for x in indispensability_array]
         else:
             return indispensability_array
+
+    def num_pulses(self):
+        return sum(x.num_pulses() if isinstance(x, MetricLayer) else x for x in self.groups)
 
     def extend(self, other_metric_layer, in_place=True):
         """

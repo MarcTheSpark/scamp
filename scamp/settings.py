@@ -254,6 +254,10 @@ class EngravingSettings(ScampSettings):
         # Ranges from 0 to 1, where 0 treats having multiple tied notes to represent a single note event as just as good
         # as having fewer notes, while numbers closer to 1 increasingly favor using fewer notes in a tied group
         "num_divisions_penalty": 0.6,
+        # same, but for rests. We want rests to be more likely to split
+        "rest_beat_hierarchy_spacing": 20,
+        # ... and less inclined to recombine
+        "rest_num_divisions_penalty": 0.2,
         "articulation_split_protocols": {
             # can be "first", "last", "both", or "all"
             # first means the articulation only appears at the beginning of a tied group
@@ -287,8 +291,8 @@ class EngravingSettings(ScampSettings):
     def __init__(self, settings_dict=None):
         # This is here to help with auto-completion so that the IDE knows what attributes are available
         self.max_voices_per_part = self.max_dots_allowed = self.beat_hierarchy_spacing = self.num_divisions_penalty = \
-            self.articulation_split_protocols = self.default_titles = \
-            self.default_composers = self.default_spelling_policy = self.ignore_empty_parts = \
+            self.rest_beat_hierarchy_spacing = self.rest_num_divisions_penalty = self.articulation_split_protocols = \
+            self.default_titles = self.default_composers = self.default_spelling_policy = self.ignore_empty_parts = \
             self.pad_incomplete_parts = self.show_music_xml_command_line = self.show_microtonal_annotations = None
         self.glissandi: GlissandiSettings = None
         self.tempo: TempoSettings = None

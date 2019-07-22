@@ -1,5 +1,7 @@
 from fractions import Fraction
-from .utilities import indigestibility, is_multiple, is_x_pow_of_y, round_to_multiple, SavesToJSON
+from .utilities import indigestibility, is_multiple, is_x_pow_of_y, round_to_multiple, sum_nested_list, prime_factor, \
+    SavesToJSON, memoize
+from ._metric_layer import MetricLayer
 from collections import namedtuple
 from .settings import quantization_settings, engraving_settings
 from expenvelope import Envelope
@@ -9,7 +11,7 @@ import textwrap
 
 QuantizedBeat = namedtuple("QuantizedBeat", "start_time start_time_in_measure length divisor")
 
-QuantizedMeasure = namedtuple("QuantizedMeasure", "start_time measure_length beats time_signature ")
+QuantizedMeasure = namedtuple("QuantizedMeasure", "start_time measure_length beats time_signature beat_depths")
 
 
 class QuantizationRecord(SavesToJSON):
@@ -345,15 +347,31 @@ def _construct_quantization_record(beat_divisors, end_time, quantization_scheme)
     """
     assert isinstance(beat_divisors, list)
     quantized_measures = []
+
     for measure_scheme, t in quantization_scheme.measure_scheme_iterator():
-        quantized_measure = QuantizedMeasure(t, measure_scheme.length, [], measure_scheme.time_signature)
+        measure_start_time = t
+        beats = []
+        min_duple_subdivision = float("inf")
+
         for beat_scheme in measure_scheme.beat_schemes:
             divisor = beat_divisors.pop(0) if len(beat_divisors) > 0 else None
-            quantized_measure.beats.append(
-                QuantizedBeat(t, t - quantized_measure.start_time, beat_scheme.length, divisor)
+            beats.append(
+                QuantizedBeat(t, t - measure_start_time, beat_scheme.length, divisor)
             )
+            if divisor is not None:
+                subdivision_length = beat_scheme.length / divisor
+                if is_x_pow_of_y(subdivision_length, 2) and subdivision_length < min_duple_subdivision:
+                    min_duple_subdivision = subdivision_length
             t += beat_scheme.length
+
+        beat_depths = (0.5, measure_scheme.get_beat_hierarchies(0.5)) if min_duple_subdivision == float("inf") \
+            else (min_duple_subdivision, measure_scheme.get_beat_hierarchies(min_duple_subdivision))
+
+        quantized_measure = QuantizedMeasure(measure_start_time, measure_scheme.length, beats,
+                                             measure_scheme.time_signature, beat_depths)
+
         quantized_measures.append(quantized_measure)
+
         if len(beat_divisors) == 0 or t >= end_time:
             return QuantizationRecord(quantized_measures)
 
@@ -567,7 +585,7 @@ class TimeSignature(SavesToJSON):
 
 class MeasureQuantizationScheme:
 
-    def __init__(self, beat_schemes, time_signature):
+    def __init__(self, beat_schemes, time_signature, beat_groupings="auto"):
         if isinstance(time_signature, str):
             time_signature = TimeSignature.from_string(time_signature)
         self.time_signature = time_signature
@@ -575,6 +593,12 @@ class MeasureQuantizationScheme:
         # this better be true
         assert sum([beat_scheme.length for beat_scheme in beat_schemes]) == self.length
         self.beat_schemes = beat_schemes
+        if beat_groupings == "auto":
+            self.beat_groupings = self.generate_default_beat_groupings()
+        else:
+            if sum_nested_list(beat_groupings) != len(beat_schemes):
+                raise ValueError("Wrong number of beats in beat groupings.")
+            self.beat_groupings = MetricLayer(*beat_groupings)
 
     @classmethod
     def from_time_signature(cls, time_signature, max_divisor="default", max_indigestibility="default",
@@ -611,6 +635,84 @@ class MeasureQuantizationScheme:
                 for beat_length in time_signature.beat_lengths
             ]
         return cls(beat_schemes, time_signature)
+
+    def generate_default_beat_groupings(self):
+        # break it into groups of beats of the same length
+        last_beat_length = self.beat_schemes[0].length
+        groups = []
+        current_group_length = 1
+        for beat_scheme in self.beat_schemes[1:]:
+            if beat_scheme.length == last_beat_length:
+                current_group_length += 1
+            else:
+                groups.append(current_group_length)
+                current_group_length = 1
+                last_beat_length = beat_scheme.length
+        groups.append(current_group_length)
+
+        # for each group make a metric layer out of the prime-factored length, breaking up large primes
+        return MetricLayer(*(MetricLayer.from_string("*".join(str(x) for x in sorted(prime_factor(group))), True)
+                             for group in groups))
+
+    @memoize
+    def get_beat_hierarchies(self, subdivision_length):
+        if not is_x_pow_of_y(subdivision_length, 2):
+            raise ValueError("Bad subdivision length.")
+        beat_metric_layers = [
+            MeasureQuantizationScheme._get_beat_metric_layer(beat_scheme.length, subdivision_length)
+            for beat_scheme in self.beat_schemes
+        ]
+        return MeasureQuantizationScheme._inscribe_beats(self.beat_groupings, beat_metric_layers).get_beat_depths()
+
+    @staticmethod
+    def _get_beat_metric_layer(beat_length, subdivision_length):
+        if not is_multiple(beat_length, subdivision_length):
+            raise ValueError("Subdivision length does not neatly subdivide beat.")
+        beat_divisor = int(round(beat_length / subdivision_length))
+
+        # first, get the divisor prime factors
+        divisor_factors = sorted(prime_factor(beat_divisor))
+
+        # then get the natural divisors of the beat length from big to small
+        natural_factors = sorted(prime_factor(Fraction(beat_length).limit_denominator().numerator), reverse=True)
+
+        # now for each natural factor
+        for natural_factor in natural_factors:
+            # if it's a factor of the divisor
+            if natural_factor in divisor_factors:
+                # then pop it and move it to the front
+                divisor_factors.pop(divisor_factors.index(natural_factor))
+                divisor_factors.insert(0, natural_factor)
+                # (Note that we sorted the natural factors from big to small so that the small ones get
+                # pushed to the front last and end up at the very beginning of the queue)
+
+        return MetricLayer.from_string("*".join(str(x) for x in divisor_factors), True)
+
+    @staticmethod
+    def _inscribe_beats(beat_structure: MetricLayer, beat_metric_layers):
+        """
+        Takes a MetricLayer representing the beat structure, and a list of MetricLayers representing the interior
+        structure of each beat in order, and returns the MetricLayer that combines these two, inscribing the beat
+        structures into the outer MetricLayer that represents the beat organization.
+
+        :param beat_structure: MetricLayer representing the beat structure; each leaf is a beat
+        :param beat_metric_layers: list of MetricLayers representing how each beat is subdivided
+        :return: full structure of the measure as a MetricLayer
+        """
+        if len(beat_metric_layers) != beat_structure.num_pulses():
+            raise ValueError("Wrong number of beat metric layers to inscribe.")
+        new_groups = []
+        for group in beat_structure.groups:
+            if isinstance(group, int):
+                new_groups.append(MetricLayer(*beat_metric_layers[:group]))
+                beat_metric_layers = beat_metric_layers[group:]
+            elif isinstance(group, MetricLayer):
+                pulses_in_group = group.num_pulses()
+                new_groups.append(inscribe_beats(group, beat_metric_layers[:pulses_in_group]))
+                beat_metric_layers = beat_metric_layers[pulses_in_group:]
+            else:
+                raise ValueError("Bad group.")
+        return MetricLayer(*new_groups)
 
     def __str__(self):
         return "MeasureQuantizationScheme({})".format(self.time_signature.as_string())

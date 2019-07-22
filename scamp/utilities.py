@@ -9,6 +9,7 @@ import pickle
 import json
 import copy
 from abc import ABC, abstractmethod
+import functools
 
 
 # ------------------------------------------- General Utilities ---------------------------------------------
@@ -81,6 +82,19 @@ class SavesToJSON(ABC):
     def load_from_json(cls, file_path):
         with open(file_path, "r") as file:
             return cls.from_json(json.load(file))
+
+
+def memoize(obj):
+    cache = obj.cache = {}
+
+    @functools.wraps(obj)
+    def memoizer(*args, **kwargs):
+        key = str(args) + str(kwargs)
+        if key not in cache:
+            cache[key] = obj(*args, **kwargs)
+        return cache[key]
+
+    return memoizer
 
 # -------------------------------------------- Numerical Utilities -----------------------------------------------
 
@@ -175,6 +189,13 @@ def rotate(l, n):
     :return: the rotated list
     """
     return l[n:] + l[:n]
+
+
+def sum_nested_list(l):
+    if not hasattr(l, "__len__"):
+        return l
+    else:
+        return sum(sum_nested_list(x) for x in l)
 
 
 # ---------------------------------------------- String Utilities --------------------------------------------------
