@@ -159,7 +159,7 @@ class NotePropertiesDictionary(dict, SavesToJSON):
         # if we've been given extra parameters of playback, and their values are envelopes written as lists, etc.
         # this converts them all to Envelope objects
         for key, value in self.items():
-            if key.startswith("param_") or key.endswith("_param") and isinstance(value, (list, tuple)):
+            if (key.startswith("param_") or key.endswith("_param")) and isinstance(value, (list, tuple)):
                 self[key] = Envelope.from_list(value)
 
     @property
