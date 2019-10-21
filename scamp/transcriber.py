@@ -36,7 +36,7 @@ class Transcriber:
                 instrument._transcribers_to_notify.append(self)
 
         self._transcriptions_in_progress.append(
-            (performance, clock, clock.beats(), units)
+            (performance, clock, clock.beat(), units)
         )
 
         return performance

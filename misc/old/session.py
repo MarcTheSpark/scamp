@@ -133,7 +133,7 @@ class Session(Clock):
             clock = self
         assert clock == "absolute" or isinstance(clock, Clock)
         self._recording_clock = clock
-        self._recording_start_time = self.time() if clock == "absolute" else clock.beats()
+        self._recording_start_time = self.time() if clock == "absolute" else clock.beat()
         which_parts = self._ensemble.instruments if which_parts is None else which_parts
         self.performance = Performance()
         # set a performance_part for each instrument
@@ -148,7 +148,7 @@ class Session(Clock):
         if self._recording_clock == "absolute":
             return self.time() - self._recording_start_time
         else:
-            return self._recording_clock.beats() - self._recording_start_time
+            return self._recording_clock.beat() - self._recording_start_time
 
     def stop_recording(self, tempo_envelope_tolerance=0.001):
         """

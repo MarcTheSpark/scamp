@@ -20,7 +20,7 @@ s.start_transcribing()
 # any property entries starting or ending
 # with "param" will be treated as extra
 # playback parameters
-while s.beats() < 20:
+while s.beat() < 20:
     # glissando between three random values
     pitch_env = [random.randint(60, 82) for _ in range(3)]
     volume_env = random.choice([
