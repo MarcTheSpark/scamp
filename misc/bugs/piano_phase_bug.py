@@ -15,9 +15,9 @@ def piano_part(which_piano):
 
 
 # TODO: solve the bug that the clock has already called "wait" at tempo = 60 before its new tempo is set, and so waits too long. I think this is the same as the "midwait" bug
-clock1 = session.fork(piano_part, extra_args=(piano1, ))
+clock1 = session.fork(piano_part, args=(piano1,))
 clock1.tempo = 100
-clock2 = session.fork(piano_part, extra_args=(piano2, ))
+clock2 = session.fork(piano_part, args=(piano2,))
 clock2.tempo = 98
 
 session.start_transcribing(clock=clock1)
