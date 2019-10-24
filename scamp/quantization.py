@@ -651,8 +651,13 @@ class MeasureQuantizationScheme:
         groups.append(current_group_length)
 
         # for each group make a metric layer out of the prime-factored length, breaking up large primes
-        return MetricStructure(*(MetricStructure.from_string("*".join(str(x) for x in sorted(prime_factor(group))), True)
-                                 for group in groups))
+        # (also, it's possible for a group to be one beat long, in which case it has empty prime factors. In this
+        # case, we just need to use a MetricStructure(1)
+        return MetricStructure(*(
+            MetricStructure.from_string("*".join(str(x) for x in sorted(prime_factor(group))), True)
+            if group != 1 else MetricStructure(1)
+            for group in groups
+        ))
 
     @memoize
     def get_beat_hierarchies(self, subdivision_length):
