@@ -20,14 +20,17 @@ def trumpet_part(clock: Clock):
     # play eighth notes for three beats
     while s.beat() < 3:
         trumpet.play_note(67, 1, 0.5)
-        # tell the clock for this child process
-        # to slow down to 1/2 speed over six
-        # beats in the parent process
 
-    clock.set_rate_target(0.5, 6, duration_units="time")
+    # tell the clock for this child process
+    # to slow down to 1/2 speed over six
+    # beats in the parent process
+    # metric_phase_target of 0 ensures that
+    # we reach that we land perfectly on a beat
+    clock.set_rate_target(0.5, 6, duration_units="time",
+                          metric_phase_target=0)
+
     # keep playing eighth notes until 12
     # beats pass in the parent session
-
     while s.beat() < 12:
         trumpet.play_note(67, 1, 0.5)
 

@@ -10,7 +10,7 @@ bassoon = session.new_part("bassoon")
 
 
 def flute_part(clock: Clock):
-    clock.apply_tempo_envelope((160, 160, 100, 100, 130, 130, 70, 70), (1, 0, 1, 0, 1, 0, 1), loop=True)
+    clock.set_tempo_targets((160, 160, 100, 100, 130, 130, 70, 70), (0, 1, 1, 2, 2, 3, 3, 4), loop=True)
     while True:
         flute.play_note(int(70 + 10 * clock.rate), 0.8, 0.25, "staccato")
 

@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="scamp",
-    version="0.3",
+    version="0.3.2",
     author="Marc Evanstein",
     author_email="marc@marcevanstein.com",
     description="An algorithmic composition framework that manages the flow of musical time, plays back notes via "
