@@ -1191,8 +1191,12 @@ class Voice(ScoreComponent, ScoreContainer):
         beat_start_time = beat_notes[0].start_time
 
         # this covers the case in which a single voice was quantized, some notes overlapped so it had to be split in
-        # two, the two voices were forced to share the same divisor, and one of them ended up empty for that voice
-        divisor = None if all(note.pitch is None for note in beat_notes) else beat_quantization.divisor
+        # two, and the two voices were forced to share the same divisor. If this is one of those voices and it ended up
+        # empty for this beat, or with a note that spanned the whole beat, divisor should just be None
+        if all(note.pitch is None for note in beat_notes) or len(beat_notes) == 1:
+            divisor = None
+        else:
+            divisor = beat_quantization.divisor
 
         if divisor is None:
             # if there's no beat divisor, then it should just be a note or rest of the full length of the beat
@@ -1205,12 +1209,8 @@ class Voice(ScoreComponent, ScoreContainer):
                 constituent_lengths = length_to_undotted_constituents(length)
                 return [NoteLike(pitch, l, properties) for l in constituent_lengths]
 
-        if len(beat_notes) == 1:
-            # if there's only one note in the beat, it's silly to make a tuplet
-            tuplet = None
-        else:
-            # otherwise, if the divisor requires a tuplet, we construct it
-            tuplet = Tuplet.from_length_and_divisor(beat_quantization.length, divisor) if divisor is not None else None
+        # otherwise, if the divisor requires a tuplet, we construct it
+        tuplet = Tuplet.from_length_and_divisor(beat_quantization.length, divisor) if divisor is not None else None
 
         dilation_factor = 1 if tuplet is None else tuplet.dilation_factor()
         written_division_length = beat_quantization.length / divisor * dilation_factor
