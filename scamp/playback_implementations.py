@@ -4,6 +4,7 @@ from clockblocks import fork_unsynchronized
 import time
 from abc import ABC, abstractmethod
 import atexit
+import logging
 from ._dependencies import udp_client
 
 
@@ -18,6 +19,10 @@ class PlaybackImplementation(ABC):
         # this is a fallback: if the instrument does not belong to an ensemble, it does not have
         # shared resources and so it will rely on its own privately held resources.
         self._resources = None
+        # contains a list of functions that do the actual playback calls. When we call "start_note" e.g., it should add
+        # an action to this list (e.g. the sending of an appropriate OSC message). If there's no latency, this list
+        # will then immediately get executed. But if there's latency, execution will be delayed.
+        self._play_actions = []
 
     """
     Methods for storing and accessing shared resources for the ensemble. For instance, SoundfontPlaybackImplementation
@@ -52,9 +57,22 @@ class PlaybackImplementation(ABC):
         self.resource_dictionary[key] = value
 
     """
-    Methods for storing and accessing shared resources for the ensemble. For instance, SoundfontPlaybackImplementation
-    uses this to store an instance of SoundfontHost. Only one instance of fluidsynth (and therefore SoundfontHost)
-    needs to be running for all instruments in the ensemble, so this is a way of pooling that resource.
+    The actual calls to playback functionality should be wrapped in a @play_action decorator.
+    """
+
+    @staticmethod
+    def play_action(func):
+        def wrapper(self, *args, **kwargs):
+            self._play_actions.append((func, self, args, kwargs))
+        return wrapper
+
+    def dump_play_actions(self):
+        out = list(self._play_actions)
+        self._play_actions.clear()
+        return out
+
+    """
+    These are the actual methods that you override to create a PlaybackImplementation
     """
 
     @abstractmethod
@@ -77,10 +95,10 @@ class PlaybackImplementation(ABC):
     def change_note_parameter(self, note_id, parameter_name, new_value):
         pass
 
-    @abstractmethod
     def set_max_pitch_bend(self, semitones):
         # We include this because some playback implementations, namely ones that use the midi protocol, need a
-        # way of changing the max pitch bend.
+        # way of changing the max pitch bend. It's not an abstract method, since it's okay for children of
+        # PlaybackImplementation to simply not implement it
         pass
 
     @abstractmethod
@@ -315,19 +333,24 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
 
     # -------------------------------- Main Playback Methods --------------------------------
 
+    @PlaybackImplementation.play_action
     def note_on(self, chan, pitch, velocity_from_0_to_1):
         self.soundfont_instrument.note_on(chan, pitch, velocity_from_0_to_1)
 
+    @PlaybackImplementation.play_action
     def note_off(self, chan, pitch):
         self.soundfont_instrument.note_off(chan, pitch)
 
+    @PlaybackImplementation.play_action
     def pitch_bend(self, chan, bend_in_semitones):
         self.soundfont_instrument.pitch_bend(chan, bend_in_semitones)
 
+    @PlaybackImplementation.play_action
     def set_max_pitch_bend(self, semitones):
         self.soundfont_instrument.set_max_pitch_bend(semitones)
         self.max_pitch_bend = semitones
 
+    @PlaybackImplementation.play_action
     def expression(self, chan, expression_from_0_to_1):
         self.soundfont_instrument.expression(chan, expression_from_0_to_1)
 
@@ -387,6 +410,7 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
         rt_simple_out = self.rt_simple_outs[(chan - adjusted_chan) // 16]
         return rt_simple_out, adjusted_chan
 
+    @PlaybackImplementation.play_action
     def note_on(self, chan, pitch, velocity_from_0_to_1):
         # unless it's the standard value of two semitones, reinforce the max pitch bend at the start of every note,
         # since we may start recording partway through
@@ -396,10 +420,12 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
         velocity = max(0, min(127, int(velocity_from_0_to_1 * 127)))
         rt_simple_out.note_on(chan, pitch, velocity)
 
+    @PlaybackImplementation.play_action
     def note_off(self, chan, pitch):
         rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
         rt_simple_out.note_off(chan, pitch)
 
+    @PlaybackImplementation.play_action
     def pitch_bend(self, chan, bend_in_semitones):
         rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
         directional_bend_value = int(bend_in_semitones / self.max_pitch_bend * 8192)
@@ -414,6 +440,7 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
         directional_bend_value = max(-8192, min(directional_bend_value, 8191))
         rt_simple_out.pitch_bend(chan, directional_bend_value + 8192)
 
+    @PlaybackImplementation.play_action
     def set_max_pitch_bend(self, max_bend_in_semitones: int):
         """
         Sets the maximum pitch bend to the given number of semitones up and down for all tracks associated
@@ -433,6 +460,7 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
 
         self.max_pitch_bend = max_bend_in_semitones
 
+    @PlaybackImplementation.play_action
     def expression(self, chan, expression_from_0_to_1):
         rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
         expression_val = max(0, min(127, int(expression_from_0_to_1 * 127)))
@@ -487,6 +515,7 @@ class OSCPlaybackImplementation(PlaybackImplementation):
 
         atexit.register(clean_up)
 
+    @PlaybackImplementation.play_action
     def start_note(self, note_id, pitch, volume, properties, other_parameter_values: dict = None):
         self.client.send_message("/{}/{}".format(self.message_prefix, self.osc_message_addresses["start_note"]),
                                  [note_id, pitch, volume])
@@ -494,25 +523,26 @@ class OSCPlaybackImplementation(PlaybackImplementation):
         for param, value in other_parameter_values.items():
             self.change_note_parameter(note_id, param, value)
 
+    @PlaybackImplementation.play_action
     def end_note(self, note_id):
         self.client.send_message("/{}/{}".format(self.message_prefix, self.osc_message_addresses["end_note"]), [note_id])
         if note_id in self._currently_playing:
             self._currently_playing.remove(note_id)
 
+    @PlaybackImplementation.play_action
     def change_note_pitch(self, note_id, new_pitch):
         self.client.send_message("/{}/{}".format(self.message_prefix, self.osc_message_addresses["change_pitch"]),
                                  [note_id, new_pitch])
 
+    @PlaybackImplementation.play_action
     def change_note_volume(self, note_id, new_volume):
         self.client.send_message("/{}/{}".format(self.message_prefix, self.osc_message_addresses["change_volume"]),
                                  [note_id, new_volume])
 
+    @PlaybackImplementation.play_action
     def change_note_parameter(self, note_id, parameter_name, new_value):
         self.client.send_message("/{}/{}/{}".format(
             self.message_prefix, self.osc_message_addresses["change_parameter"], parameter_name), [note_id, new_value])
-
-    def set_max_pitch_bend(self, semitones):
-        pass
 
     def to_json(self):
         return {

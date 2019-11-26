@@ -125,6 +125,7 @@ class ParameterChangeSegment(EnvelopeSegment):
         Runs the segment from start to finish, gradually changing the parameter.
         This function runs as a synchronized clock process (it should be forked), and it starts a parallel,
         unsynchronized process ("_animation_function") to do the actual calls to change parameter
+
         :param silent: this flag causes none of the animation to actually happen. This is used when we're trying to
         notate a note but not play it back, as in the case of a note that has been adjusted (where we playback -- but
         don't notate -- the adjusted version, while we run -- but don't play back -- the unadjusted version.)
@@ -162,23 +163,38 @@ class ParameterChangeSegment(EnvelopeSegment):
         # don't animate faster than 4ms though
         time_increment = max(0.004, time_increment)
 
-        def _animation_function():
-            # does the intermediate changing of values; since it's sleeping in small time increments, we fork it
-            # as unsynchronized parallel process so that it doesn't gum up the clocks with the overhead of
-            # waking and sleeping rapidly
-            beats_passed = 0
+        if self.clock.precise_scheduling_on():
+            beat_increment = time_increment * self.clock.absolute_rate()
+            time_increments = self.clock.get_absolute_time_increments_from_beat_increments(
+                [beat_increment] * int(self.duration / beat_increment)
+            )
+            beats_passed = time_passed = 0
+            for time_increment in time_increments:
+                beats_passed += beat_increment
+                time_passed += time_increment
+                self.do_change_parameter(self.value_at(beats_passed), delay=time_passed)
+        else:
+            def _animation_function():
+                # does the intermediate changing of values; since it's sleeping in small time increments, we fork it
+                # as unsynchronized parallel process so that it doesn't gum up the clocks with the overhead of
+                # waking and sleeping rapidly
+                beats_passed = 0
+                time_passed = 0
 
-            while beats_passed < self.duration and self.running:
-                start = time.time()
-                if beats_passed > 0:  # no need to change the parameter the first time, before we had a chance to wait
-                    self.do_change_parameter(self.value_at(beats_passed))
-                time.sleep(time_increment)
-                # TODO: Absolute_rate would be great, except that it doesn't update between synchronized clock events
-                # Is there a way of improving this??
-                beats_passed += (time.time() - start) * self.clock.absolute_rate()
+                while beats_passed < self.duration and self.running:
+                    start = time.time()
+                    if beats_passed > 0:  # no need to change the parameter the first time, before we had a chance to wait
+                        self.do_change_parameter(self.value_at(beats_passed))
+                    time.sleep(time_increment)
+                    # TODO: Absolute_rate would be great, except that it doesn't update between synchronized clock events
+                    # Is there a way of improving this??
+                    time_change = time.time() - start
+                    time_passed += time_change
+                    beats_passed += time_change * self.clock.absolute_rate()
 
-        # start the unsynchronized animation function
-        self.clock.fork_unsynchronized(_animation_function)
+            # start the unsynchronized animation function
+            self.clock.fork_unsynchronized(_animation_function)
+
         # waits in a synchronized fashion so that it can save an accurate time stamp at the end
         wait(self.duration)
 
@@ -426,17 +442,7 @@ class ScampInstrument(SavesToJSON):
         :return: a NoteHandle with which to later manipulate the note
         """
         if clock == "auto":
-            # first try to just get the clock operating on the current thread
-            clock = current_clock()
-            if clock is None:
-                # if there's no clock operating on the current thread,,,
-                if isinstance(self.ensemble, Clock):
-                    # ...but this instrument belongs to a Session (i.e. an ensemble that's also a clock),
-                    # then we use that session as our clock
-                    clock = self.ensemble
-                else:
-                    # otherwise, just create a clock to run this all on
-                    clock = Clock()
+            clock = self._resolve_clock_auto()
 
         # standardize properties if necessary, turn pitch and volume into lists if necessary
         properties = self._standardize_properties(properties)
@@ -476,10 +482,15 @@ class ScampInstrument(SavesToJSON):
                 self._note_info_by_id[note_id]["flags"].append("silent")
             else:
                 # otherwise, call all the playback implementation!
+                play_actions = ActionList()
                 for playback_implementation in self.playback_implementations:
                     playback_implementation.start_note(note_id, start_pitch, start_volume,
                                                        properties, other_param_start_values)
-
+                    play_actions.extend(playback_implementation.dump_play_actions())
+                if clock.precise_scheduling_on():
+                    clock.schedule_precisely_with_latency(play_actions.dispatch)
+                else:
+                    play_actions.dispatch()
             # if we don't want to transcribe it, set that flag
             if not transcribe:
                 self._note_info_by_id[note_id]["flags"].append("no_transcribe")
@@ -599,21 +610,39 @@ class ScampInstrument(SavesToJSON):
                 def parameter_change_function(value): note_info["parameter_values"][param_name] = value
                 temporal_resolution = None
             elif param_name == "pitch":
-                def parameter_change_function(value):
+                def parameter_change_function(value, delay=0):
+                    play_actions = ActionList()
                     for playback_implementation in self.playback_implementations:
                         playback_implementation.change_note_pitch(note_id, value)
+                        play_actions.extend(playback_implementation.dump_play_actions())
+                    if clock.precise_scheduling_on():
+                        clock.schedule_precisely_with_latency(play_actions.dispatch, extra_latency=delay)
+                    else:
+                        play_actions.dispatch()
                     note_info["parameter_values"][param_name] = value
                 temporal_resolution = "pitch-based"
             elif param_name == "volume":
-                def parameter_change_function(value):
+                def parameter_change_function(value, delay=0):
+                    play_actions = ActionList()
                     for playback_implementation in self.playback_implementations:
                         playback_implementation.change_note_volume(note_id, value)
+                        play_actions.extend(playback_implementation.dump_play_actions())
+                    if clock.precise_scheduling_on():
+                        clock.schedule_precisely_with_latency(play_actions.dispatch, extra_latency=delay)
+                    else:
+                        play_actions.dispatch()
                     note_info["parameter_values"][param_name] = value
                 temporal_resolution = "volume-based"
             else:
-                def parameter_change_function(value):
+                def parameter_change_function(value, delay=0):
+                    play_actions = ActionList()
                     for playback_implementation in self.playback_implementations:
                         playback_implementation.change_note_parameter(note_id, param_name, value)
+                        play_actions.extend(playback_implementation.dump_play_actions())
+                    if clock.precise_scheduling_on():
+                        clock.schedule_precisely_with_latency(play_actions.dispatch, extra_latency=delay)
+                    else:
+                        play_actions.dispatch()
                     note_info["parameter_values"][param_name] = value
                 temporal_resolution = 0.01
 
@@ -782,9 +811,14 @@ class ScampInstrument(SavesToJSON):
 
             # do the sonic implementation of ending the note, as long as it's not silent
             if "silent" not in note_info["flags"]:
+                play_actions = ActionList()
                 for playback_implementation in self. playback_implementations:
                     playback_implementation.end_note(note_id)
-
+                    play_actions.extend(playback_implementation.dump_play_actions())
+                if clock.precise_scheduling_on():
+                    clock.schedule_precisely_with_latency(play_actions.dispatch)
+                else:
+                    play_actions.dispatch()
             # remove from active notes and delete the note info
             del self._note_info_by_id[note_id]
 
@@ -900,12 +934,37 @@ class ScampInstrument(SavesToJSON):
     ------------------------------------------------- Other -----------------------------------------------------
     """
 
-    def set_max_pitch_bend(self, semitones):
+    def _resolve_clock_auto(self):
+        # first try to just get the clock operating on the current thread
+        clock = current_clock()
+        if clock is None:
+            # if there's no clock operating on the current thread...
+            if isinstance(self.ensemble, Clock):
+                # ...but this instrument belongs to a Session (i.e. an ensemble that's also a clock),
+                # then we use that session as our clock
+                clock = self.ensemble
+            else:
+                # otherwise, just create a clock to run this all on
+                clock = Clock()
+        return clock
+
+    def set_max_pitch_bend(self, semitones, clock="auto"):
         """
         Set the max pitch bend for all midi playback implementations on this instrument
         """
+        if clock == "auto":
+            clock = self._resolve_clock_auto()
+        if not isinstance(clock, Clock):
+            raise ValueError("Invalid clock argument.")
+
+        play_actions = ActionList()
         for playback_implementation in self.playback_implementations:
             playback_implementation.set_max_pitch_bend(semitones)
+            play_actions.extend(playback_implementation.dump_play_actions())
+        if clock.precise_scheduling_on():
+            clock.schedule_precisely_with_latency(play_actions.dispatch)
+        else:
+            play_actions.dispatch()
 
     @property
     def default_spelling_policy(self):
@@ -954,3 +1013,13 @@ class ScampInstrument(SavesToJSON):
 
     def __repr__(self):
         return "ScampInstrument.from_json({})".format(self.to_json())
+
+
+class ActionList(list):
+
+    def dispatch(self):
+        for func, instance, args, kwargs in self:
+            func(instance, *args, **kwargs)
+
+    def __repr__(self):
+        return "[" + ", ".join(str(x) for x in self) + "]"

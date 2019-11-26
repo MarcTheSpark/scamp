@@ -5,6 +5,10 @@ Playback:
     - Switch to LinuxSampler as default, enabling use of .sfz files
     - Key-switches that allow the nature of the playback of a single instrument to change. This would be done via the
     properties dictionary, I think, maybe also affecting notation?
+    - All playback implementations and playback live on a separate Process (using multiprocessing). The simple actions
+    of playback take place on that process, on an event queue that uses very precise timing, busy wait. This is really
+    hard to do; not even sure it's possible. The problem is that all of the resources for playback have to be set up
+    in the other process, since they can't be sent back and forth.
 
 Engraving:
     - Engraving Dynamics, both at the note level and the phrase level. Perhaps do this by allowing the user to define

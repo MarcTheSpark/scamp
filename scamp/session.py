@@ -11,7 +11,7 @@ from threading import Thread, current_thread
 class Session(Clock, Ensemble, Transcriber, SavesToJSON):
 
     def __init__(self, tempo=60, default_soundfont="default", default_audio_driver="default",
-                 default_midi_output_device="default"):
+                 default_midi_output_device="default", latency=0.01):
         """
         A Session combines the functionality of a master clock, an ensemble, and a transcriber.
 
@@ -22,10 +22,12 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
             overridden at instrument creation.)
         :param default_midi_output_device: the default midi_output_device for outgoing midi streams. (Again, can be
             overridden at instrument creation.)
+        :param latency: Additional playback latency for added precision. When this is used, all playback events happen
+            on a separate, precisely-timed queue.
         """
 
         # noinspection PyArgumentList
-        Clock.__init__(self, name="MASTER", initial_tempo=tempo)
+        Clock.__init__(self, name="MASTER", initial_tempo=tempo, precise_schedule_latency=latency)
         Ensemble.__init__(self, default_soundfont=default_soundfont, default_audio_driver=default_audio_driver,
                           default_midi_output_device=default_midi_output_device)
         Transcriber.__init__(self)

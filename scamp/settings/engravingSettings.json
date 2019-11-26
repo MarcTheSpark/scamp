@@ -44,7 +44,7 @@
     "rest_beat_hierarchy_spacing": 20,
     "rest_num_divisions_penalty": 0.2,
     "show_microtonal_annotations": false,
-    "show_music_xml_command_line": "auto",
+    "show_music_xml_command_line": "musescore",
     "tempo": {
         "guide_mark_resolution": 0.125,
         "guide_mark_sensitivity": 0.08,
