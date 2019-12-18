@@ -61,3 +61,9 @@ try:
 except ImportError:
     abjad = None
     logging.warning("abjad was not found; lilypond output will not be available.")
+
+try:
+    import pynput
+except ImportError:
+    pynput = None
+    logging.warning("pynput was not found; mouse and keyboard input will not be available.")

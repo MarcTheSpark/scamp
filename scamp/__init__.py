@@ -4,7 +4,7 @@ from clockblocks import Clock, TempoEnvelope, wait, fork_unsynchronized, fork, c
 from expenvelope import Envelope
 from .session import Session
 from .ensemble import Ensemble
-from .instruments import ScampInstrument
+from .instruments import ScampInstrument, NoteHandle, ChordHandle
 from .playback_implementations import *
 from .transcriber import Transcriber
 from .performance import Performance, PerformancePart

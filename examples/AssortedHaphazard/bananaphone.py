@@ -53,6 +53,3 @@ engraving_settings.ignore_empty_parts = False
 quantized_performance = performance.quantize(["4/4", "3/4", "loop"])
 score = quantized_performance.to_score()
 score.show()
-
-# performance = session.stop_transcribing()
-

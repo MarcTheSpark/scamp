@@ -14,7 +14,7 @@ def piano_part(which_piano):
             which_piano.play_note(pitch, 1.0, 0.25)
 
 
-# TODO: solve the bug that the clock has already called "wait" at tempo = 60 before its new tempo is set, and so waits too long. I think this is the same as the "midwait" bug
+# Bug was that the clock has already called "wait" at tempo = 60 before its new tempo is set, and so waits too long.
 clock1 = session.fork(piano_part, args=(piano1,))
 clock1.tempo = 100
 clock2 = session.fork(piano_part, args=(piano2,))
