@@ -37,7 +37,7 @@ def key_down(name, number):
 
 grand_child_clock = None
 child_clock = s.fork(child)
-s.register_keyboard_callback(on_press=key_down, suppress=True)
+s.register_keyboard_listener(on_press=key_down, suppress=True)
 
 while True:
     piano.play_note(108, 1.0, 1)

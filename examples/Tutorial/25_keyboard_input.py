@@ -23,5 +23,5 @@ def key_up(name, number):
         del notes_started[number]
 
 
-s.register_keyboard_callback(on_press=key_down, on_release=key_up, suppress=True)
+s.register_keyboard_listener(on_press=key_down, on_release=key_up, suppress=True)
 s.wait_forever()

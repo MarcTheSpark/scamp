@@ -1,7 +1,7 @@
 __author__ = 'mpevans'
 
 from clockblocks import Clock, TempoEnvelope, wait, fork_unsynchronized, fork, current_clock
-from expenvelope import Envelope
+from expenvelope import Envelope, EnvelopeSegment
 from .session import Session
 from .ensemble import Ensemble
 from .instruments import ScampInstrument, NoteHandle, ChordHandle

@@ -34,6 +34,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         # A policy for spelling notes used as the default for the entire session
         # Useful if the entire session is in a particular key, for instance
         self._default_spelling_policy = None
+        self._listeners = {}
 
     def run_as_server(self, time_step=0.01):
         """
@@ -69,19 +70,23 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         """
         print_available_ports_and_devices()
 
-    def register_midi_callback(self, port_number_or_device_name, callback_function, time_resolution=0.005):
+    def register_midi_listener(self, port_number_or_device_name, callback_function):
         """
         Register a callback_function to respond to incoming midi events from port_number_or_device_name
 
         :param port_number_or_device_name: either the port number to be used, or an device name for which the port
-            number will be determined.
+            number will be determined. (Fuzzy string matching is used to pick the device with closest name.)
         :param callback_function: the callback function used when a new midi event arrives. Should take either one
             argument (the midi message) or two arguments (the midi message, and the dt since the last message)
-        :param time_resolution: time resolution used in checking for midi events
         """
-        start_midi_listener(port_number_or_device_name, callback_function, clock=self, time_resolution=time_resolution)
+        self._listeners["midi"] = start_midi_listener(port_number_or_device_name, callback_function, clock=self)
 
-    def register_keyboard_callback(self, on_press=None, on_release=None, suppress=False, **kwargs):
+    def remove_midi_listener(self):
+        if "midi" in self._listeners:
+            self._listeners["midi"].close_port()
+            del self._listeners["midi"]
+
+    def register_keyboard_listener(self, on_press=None, on_release=None, suppress=False, **kwargs):
         """
         Register a callback_function to respond to incoming keyboard events
 
@@ -92,6 +97,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         if pynput is None:
             raise ImportError("Cannot use keyboard input because package pynput was not found. "
                               "Install pynput and try again.")
+        self.remove_keyboard_listener()  # in case one is already running
 
         keys_down = []
         if on_press is not None:
@@ -128,6 +134,12 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         listener = pynput.keyboard.Listener(on_press=on_press_wrapper, on_release=on_release_wrapper,
                                             suppress=suppress, **kwargs)
         listener.start()
+        self._listeners["keyboard"] = listener
+
+    def remove_keyboard_listener(self):
+        if "keyboard" in self._listeners:
+            self._listeners["keyboard"].stop()
+            del self._listeners["keyboard"]
 
     @staticmethod
     def name_and_number_from_key(key_or_key_code):
@@ -144,7 +156,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
             number = key_or_key_code.vk
         return name, number
 
-    def register_mouse_callback(self, on_move=None, on_press=None, on_release=None, on_scroll=None,
+    def register_mouse_listener(self, on_move=None, on_press=None, on_release=None, on_scroll=None,
                                 suppress=False, relative_coordinates=False, **kwargs):
         """
         Register a callback_function to respond to incoming mouse events
@@ -162,6 +174,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         if pynput is None:
             raise ImportError("Cannot use mouse input because package pynput was not found. "
                               "Install pynput and try again.")
+        self.remove_mouse_listener()  # in case one is already running
 
         if relative_coordinates:
             try:
@@ -216,6 +229,12 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         listener = pynput.mouse.Listener(on_move=on_move_wrapper, on_click=on_click_wrapper,
                                          on_scroll=on_scroll_wrapper, suppress=suppress, **kwargs)
         listener.start()
+        self._listeners["mouse"] = listener
+
+    def remove_mouse_listener(self):
+        if "mouse" in self._listeners:
+            self._listeners["mouse"].stop()
+            del self._listeners["mouse"]
 
     # --------------------------------- Transcription Stuff -------------------------------
 

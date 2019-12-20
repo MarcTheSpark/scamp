@@ -22,12 +22,5 @@ Engraving:
     square wave for a trill, similar thing with mordent).
     - Two eighth note rests in a triplet shouldn't combine
 
-Clockblocks:
-    - Make it so that when the master clock is woken up early (by setting its "wake_event", it then re-orients itself
-    and all child clocks.
-    - Maybe then allow that to lead to good midi input
-    - Specifying metric phase goals with clocks
-
-Bugs:
-    - Solve the "midwait" bug. If a clock's tempo is changed in the middle of a wait call, it should probably be woken
-    up and recalculated, right? This is related to the need to make clockblocks wake-able.
+Interactivity:
+    - OSC Listeners

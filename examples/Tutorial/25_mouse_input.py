@@ -40,6 +40,6 @@ def mouse_move(x, y):
         note_started["handle"].change_volume(1 - 0.8*y, 0.1)
 
 
-s.register_mouse_callback(on_move=mouse_move, on_press=mouse_down, on_release=mouse_up,
+s.register_mouse_listener(on_move=mouse_move, on_press=mouse_down, on_release=mouse_up,
                           relative_coordinates=True, suppress=True)
 s.wait_forever()
