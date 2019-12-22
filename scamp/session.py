@@ -5,7 +5,7 @@ from .instruments import ScampInstrument
 from clockblocks import Clock, wait
 from typing import Sequence
 from .utilities import SavesToJSON
-from ._dependencies import pynput
+from ._dependencies import pynput, pythonosc
 from threading import Thread, current_thread
 
 
@@ -34,7 +34,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         # A policy for spelling notes used as the default for the entire session
         # Useful if the entire session is in a particular key, for instance
         self._default_spelling_policy = None
-        self._listeners = {}
+        self._listeners = {"midi": {}, "osc": {}}
 
     def run_as_server(self, time_step=0.01):
         """
@@ -79,12 +79,57 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         :param callback_function: the callback function used when a new midi event arrives. Should take either one
             argument (the midi message) or two arguments (the midi message, and the dt since the last message)
         """
-        self._listeners["midi"] = start_midi_listener(port_number_or_device_name, callback_function, clock=self)
+        port_number = get_port_number_of_device(port_number_or_device_name) \
+            if isinstance(port_number_or_device_name, str) else port_number_or_device_name
 
-    def remove_midi_listener(self):
-        if "midi" in self._listeners:
-            self._listeners["midi"].close_port()
-            del self._listeners["midi"]
+        if port_number is None:
+            raise ValueError("Could not find matching MIDI device.")
+        elif port_number not in (x[0] for x in get_available_ports_and_devices()):
+            raise ValueError("Invalid port number for midi listener.")
+
+        if port_number in self._listeners["midi"]:
+            self.remove_midi_listener(port_number)
+        self._listeners["midi"][port_number] = start_midi_listener(port_number, callback_function, clock=self)
+
+    def remove_midi_listener(self, port_number_or_device_name):
+        """
+        Removes the midi listener with the given port_number_or_device_name
+
+        :param port_number_or_device_name: either the port number to be used, or an device name for which the port
+            number will be determined. (Fuzzy string matching is used to pick the device with closest name.)
+        """
+        port_number = get_port_number_of_device(port_number_or_device_name) \
+            if isinstance(port_number_or_device_name, str) else port_number_or_device_name
+        if port_number not in self._listeners["midi"]:
+            raise ValueError("No midi listener to remove on port", port_number)
+        self._listeners["midi"][port_number].close_port()
+        del self._listeners["midi"][port_number]
+
+    def register_osc_listener(self, port, osc_address_pattern, callback_function, ip_address="127.0.0.1"):
+        if pythonosc is None:
+            raise ImportError("Package python-osc not found; cannot set up osc listener.")
+
+        def callback_wrapper(*args, **kwargs):
+            self.rouse_and_hold()
+            threading.current_thread().__clock__ = self
+            callback_function(*args, **kwargs)
+            threading.current_thread().__clock__ = None
+            self.release_from_suspension()
+
+        if (ip_address, port) not in self._listeners["osc"]:
+            dispatcher = pythonosc.dispatcher.Dispatcher()
+            self._listeners["osc"][(ip_address, port)] = {
+                "server": pythonosc.osc_server.ThreadingOSCUDPServer((ip_address, port), dispatcher),
+                "dispatcher": dispatcher
+            }
+            self.fork_unsynchronized(self._listeners["osc"][(ip_address, port)]["server"].serve_forever, args=(0.001, ))
+
+        self._listeners["osc"][(ip_address, port)]["dispatcher"].map(osc_address_pattern, callback_wrapper)
+
+    def remove_osc_listener(self, port, ip_address="127.0.0.1"):
+        if (ip_address, port) in self._listeners["osc"]:
+            self._listeners["osc"][(ip_address, port)]["server"].shutdown()
+            del self._listeners["osc"][(ip_address, port)]
 
     def register_keyboard_listener(self, on_press=None, on_release=None, suppress=False, **kwargs):
         """

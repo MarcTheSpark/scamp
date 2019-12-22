@@ -41,9 +41,12 @@ except ImportError:
     logging.warning("sf2utils was not found; info about soundfont presets will not be available.")
 
 try:
-    from pythonosc import udp_client
+    import pythonosc
+    import pythonosc.udp_client
+    import pythonosc.dispatcher
+    import pythonosc.osc_server
 except ImportError:
-    udp_client = None
+    pythonosc = None
     logging.warning("pythonosc was not found; OSCScampInstrument will not function.")
 
 try:

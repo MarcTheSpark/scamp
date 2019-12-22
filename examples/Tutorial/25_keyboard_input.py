@@ -1,5 +1,11 @@
 """
-Demonstration of receiving computer keyboard events and using them to play notes based on the key number.
+SCAMP EXAMPLE: Computer Keyboard Input
+
+(WARNING: consumes key events and makes the keyboard otherwise unresponsive. To avoid this, you can remove the
+suppress=True flag under register_keyboard_listener)
+
+Demonstration of receiving computer keyboard events and using them to play notes based on the key number. Any key
+whose number code lies within a reasonable range triggers the playback of a note of that MIDI pitch.
 """
 
 from scamp import *
@@ -23,5 +29,6 @@ def key_up(name, number):
         del notes_started[number]
 
 
+# note: suppress=True causes keyboard events to be consumed by this script, effectively disabling the keyboard
 s.register_keyboard_listener(on_press=key_down, on_release=key_up, suppress=True)
 s.wait_forever()

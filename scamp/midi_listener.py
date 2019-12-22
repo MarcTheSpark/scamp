@@ -41,31 +41,21 @@ def get_port_number_of_device(device_name):
     return best_match
 
 
-def start_midi_listener(port_number_or_device_name, callback_function, clock):
+def start_midi_listener(port_number: int, callback_function, clock: Clock):
     """
-    Start a midi listener for a given device / port
+    Start a midi listener for a given port
 
-    :param port_number_or_device_name: either the port number to be used, or an device name for which the port
-            number will be determined.
+    :param port_number: the port number to listen on.
     :param callback_function: the callback function used when a new midi event arrives. Should take either one
         argument (the midi message) or two arguments (the midi message, and the dt since the last message)
     :param clock: the clock to rouse when this callback operates
     """
-    port_number = get_port_number_of_device(port_number_or_device_name) \
-        if isinstance(port_number_or_device_name, str) else port_number_or_device_name
-
-    assert isinstance(clock, Clock)
 
     callback_function_signature = inspect.signature(callback_function)
-    assert 1 <= len(callback_function_signature.parameters) <= 2, \
-        "MIDI callback function should take either one argument (the midi message) or two arguments (the midi " \
-        "message and the time since the last message)."
+    if not 1 <= len(callback_function_signature.parameters) <= 2:
+        raise AttributeError("MIDI callback function should take either one argument (the midi message) or "
+                             "two arguments (the midi message and the time since the last message).")
     callback_accepts_dt = len(callback_function_signature.parameters) == 2
-
-    if port_number is None:
-        raise ValueError("Could not find matching MIDI device.")
-    elif port_number not in (x[0] for x in get_available_ports_and_devices()):
-        raise ValueError("Invalid port number for midi listener.")
 
     midi_in, _ = open_midiinput(port_number)
 

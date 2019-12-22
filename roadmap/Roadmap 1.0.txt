@@ -1,14 +1,12 @@
 Documentation:
     - Basic Tutorial, intermixing the examples in the tutorial directory with text
-    - Add "anatomy of a play_note call" (start and end note stuff) to the paper, right after the blocking example.
-    Then add an explanation / example of changing parameters mid-note after discussing envelopes and glissandi
-    - Add quantization explanation to the paper, and a reference to the future possibility of using Q-grids
 
 Quantization:
     - Make quantization parameters accessible without creating a whole quantization scheme. Some cleanup is needed in
     that whole interface.
 
 Engraving:
+    - Fix to using new abjad; change install instructions
     - Change list of bar lengths to list of beats to place bars on
     - Get Tempo curves working in abjad
     - Engraving sudden tempo changes correctly, test this thoroughly
@@ -21,6 +19,3 @@ Engraving:
     - Engraving Trills, mordents and other symbol notations like that (perhaps, for now, affect playback by adding a
     square wave for a trill, similar thing with mordent).
     - Two eighth note rests in a triplet shouldn't combine
-
-Interactivity:
-    - OSC Listeners

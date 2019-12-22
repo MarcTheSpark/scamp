@@ -4,7 +4,7 @@ from clockblocks import fork_unsynchronized
 import time
 from abc import ABC, abstractmethod
 import atexit
-from ._dependencies import udp_client
+from ._dependencies import pythonosc
 
 
 class PlaybackImplementation(ABC):
@@ -464,7 +464,7 @@ class OSCPlaybackImplementation(PlaybackImplementation):
         self.ip_address = ip_address
         self.port = port
 
-        self.client = udp_client.SimpleUDPClient(ip_address, port)
+        self.client = pythonosc.udp_client.SimpleUDPClient(ip_address, port)
         # the first part of the osc message; used to distinguish between instruments
         # by default uses the name of the instrument with spaces removed
         self.message_prefix = message_prefix if message_prefix is not None \
