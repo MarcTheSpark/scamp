@@ -1239,7 +1239,7 @@ class Voice(ScoreComponent, ScoreContainer):
 
         for note in beat_notes:
             start_division = int(round((note.start_time - beat_start_time) / beat_quantization.length * divisor))
-            length_in_divisions = int(round(note.length / beat_quantization.length * divisor))
+            length_in_divisions = int(round(note.length_sum() / beat_quantization.length * divisor))
             end_division = start_division + length_in_divisions
 
             division_points1, score1 = Voice._get_division_points_for_note(
