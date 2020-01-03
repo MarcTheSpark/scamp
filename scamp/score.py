@@ -1077,7 +1077,7 @@ class Measure(ScoreComponent, ScoreContainer):
             abjad_voice = self.voices[i]._to_abjad(source_id_dict)
 
             if i == 0 and self.show_time_signature:
-                # TODO: THIS SEEMS BROKEN IN ABJAD, SO I HAVE A KLUGEY FIX WITH A LITERAL
+                # TODO: this seems to break in abjad when the measure starts with a tuplet, so for now, a klugey fix
                 # abjad.attach(self.time_signature.to_abjad(), abjad_voice[0])
                 abjad.attach(abjad.LilyPondLiteral(r"\time {}".format(self.time_signature.as_string()), "opening"),
                              abjad_voice)
@@ -1085,7 +1085,7 @@ class Measure(ScoreComponent, ScoreContainer):
                 abjad.attach(abjad.LilyPondLiteral(_voice_literals[i]), abjad_voice)
             abjad_voice.name = _voice_names[i]
             abjad_measure.append(abjad_voice)
-        abjad_measure.is_simultaneous = True
+        abjad_measure.simultaneous = True
 
         if is_top_level_call:
             for same_source_group in source_id_dict.values():
