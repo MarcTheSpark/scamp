@@ -1,7 +1,7 @@
 """
 SCAMP Example: Random Durations and Rests
 
-Loops a C major arpeggio, but with random, floating-point durations.
+Loops a C major arpeggio twice, but with random, floating-point durations.
 Also sometimes adds a rest of up to a second between notes.
 """
 
@@ -16,7 +16,7 @@ s = Session()
 # add a new violin part to the session
 violin = s.new_part("Violin")
 
-while True:  # loop forever
+for _ in range(2):  # loop forever
     for pitch in [60, 64, 67, 72]:
         # pick a duration between 0.5 to 1.5
         dur = random.uniform(0.5, 1.5)

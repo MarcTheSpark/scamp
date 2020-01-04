@@ -443,6 +443,13 @@ stemless = {
 class Score(ScoreComponent, ScoreContainer):
 
     def __init__(self, parts=None, title=None, composer=None):
+        """
+        Representation of a score in traditional western notation, to be exported as LilyPond or MusicXML.
+
+        :param parts: A list of either parts represented by StaffGroup or Staff objects
+        :param title: title to be used
+        :param composer: composer to be used
+        """
         ScoreContainer.__init__(self, parts, "parts", (StaffGroup, Staff), ("title", "composer"))
         self.title = title
         self.composer = composer
@@ -465,11 +472,58 @@ class Score(ScoreComponent, ScoreContainer):
         return out
 
     @classmethod
-    def from_performance(cls, performance, quantization_scheme=None, title="default", composer="default"):
-        if not performance.is_quantized() and quantization_scheme is None:
-            # not quantized and no quantization scheme given, so we need to pick a default quantization scheme
-            logging.warning("No quantization scheme given; quantizing according to default time signature")
-            quantization_scheme = QuantizationScheme.from_time_signature(quantization_settings.default_time_signature)
+    def from_performance(cls, performance, quantization_scheme=None, time_signature=None, bar_line_locations=None,
+                         max_divisor=None, max_divisor_indigestibility=None, simplicity_preference=None,
+                         title="default", composer="default"):
+        """
+        Builds a new Score from a Performance (list of note events in continuous time and pitch). In the process,
+        the music must be quantized, for which two different options are available: one can either pass a
+        QuantizationScheme to the first argument, which is very flexible but rather verbose to create, or one can
+        specify arguments such as time_signature and max_divisor directly.
+
+        :param performance: The Performance object we are building the score from.
+        :param quantization_scheme: The quantization scheme to be used when converting this performance into a score. If
+            this is defined, none of the other quantization-related arguments should be defined.
+        :param time_signature: the time signature to be used, represented as a string, e.g. "3/4",  or a tuple,
+            e.g. (3, 2). Alternatively, a list of time signatures can be given. If this list ends in "loop", then the
+            pattern specified by the list will be looped. For example, ["4/4", "2/4", "3/4", "loop"] will cause the
+            fourth measure to be in "4/4", the fifth in "2/4", etc. If the list does not end in "loop", all measures
+            after the final time signature specified will continue to be in that time signature.
+        :param bar_line_locations: As an alternative to defining the time signatures, a list of numbers representing
+            the bar line locations can be given. For instance, [4.5, 6.5, 8, 11] would result in bars of time signatures
+            9/8, 2/4, 3/8, and 3/4
+        :param max_divisor: The largest divisor that will be allowed to divide the beat.
+        :param max_divisor_indigestibility: Indigestibility, devised by composer Clarence Barlow, is a measure of the
+            "primeness" of a beat divisor, and therefore of its complexity from the point of view of a performer. For
+            instance, it is easier to divide a beat in 8 than in 7, even though 7 is a smaller number. See Clarence's
+            paper here: https://mat.ucsb.edu/Publications/Quantification_of_Harmony_and_Metre.pdf. By setting a max
+            indigestibility, we can allow larger divisions of the beat, but only so long as they are easy ones. For
+            instance, a max_divisor of 16 and a max_divisor_indigestibility of 8 would allow the beat to be divided
+            in 1, 2, 3, 4, 5, 6, 8, 9, 10, 12, and 16.
+        :param simplicity_preference: This defines the degree to which the quantizer will favor simple divisors. The
+            higher the simplicity preference, the more precisely the notes have to fit for you to get a divisor like 7.
+            Simplicity preference can range from 0 (in which case the divisor is chosen simply based on the lowest
+            error) to infinity, with a typical value somewhere around 1.
+        :param title: Title of the piece to be printed on the score.
+        :param composer: Composer of the piece to be printed on the score.
+        :return: the resulting Score object, which can then be rendered either as XML or LilyPond
+        """
+
+        params = (time_signature, bar_line_locations, max_divisor, max_divisor_indigestibility, simplicity_preference)
+
+        if quantization_scheme is None:
+            if any(x is not None for x in params):
+                quantization_scheme = QuantizationScheme.from_attributes(
+                    time_signature=time_signature, bar_line_locations=bar_line_locations, max_divisor=max_divisor,
+                    max_divisor_indigestibility=max_divisor_indigestibility, simplicity_preference=simplicity_preference
+                )
+            elif not performance.is_quantized():
+                quantization_scheme = QuantizationScheme.from_time_signature(
+                    quantization_settings.default_time_signature)
+
+        elif any(x is not None for x in params):
+            raise AttributeError("Either the quantization_scheme or one or more of the quantization-related arguments "
+                                 "can be defined, but not both.")
 
         return Score.from_quantized_performance(
             performance if quantization_scheme is None else performance.quantized(quantization_scheme),
@@ -1290,7 +1344,6 @@ class Voice(ScoreComponent, ScoreContainer):
         while go_again:
             go_again = False
 
-            # otherwise...
             # starting with the widest grid, going down to the narrowest
             for beat_division_grid in beat_division_grids:
                 # go through all the division points in this grid, and see if we can make it to them directly

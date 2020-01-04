@@ -14,11 +14,10 @@ add_sc_extensions()
 
 s = Session()
 
-# on the other end, an OSC receiver is
-# setup to play notes that take vibrato
-# and OSC messages as well as the usual
+# this will start up an instance of supercollider (assuming it's installed and that we can run sclang from the
+# command line), compile the SynthDef and use it for playback.
 vib = s.new_supercollider_part("vibrato", r"""
-    SynthDef(\vibSynth, { |out=0, freq=440, volume=0.1, vibFreq=20, vibWidth=0.5, gate=1|
+SynthDef(\vibSynth, { |out=0, freq=440, volume=0.1, vibFreq=20, vibWidth=0.5, gate=1|
     var envelope = EnvGen.ar(Env.asr(releaseTime:0.5), gate, doneAction: 2);
     var vibHalfSteps = SinOsc.ar(vibFreq) * vibWidth;
     var vibFreqMul = 2.pow(vibHalfSteps / 12);
@@ -39,8 +38,7 @@ while s.beat() < 20:
         # percussive envelope
         Envelope.ar(0.1, 1.2),
         # fp crescendo envelope
-        Envelope.from_levels_and_durations([1, 0.2, 1], [0.1, 1],
-                                           curve_shapes=[-2, 3])
+        Envelope.from_levels_and_durations([1, 0.2, 1], [0.1, 1], curve_shapes=[-2, 3])
     ])
     vib_width_env = [random.uniform(0, 5) for _ in range(2)]
     vib_freq_env = [random.uniform(3, 13) for _ in range(2)]

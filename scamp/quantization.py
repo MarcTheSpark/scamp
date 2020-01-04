@@ -7,6 +7,7 @@ from .settings import quantization_settings, engraving_settings
 from expenvelope import Envelope
 from ._dependencies import abjad
 from numbers import Number
+from typing import Sequence
 import textwrap
 
 QuantizedBeat = namedtuple("QuantizedBeat", "start_time start_time_in_measure length divisor")
@@ -72,20 +73,6 @@ def quantize_performance_part(part, quantization_scheme, onset_weighting="defaul
     :param inner_split_weighting: How much do we care about inner segmentation timing (e.g. tuple note lengths)
     :return: a QuantizationRecord, detailing all of the time signatures, beat divisions selected, etc.
     """
-    if isinstance(quantization_scheme, (str, Number, TimeSignature)) or isinstance(quantization_scheme, tuple) and \
-            len(quantization_scheme) == 2 and all(isinstance(x, int) for x in quantization_scheme):
-        # note that a tuple of length 2 with two integers is interpreted as a single time signature, but any other tuple
-        # filled with numbers will be interpreted as a list of measure lengths
-        quantization_scheme = QuantizationScheme.from_time_signature(quantization_scheme)
-    elif hasattr(quantization_scheme, "__len__") and \
-            all(isinstance(x, (str, tuple, Number, TimeSignature)) for x in quantization_scheme):
-        # make it easy to loop a series of time signatures by adding the string "loop" at the end
-        loop = False
-        if isinstance(quantization_scheme[-1], str) and quantization_scheme[-1].lower() == "loop":
-            quantization_scheme.pop()
-            loop = True
-        quantization_scheme = QuantizationScheme.from_time_signature_list(quantization_scheme, loop=loop)
-
     if not isinstance(quantization_scheme, QuantizationScheme):
         raise ValueError("Couldn't understand quantization scheme.")
 
@@ -384,12 +371,11 @@ class BeatQuantizationScheme:
 
         :param length: In quarter-notes
         :param divisors: A list of allowed divisors or a list of tuples of (divisor, undesirability). If just
-            divisors are given, the undesirability for wach will be calculated based on its indigestibility.
-        :param simplicity_preference: ranges 0 - whatever. A simplicity_preference of 0 means, all divisions are
-            treated equally; a 7 is as good as a 4. A simplicity_preference of 1 means that the most desirable division
-            is left alone, the most undesirable division gets its error doubled, and all other divisions are somewhere in
-            between. Simplicity preference can be greater than 1, in which case the least desirable division gets its
-            error multiplied by (simplicity_preference + 1)
+            divisors are given, the undesirability for each will be calculated based on its indigestibility.
+        :param simplicity_preference: ranges 0 - whatever. A simplicity_preference of 0 means all divisions are
+            treated equally; a 7 is as good as a 4. A simplicity_preference of 1 means that the error for a given
+            divisor is weighted by that divisor's indigestibility, and a simplicity_preference of 2 means the error
+            is weighted by the indigestibility squared, etc.
         """
         # load default if not specified
         if simplicity_preference == "default":
@@ -428,9 +414,10 @@ class BeatQuantizationScheme:
         return cls(length, range(2, max_divisor + 1), simplicity_preference)
 
     @classmethod
-    def from_max_indigestibility(cls, length, max_divisor, max_indigestibility, simplicity_preference="default"):
+    def from_max_divisor_indigestibility(cls, length, max_divisor, max_divisor_indigestibility,
+                                         simplicity_preference="default"):
         """
-        Takes a max_divisor and max_indigestibility to get a determine the list of divisors.
+        Takes a max_divisor and max_divisor_indigestibility to get a determine the list of divisors.
         """
         if simplicity_preference == "default":
             simplicity_preference = quantization_settings.simplicity_preference
@@ -439,11 +426,11 @@ class BeatQuantizationScheme:
         all_divisors = range(2, max_divisor + 1)
         all_indigestibilities = BeatQuantizationScheme.get_divisor_indigestibilities(length, all_divisors)
 
-        # keep only those that fall below the max_indigestibility
+        # keep only those that fall below the max_divisor_indigestibility
         quantization_divisions = []
         div_indigestibilities = []
         for div, div_indigestibility in zip(all_divisors, all_indigestibilities):
-            if div_indigestibility <= max_indigestibility:
+            if div_indigestibility <= max_divisor_indigestibility:
                 quantization_divisions.append(div)
                 div_indigestibilities.append(div_indigestibility)
 
@@ -471,10 +458,7 @@ class BeatQuantizationScheme:
 
     @staticmethod
     def get_divisor_undesirabilities(divisor_indigestibilities, simplicity_preference):
-        div_indigestibility_range = min(divisor_indigestibilities), max(divisor_indigestibilities)
-        return [1 + simplicity_preference * (float(div) - div_indigestibility_range[0]) /
-                (div_indigestibility_range[1] - div_indigestibility_range[0])
-                for div in divisor_indigestibilities]
+        return [div ** simplicity_preference for div in divisor_indigestibilities]
 
     def __str__(self):
         return "BeatQuantizationScheme({}, {})".format(
@@ -601,14 +585,14 @@ class MeasureQuantizationScheme:
             self.beat_groupings = MetricStructure(*beat_groupings)
 
     @classmethod
-    def from_time_signature(cls, time_signature, max_divisor="default", max_indigestibility="default",
+    def from_time_signature(cls, time_signature, max_divisor="default", max_divisor_indigestibility="default",
                             simplicity_preference="default"):
         # load default settings if not specified (the default simplicity_preference gets loaded
         # later in the constructor of BeatQuantizationScheme if nothing is specified here)
         if max_divisor == "default":
             max_divisor = quantization_settings.max_divisor
-        if max_indigestibility == "default":
-            max_indigestibility = quantization_settings.max_indigestibility
+        if max_divisor_indigestibility == "default":
+            max_divisor_indigestibility = quantization_settings.max_divisor_indigestibility
 
         # allow for different formulations of the time signature argument
         if isinstance(time_signature, str):
@@ -621,17 +605,17 @@ class MeasureQuantizationScheme:
         assert isinstance(time_signature, TimeSignature)
 
         # now we convert the beat lengths to BeatQuantizationSchemes and construct our object
-        if max_indigestibility is None:
-            # no max_indigestibility, so just use the max divisor
+        if max_divisor_indigestibility is None:
+            # no max_divisor_indigestibility, so just use the max divisor
             beat_schemes = [
                 BeatQuantizationScheme.from_max_divisor(beat_length, max_divisor, simplicity_preference)
                 for beat_length in time_signature.beat_lengths
             ]
         else:
-            # using a max_indigestibility
+            # using a max_divisor_indigestibility
             beat_schemes = [
-                BeatQuantizationScheme.from_max_indigestibility(beat_length, max_divisor,
-                                                                max_indigestibility, simplicity_preference)
+                BeatQuantizationScheme.from_max_divisor_indigestibility(beat_length, max_divisor,
+                                                                max_divisor_indigestibility, simplicity_preference)
                 for beat_length in time_signature.beat_lengths
             ]
         return cls(beat_schemes, time_signature)
@@ -734,21 +718,56 @@ class QuantizationScheme:
         self.loop = loop
 
     @classmethod
+    def from_attributes(cls, time_signature=None, bar_line_locations=None, max_divisor=None,
+                        max_divisor_indigestibility=None, simplicity_preference=None):
+        if bar_line_locations is not None:
+            if time_signature is not None:
+                raise AttributeError("Either time_signature or bar_line_locations may be defined, but not both.")
+            else:
+                # since time_signature can be a list of bar lengths, we just convert bar_line_locations to lengths
+                time_signature = [bar_line_locations[0]] + [bar_line_locations[i+1] - bar_line_locations[i]
+                                                            for i in range(len(bar_line_locations) - 1)]
+        elif time_signature is None:
+            # if both bar_line_locations and time_signature are none, the time signature should be the settings default
+            time_signature = quantization_settings.default_time_signature
+
+        max_divisor = max_divisor if max_divisor is not None else "default"
+        max_divisor_indigestibility = max_divisor_indigestibility \
+            if max_divisor_indigestibility is not None else "default"
+        simplicity_preference = simplicity_preference if simplicity_preference is not None else "default"
+
+        if isinstance(time_signature, Sequence) and not isinstance(time_signature, str):
+            time_signature = list(time_signature)
+            # make it easy to loop a series of time signatures by adding the string "loop" at the end
+            loop = False
+            if isinstance(time_signature[-1], str) and time_signature[-1].lower() == "loop":
+                time_signature.pop()
+                loop = True
+            quantization_scheme = QuantizationScheme.from_time_signature_list(
+                time_signature, max_divisor=max_divisor, max_divisor_indigestibility=max_divisor_indigestibility,
+                simplicity_preference=simplicity_preference, loop=loop)
+        else:
+            quantization_scheme = QuantizationScheme.from_time_signature(
+                time_signature, max_divisor=max_divisor, max_divisor_indigestibility=max_divisor_indigestibility,
+                simplicity_preference=simplicity_preference)
+        return quantization_scheme
+
+    @classmethod
     def from_time_signature(cls, time_signature, max_divisor="default",
-                            max_indigestibility="default", simplicity_preference="default"):
+                            max_divisor_indigestibility="default", simplicity_preference="default"):
         return cls.from_time_signature_list(
-            [time_signature], max_divisor=max_divisor, max_indigestibility=max_indigestibility,
+            [time_signature], max_divisor=max_divisor, max_divisor_indigestibility=max_divisor_indigestibility,
             simplicity_preference=simplicity_preference
         )
 
     @classmethod
     def from_time_signature_list(cls, time_signatures_list, loop=False, max_divisor="default",
-                                 max_indigestibility="default", simplicity_preference="default"):
+                                 max_divisor_indigestibility="default", simplicity_preference="default"):
         measure_schemes = []
         for time_signature in time_signatures_list:
             measure_schemes.append(
                 MeasureQuantizationScheme.from_time_signature(time_signature, max_divisor=max_divisor,
-                                                              max_indigestibility=max_indigestibility,
+                                                              max_divisor_indigestibility=max_divisor_indigestibility,
                                                               simplicity_preference=simplicity_preference)
             )
         return cls(measure_schemes, loop=loop)

@@ -27,4 +27,4 @@ for _ in range(2):  # loop twice
 performance = s.stop_transcribing()
 
 # quantize and convert the score in 3/4
-performance.to_score("3/4").show()
+performance.to_score(time_signature="3/4").show()

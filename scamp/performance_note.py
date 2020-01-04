@@ -116,7 +116,7 @@ class PerformanceNote(SavesToJSON):
         :return: tuple of (first half note, second half note) if split beat is within the note.
         Otherwise just return the unchanged note in a length-1 tuple.
         """
-        if not self.start_time < split_beat < self.end_time:
+        if not self.start_time + 1e-10 < split_beat < self.end_time - 1e-10:
             # if we're asked to split at a beat that is outside the note, it has no effect
             # since the expectation is a tuple as return value, return the note unaltered in a length-1 tuple
             return self,

@@ -162,7 +162,7 @@ class QuantizationSettings(ScampSettings):
         "termination_weighting": 0.5,
         "inner_split_weighting": 0.75,
         "max_divisor": 8,
-        "max_indigestibility": None,
+        "max_divisor_indigestibility": None,
         "simplicity_preference": 2.0,
         "default_time_signature": "4/4"
     }
@@ -174,7 +174,7 @@ class QuantizationSettings(ScampSettings):
     def __init__(self, settings_dict=None):
         # This is here to help with auto-completion so that the IDE knows what attributes are available
         self.onset_weighting = self.termination_weighting = self.inner_split_weighting = self.max_divisor = \
-            self.max_indigestibility = self.simplicity_preference = self.default_time_signature = None
+            self.max_divisor_indigestibility = self.simplicity_preference = self.default_time_signature = None
         super().__init__(settings_dict)
 
 

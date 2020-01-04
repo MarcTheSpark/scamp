@@ -10,16 +10,12 @@ import random
 
 s = Session()
 
-# on the other end, an OSC receiver is
-# setup to play notes that take vibrato
-# and OSC messages as well as the usual
+# on the other end, an OSC receiver is setup to play notes that take vibrato and OSC messages as well as the usual
 vib = s.new_osc_part("vibrato", 57120)
 
 s.start_transcribing()
 
-# any property entries starting or ending
-# with "param" will be treated as extra
-# playback parameters
+# any property entries starting or ending with "param" will be treated as extra playback parameters
 while s.beat() < 20:
     # glissando between three random values
     pitch_env = [random.randint(60, 82) for _ in range(3)]
@@ -27,8 +23,7 @@ while s.beat() < 20:
         # percussive envelope
         Envelope.ar(0.1, 1.2),
         # fp crescendo envelope
-        Envelope.from_levels_and_durations([1, 0.2, 1], [0.1, 1],
-                                           curve_shapes=[-2, 3])
+        Envelope.from_levels_and_durations([1, 0.2, 1], [0.1, 1], curve_shapes=[-2, 3])
     ])
     vib_width_env = [random.uniform(0, 5) for _ in range(2)]
     vib_freq_env = [random.uniform(3, 13) for _ in range(2)]
@@ -42,4 +37,5 @@ while s.beat() < 20:
 
 performance = s.stop_transcribing()
 engraving_settings.max_voices_per_part = 1
-performance.to_score().show()
+performance.to_score(max_divisor=6, simplicity_preference=3).show()
+

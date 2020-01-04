@@ -187,7 +187,6 @@ class PerformancePart(SavesToJSON):
         Quantizes this PerformancePart according to the quantization_scheme, returning the QuantizationRecord
         """
         if quantization_scheme == "default":
-            logging.warning("No quantization scheme given; quantizing according to default time signature.")
             quantization_scheme = QuantizationScheme.from_time_signature(quantization_settings.default_time_signature)
 
         quantize_performance_part(self, quantization_scheme, onset_weighting=onset_weighting,
@@ -199,7 +198,6 @@ class PerformancePart(SavesToJSON):
         Returns a quantized copy of this PerformancePart, leaving the original unchanged
         """
         if quantization_scheme == "default":
-            logging.warning("No quantization scheme given; quantizing according to default time signature.")
             quantization_scheme = QuantizationScheme.from_time_signature(quantization_settings.default_time_signature)
 
         copy = PerformancePart(instrument=self.instrument, name=self.name, voices=deepcopy(self.voices),
@@ -359,7 +357,6 @@ class Performance(SavesToJSON):
         Returns a quantized copy of this Performance, leaving the original unchanged
         """
         if quantization_scheme == "default":
-            logging.warning("No quantization scheme given; quantizing according to default time signature.")
             quantization_scheme = QuantizationScheme.from_time_signature(quantization_settings.default_time_signature)
 
         return Performance([part.quantized(quantization_scheme, onset_weighting=onset_weighting,
@@ -372,8 +369,49 @@ class Performance(SavesToJSON):
     def num_measures(self):
         return max(part.num_measures() for part in self.parts)
 
-    def to_score(self, quantization_scheme=None, title="default", composer="default"):
-        return Score.from_performance(self, quantization_scheme, title=title, composer=composer)
+    def warp_to_tempo_curve(self, tempo_curve):
+        pass
+
+    def to_score(self, quantization_scheme: QuantizationScheme = None, time_signature=None, bar_line_locations=None,
+                 max_divisor=None, max_divisor_indigestibility=None, simplicity_preference=None, title="default",
+                 composer="default"):
+        """
+        Convert this Performance (list of note events in continuous time and pitch) to a Score object, which represents
+        the music in traditional western notation. In the process, the music must be quantized, for which two different
+        options are available: one can either pass a QuantizationScheme to the first argument, which is very flexible
+        but rather verbose to create, or one can specify arguments such as time signature and max divisor directly.
+
+        :param quantization_scheme: The quantization scheme to be used when converting this performance into a score. If
+            this is defined, none of the other quantization-related arguments should be defined.
+        :param time_signature: the time signature to be used, represented as a string, e.g. "3/4",  or a tuple,
+            e.g. (3, 2). Alternatively, a list of time signatures can be given. If this list ends in "loop", then the
+            pattern specified by the list will be looped. For example, ["4/4", "2/4", "3/4", "loop"] will cause the
+            fourth measure to be in "4/4", the fifth in "2/4", etc. If the list does not end in "loop", all measures
+            after the final time signature specified will continue to be in that time signature.
+        :param bar_line_locations: As an alternative to defining the time signatures, a list of numbers representing
+            the bar line locations can be given. For instance, [4.5, 6.5, 8, 11] would result in bars of time signatures
+            9/8, 2/4, 3/8, and 3/4
+        :param max_divisor: The largest divisor that will be allowed to divide the beat.
+        :param max_divisor_indigestibility: Indigestibility, devised by composer Clarence Barlow, is a measure of the
+            "primeness" of a beat divisor, and therefore of its complexity from the point of view of a performer. For
+            instance, it is easier to divide a beat in 8 than in 7, even though 7 is a smaller number. See Clarence's
+            paper here: https://mat.ucsb.edu/Publications/Quantification_of_Harmony_and_Metre.pdf. By setting a max
+            indigestibility, we can allow larger divisions of the beat, but only so long as they are easy ones. For
+            instance, a max_divisor of 16 and a max_divisor_indigestibility of 8 would allow the beat to be divided
+            in 1, 2, 3, 4, 5, 6, 8, 9, 10, 12, and 16.
+        :param simplicity_preference: This defines the degree to which the quantizer will favor simple divisors. The
+            higher the simplicity preference, the more precisely the notes have to fit for you to get a divisor like 7.
+            Simplicity preference can range from 0 (in which case the divisor is chosen purely based on the lowest
+            error) to infinity, with a typical value somewhere around 1.
+        :param title: Title of the piece to be printed on the score.
+        :param composer: Composer of the piece to be printed on the score.
+        :return: the resulting Score object, which can then be rendered either as XML or LilyPond
+        """
+        return Score.from_performance(
+            self, quantization_scheme, time_signature=time_signature, bar_line_locations=bar_line_locations,
+            max_divisor=max_divisor, max_divisor_indigestibility=max_divisor_indigestibility,
+            simplicity_preference=simplicity_preference, title=title, composer=composer
+        )
 
     def to_json(self):
         return {"parts": [part.to_json() for part in self.parts], "tempo_envelope": self.tempo_envelope.to_json()}

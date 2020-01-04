@@ -1,9 +1,12 @@
 Documentation:
     - Basic Tutorial, intermixing the examples in the tutorial directory with text
+    - Maybe make a multi-tempo example that doesn't have nested tempi first.
+
 
 Quantization:
     - Make quantization parameters accessible without creating a whole quantization scheme. Some cleanup is needed in
     that whole interface.
+    - Make quantization turn all timing values into Fractions, which are then used in Score and Score creation
 
 Engraving:
     - Fix to using new abjad; change install instructions

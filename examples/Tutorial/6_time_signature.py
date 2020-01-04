@@ -25,13 +25,13 @@ for _ in range(4):
 performance = s.stop_transcribing()
 # quantize and convert the performance to a Score object and open it as a PDF,
 # this time imposing a time signature of 3/8
-performance.to_score("3/8").show()
+performance.to_score(time_signature="3/8").show()
 
 # a list is interpreted as a (non-repeating) sequence of time signatures
-performance.to_score(["3/8", "2/4"]).show()
+performance.to_score(time_signature=["3/8", "2/4"]).show()
 
 # if a repeating sequence of time signatures is desires, end the list with "loop"
-performance.to_score(["3/8", "2/4", "loop"]).show()
+performance.to_score(time_signature=["3/8", "2/4", "loop"]).show()
 
-# Alternatively, bar lengths can be given and sensible time signatures of those lengths will be selected
-performance.to_score([1.5, 2, 4.5]).show()
+# Alternatively, bar line locations can be given and sensible time signatures will be selected
+performance.to_score(bar_line_locations=[1.5, 3.5, 8]).show()

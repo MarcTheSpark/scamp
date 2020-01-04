@@ -26,9 +26,10 @@ for _ in range(2):  # loop twice
 
 performance = s.stop_transcribing()
 
-# impose a max divisor of 4 this time
-performance.to_score(
-    QuantizationScheme.from_time_signature(
-        "3/4", max_divisor=4
-    )
-).show()
+# first show the score with the default quantization settings
+performance.to_score(time_signature="3/4", title="Default Quantization").show()
+# now try it again imposing a max divisor of 4 this time
+performance.to_score(time_signature="3/4", max_divisor=4, title="Max Divisor of 4").show()
+# finally, try it with a higher max divisor, but a strong simplicity_preference
+performance.to_score(time_signature="3/4", simplicity_preference=3, title="Strong Simplicity Preference").show()
+
