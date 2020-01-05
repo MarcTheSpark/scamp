@@ -192,6 +192,10 @@ def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="def
             note.end_time = beat_start_time + divisions_after_beat_start * division_length
 
             if note.length_sum() <= 0:
+                # this covers a rare case in which the note has multiple segments, but is getting squeezed by the
+                # quantization into a length of zero. In this case, dispense with the segments, just make it length 0
+                if hasattr(note.length, "__len__") > 0:
+                    note.length = 0
                 # if the quantization collapses the start and end times of a note to the same point,
                 # adjust so the the note is a single division_length long.
                 if note.end_time + division_length <= beat_end_time:

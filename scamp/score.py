@@ -1206,7 +1206,7 @@ class Voice(ScoreComponent, ScoreContainer):
             notes_from_this_beat = []
 
             while len(notes) > 0 and \
-                    notes[0].start_time < beat_quantization.start_time_in_measure + beat_quantization.length:
+                    notes[0].start_time + 1e-10 < beat_quantization.start_time_in_measure + beat_quantization.length:
                 # go through all the notes in this beat
                 notes_from_this_beat.append(notes.pop(0))
 
@@ -1222,7 +1222,7 @@ class Voice(ScoreComponent, ScoreContainer):
         notes_and_rests = []
         t = 0
         for note in notes:
-            if t < note.start_time:
+            if t + 1e-10 < note.start_time:
                 notes_and_rests.append(PerformanceNote(t, note.start_time - t, None, None, {}))
             notes_and_rests.append(note)
             t = note.end_time
