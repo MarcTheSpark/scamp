@@ -35,6 +35,9 @@ while s.beat() < 20:
     )
     wait(random.uniform(0.5, 3))
 
+while vib.num_notes_playing() > 0:
+    wait(1)
+
 performance = s.stop_transcribing()
 engraving_settings.max_voices_per_part = 1
 performance.to_score(max_divisor=6, simplicity_preference=3).show()
