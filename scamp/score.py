@@ -9,6 +9,7 @@ import pymusicxml
 from ._dependencies import abjad
 import math
 from fractions import Fraction
+from copy import deepcopy
 from itertools import accumulate
 import textwrap
 from collections import namedtuple
@@ -754,6 +755,8 @@ class StaffGroup(ScoreComponent, ScoreContainer):
             # first we make an enumeration iterator for the measures
             if len(note_list) == 0:
                 continue
+
+            note_list = deepcopy(note_list)
 
             quantization_record = quantized_performance_part.voice_quantization_records[voice_name]
             assert isinstance(quantization_record, QuantizationRecord)
@@ -1821,9 +1824,6 @@ class NoteLike(ScoreComponent):
                 abjad.attach(abjad.LilyPondLiteral(r"\stemless"), note)
             grace_container = abjad.AfterGraceContainer(grace_notes)
             abjad.attach(grace_container, abjad_object)
-            # TODO: THE FOLLOWING SHOULDN'T BE NECESSARY ONCE ABJAD FIXES THE AfterGraceContainer PROBLEM
-            if isinstance(grace_notes[0], abjad.Chord):
-                abjad.attach(abjad.LilyPondLiteral(r"\afterGrace"), abjad_object)
         else:
             grace_container = None
 

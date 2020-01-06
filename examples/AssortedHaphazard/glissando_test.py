@@ -23,7 +23,8 @@ while session.time() < 12:
     if random.random() < 0.5:
         session.wait(random.random() * 2)
 
-
+# # Thia line causes the turn-around points of the glissandi to be rendered differently
+# engraving_settings.glissandi.control_point_policy = "grace"
 performance = session.stop_transcribing()
 
 performance.quantize(QuantizationScheme.from_time_signature("5/4"))

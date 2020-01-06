@@ -50,6 +50,5 @@ violin2.end_all_notes()
 bass_banjo.end_all_notes()
 performance = session.stop_transcribing()
 engraving_settings.ignore_empty_parts = False
-quantized_performance = performance.quantize(["4/4", "3/4", "loop"])
-score = quantized_performance.to_score()
+score = performance.to_score(time_signature="2/4")
 score.show()
