@@ -117,11 +117,11 @@ class SoundfontHost(SavesToJSON):
 
         self.soundfont_ids[soundfont] = self.synth.sfload(soundfont_path)
 
-    def to_json(self):
+    def _to_json(self):
         return {"soundfonts": list(self.soundfont_ids.keys()), "audio_driver": self.audio_driver}
 
     @classmethod
-    def from_json(cls, json_dict):
+    def _from_json(cls, json_dict):
         return cls(**json_dict)
 
 

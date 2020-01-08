@@ -253,28 +253,28 @@ class PerformancePart(SavesToJSON):
             if self.voice_quantization_records is not None else ")"
         )
 
-    def to_json(self):
+    def _to_json(self):
         return {
             "name": self.name,
             "instrument_id": self._instrument_id,
             "voices": {
-                voice_name: [n.to_json() for n in voice] for voice_name, voice in self.voices.items()
+                voice_name: [n._to_json() for n in voice] for voice_name, voice in self.voices.items()
             },
             "voice_quantization_records": {
-                voice_name: self.voice_quantization_records[voice_name].to_json()
+                voice_name: self.voice_quantization_records[voice_name]._to_json()
                 for voice_name in self.voice_quantization_records
             } if self.voice_quantization_records is not None else None
         }
 
     @classmethod
-    def from_json(cls, json_dict):
+    def _from_json(cls, json_dict):
         performance_part = cls(name=json_dict["name"])
         performance_part._instrument_id = json_dict["instrument_id"]
         for voice in json_dict["voices"]:
             for note in json_dict["voices"][voice]:
-                performance_part.add_note(PerformanceNote.from_json(note), voice=voice)
+                performance_part.add_note(PerformanceNote._from_json(note), voice=voice)
         performance_part.voice_quantization_records = {
-            voice_name: QuantizationRecord.from_json(json_dict["voice_quantization_records"][voice_name])
+            voice_name: QuantizationRecord._from_json(json_dict["voice_quantization_records"][voice_name])
             for voice_name in json_dict["voice_quantization_records"]
         } if json_dict["voice_quantization_records"] is not None else None
 
@@ -370,7 +370,7 @@ class Performance(SavesToJSON):
         return max(part.num_measures() for part in self.parts)
 
     def warp_to_tempo_curve(self, tempo_curve):
-        pass
+        raise NotImplementedError()
 
     def to_score(self, quantization_scheme: QuantizationScheme = None, time_signature=None, bar_line_locations=None,
                  max_divisor=None, max_divisor_indigestibility=None, simplicity_preference=None, title="default",
@@ -413,12 +413,12 @@ class Performance(SavesToJSON):
             simplicity_preference=simplicity_preference, title=title, composer=composer
         )
 
-    def to_json(self):
-        return {"parts": [part.to_json() for part in self.parts], "tempo_envelope": self.tempo_envelope.to_json()}
+    def _to_json(self):
+        return {"parts": [part._to_json() for part in self.parts], "tempo_envelope": self.tempo_envelope._to_json()}
 
     @classmethod
-    def from_json(cls, json_dict):
-        return cls([PerformancePart.from_json(part_json) for part_json in json_dict["parts"]],
+    def _from_json(cls, json_dict):
+        return cls([PerformancePart._from_json(part_json) for part_json in json_dict["parts"]],
                    TempoEnvelope.from_json(json_dict["tempo_envelope"]))
 
     def __repr__(self):

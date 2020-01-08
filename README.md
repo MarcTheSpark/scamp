@@ -1,6 +1,12 @@
 # SCAMP (Suite for Computer-Assisted Music in Python)
 
-SCAMP is an computer-assisted composition framework in Python that manages the flow of musical time, plays back notes via [FluidSynth](http://www.fluidsynth.org/) or over OSC, and quantizes and exports the result to music notation in the form of MusicXML or Lilypond. This framework is the distillation of years of practice composing algorithmic and computer-assisted music in Python and aims to address pervasive technical challenges while imposing as little as possible on the aesthetic choices of the user. 
+SCAMP is an computer-assisted composition framework in Python designed to act as a hub, flexibly connecting the 
+composer-programmer to a wide variety of resources for playback and notation. SCAMP provides functionality to 
+manage the flow of musical time, play back notes via [FluidSynth](http://www.fluidsynth.org/) or MIDI or OSC messages
+to an external synthesizer, and quantizes and exports the result to music notation in the form of MusicXML or Lilypond. 
+This framework is the distillation of years of practice composing algorithmic and computer-assisted music in Python 
+and aims to address pervasive technical challenges while imposing as little as possible on the aesthetic choices 
+of the user. 
 
 ## Features
 
@@ -66,8 +72,7 @@ Properly configuring your computer involves:
 1) Installing Python 3.6 or greater
 2) Installing FluidSynth
 3) (Optional) Installing [_python-rtmidi_](https://spotlightkid.github.io/python-rtmidi/)
-4) (Optional) Installing [_abjad_](https://github.com/Abjad/abjad) (Note: currently SCAMP only 
-works with the cutting-edge version of abjad available on GitHub -- see below)
+4) (Optional) Installing [_abjad_](https://github.com/Abjad/abjad)
 
 Each of these steps is described in greater detail below. After configuring the computer and 
 running `pip3 install --user scamp`, you should be able to test the installation by:
@@ -199,28 +204,16 @@ For any other _python-rtmidi_ installation woes, take a look at the installation
 
 ### 4) (Optional) Installing abjad
 
-For lilypond output, you will need the [_abjad_](http://abjad.mbrsi.org/installation.html) library. Currently, SCAMP 
-requires the latest version from the _abjad_ github repository, since there have been some changes that make the version 
-on PyPI (which is what `pip` uses) incompatible. In order to install the latest version, run the following:
+For lilypond output, you will need the [_abjad_](http://abjad.mbrsi.org/installation.html) library. To do so, 
+run the following:
 
 ```
-git clone https://github.com/Abjad/abjad.git
-cd abjad
-pip3 install .
+pip3 install abjad==3.1
 ```
 
-Note that this requires you to have `git` installed. If you need to install git, it should be fairly straightforward 
-to follow the [instructions on this website](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
-
-The first line might take a while, since it's downloading the whole history of the abjad repository, which is hundreds 
-of megabytes. Once you've installed the package, you can remove the bulky repo with:
-
-```
-cd ..
-rm -r abjad
-```
-
-In the future, once a new version of abjad is pushed to PyPI, this process will be replaced by a much easier one-line pip install.
+Note the '==' in the command, which specifies the exact version of abjad to install. This is the version that SCAMP 
+has been built to be compatible with. You are free to use a newer version, but it is possible there will be unexpected
+errors due to changes in the abjad API.
 
 ### 5) (Optional) Installing scamp_extensions
 

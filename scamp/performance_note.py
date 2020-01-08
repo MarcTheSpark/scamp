@@ -248,12 +248,12 @@ class PerformanceNote(SavesToJSON):
         else:
             return self.start_time == other
 
-    def to_json(self):
+    def _to_json(self):
         if isinstance(self.pitch, (tuple, list)):
             # if this is a chord
-            json_pitch = [p.to_json() if isinstance(p, Envelope) else p for p in self.pitch]
+            json_pitch = [p._to_json() if isinstance(p, Envelope) else p for p in self.pitch]
         elif isinstance(self.pitch, Envelope):
-            json_pitch = self.pitch.to_json()
+            json_pitch = self.pitch._to_json()
         else:
             json_pitch = self.pitch
 
@@ -261,12 +261,12 @@ class PerformanceNote(SavesToJSON):
             "start_time": self.start_time,
             "length": self.length,
             "pitch": json_pitch,
-            "volume": self.volume.to_json() if isinstance(self.volume, Envelope) else self.volume,
-            "properties": self.properties.to_json()
+            "volume": self.volume._to_json() if isinstance(self.volume, Envelope) else self.volume,
+            "properties": self.properties._to_json()
         }
 
     @classmethod
-    def from_json(cls, json_object):
+    def _from_json(cls, json_object):
         if isinstance(json_object["pitch"], (tuple, list)):
             # a tuple or list (should be a list since it's json) indicates a chord
             json_object["pitch"] = tuple(Envelope.from_json(pitch) if isinstance(pitch, dict) else pitch
@@ -281,7 +281,7 @@ class PerformanceNote(SavesToJSON):
         if hasattr(json_object["length"], "__len__"):
             json_object["length"] = tuple(json_object["length"])
 
-        json_object["properties"] = NotePropertiesDictionary.from_json(json_object["properties"])
+        json_object["properties"] = NotePropertiesDictionary._from_json(json_object["properties"])
 
         return PerformanceNote(**json_object)
 

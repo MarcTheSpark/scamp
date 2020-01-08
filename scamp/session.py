@@ -299,20 +299,20 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         return super().start_transcribing(self.instruments if instruments is None else instruments,
                                           self if clock is None else clock, units=units)
 
-    def to_json(self):
-        json_object = Ensemble.to_json(self)
+    def _to_json(self):
+        json_object = Ensemble._to_json(self)
         json_object["tempo"] = self.tempo
         return json_object
 
     @classmethod
-    def from_json(cls, json_dict):
+    def _from_json(cls, json_dict):
         json_instruments = json_dict.pop("instruments")
         default_spelling_policy = json_dict.pop("default_spelling_policy")
         session = cls(**json_dict)
         session.default_spelling_policy = default_spelling_policy
-        session.instruments = [ScampInstrument.from_json(json_instrument, session)
+        session.instruments = [ScampInstrument._from_json(json_instrument, session)
                                for json_instrument in json_instruments]
         return session
 
     def __repr__(self):
-        return "Session.from_json({})".format(self.to_json())
+        return "Session.from_json({})".format(self._to_json())

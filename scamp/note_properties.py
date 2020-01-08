@@ -285,9 +285,9 @@ class NotePropertiesDictionary(dict, SavesToJSON):
                self.playback_adjustments == other_properties_dict.playback_adjustments and \
                self.text == other_properties_dict.text
 
-    def to_json(self):
+    def _to_json(self):
         json_friendly_dict = dict(deepcopy(self))
-        json_friendly_dict["playback adjustments"] = [x.to_json() for x in self.playback_adjustments]
+        json_friendly_dict["playback adjustments"] = [x._to_json() for x in self.playback_adjustments]
         del json_friendly_dict["temp"]
 
         # remove entries that contain no information for conciseness. They will be reconstructed when reloading.
@@ -308,18 +308,18 @@ class NotePropertiesDictionary(dict, SavesToJSON):
         # to a json-friendly dictionary representation of the envelope
         for key, value in json_friendly_dict.items():
             if (key.startswith("param_") or key.endswith("_param")) and isinstance(value, Envelope):
-                json_friendly_dict[key] = value.to_json()
+                json_friendly_dict[key] = value._to_json()
 
         return json_friendly_dict
 
     @classmethod
-    def from_json(cls, json_object):
+    def _from_json(cls, json_object):
         # if the object has playback adjustments convert all adjustments from dictionaries to NotePlaybackAdjustments
         if "playback adjustments" in json_object:
-            json_object["playback adjustments"] = [NotePlaybackAdjustment.from_json(x)
+            json_object["playback adjustments"] = [NotePlaybackAdjustment._from_json(x)
                                                    for x in json_object["playback adjustments"]]
         if "spelling_policy" in json_object:
-            json_object["spelling_policy"] = SpellingPolicy.from_json(json_object["spelling_policy"])
+            json_object["spelling_policy"] = SpellingPolicy._from_json(json_object["spelling_policy"])
 
         # if there are extra parameters of playback which were given envelopes, those envelopes will be have been
         # converted to their json-friendly dictionary representations, This converts them back to envelopes
@@ -331,4 +331,4 @@ class NotePropertiesDictionary(dict, SavesToJSON):
 
     def __repr__(self):
         # this simplifies the properties dictionary to only the parts that deviate from the defaults
-        return repr(self.to_json())
+        return repr(self._to_json())

@@ -251,7 +251,7 @@ class ScampInstrument(SavesToJSON):
         """
         self.name = name
         # used to help distinguish between identically named instruments in the same ensemble
-        self.name_count = ensemble.get_part_name_count(self.name) if ensemble is not None else 0
+        self.name_count = ensemble._get_part_name_count(self.name) if ensemble is not None else 0
 
         self.ensemble = ensemble
         self._transcribers_to_notify = []
@@ -824,7 +824,7 @@ class ScampInstrument(SavesToJSON):
 
         if isinstance(preset, str):
             from .ensemble import Ensemble
-            preset = Ensemble.resolve_preset_from_name(self.name if preset == "auto" else preset, soundfont)
+            preset = Ensemble._resolve_preset_from_name(self.name if preset == "auto" else preset, soundfont)
         elif isinstance(preset, int):
             preset = (0, preset)
         SoundfontPlaybackImplementation(self, preset, soundfont, num_channels,
@@ -927,16 +927,16 @@ class ScampInstrument(SavesToJSON):
     --------------------------------------------- To / from JSON -------------------------------------------------
     """
 
-    def to_json(self):
+    def _to_json(self):
         return {
             "name": self.name,
-            "playback_implementations": [playback_implementation.to_json()
+            "playback_implementations": [playback_implementation._to_json()
                                          for playback_implementation in self.playback_implementations],
             "default_spelling_policy": self.default_spelling_policy
         }
 
     @classmethod
-    def from_json(cls, json_object, ensemble=None):
+    def _from_json(cls, json_object, ensemble=None):
         """
         :param json_object: the json object we're loading from
         :param ensemble: this allows us to pass the ensemble to the instruments we're reconstructing when we're
@@ -948,9 +948,9 @@ class ScampInstrument(SavesToJSON):
         for playback_implementation_json in json_object["playback_implementations"]:
             for playback_implementation_type in iterate_all_subclasses(PlaybackImplementation):
                 if playback_implementation_json["type"] == playback_implementation_type.__name__:
-                    playback_implementation_type.from_json(playback_implementation_json, host_instrument=instrument)
+                    playback_implementation_type._from_json(playback_implementation_json, host_instrument=instrument)
                     break
         return instrument
 
     def __repr__(self):
-        return "ScampInstrument.from_json({})".format(self.to_json())
+        return "ScampInstrument.from_json({})".format(self._to_json())

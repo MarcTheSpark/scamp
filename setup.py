@@ -17,7 +17,7 @@ setuptools.setup(
     install_requires=['pymusicxml >= 0.1.0', 'expenvelope >= 0.3.0', 'clockblocks >= 0.3.0',
                       'pyfluidsynth', 'sf2utils', 'python-osc'],
     extras_require={
-        'lilypond': 'abjad',
+        'lilypond': 'abjad==3.1',
         'midistream': 'python-rtmidi',
         'mouse and keyboard input': 'pynput'
     },

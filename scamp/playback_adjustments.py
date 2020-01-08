@@ -59,11 +59,11 @@ class ParamPlaybackAdjustment(SavesToJSON):
         # you would end up trying to add two Envelopes, which we don't allow
         return self.add if self.multiply == 0 else param_value * self.multiply + self.add
 
-    def to_json(self):
+    def _to_json(self):
         return self.__dict__
 
     @classmethod
-    def from_json(cls, json_object):
+    def _from_json(cls, json_object):
         return cls(**json_object)
 
     def __repr__(self):
@@ -136,20 +136,20 @@ class NotePlaybackAdjustment(SavesToJSON):
                self.volume_adjustment.adjust_value(volume) if self.volume_adjustment is not None else volume, \
                self.length_adjustment.adjust_value(length) if self.length_adjustment is not None else length
 
-    def to_json(self):
+    def _to_json(self):
         json_dict = {}
         if self.pitch_adjustment is not None:
-            json_dict["pitch_adjustment"] = self.pitch_adjustment.to_json()
+            json_dict["pitch_adjustment"] = self.pitch_adjustment._to_json()
         if self.volume_adjustment is not None:
-            json_dict["volume_adjustment"] = self.volume_adjustment.to_json()
+            json_dict["volume_adjustment"] = self.volume_adjustment._to_json()
         if self.length_adjustment is not None:
-            json_dict["length_adjustment"] = self.length_adjustment.to_json()
+            json_dict["length_adjustment"] = self.length_adjustment._to_json()
         return json_dict
 
     @classmethod
-    def from_json(cls, json_object):
+    def _from_json(cls, json_object):
         return cls(**{
-            adjustment_name: ParamPlaybackAdjustment.from_json(json_object[adjustment_name])
+            adjustment_name: ParamPlaybackAdjustment._from_json(json_object[adjustment_name])
             for adjustment_name in json_object
         })
 
@@ -212,21 +212,21 @@ class PlaybackDictionary(dict, SavesToJSON):
         else:
             raise ValueError("Playback property not found.")
 
-    def to_json(self):
+    def _to_json(self):
         return {
-            key: value.to_json() if hasattr(value, "to_json")
-            else PlaybackDictionary.to_json(value) if isinstance(value, dict)
+            key: value._to_json() if hasattr(value, "_to_json")
+            else PlaybackDictionary._to_json(value) if isinstance(value, dict)
             else value for key, value in self.items() if value is not None
         }
 
     @classmethod
-    def from_json(cls, json_object):
+    def _from_json(cls, json_object):
         # convert all adjustments from dictionaries to NotePlaybackAdjustments
         for notation_category in json_object:
             for notation_name in json_object[notation_category]:
                 if json_object[notation_category][notation_name] is not None:
                     json_object[notation_category][notation_name] = \
-                        NotePlaybackAdjustment.from_json(json_object[notation_category][notation_name])
+                        NotePlaybackAdjustment._from_json(json_object[notation_category][notation_name])
         return cls(**json_object)
 
     def __repr__(self):

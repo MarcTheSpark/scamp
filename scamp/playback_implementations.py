@@ -84,11 +84,11 @@ class PlaybackImplementation(ABC):
         pass
 
     @abstractmethod
-    def to_json(self):
+    def _to_json(self):
         pass
 
     @abstractmethod
-    def from_json(self, json_object, host_instrument):
+    def _from_json(self, json_object, host_instrument):
         # PlaybackImplementations implement a version of from_json that requires us to pass the host instrument
         # this avoids the circularity of the host instrument containing references to the playback implementations
         # and the playback implementations containing a reference to the host_instrument
@@ -331,7 +331,7 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
     def expression(self, chan, expression_from_0_to_1):
         self.soundfont_instrument.expression(chan, expression_from_0_to_1)
 
-    def to_json(self):
+    def _to_json(self):
         return {
             "type": "SoundfontPlaybackImplementation",
             "args": {
@@ -344,7 +344,7 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
         }
 
     @classmethod
-    def from_json(cls, json_object, host_instrument):
+    def _from_json(cls, json_object, host_instrument):
         return cls(host_instrument, **json_object["args"])
 
 
@@ -438,7 +438,7 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
         expression_val = max(0, min(127, int(expression_from_0_to_1 * 127)))
         rt_simple_out.expression(chan, expression_val)
 
-    def to_json(self):
+    def _to_json(self):
         return {
             "type": "MIDIStreamPlaybackImplementation",
             "args": {
@@ -450,7 +450,7 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
         }
 
     @classmethod
-    def from_json(cls, json_object, host_instrument):
+    def _from_json(cls, json_object, host_instrument):
         return cls(host_instrument, **json_object["args"])
 
 
@@ -514,7 +514,7 @@ class OSCPlaybackImplementation(PlaybackImplementation):
     def set_max_pitch_bend(self, semitones):
         pass
 
-    def to_json(self):
+    def _to_json(self):
         return {
             "type": "OSCPlaybackImplementation",
             "args": {
@@ -526,5 +526,5 @@ class OSCPlaybackImplementation(PlaybackImplementation):
         }
 
     @classmethod
-    def from_json(cls, json_object, host_instrument):
+    def _from_json(cls, json_object, host_instrument):
         return cls(host_instrument, **json_object["args"])

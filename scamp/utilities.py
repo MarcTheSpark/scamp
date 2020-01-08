@@ -66,22 +66,22 @@ def load_object(filename):
 class SavesToJSON(ABC):
 
     @abstractmethod
-    def to_json(self):
+    def _to_json(self):
         pass
 
     @classmethod
     @abstractmethod
-    def from_json(cls, json_object):
+    def _from_json(cls, json_object):
         pass
 
     def save_to_json(self, file_path):
         with open(file_path, "w") as file:
-            json.dump(self.to_json(), file, sort_keys=True, indent=4)
+            json.dump(self._to_json(), file, sort_keys=True, indent=4)
 
     @classmethod
     def load_from_json(cls, file_path):
         with open(file_path, "r") as file:
-            return cls.from_json(json.load(file))
+            return cls._from_json(json.load(file))
 
 
 def memoize(obj):

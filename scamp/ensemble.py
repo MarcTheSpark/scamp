@@ -47,7 +47,7 @@ class Ensemble(SavesToJSON):
         return self.add_instrument(ScampInstrument(name, self))
 
     @staticmethod
-    def resolve_preset_from_name(name, soundfont):
+    def _resolve_preset_from_name(name, soundfont):
         # if preset is auto, try to find a match in the soundfont
         if name is None:
             preset = (0, 0)
@@ -84,7 +84,7 @@ class Ensemble(SavesToJSON):
 
         # if preset is auto, try to find a match in the soundfont
         if preset == "auto":
-            preset = Ensemble.resolve_preset_from_name(name, soundfont)
+            preset = Ensemble._resolve_preset_from_name(name, soundfont)
         elif isinstance(preset, int):
             preset = (0, preset)
 
@@ -137,7 +137,7 @@ class Ensemble(SavesToJSON):
 
         return instrument
 
-    def get_part_name_count(self, name):
+    def _get_part_name_count(self, name):
         return sum(i.name == name for i in self.instruments)
 
     def get_instrument_by_name(self, name, which=0):
@@ -157,14 +157,14 @@ class Ensemble(SavesToJSON):
 
     def print_default_soundfont_presets(self):
         """
-        Print a list of presets available with the default soundfont.
+        Prints a list of presets available with the default soundfont.
         """
         print_soundfont_presets(self.default_soundfont)
 
     @property
     def default_spelling_policy(self):
         """
-        Default spelling policy used for transcriptionss made with this Session.
+        Default spelling policy used for transcriptions made with this Ensemble.
         """
         return self._default_spelling_policy
 
@@ -177,24 +177,24 @@ class Ensemble(SavesToJSON):
         else:
             raise ValueError("Spelling policy not understood.")
 
-    def to_json(self):
+    def _to_json(self):
         return {
             "default_soundfont": self.default_soundfont,
             "default_audio_driver": self.default_audio_driver,
             "default_midi_output_device": self.default_midi_output_device,
             "default_spelling_policy": self.default_spelling_policy,
-            "instruments": [instrument.to_json() for instrument in self.instruments]
+            "instruments": [instrument._to_json() for instrument in self.instruments]
         }
 
     @classmethod
-    def from_json(cls, json_dict):
+    def _from_json(cls, json_dict):
         json_instruments = json_dict.pop("instruments")
         default_spelling_policy = json_dict.pop("default_spelling_policy")
         ensemble = cls(**json_dict)
         ensemble.default_spelling_policy = default_spelling_policy
-        ensemble.instruments = [ScampInstrument.from_json(json_instrument, ensemble)
+        ensemble.instruments = [ScampInstrument._from_json(json_instrument, ensemble)
                                 for json_instrument in json_instruments]
         return ensemble
 
     def __repr__(self):
-        return "Ensemble.from_json({})".format(self.to_json())
+        return "Ensemble.from_json({})".format(self._to_json())
