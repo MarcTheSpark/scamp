@@ -518,9 +518,17 @@ class ScampInstrument(SavesToJSON):
 
         # start the note. (Note that this will also start the animation of pitch, volume,
         # and any other parameters if they are envelopes.)
+        note_flags = []
+        if fixed:
+            note_flags.append("fixed")
+        if silent:
+            note_flags.append("silent")
+        if not transcribe:
+            note_flags.append("no_transcribe")
         note_handle = self.start_note(
-            pitch, volume, properties, clock=clock, silent=silent, transcribe=transcribe, fixed=fixed,
-            max_volume=volume.max_level() if isinstance(volume, Envelope) else volume)
+            pitch, volume, properties, clock=clock, flags=note_flags,
+            max_volume=volume.max_level() if isinstance(volume, Envelope) else volume
+        )
 
         if hasattr(length, "__len__"):
             for length_segment in length:
@@ -530,8 +538,7 @@ class ScampInstrument(SavesToJSON):
             clock.wait(length)
         note_handle.end()
 
-    def start_note(self, pitch, volume, properties=None, clock="auto", silent=False,
-                   transcribe=True, fixed=False, max_volume=1):
+    def start_note(self, pitch, volume, properties=None, clock="auto", max_volume=1, flags=None):
         """
         Start a note with the given pitch, volume, and properties
 
@@ -539,13 +546,6 @@ class ScampInstrument(SavesToJSON):
         :param volume: the volume / starting volume of the note (not an Envelope)
         :param properties: either a string, list, dictionary or NotePropertiesDictionary representing note properties
         :param clock: the clock on which to run any animation of pitch, volume, etc., if applicable
-        :param silent: if True, go through the motions of playing back, but don't make sound. Useful if we're trying to
-            notate a note but not actually play it. For instance, i.e. when there is some sort of playback alteration
-            like staccato, a "silent" note with the original properties that does none of the alterations gets notated,
-            while the sounding note gets flagged as transcribe=False.
-        :param transcribe: if False, don't notify transcribers of this note when it ends
-        :param fixed: if True, disables the ability of this note to change pitch or volume; useful for conserving
-            midi_channels, since multiple fixed notes can occupy the same channel.
         :param max_volume: This is a bit of a pain, but since midi playback requires us to set the velocity at the
             beginning of the note, and thereafter vary volume using expression, and since expression can only make the
             note quieter, we need to start the note with velocity equal to the max desired volume (using expression to
@@ -554,6 +554,8 @@ class ScampInstrument(SavesToJSON):
             play_note, we do actually know in advance how loud the note is going to get, so we can set max volume to the
             peak of the Envelope. Honestly, I wish I could separate this implementation detail from the ScampInstrument
             class, but I don't see how this would be possible.
+        :param flags: list of strings that act as flags for how the note should be processed. Should probably be
+            ignored by a normal user.
         :return: a NoteHandle with which to later manipulate the note
         """
         if clock == "auto":
@@ -594,26 +596,14 @@ class ScampInstrument(SavesToJSON):
                 "segments_list_lock": Lock(),
                 "properties": properties,
                 "max_volume": max_volume,
-                "flags": []
+                "flags": [] if flags is None else flags
             }
 
-            if fixed:
-                assert not isinstance(pitch, Envelope) and not isinstance(volume, Envelope), \
-                    "The 'fixed' flag can only be used on notes that do not animate pitch or volume."
-                self._note_info_by_id[note_id]["flags"].append("fixed")
-
-            if silent:
-                # if silent, add a flag so that none of the playback implementation happens for the rest of the note
-                self._note_info_by_id[note_id]["flags"].append("silent")
-            else:
+            if "silent" not in self._note_info_by_id[note_id]["flags"]:
                 # otherwise, call all the playback implementation!
                 for playback_implementation in self.playback_implementations:
                     playback_implementation.start_note(note_id, start_pitch, start_volume,
                                                        properties, other_param_start_values)
-
-            # if we don't want to transcribe it, set that flag
-            if not transcribe:
-                self._note_info_by_id[note_id]["flags"].append("no_transcribe")
 
         # we now exit the lock, since otherwise the following calls will not be able to happen
         # create a handle for this note
@@ -632,8 +622,7 @@ class ScampInstrument(SavesToJSON):
 
         return handle
 
-    def start_chord(self, pitches, volume, properties=None, clock="auto", silent=False,
-                    transcribe=True, fixed=False, max_volume=1):
+    def start_chord(self, pitches, volume, properties=None, clock="auto", max_volume=1, flags=None):
         """
         Simple utility for starting chords without starting each note individually.
 
@@ -642,10 +631,8 @@ class ScampInstrument(SavesToJSON):
         :param properties: see start_note. In general, properties are cloned to all members of the chord. However,
         noteheads can be separately defined using this syntax: "noteheads: diamond / normal / cross"
         :param clock: see start_note
-        :param silent: see start_note
-        :param transcribe: see start_note
-        :param fixed: see start_note
         :param max_volume: see start_note
+        :param flags: see start_note
         :return: a ChordHandle, which is used to manipulate the chord thereafter. Pitch change calls on the ChordHandle
         are based on the first note of the chord; all other notes are shifted in parallel
         """
@@ -671,8 +658,8 @@ class ScampInstrument(SavesToJSON):
             properties_copy = deepcopy(properties)
             if len(properties.noteheads) > 1:
                 properties_copy.noteheads = [properties_copy.noteheads[i]]
-            note_handles.append(self.start_note(pitch, volume, properties=properties_copy, clock=clock, silent=silent,
-                                                transcribe=transcribe, fixed=fixed, max_volume=max_volume))
+            note_handles.append(self.start_note(pitch, volume, properties=properties_copy, clock=clock,
+                                                max_volume=max_volume, flags=flags))
 
         return ChordHandle(note_handles, intervals)
 
