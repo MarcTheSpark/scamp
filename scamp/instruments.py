@@ -365,7 +365,11 @@ class ScampInstrument(SavesToJSON):
 
     def __init__(self, name=None, ensemble=None):
         """
-        Base instrument class.
+        Instrument class that does the playing of the notes. Generally this will be created through one of the
+        "new_part" methods of the Session or Ensemble class.
+
+        :param name: name of this instrument (e.g. when printed in a score)
+        :param ensemble: Ensemble to which this instrument will belong.
         """
         self.name = name
         # used to help distinguish between identically named instruments in the same ensemble
@@ -977,7 +981,7 @@ class ScampInstrument(SavesToJSON):
 
     def add_osc_playback(self, port, ip_address="127.0.0.1", message_prefix=None, osc_message_addresses="default"):
         """
-        Add an OSC playback implementation for this instrument
+        Add an OSCPlaybackImplementation for this instrument
 
         :param port: port to use
         :param ip_address: ip address to use

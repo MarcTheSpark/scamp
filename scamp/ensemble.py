@@ -65,8 +65,9 @@ class Ensemble(SavesToJSON):
     def new_part(self, name=None, preset="auto", soundfont="default", num_channels=8,
                  audio_driver="default", max_pitch_bend="default"):
         """
-        The default "new_part" is going to employ the SoundfontPlaybackImplementation, and by default,
-        it will search for a preset that matches the name given.
+        Creates and returns a new ScampInstrument for this Ensemble that uses a SoundfontPlaybackImplementation. Unless
+        otherwise specified, the default soundfont for this Ensemble/Session will be used, and we will search for the
+        preset that best matches the name given.
 
         :param name: name used for this instrument in score, etc.
         :param preset: if an int, assumes bank #0; can also be a tuple of form (bank, preset). If "auto", searches
@@ -98,11 +99,12 @@ class Ensemble(SavesToJSON):
     def new_midi_part(self, name=None, midi_output_device="default", num_channels=8,
                       midi_output_name=None, max_pitch_bend="default"):
         """
-        Adds a part implementing a MIDIStreamPlaybackImplementation
+        Creates and returns a new ScampInstrument for this Ensemble that uses a MIDIStreamPlaybackImplementation. This
+        means that when notes are played by this instrument, midi messages are sent out to the given device.
 
         :param name: name used for this instrument in score, etc. for a preset of the appropriate name.
-        :param midi_output_device: device used to output midi. Call get_available_midi_output_devices to check
-            what's available.
+        :param midi_output_device: name or number of the device used to output midi. Call
+            get_available_ports_and_devices to check what's available.
         :param num_channels: maximum of midi channels available to this midi part. It's wise to use more when doing
             microtonal playback, since pitch bends are applied per channel.
         :param midi_output_name: name of this part
@@ -120,7 +122,8 @@ class Ensemble(SavesToJSON):
     def new_osc_part(self, name=None, port=None, ip_address="127.0.0.1", message_prefix=None,
                      osc_message_addresses="default"):
         """
-        Adds a part implementing a MIDIStreamPlaybackImplementation
+        Creates and returns a new ScampInstrument for this Ensemble that uses a OSCPlaybackImplementation. This means
+        that when notes are played by this instrument, osc messages are sent out to the specified address
 
         :param name: name used for this instrument in score, etc. for a preset of the appropriate name.
         :param port: port osc messages are sent to
