@@ -1,7 +1,8 @@
 import bisect
 from .quantization import quantize_performance_part, QuantizationRecord, QuantizationScheme
 from .settings import quantization_settings
-from clockblocks import Clock, TempoEnvelope
+from clockblocks import Clock, TempoEnvelope, current_clock
+from .ensemble import Ensemble
 from .performance_note import *
 from .score import Score, StaffGroup
 from .utilities import SavesToJSON
@@ -312,7 +313,14 @@ class Performance(SavesToJSON):
     def length(self):
         return self.end_time
 
-    def play(self, start_time=0, stop_time=None, ensemble=None, clock=None, blocking=True, use_tempo_envelope=True):
+    def play(self, start_time=0, stop_time=None, ensemble="auto", clock="auto", blocking=True, use_tempo_envelope=True):
+
+        if clock == "auto":
+            clock = current_clock()
+        if ensemble == "auto":
+            if isinstance(current_clock(), Ensemble):
+                ensemble = current_clock()
+
         if ensemble is not None:
             self.set_instruments_from_ensemble(ensemble)
 
