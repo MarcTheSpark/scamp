@@ -48,8 +48,8 @@ class NotePropertiesDictionary(dict, SavesToJSON):
             kwargs["notations"] = []
         if "text" not in kwargs:
             kwargs["text"] = []
-        if "playback adjustments" not in kwargs:
-            kwargs["playback adjustments"] = []
+        if "playback_adjustments" not in kwargs:
+            kwargs["playback_adjustments"] = []
         if "spelling_policy" not in kwargs:
             kwargs["spelling_policy"] = None
         if "temp" not in kwargs:
@@ -97,7 +97,7 @@ class NotePropertiesDictionary(dict, SavesToJSON):
 
         for note_property in properties_list:
             if isinstance(note_property, NotePlaybackAdjustment):
-                properties_dict["playback adjustments"].append(note_property)
+                properties_dict["playback_adjustments"].append(note_property)
             elif isinstance(note_property, str):
                 # if there's a colon, it represents a key / value pair, e.g. "articulation: staccato"
                 if ":" in note_property:
@@ -105,7 +105,7 @@ class NotePropertiesDictionary(dict, SavesToJSON):
                     key, value = note_property[:colon_index].replace(" ", "").lower(), \
                                  note_property[colon_index+1:].strip().lower()
                     if key in ("articulation", "articulations"):
-                        if value in PlaybackDictionary.all_articulations:
+                        if value in PlaybackAdjustmentsDictionary.all_articulations:
                             properties_dict["articulations"].append(value)
                         else:
                             logging.warning("Articulation {} not understood".format(value))
@@ -115,19 +115,19 @@ class NotePropertiesDictionary(dict, SavesToJSON):
                         properties_dict["noteheads"] = []
                         for notehead in value.split("/"):
                             notehead = notehead.strip()
-                            if notehead in PlaybackDictionary.all_noteheads:
+                            if notehead in PlaybackAdjustmentsDictionary.all_noteheads:
                                 properties_dict["noteheads"].append(notehead)
                             else:
                                 properties_dict["noteheads"].append("normal")
                                 logging.warning("Notehead {} not understood".format(notehead))
                     elif key == "notehead":
                         # (for a chord, this sets all noteheads to the same type)
-                        if value in PlaybackDictionary.all_noteheads:
+                        if value in PlaybackAdjustmentsDictionary.all_noteheads:
                             properties_dict["noteheads"] = [value]
                         else:
                             logging.warning("Notehead {} not understood".format(value))
                     elif key in ("notation", "notations"):
-                        if value in PlaybackDictionary.all_notations:
+                        if value in PlaybackAdjustmentsDictionary.all_notations:
                             properties_dict["notations"].append(value)
                         else:
                             logging.warning("Notation {} not understood".format(value))
@@ -143,11 +143,11 @@ class NotePropertiesDictionary(dict, SavesToJSON):
                 else:
                     # otherwise, we try to figure out what kind of property we're dealing with
                     note_property = note_property.replace(" ", "")
-                    if note_property in PlaybackDictionary.all_articulations:
+                    if note_property in PlaybackAdjustmentsDictionary.all_articulations:
                         properties_dict["articulations"].append(note_property)
-                    elif note_property in PlaybackDictionary.all_noteheads:
+                    elif note_property in PlaybackAdjustmentsDictionary.all_noteheads:
                         properties_dict["noteheads"] = [note_property]
-                    elif note_property in PlaybackDictionary.all_notations:
+                    elif note_property in PlaybackAdjustmentsDictionary.all_notations:
                         properties_dict["notations"].append(note_property)
                     elif note_property in ("#", "b", "sharps", "flats"):
                         properties_dict["spelling_policy"] = SpellingPolicy.from_string(note_property)
@@ -196,7 +196,7 @@ class NotePropertiesDictionary(dict, SavesToJSON):
 
     @property
     def playback_adjustments(self):
-        return self["playback adjustments"]
+        return self["playback_adjustments"]
 
     @playback_adjustments.setter
     def playback_adjustments(self, value):
@@ -236,7 +236,7 @@ class NotePropertiesDictionary(dict, SavesToJSON):
 
     def apply_playback_adjustments(self, pitch, volume, length, include_notation_derived=True):
         """
-        Applies both explicit and (if flag is set) derived playback adjustments to the given pitch, volume, and length
+        Applies both explicit and (if flag is set) derived playback_adjustments to the given pitch, volume, and length
 
         :param pitch: unadjusted pitch
         :param volume: unadjusted volume
@@ -287,7 +287,7 @@ class NotePropertiesDictionary(dict, SavesToJSON):
 
     def _to_json(self):
         json_friendly_dict = dict(deepcopy(self))
-        json_friendly_dict["playback adjustments"] = [x._to_json() for x in self.playback_adjustments]
+        json_friendly_dict["playback_adjustments"] = [x._to_json() for x in self.playback_adjustments]
         del json_friendly_dict["temp"]
 
         # remove entries that contain no information for conciseness. They will be reconstructed when reloading.
@@ -300,7 +300,7 @@ class NotePropertiesDictionary(dict, SavesToJSON):
         if len(self.text) == 0:
             del json_friendly_dict["text"]
         if len(self.playback_adjustments) == 0:
-            del json_friendly_dict["playback adjustments"]
+            del json_friendly_dict["playback_adjustments"]
         if self["spelling_policy"] is None:
             del json_friendly_dict["spelling_policy"]
 
@@ -315,9 +315,9 @@ class NotePropertiesDictionary(dict, SavesToJSON):
     @classmethod
     def _from_json(cls, json_object):
         # if the object has playback adjustments convert all adjustments from dictionaries to NotePlaybackAdjustments
-        if "playback adjustments" in json_object:
-            json_object["playback adjustments"] = [NotePlaybackAdjustment._from_json(x)
-                                                   for x in json_object["playback adjustments"]]
+        if "playback_adjustments" in json_object:
+            json_object["playback_adjustments"] = [NotePlaybackAdjustment._from_json(x)
+                                                   for x in json_object["playback_adjustments"]]
         if "spelling_policy" in json_object:
             json_object["spelling_policy"] = SpellingPolicy._from_json(json_object["spelling_policy"])
 

@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 from .utilities import resolve_relative_path, SavesToJSON
-from .playback_adjustments import PlaybackDictionary, NotePlaybackAdjustment
+from .playback_adjustments import PlaybackAdjustmentsDictionary, NotePlaybackAdjustment
 from .spelling import SpellingPolicy
 import logging
 import json
@@ -107,7 +107,7 @@ class PlaybackSettings(ScampSettings):
             "change_volume": "change_volume",
             "change_parameter": "change_parameter"
         },
-        "adjustments": PlaybackDictionary(articulations={
+        "adjustments": PlaybackAdjustmentsDictionary(articulations={
             "staccato": NotePlaybackAdjustment.scale_params(length=0.5),
             "staccatissimo": NotePlaybackAdjustment.scale_params(length=0.3),
             "tenuto": NotePlaybackAdjustment.scale_params(length=1.2),
@@ -127,7 +127,7 @@ class PlaybackSettings(ScampSettings):
             self.default_max_streaming_midi_pitch_bend = self.osc_message_addresses = \
             self.adjustments = None
         super().__init__(settings_dict)
-        assert isinstance(self.adjustments, PlaybackDictionary)
+        assert isinstance(self.adjustments, PlaybackAdjustmentsDictionary)
 
     def register_named_soundfont(self, name: str, soundfont_path: str):
         """

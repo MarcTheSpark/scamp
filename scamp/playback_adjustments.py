@@ -4,8 +4,6 @@ from expenvelope import Envelope
 import json
 
 
-# TODO: would be great if this included preset switches
-
 def _split_string_at_outer_spaces(s):
     """
     Splits a string only at those commas that are not inside some sort of parentheses
@@ -159,7 +157,7 @@ class NotePlaybackAdjustment(SavesToJSON):
         )
 
 
-class PlaybackDictionary(dict, SavesToJSON):
+class PlaybackAdjustmentsDictionary(dict, SavesToJSON):
 
     all_articulations = list(articulation_to_xml_element_name.keys())
     all_noteheads = list(notehead_name_to_xml_type.keys())
@@ -169,33 +167,37 @@ class PlaybackDictionary(dict, SavesToJSON):
     all_notations = list(notations_to_xml_notations_element.keys())
 
     def __init__(self, **kwargs):
+        """
+        This dictionary contains the settings for how playback should be adjusted in response to different kinds of
+        articulations, noteheads, and other notations.
+        """
         # make sure there is an entry for every notehead and articulation
         if "articulations" not in kwargs:
-            kwargs["articulations"] = {x: None for x in PlaybackDictionary.all_articulations}
+            kwargs["articulations"] = {x: None for x in PlaybackAdjustmentsDictionary.all_articulations}
         else:
             kwargs["articulations"] = {x: kwargs["articulations"][x] if x in kwargs["articulations"] else None
-                                       for x in PlaybackDictionary.all_articulations}
+                                       for x in PlaybackAdjustmentsDictionary.all_articulations}
         if "noteheads" not in kwargs:
-            kwargs["noteheads"] = {x: None for x in PlaybackDictionary.all_noteheads}
+            kwargs["noteheads"] = {x: None for x in PlaybackAdjustmentsDictionary.all_noteheads}
         else:
             kwargs["noteheads"] = {x: kwargs["noteheads"][x] if x in kwargs["noteheads"] else None
-                                   for x in PlaybackDictionary.all_noteheads}
+                                   for x in PlaybackAdjustmentsDictionary.all_noteheads}
         if "notations" not in kwargs:
-            kwargs["notations"] = {x: None for x in PlaybackDictionary.all_notations}
+            kwargs["notations"] = {x: None for x in PlaybackAdjustmentsDictionary.all_notations}
         else:
             kwargs["notations"] = {x: kwargs["notations"][x] if x in kwargs["notations"] else None
-                                   for x in PlaybackDictionary.all_notations}
+                                   for x in PlaybackAdjustmentsDictionary.all_notations}
 
         super().__init__(**kwargs)
 
     def set(self, playback_property: str, adjustment: NotePlaybackAdjustment):
         if "notehead" in playback_property:
             playback_property = playback_property.replace("notehead", "").replace(" ", "").lower()
-        if playback_property in PlaybackDictionary.all_noteheads:
+        if playback_property in PlaybackAdjustmentsDictionary.all_noteheads:
             self["noteheads"][playback_property] = adjustment
-        elif playback_property in PlaybackDictionary.all_articulations:
+        elif playback_property in PlaybackAdjustmentsDictionary.all_articulations:
             self["articulations"][playback_property] = adjustment
-        elif playback_property in PlaybackDictionary.all_notations:
+        elif playback_property in PlaybackAdjustmentsDictionary.all_notations:
             self["notations"][playback_property] = adjustment
         else:
             raise ValueError("Playback property not understood.")
@@ -203,11 +205,11 @@ class PlaybackDictionary(dict, SavesToJSON):
     def get(self, playback_property: str):
         if "notehead" in playback_property:
             playback_property = playback_property.replace("notehead", "").replace(" ", "").lower()
-        if playback_property in PlaybackDictionary.all_noteheads:
+        if playback_property in PlaybackAdjustmentsDictionary.all_noteheads:
             return self["noteheads"][playback_property]
-        elif playback_property in PlaybackDictionary.all_articulations:
+        elif playback_property in PlaybackAdjustmentsDictionary.all_articulations:
             return self["articulations"][playback_property]
-        elif playback_property in PlaybackDictionary.all_notations:
+        elif playback_property in PlaybackAdjustmentsDictionary.all_notations:
             return self["notations"][playback_property]
         else:
             raise ValueError("Playback property not found.")
@@ -215,7 +217,7 @@ class PlaybackDictionary(dict, SavesToJSON):
     def _to_json(self):
         return {
             key: value._to_json() if hasattr(value, "_to_json")
-            else PlaybackDictionary._to_json(value) if isinstance(value, dict)
+            else PlaybackAdjustmentsDictionary._to_json(value) if isinstance(value, dict)
             else value for key, value in self.items() if value is not None
         }
 
@@ -230,6 +232,6 @@ class PlaybackDictionary(dict, SavesToJSON):
         return cls(**json_object)
 
     def __repr__(self):
-        return "PlaybackDictionary(articulations={}, noteheads={}, notations={})".format(
+        return "PlaybackAdjustmentsDictionary(articulations={}, noteheads={}, notations={})".format(
             self["articulations"], self["noteheads"], self["notations"]
         )
