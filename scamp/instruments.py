@@ -1,6 +1,6 @@
 import itertools
 from .spelling import SpellingPolicy
-from .note_properties import NotePropertiesDictionary
+from ._note_properties import NotePropertiesDictionary
 from .playback_implementations import *
 from scamp.utilities import iterate_all_subclasses
 from clockblocks import *
@@ -396,11 +396,13 @@ class ScampInstrument(SavesToJSON):
         bundles together several calls to "play_note" and takes a list of pitches rather than a single pitch
 
         :param pitches: a list of pitches for the notes of this chord
-        :param volume: same as for play_note
-        :param length: same as for play_note
-        :param properties: same as for play_note
-        :param blocking: same as for play_note
-        :param clock: same as for play_note
+        :param volume: see description for "play_note"
+        :param length: see description for "play_note"
+        :param properties: see description for "play_note". One extra wrinkle to note with chords: if one value is
+            given for the "notehead" property then all noteheads are set to that value. If multiple values are given,
+            they will be assigned to individual noteheads, and there should be the same number as notes in the chord.
+        :param blocking: see description for "play_note"
+        :param clock: see description for "play_note"
         """
         if not hasattr(pitches, "__len__"):
             raise ValueError("'pitches' must be a list of pitches.")
@@ -435,7 +437,32 @@ class ScampInstrument(SavesToJSON):
         :param volume: either a number, an Envelope, or a list used to create an Envelope. Volume is scaled from 0 to 1,
             with 0 representing silence and 1 representing max volume.
         :param length: either a number (of beats), or a tuple representing a set of tied segments
-        :param properties: either a string, list, dictionary or NotePropertiesDictionary representing note properties.
+        :param properties: Catch-all for a wide range of other playback and notation details that we may want to convey
+            about a note. These details can either be given in a dictionary or a string for greater brevity. Recognized
+            dictionary keys are "articulation(s)", "notehead(s)", "notation(s)", "text(s)", "playback_adjustment(s)",
+            "key"/"spelling_policy", "voice", and "param_*" (for specifying arbitrary extra parameters). For example:
+
+            properties={
+                "articulations": ["staccato", "tenuto"],  # add  staccato and tenuto articulations
+                "notehead": "x",  # change to an "x" notehead
+                "notation": "tremolo32",  # add a 32-note tremolo
+                "text": "Hello there!",  # add this text to the score by the note
+                "playback_adjustment": NotePlaybackAdjustment.add_to_params(pitch=12),  # play an octave higher
+                "key": "Bb major",  # notate accidentals consistent with the key of Bb major
+                "voice": 2, # place the note in voice two (named voices are also allowed)
+                "param_vibrato": [2, 6, 1]  # sets the "vibrato" parameter to an envelope going from 2 to 6 to 1
+                # (note that extra parameters are only executed if the playback implementation recognizes them)
+            }
+
+            Since this dictionary format can be quite cumbersome, it is also possible to pass a string containing
+            shorthand, which gets parsed into a dictionary. For example:
+
+            properties="staccato, noteheads: x/triangle, #"
+
+            The comma separates different properties, and the forward slash separates multiple entries for the same
+            property. Properties can either be given with explicit key/value pairs (separated by colon), or a value
+            can simply be given and the type of property will be inferred. In the above example, it is inferred that
+            "staccato" is an articulation and the "#" is a desired spelling.
         :param blocking: if True, don't return until the note is done playing; if False, return immediately
         :param clock: which clock to use. If "auto", capture the clock from context.
         """
@@ -537,7 +564,7 @@ class ScampInstrument(SavesToJSON):
         if hasattr(length, "__len__"):
             for length_segment in length:
                 clock.wait(length_segment)
-                note_handle.split(clock)
+                note_handle.split()
         else:
             clock.wait(length)
         note_handle.end()
@@ -548,7 +575,7 @@ class ScampInstrument(SavesToJSON):
 
         :param pitch: the pitch / starting pitch of the note (not an Envelope)
         :param volume: the volume / starting volume of the note (not an Envelope)
-        :param properties: either a string, list, dictionary or NotePropertiesDictionary representing note properties
+        :param properties: see description under "play_note"
         :param clock: the clock on which to run any animation of pitch, volume, etc., if applicable
         :param max_volume: This is a bit of a pain, but since midi playback requires us to set the velocity at the
             beginning of the note, and thereafter vary volume using expression, and since expression can only make the

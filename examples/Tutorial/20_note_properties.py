@@ -16,13 +16,11 @@ piano = s.new_part("piano")
 s.start_transcribing()
 
 # passing comma-separated key value pairs
-piano.play_note(60, 0.5, 1,
-                "notehead: x, articulation: staccato")
+piano.play_note(60, 0.5, 1, "notehead: x, articulation: staccato")
 # just a value; articulation type inferred
 piano.play_note(60, 0.5, 1, "staccato")
 # "play_chord" can take multiple noteheads separated by slashes
-piano.play_chord([60, 65], 0.5, 1,
-                 "noteheads: x/circle-x")
+piano.play_chord([60, 65], 0.5, 1, "noteheads: x/circle-x")
 # passing a dictionary also possible
 piano.play_note(60, 0.5, 1, {
     "articulations": ["tenuto", "accent"],

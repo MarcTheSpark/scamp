@@ -40,16 +40,14 @@ def _split_string_at_outer_commas(s):
 class NotePropertiesDictionary(dict, SavesToJSON):
 
     def __init__(self, **kwargs):
-        if "articulations" not in kwargs:
-            kwargs["articulations"] = []
-        if "noteheads" not in kwargs:
+        NotePropertiesDictionary._standardize_plural_entry("articulations", kwargs)
+        NotePropertiesDictionary._standardize_plural_entry("noteheads", kwargs)
+        if len(kwargs["noteheads"]) == 0:
             kwargs["noteheads"] = ["normal"]
-        if "notations" not in kwargs:
-            kwargs["notations"] = []
-        if "text" not in kwargs:
-            kwargs["text"] = []
-        if "playback_adjustments" not in kwargs:
-            kwargs["playback_adjustments"] = []
+        NotePropertiesDictionary._standardize_plural_entry("notations", kwargs)
+        NotePropertiesDictionary._standardize_plural_entry("texts", kwargs)
+        NotePropertiesDictionary._standardize_plural_entry("playback_adjustments", kwargs)
+
         if "spelling_policy" not in kwargs:
             kwargs["spelling_policy"] = None
         if "temp" not in kwargs:
@@ -58,6 +56,18 @@ class NotePropertiesDictionary(dict, SavesToJSON):
 
         super().__init__(**kwargs)
         self._convert_params_to_envelopes_if_needed()
+
+    @staticmethod
+    def _standardize_plural_entry(key_name, dictionary):
+        if key_name not in dictionary:
+            if key_name[:-1] in dictionary:
+                # the non-plural version is there, so convert to the standard plural version
+                dictionary[key_name] = dictionary[key_name[:-1]]
+                del dictionary[key_name[:-1]]
+            else:
+                dictionary[key_name] = []
+        if not isinstance(dictionary[key_name], (list, tuple)):
+            dictionary[key_name] = [dictionary[key_name]]
 
     @classmethod
     def from_unknown_format(cls, properties):
@@ -104,53 +114,65 @@ class NotePropertiesDictionary(dict, SavesToJSON):
                     colon_index = note_property.index(":")
                     key, value = note_property[:colon_index].replace(" ", "").lower(), \
                                  note_property[colon_index+1:].strip().lower()
-                    if key in ("articulation", "articulations"):
+                else:
+                    # otherwise, leave the key undecided for now
+                    key = None
+                    value = note_property.strip().lower()
+
+                # split values into a list based on the slash delimiter
+                values = [x.strip() for x in value.split("/")]
+
+                if key is None:
+                    # if we weren't given a key/value pair, try to find it now
+                    if values[0] in PlaybackAdjustmentsDictionary.all_articulations:
+                        key = "articulations"
+                    elif values[0] in PlaybackAdjustmentsDictionary.all_noteheads:
+                        key = "noteheads"
+                    elif values[0] in PlaybackAdjustmentsDictionary.all_notations:
+                        key = "notations"
+                    elif values[0] in ("#", "b", "sharps", "flats"):
+                        key = "spelling_policy"
+                    else:
+                        raise ValueError("Note property {} not understood".format(note_property))
+
+                if key in "articulations":  # note that this allows the singular "articulation" too
+                    for value in values:
                         if value in PlaybackAdjustmentsDictionary.all_articulations:
                             properties_dict["articulations"].append(value)
                         else:
                             logging.warning("Articulation {} not understood".format(value))
-                    elif key == "noteheads":
-                        # For specifying multiple different notehead types in a chord, use the plural key "noteheads"
-                        # and specify the types separated by forward slashes
-                        properties_dict["noteheads"] = []
-                        for notehead in value.split("/"):
-                            notehead = notehead.strip()
-                            if notehead in PlaybackAdjustmentsDictionary.all_noteheads:
-                                properties_dict["noteheads"].append(notehead)
-                            else:
-                                properties_dict["noteheads"].append("normal")
-                                logging.warning("Notehead {} not understood".format(notehead))
-                    elif key == "notehead":
-                        # (for a chord, this sets all noteheads to the same type)
+
+                elif key in "noteheads":  # note that this allows the singular "notehead" too
+                    properties_dict["noteheads"] = []
+                    for value in values:
                         if value in PlaybackAdjustmentsDictionary.all_noteheads:
-                            properties_dict["noteheads"] = [value]
+                            properties_dict["noteheads"].append(value)
                         else:
                             logging.warning("Notehead {} not understood".format(value))
-                    elif key in ("notation", "notations"):
+                            properties_dict["noteheads"].append("normal")
+
+                elif key in "notations":  # note that this allows the singular "notation" too
+                    for value in values:
                         if value in PlaybackAdjustmentsDictionary.all_notations:
                             properties_dict["notations"].append(value)
                         else:
                             logging.warning("Notation {} not understood".format(value))
-                    elif key in ("key", "spelling", "spellingpolicy", "spelling_policy", "spell"):
-                        try:
-                            properties_dict["spelling_policy"] = SpellingPolicy.from_string(value)
-                        except ValueError:
-                            logging.warning("Spelling policy \"{}\" not understood".format(value))
-                    elif key.startswith("param_") or key.endswith("_param"):
-                        properties_dict[key] = json.loads(value)
-                    elif key == "voice":
-                        properties_dict["voice"] = value
-                else:
-                    # otherwise, we try to figure out what kind of property we're dealing with
-                    note_property = note_property.replace(" ", "")
-                    if note_property in PlaybackAdjustmentsDictionary.all_articulations:
-                        properties_dict["articulations"].append(note_property)
-                    elif note_property in PlaybackAdjustmentsDictionary.all_noteheads:
-                        properties_dict["noteheads"] = [note_property]
-                    elif note_property in PlaybackAdjustmentsDictionary.all_notations:
-                        properties_dict["notations"].append(note_property)
-                    elif note_property in ("#", "b", "sharps", "flats"):
-                        properties_dict["spelling_policy"] = SpellingPolicy.from_string(note_property)
+
+                elif key in ("key", "spelling", "spellingpolicy", "spelling_policy"):
+                    try:
+                        properties_dict["spelling_policy"] = SpellingPolicy.from_string(value[0])
+                    except ValueError:
+                        logging.warning("Spelling policy \"{}\" not understood".format(value[0]))
+
+                elif key.startswith("param_") or key.endswith("_param"):
+                    if not len(values) == 1:
+                        raise ValueError("Cannot have multiple values for a parameter property.")
+                    properties_dict[key] = json.loads(value)
+
+                elif key == "voice":
+                    if not len(values) == 1:
+                        raise ValueError("Cannot have multiple values for a voice property.")
+                    properties_dict["voice"] = value
 
         properties_dict._convert_params_to_envelopes_if_needed()
         return properties_dict
@@ -188,11 +210,11 @@ class NotePropertiesDictionary(dict, SavesToJSON):
 
     @property
     def text(self):
-        return self["text"]
+        return self["texts"]
 
     @text.setter
     def text(self, value):
-        self["text"] = value
+        self["texts"] = value
 
     @property
     def playback_adjustments(self):
@@ -298,7 +320,7 @@ class NotePropertiesDictionary(dict, SavesToJSON):
         if len(self.notations) == 0:
             del json_friendly_dict["notations"]
         if len(self.text) == 0:
-            del json_friendly_dict["text"]
+            del json_friendly_dict["texts"]
         if len(self.playback_adjustments) == 0:
             del json_friendly_dict["playback_adjustments"]
         if self["spelling_policy"] is None:

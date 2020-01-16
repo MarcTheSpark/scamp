@@ -3,8 +3,9 @@ from expenvelope import Envelope
 from .quantization import QuantizationRecord, QuantizationScheme, TimeSignature
 from .performance_note import PerformanceNote
 from .utilities import prime_factor, floor_x_to_pow_of_y, is_x_pow_of_y, ceil_to_multiple, floor_to_multiple
-from ._engraving_translations import get_xml_notehead, get_lilypond_notehead_name, articulation_to_xml_element_name
-from .note_properties import NotePropertiesDictionary
+from ._engraving_translations import get_xml_notehead, get_lilypond_notehead_name, articulation_to_xml_element_name, \
+    notations_to_xml_notations_element
+from ._note_properties import NotePropertiesDictionary
 import pymusicxml
 from ._dependencies import abjad
 import math
@@ -1899,6 +1900,9 @@ class NoteLike(ScoreComponent):
                     abjad.attach(abjad.Articulation(articulation), grace_container[-1])
 
     def to_music_xml(self, source_id_dict=None):
+        notations = [notations_to_xml_notations_element[x] for x in self.properties.notations
+                     if x in notations_to_xml_notations_element]
+
         if self.is_rest():
             return pymusicxml.Rest(self.written_length),
         elif self.is_chord():
@@ -1918,7 +1922,7 @@ class NoteLike(ScoreComponent):
                 self.written_length, ties=self._get_xml_tie_state(),
                 noteheads=tuple(get_xml_notehead(notehead) if notehead != "normal" else None
                                 for notehead in self.properties.noteheads),
-                directions=directions
+                directions=directions, notations=notations
             )]
             if self.does_glissando():
                 grace_points = self._get_grace_points(engraving_settings.glissandi.max_inner_graces_music_xml)
@@ -1948,7 +1952,7 @@ class NoteLike(ScoreComponent):
                 self.written_length, ties=self._get_xml_tie_state(),
                 notehead=(get_xml_notehead(self.properties.noteheads[0])
                           if self.properties.noteheads[0] != "normal" else None),
-                directions=directions
+                directions=directions, notations=notations
             )]
             if self.does_glissando():
                 grace_points = self._get_grace_points(engraving_settings.glissandi.max_inner_graces_music_xml)

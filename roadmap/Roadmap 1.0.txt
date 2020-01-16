@@ -13,6 +13,7 @@ Engraving:
     - Engraving Microtonal adjustments: make it chords, as well as for glissandi, and in both abjad and MusicXML.
     - Engraving of correct clef for a part as a whole. Maybe by using instrument defaults based on name and then falling
     back to the average pitch.
+    - Engraving tremolo in abjad. Other notations?
     - Arbitrary text annotations passed through the properties dictionary. Should there by a CombinedPropertyChange
     class that allows for a notation and playback change?
     - Dynamics (just as annotations to notes)
