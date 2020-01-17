@@ -124,9 +124,15 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
     def expression(self, chan, expression_from_0_to_1):
         pass
 
+    @abstractmethod
+    def cc(self, chan, cc_number, value_from_0_to_1):
+        pass
+
     # -------------------------------- Main Playback Methods --------------------------------
 
     def start_note(self, note_id, pitch, volume, properties, other_parameter_values: dict = None):
+        other_parameter_cc_codes = [int(key) for key in other_parameter_values.keys()
+                                    if key.isdigit() and 0 <= int(key) < 128]
         this_note_info = self.note_info_dict[note_id]
         this_note_fixed = "fixed" in this_note_info["flags"]
         int_pitch = int(round(pitch))
@@ -153,8 +159,27 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
                 conflicting_microtonality = (pitch != int_pitch or other_note_pitch != other_note_int_pitch) and \
                                             (round(pitch - int_pitch, 5) !=  # round to fix float error
                                              round(other_note_pitch - other_note_int_pitch, 5))
-                channel_compatible = this_note_fixed and other_note_fixed \
-                                     and int_pitch != other_note_int_pitch and not conflicting_microtonality
+
+                # now we check if there are any conflicting cc messages, since these are also channel-wide
+                conflicting_cc_codes = False
+                # first figure out which, if any, cc codes the other note is using, and then which both are using
+                other_note_used_cc_codes = [int(key) for key in other_note_info["parameter_values"].keys()
+                                            if key.isdigit() and 0 <= int(key) < 128]
+                if len(other_parameter_cc_codes) + len(other_parameter_cc_codes) > 0:
+                    # if either note is using a cc code, we need to check that they are compatible
+                    if set(other_parameter_cc_codes) == set(other_note_used_cc_codes):
+                        # it's only possible to be compatible if both notes use the exact same cc numbers and have the
+                        # same values for those cc numbers. Otherwise there may be unwanted side effects
+                        for cc_code in other_parameter_cc_codes:
+                            param = str(cc_code)
+                            if other_note_info["parameter_values"][param] != other_parameter_values[param]:
+                                conflicting_cc_codes = True
+                                break
+                    else:
+                        conflicting_cc_codes = True
+
+                channel_compatible = this_note_fixed and other_note_fixed and not conflicting_microtonality \
+                                     and int_pitch != other_note_int_pitch and not conflicting_cc_codes
                 if not channel_compatible:
                     if other_note_channel in available_channels:
                         available_channels.remove(other_note_channel)
@@ -186,6 +211,8 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
             # at the end of "delete_after_pause" below, but we need the channel to be ready to go early.)
             self.pitch_bend(channel, 0)
             self.expression(channel, 1)
+            for cc_code in other_parameter_cc_codes:
+                self.cc(channel, cc_code, 0)
         else:
             # otherwise, we'll have to kill an old note to find a free channel
             # get the info we stored on this note, related to this specific playback implementation
@@ -195,6 +222,8 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
             # reset the pitch bend on that channel
             self.pitch_bend(oldest_note_info["channel"], 0)
             self.expression(oldest_note_info["channel"], 1)
+            for cc_code in other_parameter_cc_codes:
+                self.cc(oldest_note_info["channel"], cc_code, 0)
             # flag it as prematurely ended so that we send no further midi commands
             oldest_note_info["prematurely_ended"] = True
             # if every channel is playing this pitch, we will end the oldest note so we can
@@ -207,6 +236,8 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
             self.pitch_bend(channel, 0)
         # start it at the max volume that it will ever reach, and use expression to get to the start volume
         self.expression(channel, volume / this_note_info["max_volume"] if this_note_info["max_volume"] > 0 else 0)
+        for cc_code in other_parameter_cc_codes:
+            self.cc(channel, cc_code, other_parameter_values[str(cc_code)])
         self.note_on(channel, int_pitch, this_note_info["max_volume"])
 
         # store the midi note that we pressed for this note, the channel we pressed it on, and make an entry
@@ -283,7 +314,22 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
     def change_note_parameter(self, note_id, parameter_name, new_value):
         # parameter changes are not implemented for MidiPlaybackImplementations
         # perhaps they could be for some other uses, maybe program changes?
-        pass
+        if note_id not in self.note_info_dict:
+            # theoretically could happen if the end_note call happens right before this is called in the
+            # asynchronous animation function. We don't want to cause a KeyError, so this avoids that possibility
+            return
+
+        try:
+            cc_number = int(parameter_name)
+        except ValueError:
+            cc_number = None
+
+        if cc_number is not None:
+            this_note_info = self.note_info_dict[note_id]
+            assert self in this_note_info, "Note was never started by the SoundfontPlaybackImplementer; this is bad."
+            this_note_implementation_info = this_note_info[self]
+            if not this_note_implementation_info["prematurely_ended"]:
+                self.cc(this_note_implementation_info["channel"], cc_number, new_value / 127)
 
 
 class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
@@ -330,6 +376,9 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
 
     def expression(self, chan, expression_from_0_to_1):
         self.soundfont_instrument.expression(chan, expression_from_0_to_1)
+
+    def cc(self, chan, cc_number, value_from_0_to_1):
+        self.soundfont_instrument.cc(chan, cc_number, value_from_0_to_1)
 
     def _to_json(self):
         return {
@@ -437,6 +486,11 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
         rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
         expression_val = max(0, min(127, int(expression_from_0_to_1 * 127)))
         rt_simple_out.expression(chan, expression_val)
+
+    def cc(self, chan, cc_number, value_from_0_to_1):
+        rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
+        cc_value = max(0, min(127, int(value_from_0_to_1 * 127)))
+        rt_simple_out.cc(chan, cc_number, cc_value)
 
     def _to_json(self):
         return {
