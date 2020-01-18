@@ -2,7 +2,7 @@
 EXCLUSIONS=scamp/thirdparty\ scamp/dependencies.py
 
 # remove everything except the conf file
-find docs/* ! \( -iname "conf.py" -or -path "*persistent/*" \) -delete
+find docs/* ! \( -iname "conf.py" -or -path "*_static/*" \) -delete
 # generate the api documentation, excluding the defined directories
 sphinx-apidoc -F -o docs scamp $EXCLUSIONS
 cd docs
