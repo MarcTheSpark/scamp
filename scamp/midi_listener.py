@@ -3,7 +3,6 @@ import inspect
 from ._dependencies import rtmidi
 import threading
 from .utilities import get_average_square_correlation
-from rtmidi.midiutil import open_midiinput
 
 
 def get_available_ports_and_devices():
@@ -57,6 +56,7 @@ def start_midi_listener(port_number: int, callback_function, clock: Clock):
                              "two arguments (the midi message and the time since the last message).")
     callback_accepts_dt = len(callback_function_signature.parameters) == 2
 
+    from rtmidi.midiutil import open_midiinput
     midi_in, _ = open_midiinput(port_number)
 
     def callback_wrapper(message, data=None):
