@@ -42,6 +42,7 @@ release = ''
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.autosummary',
     'sphinx.ext.viewcode',
     'sphinx.ext.todo',
     'sphinx_rtd_theme',
@@ -87,8 +88,6 @@ html_theme = 'sphinx_rtd_theme'
 # documentation.
 #
 html_theme_options = {
-    "description": "a Suite for Computer-Assisted Music in Python",
-    "code_font_size": "0.9em"
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,
@@ -117,7 +116,13 @@ html_logo = "_static/ScampLogo.svg"
 
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'scampdoc'
-
+autodoc_default_options = {
+    'special-members': None,
+    'members': True,
+    'show-inheritance': True,
+    'inherited-members': True,
+    'undoc-members': True,
+}
 
 # -- Options for LaTeX output ------------------------------------------------
 
@@ -195,6 +200,7 @@ epub_exclude_files = ['search.html']
 
 autodoc_member_order = 'bysource'
 autoclass_content = 'both'
+autosummary_generate = True
 
 # -- Options for todo extension ----------------------------------------------
 

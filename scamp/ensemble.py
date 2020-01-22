@@ -99,8 +99,8 @@ class Ensemble(SavesToJSON):
     def new_midi_part(self, name=None, midi_output_device="default", num_channels=8,
                       midi_output_name=None, max_pitch_bend="default"):
         """
-        Creates and returns a new ScampInstrument for this Ensemble that uses a MIDIStreamPlaybackImplementation. This
-        means that when notes are played by this instrument, midi messages are sent out to the given device.
+        Creates and returns a new ScampInstrument for this Ensemble that uses a MIDIStreamPlaybackImplementation.
+        This means that when notes are played by this instrument, midi messages are sent out to the given device.
 
         :param name: name used for this instrument in score, etc. for a preset of the appropriate name.
         :param midi_output_device: name or number of the device used to output midi. Call

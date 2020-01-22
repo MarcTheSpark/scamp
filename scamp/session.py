@@ -17,15 +17,18 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         A Session combines the functionality of a master clock, an ensemble, and a transcriber.
 
         :param tempo: the initial tempo of the master clock
+        :type tempo: float
         :param default_soundfont: the default soundfont used by instruments in this session. (Can be overridden at
             instrument creation.)
+        :type default_soundfont: string
         :param default_audio_driver: the default driver used by (soundfont) instruments to output audio. (Can be
             overridden at instrument creation.)
+        :type default_audio_driver: string
         :param default_midi_output_device: the default midi_output_device for outgoing midi streams. (Again, can be
             overridden at instrument creation.)
+        :type default_midi_output_device: string or int
         """
 
-        # noinspection PyArgumentList
         Clock.__init__(self, name="MASTER", initial_tempo=tempo)
         Ensemble.__init__(self, default_soundfont=default_soundfont, default_audio_driver=default_audio_driver,
                           default_midi_output_device=default_midi_output_device)
@@ -283,21 +286,28 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
 
     # --------------------------------- Transcription Stuff -------------------------------
 
-    def start_transcribing(self, instruments: Sequence[ScampInstrument] = None, clock: Clock = None, units="beats"):
+    def start_transcribing(self, instrument_or_instruments=None, clock=None, units="beats"):
         """
-        Starts a transcription, defaults to using the session (master) clock and all session instruments
+        Starts transcribing everything played in this Session's (or by the given instruments) to a Performance.
+        Defaults to using this Session as the clock.
 
-        :param instruments: which instruments to transcribe
+        :param instrument_or_instruments: which instruments to transcribe. Defaults to all session instruments
+        :type instrument_or_instruments: ScampInstrument or list of ScampInstruments
         :param clock: which clock to record on, i.e. what are all the timings notated relative to
+        :type clock: Clock
         :param units: one of ["beats", "time"]. Do we use the beats of the clock or the time?
+        :type units: str
+
         :return the Performance we will be transcribing to
         """
-        if instruments is None and len(self.instruments) == 0:
+        if instrument_or_instruments is None and len(self.instruments) == 0:
             raise ValueError("Can't record with empty ensemble; did you call \"start_transcribing\" before adding "
                              "parts to the session?")
 
-        return super().start_transcribing(self.instruments if instruments is None else instruments,
-                                          self if clock is None else clock, units=units)
+        return super().start_transcribing(
+            self.instruments if instrument_or_instruments is None else instrument_or_instruments,
+            self if clock is None else clock, units=units
+        )
 
     def _to_json(self):
         json_object = Ensemble._to_json(self)

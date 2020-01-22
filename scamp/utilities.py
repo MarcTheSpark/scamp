@@ -75,11 +75,21 @@ class SavesToJSON(ABC):
         pass
 
     def save_to_json(self, file_path):
+        """
+        Save this object to a JSON file using the given path.
+
+        :param file_path: path for saving the file
+        """
         with open(file_path, "w") as file:
             json.dump(self._to_json(), file, sort_keys=True, indent=4)
 
     @classmethod
     def load_from_json(cls, file_path):
+        """
+        Load this object from a JSON file with the given path.
+
+        :param file_path: path for loading the file
+        """
         with open(file_path, "r") as file:
             return cls._from_json(json.load(file))
 

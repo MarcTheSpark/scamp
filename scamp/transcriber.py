@@ -1,6 +1,5 @@
 from .performance import Performance
 from expenvelope import *
-from typing import Sequence, Union
 from clockblocks import Clock, TempoEnvelope
 from .instruments import ScampInstrument
 
@@ -8,15 +7,19 @@ from .instruments import ScampInstrument
 class Transcriber:
 
     def __init__(self):
+        """
+        Class responsible for transcribing notes played by instruments into a Performance.
+        """
         self._transcriptions_in_progress = []
 
-    def start_transcribing(self, instrument_or_instruments: Union[ScampInstrument, Sequence[ScampInstrument]],
-                           clock: Clock, units="beats"):
+    def start_transcribing(self, instrument_or_instruments, clock, units="beats"):
         """
         Starts transcribing new performance on the given clock, consisting of the given instrument
 
         :param instrument_or_instruments: the instruments we notate in this Performance
+        :type instrument_or_instruments: ScampInstrument or list of ScampInstruments
         :param clock: which clock all timings are relative to, or "absolute" to mean time on the master clock
+        :type clock: Clock
         :param units: one of ["beats", "time"]. Do we use the beats of the clock or the time?
         :return: the Performance that this transcription writes to, which will be updated as notes are played and acts
             as a handle when calling stop_transcribing.
@@ -44,6 +47,7 @@ class Transcriber:
     def register_note(self, instrument, note_info):
         """
         Called when an instrument wants to register that it finished a note, records note in all transcriptions
+
         :param instrument: the ScampInstrument that played the note
         :param note_info: the note info dictionary on that note, containing time stamps, parameter changes, etc.
         """
@@ -155,7 +159,14 @@ class Transcriber:
         assert units in ("beats", "time")
         return time_stamp.beat_in_clock(clock) if units == "beats" else time_stamp.time_in_clock(clock)
 
-    def stop_transcribing(self, which_performance=None, tempo_envelope_tolerance=0.001) -> Performance:
+    def stop_transcribing(self, which_performance=None, tempo_envelope_tolerance=0.001):
+        """
+        Stops transcribing the oldest started performance (or the given performance), and returns it.
+
+        :param which_performance: which performance to stop transcribing; defaults to oldest started
+        :param tempo_envelope_tolerance: error tolerance when extracting the absolute tempo envelope for the Performance
+        :return: the created Performance
+        """
         transcription = None
         if which_performance is None:
             if len(self._transcriptions_in_progress) == 0:
