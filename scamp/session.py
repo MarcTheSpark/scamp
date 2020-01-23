@@ -2,8 +2,7 @@ from .ensemble import Ensemble
 from .transcriber import Transcriber
 from .midi_listener import *
 from .instruments import ScampInstrument
-from clockblocks import Clock, wait
-from typing import Sequence
+from clockblocks import Clock, current_clock
 from .utilities import SavesToJSON
 from ._dependencies import pynput, pythonosc
 from threading import Thread, current_thread
@@ -39,7 +38,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         self._default_spelling_policy = None
         self._listeners = {"midi": {}, "osc": {}}
 
-    def run_as_server(self, time_step=0.01):
+    def run_as_server(self):
         """
         Runs this session on a parallel thread so that it can act as a server. This is the approach that should be taken
         if running scamp from an interactive terminal session. Simply type "s = Session().run_as_server()"
@@ -50,7 +49,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         def run_server():
             current_thread().__clock__ = self
             while True:
-                wait(time_step)
+                current_clock().wait_forever()
 
         Thread(target=run_server, daemon=True).start()
         # don't have the thread that called this recognize the Session as its clock anymore
@@ -175,7 +174,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         else:
             # otherwise, in case we defined on_press, we need to make sure to remove the key from key down anyway
             def on_release_wrapper(key_argument):
-                name, number = Session.name_and_number_from_key(key_argument)
+                name, number = Session._name_and_number_from_key(key_argument)
                 if name in keys_down:
                     keys_down.remove(name)
 
