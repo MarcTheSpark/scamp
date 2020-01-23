@@ -5,7 +5,6 @@ dist
 *.egg-info
 *__pycache__
 docs/_build
-docs/index.rst
 docs/make.bat
 docs/Makefile
 docs/scamp.rst
