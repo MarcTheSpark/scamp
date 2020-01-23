@@ -972,7 +972,7 @@ class ScampInstrument(SavesToJSON):
         """
         Remove the most recent SoundfontPlaybackImplementation from this instrument
 
-        :return self
+        :return: self
         """
         for index in reversed(range(len(self.playback_implementations))):
             if isinstance(self.playback_implementations[index], SoundfontPlaybackImplementation):
@@ -1043,6 +1043,20 @@ class ScampInstrument(SavesToJSON):
         """
         for playback_implementation in self.playback_implementations:
             playback_implementation.set_max_pitch_bend(semitones)
+
+    def send_midi_cc(self, cc_number, value_from_0_to_1):
+        """
+        Sends a midi cc message to all midi-based playback implementations, affecting all channels this instrument uses.
+        This is useful for stuff like pedal messages, that we don't really want to bundle with note playback, and that
+        we want to apply to all channels.
+
+        :param cc_number: the cc number from 0 to 127
+        :param value_from_0_to_1: the value to send, normalized from 0 to 1
+        """
+        for playback_implementation in self.playback_implementations:
+            if hasattr(playback_implementation, "cc"):
+                for chan in range(playback_implementation.num_channels):
+                    playback_implementation.cc(chan, cc_number, value_from_0_to_1)
 
     @property
     def default_spelling_policy(self):
