@@ -43,7 +43,6 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         Runs this session on a parallel thread so that it can act as a server. This is the approach that should be taken
         if running scamp from an interactive terminal session. Simply type "s = Session().run_as_server()"
 
-        :param time_step: time step for the server loop.
         :return: self
         """
         def run_server():
@@ -108,6 +107,15 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         del self._listeners["midi"][port_number]
 
     def register_osc_listener(self, port, osc_address_pattern, callback_function, ip_address="127.0.0.1"):
+        """
+        Register a callback function for OSC messages on a given address/port with given pattern
+
+        :param port: port on which to receive messages
+        :param osc_address_pattern: address pattern to respond to (e.g. "/gesture/start")
+        :param callback_function: function to call upon receiving a message. The first argument of the function will
+            be the address, and the remaining arguments will be those passed along in the osc message.
+        :param ip_address: ip address on which to receive messages
+        """
         if pythonosc is None:
             raise ImportError("Package python-osc not found; cannot set up osc listener.")
 
@@ -129,6 +137,12 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         self._listeners["osc"][(ip_address, port)]["dispatcher"].map(osc_address_pattern, callback_wrapper)
 
     def remove_osc_listener(self, port, ip_address="127.0.0.1"):
+        """
+        Remove OSC listener on the given port and IP address
+
+        :param port: port of the listener to remove
+        :param ip_address: ip_address of the listener to remove
+        """
         if (ip_address, port) in self._listeners["osc"]:
             self._listeners["osc"][(ip_address, port)]["server"].shutdown()
             del self._listeners["osc"][(ip_address, port)]
@@ -152,7 +166,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
             def on_press_wrapper(key_argument):
                 self.rouse_and_hold()
                 threading.current_thread().__clock__ = self
-                name, number = Session.name_and_number_from_key(key_argument)
+                name, number = Session._name_and_number_from_key(key_argument)
                 if name not in keys_down:
                     keys_down.append(name)
                     on_press(name, number)
@@ -165,7 +179,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
             def on_release_wrapper(key_argument):
                 self.rouse_and_hold()
                 threading.current_thread().__clock__ = self
-                name, number = Session.name_and_number_from_key(key_argument)
+                name, number = Session._name_and_number_from_key(key_argument)
                 if name in keys_down:
                     keys_down.remove(name)
                 on_release(name, number)
@@ -184,12 +198,15 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         self._listeners["keyboard"] = listener
 
     def remove_keyboard_listener(self):
+        """
+        Remove a previously added keyboard listener
+        """
         if "keyboard" in self._listeners:
             self._listeners["keyboard"].stop()
             del self._listeners["keyboard"]
 
     @staticmethod
-    def name_and_number_from_key(key_or_key_code):
+    def _name_and_number_from_key(key_or_key_code):
         # converts the irritating system within pynput to a simple key name and key number
         # TODO: FIX KEY CODES? Why is 'o' the same as space?
         if key_or_key_code is None:
@@ -279,6 +296,9 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         self._listeners["mouse"] = listener
 
     def remove_mouse_listener(self):
+        """
+        Remove a previously added mouse listener
+        """
         if "mouse" in self._listeners:
             self._listeners["mouse"].stop()
             del self._listeners["mouse"]
