@@ -7,16 +7,21 @@ from .utilities import SavesToJSON
 from ._note_properties import NotePropertiesDictionary
 from .settings import engraving_settings
 
-"""
-Note: This is a separate file from performance.py, since it is used both in performance.py and score.py,
-and since performance.py imports score.py
-"""
-
 
 @total_ordering
 class PerformanceNote(SavesToJSON):
 
     def __init__(self, start_time, length, pitch, volume, properties):
+        """
+        Represents a single note played by a ScampInstrument
+
+        :param start_time: the start beat of the
+        :type start_time: float
+        :param length: the length of the note in beats (either a float or a list of floats representing tied segments)
+        :param pitch: the pitch of the note (float or Envelope)
+        :param volume: the volume of the note (float or Envelope)
+        :param properties: dictionary of note properties, or string representing those properties
+        """
         self.start_time = start_time
         # if length is a tuple, this indicates that the note is to be split into tied segments
         self.length = length
@@ -27,10 +32,19 @@ class PerformanceNote(SavesToJSON):
             else NotePropertiesDictionary.from_unknown_format(properties)
 
     def length_sum(self):
+        """
+        Total length of this note, adding together any tied segments.
+        (The attribute "length" can be a list of floats representing tied segments.)
+
+        :return: length of note as a float
+        """
         return sum(self.length) if hasattr(self.length, "__len__") else self.length
 
     @property
     def end_time(self):
+        """
+        End beat of this note
+        """
         return self.start_time + self.length_sum()
 
     @end_time.setter
@@ -43,6 +57,11 @@ class PerformanceNote(SavesToJSON):
             self.length = new_length
 
     def average_pitch(self):
+        """
+        Averages the pitch of this note, accounting for if it's a glissando or a chord
+
+        :return: the averaged pitch as a float
+        """
         if isinstance(self.pitch, tuple):
             # it's a chord, so take the average of its members
             return sum(x.average_level() if isinstance(x, Envelope) else x for x in self.pitch) / len(self.pitch)
@@ -50,6 +69,15 @@ class PerformanceNote(SavesToJSON):
             return self.pitch.average_level() if isinstance(self.pitch, Envelope) else self.pitch
 
     def play(self, instrument, clock=None, blocking=True):
+        """
+        Play this note with the given instrument on the given clock
+
+        :param instrument: instrument to play back with
+        :type instrument: ScampInstrument
+        :param clock: the clock to play back on
+        :type clock: Clock
+        :param blocking: if True, don't return until the note is done playing; if False, return immediately
+        """
         if isinstance(self.pitch, tuple):
             instrument.play_chord(self.pitch, self.volume, self.length, self.properties, clock=clock, blocking=blocking)
         else:
@@ -59,9 +87,14 @@ class PerformanceNote(SavesToJSON):
 
     @staticmethod
     def next_id():
+        """
+        Return a new unique ID number for this note, different from all PerformanceNotes created so far.
+
+        :return: id number (int)
+        """
         return next(PerformanceNote._id_generator)
 
-    def divide_length_at_gliss_control_points(self):
+    def _divide_length_at_gliss_control_points(self):
         if not isinstance(self.pitch, Envelope):
             return
         control_points = self.pitch.times[1:-1] if engraving_settings.glissandi.consider_non_extrema_control_points \

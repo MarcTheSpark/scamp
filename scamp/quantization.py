@@ -125,7 +125,7 @@ def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="def
 
     if engraving_settings.glissandi.control_point_policy == "split":
         for note in voice:
-            note.divide_length_at_gliss_control_points()
+            note._divide_length_at_gliss_control_points()
 
     # make list of (note onset time, note) tuples
     raw_onsets = [(performance_note.start_time, performance_note) for performance_note in voice]

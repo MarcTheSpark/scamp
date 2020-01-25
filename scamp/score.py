@@ -695,7 +695,7 @@ class StaffGroup(ScoreComponent, ScoreContainer):
             staff_group_name += " [{}]".format(quantized_performance_part.name_count() + 1)
 
         return StaffGroup.from_measure_voice_grid(
-            measure_voice_grid, quantized_performance_part.get_longest_quantization_record(),
+            measure_voice_grid, quantized_performance_part._get_longest_quantization_record(),
             name=staff_group_name
         )
 

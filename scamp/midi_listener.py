@@ -7,6 +7,8 @@ from .utilities import get_average_square_correlation
 
 def get_available_ports_and_devices():
     """
+    Probes the available devices for midi input or output
+
     :return a list of tuples (port number, device name)
     """
     midi_in = rtmidi.MidiIn()
@@ -15,7 +17,7 @@ def get_available_ports_and_devices():
 
 def print_available_ports_and_devices():
     """
-    Prints a list of available ports and devices
+    Prints a list of available ports and devices for midi input or output
     """
     print("MIDI Devices Available:")
     for port_number, device_name in get_available_ports_and_devices():
@@ -42,7 +44,7 @@ def get_port_number_of_device(device_name):
 
 def start_midi_listener(port_number: int, callback_function, clock: Clock):
     """
-    Start a midi listener for a given port
+    Start a midi listener on a given port
 
     :param port_number: the port number to listen on.
     :param callback_function: the callback function used when a new midi event arrives. Should take either one
