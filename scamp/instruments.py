@@ -6,7 +6,6 @@ from scamp.utilities import iterate_all_subclasses
 from clockblocks import *
 import logging
 import time
-from typing import Union, Sequence, List
 from numbers import Number
 from threading import Lock
 
@@ -310,7 +309,7 @@ class _ParameterChangeSegment(EnvelopeSegment):
             # if we were running, we save the time stamp at which we aborted as the end time stamp
             self.end_time_stamp = TimeStamp(self.clock)
             self._run_clock.kill()  # kill the clock doing the "run" function
-            # since the units of this envelope are beats in self.clock, se how far we got in the envelope by
+            # since the units of this envelope are beats in self.clock, see how far we got in the envelope by
             # subtracting converting the start and end time stamps to those beats and subtracting
             how_far_we_got = self.end_time_stamp.beat_in_clock(self.clock) - \
                              self.start_time_stamp.beat_in_clock(self.clock)
@@ -442,27 +441,33 @@ class ScampInstrument(SavesToJSON):
             dictionary keys are "articulation(s)", "notehead(s)", "notation(s)", "text(s)", "playback_adjustment(s)",
             "key"/"spelling_policy", "voice", and "param_*" (for specifying arbitrary extra parameters). For example:
 
-            properties={
-                "articulations": ["staccato", "tenuto"],  # add  staccato and tenuto articulations
-                "notehead": "x",  # change to an "x" notehead
-                "notation": "tremolo32",  # add a 32-note tremolo
-                "text": "Hello there!",  # add this text to the score by the note
-                "playback_adjustment": NotePlaybackAdjustment.add_to_params(pitch=12),  # play an octave higher
-                "key": "Bb major",  # notate accidentals consistent with the key of Bb major
-                "voice": 2, # place the note in voice two (named voices are also allowed)
-                "param_vibrato": [2, 6, 1]  # sets the "vibrato" parameter to an envelope going from 2 to 6 to 1
-                # (note that extra parameters are only executed if the playback implementation recognizes them)
-            }
+            .. code-block:: python3
+
+                properties={
+                    "articulations": ["staccato", "tenuto"],  # add  staccato and tenuto articulations
+                    "notehead": "x",  # change to an "x" notehead
+                    "notation": "tremolo32",  # add a 32-note tremolo
+                    "text": "Hello there!",  # add this text to the score by the note
+                    "playback_adjustment": NotePlaybackAdjustment.add_to_params(pitch=12),  # play an octave higher
+                    # (alternatively "pitch + 12" would be interpreted by NotePlaybackAdjustment.from_string)
+                    "key": "Bb major",  # notate accidentals consistent with the key of Bb major
+                    "voice": 2, # place the note in voice two (named voices are also allowed)
+                    "param_vibrato": [2, 6, 1]  # sets the "vibrato" parameter to an envelope going from 2 to 6 to 1
+                    # (note that extra parameters are only executed if the playback implementation recognizes them)
+                }
 
             Since this dictionary format can be quite cumbersome, it is also possible to pass a string containing
             shorthand, which gets parsed into a dictionary. For example:
 
-            properties="staccato, noteheads: x/triangle, #"
+            .. code-block:: python3
+
+                properties="articulations: staccato/tenuto, harmonic, #, volume * 0.7"
 
             The comma separates different properties, and the forward slash separates multiple entries for the same
             property. Properties can either be given with explicit key/value pairs (separated by colon), or a value
             can simply be given and the type of property will be inferred. In the above example, it is inferred that
-            "staccato" is an articulation and the "#" is a desired spelling.
+            "harmonic" is a notehead, that the "#" is a desired spelling, and that "volume * 0.7" is a string to be
+            parsed as a playback adjustment.
         :param blocking: if True, don't return until the note is done playing; if False, return immediately
         :param clock: which clock to use. If "auto", capture the clock from context.
         """
@@ -718,15 +723,14 @@ class ScampInstrument(SavesToJSON):
             # if the host doesn't have a default, then don't do anything and it will fall back to playback_settings
         return properties
 
-    def change_note_parameter(self, note_id, param_name, target_value_or_values: Union[Sequence, Number],
-                              transition_length_or_lengths: Union[Sequence, Number] = 0,
-                              transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="from_note"):
+    def change_note_parameter(self, note_id, param_name, target_value_or_values, transition_length_or_lengths=0,
+                              transition_curve_shape_or_shapes=0, clock="from_note"):
         """
         Changes the value of parameter of note playback over a given time; can also take a sequence of targets and times
 
         :param note_id: which note to affect (an id or a NoteHandle)
         :param param_name: name of the parameter to affect. "pitch" and "volume" are special cases
-        :param target_value_or_values: target value (or list thereof) for the parameter
+        :param target_value_or_values: target value (or list of values) for the parameter
         :param transition_length_or_lengths: transition time(s) in beats to the target value(s)
         :param transition_curve_shape_or_shapes: curve shape(s) for the transition(s)
         :param clock: which clock all of this happens on; "from_note" simply reuses the clock that the note started on.
@@ -835,14 +839,13 @@ class ScampInstrument(SavesToJSON):
                     segments_list.append(parameter_change_segment)
                 clock.fork(parameter_change_segment.run, kwargs={"silent": "silent" in note_info["flags"]})
 
-    def change_note_pitch(self, note_id, target_value_or_values: Union[Sequence, Number],
-                          transition_length_or_lengths: Union[Sequence, Number] = 0,
-                          transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="from_note"):
+    def change_note_pitch(self, note_id, target_value_or_values, transition_length_or_lengths=0,
+                          transition_curve_shape_or_shapes=0, clock="from_note"):
         """
         Change the pitch of an already started note; can also take a sequence of targets and times
 
         :param note_id: which note to affect (an id or a NoteHandle)
-        :param target_value_or_values: target value (or list thereof) for the parameter
+        :param target_value_or_values: target value (or list of values) for the parameter
         :param transition_length_or_lengths: transition time(s) in beats to the target value(s)
         :param transition_curve_shape_or_shapes: curve shape(s) for the transition(s)
         :param clock: which clock all of this happens on; "from_note" simply reuses the clock that the note started on.
@@ -850,9 +853,8 @@ class ScampInstrument(SavesToJSON):
         self.change_note_parameter(note_id, "pitch", target_value_or_values, transition_length_or_lengths,
                                    transition_curve_shape_or_shapes, clock)
 
-    def change_note_volume(self, note_id, target_value_or_values: Union[Sequence, Number],
-                           transition_length_or_lengths: Union[Sequence, Number] = 0,
-                           transition_curve_shape_or_shapes: Union[Sequence, Number] = 0, clock="from_note"):
+    def change_note_volume(self, note_id, target_value_or_values, transition_length_or_lengths=0,
+                           transition_curve_shape_or_shapes=0, clock="from_note"):
         """
         Change the volume of an already started note; can also take a sequence of targets and times
 

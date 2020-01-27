@@ -48,6 +48,10 @@ class NotePropertiesDictionary(dict, SavesToJSON):
         NotePropertiesDictionary._standardize_plural_entry("texts", kwargs)
         NotePropertiesDictionary._standardize_plural_entry("playback_adjustments", kwargs)
 
+        for i, adjustment in enumerate(kwargs["playback_adjustments"]):
+            if isinstance(adjustment, str):
+                kwargs["playback_adjustments"][i] = NotePlaybackAdjustment.from_string(adjustment)
+
         if "spelling_policy" not in kwargs:
             kwargs["spelling_policy"] = None
         if "temp" not in kwargs:
@@ -132,6 +136,8 @@ class NotePropertiesDictionary(dict, SavesToJSON):
                         key = "notations"
                     elif values[0] in ("#", "b", "sharps", "flats"):
                         key = "spelling_policy"
+                    elif "volume" in values[0] or "pitch" in values[0] or "length" in values[0]:
+                        key = "playback_adjustments"
                     else:
                         raise ValueError("Note property {} not understood".format(note_property))
 
@@ -157,6 +163,10 @@ class NotePropertiesDictionary(dict, SavesToJSON):
                             properties_dict["notations"].append(value)
                         else:
                             logging.warning("Notation {} not understood".format(value))
+
+                elif key in "playback_adjustments":  # note that this allows the singular "playback_adjustment" too
+                    for value in values:
+                        properties_dict["playback_adjustments"].append(NotePlaybackAdjustment.from_string(value))
 
                 elif key in ("key", "spelling", "spellingpolicy", "spelling_policy"):
                     try:
