@@ -160,9 +160,9 @@ class NotePropertiesDictionary(dict, SavesToJSON):
 
                 elif key in ("key", "spelling", "spellingpolicy", "spelling_policy"):
                     try:
-                        properties_dict["spelling_policy"] = SpellingPolicy.from_string(value[0])
+                        properties_dict["spelling_policy"] = SpellingPolicy.from_string(values[0])
                     except ValueError:
-                        logging.warning("Spelling policy \"{}\" not understood".format(value[0]))
+                        logging.warning("Spelling policy \"{}\" not understood".format(values[0]))
 
                 elif key.startswith("param_") or key.endswith("_param"):
                     if not len(values) == 1:
