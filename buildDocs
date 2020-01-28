@@ -4,6 +4,9 @@ EXCLUSIONS=scamp/thirdparty\ scamp/dependencies.py
 # remove everything except the conf file
 find docs/* ! \( -iname "conf.py" -or -path "*_static/*" -or -path "*index.rst" \) -delete
 # generate the api documentation, excluding the defined directories
+sphinx-apidoc -F -o docs ../pymusicxml/pymusicxml $EXCLUSIONS
+sphinx-apidoc -F -o docs ../expenvelope/expenvelope $EXCLUSIONS
+sphinx-apidoc -F -o docs ../clockblocks/clockblocks $EXCLUSIONS
 sphinx-apidoc -F -o docs scamp $EXCLUSIONS
 cd docs
 make html

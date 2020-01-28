@@ -7,18 +7,26 @@ import logging
 
 class Ensemble(SavesToJSON):
 
+    """
+    Host for multiple ScampInstruments, keeping shared resources, and shared default settings.
+    A Session is, among other things, an Ensemble.
+
+    :param default_audio_driver: value to initialize default_audio_driver instance variable to
+    :param default_soundfont: value to initialize default_soundfont instance variable to
+    :param default_midi_output_device: value to initialize default_midi_output_device instance variable to
+    :ivar default_audio_driver: the audio driver instruments in this ensemble will default to. If "default", then
+        this defers to the scamp global playback_settings default.
+    :ivar default_soundfont: the soundfont that instruments in this ensemble will default to. If "default", then
+        this defers to the scamp global playback_settings default.
+    :ivar default_midi_output_device: the midi output device that instruments in this ensemble will default to.
+        If "default", then this defers to the scamp global playback_settings default.
+    :ivar instruments: List of all of the ScampInstruments within the Ensemble.
+    :type instruments: list
+    """
+
     def __init__(self, default_soundfont="default", default_audio_driver="default",
                  default_midi_output_device="default"):
-        """
-        Host for multiple ScampInstruments, keeping shared resources, and shared default settings
 
-        :param default_audio_driver: the audio driver instruments in this ensemble will default to. If "default", then
-            this defers to the scamp global playback_settings default.
-        :param default_soundfont: the soundfont that instruments in this ensemble will default to. If "default", then
-            this defers to the scamp global playback_settings default.
-        :param default_midi_output_device: the midi output device that instruments in this ensemble will default to.
-            If "default", then this defers to the scamp global playback_settings default.
-        """
         self.default_soundfont = default_soundfont
         self.default_audio_driver = default_audio_driver
         self.default_midi_output_device = default_midi_output_device
@@ -42,7 +50,10 @@ class Ensemble(SavesToJSON):
 
     def new_silent_part(self, name=None):
         """
-        Adds a silent part with no playback implementations
+        Creates and returns a new ScampInstrument for this Ensemble with no PlaybackImplementations.
+
+        :param name: name of the new part
+        :return: the newly created ScampInstrument
         """
         return self.add_instrument(ScampInstrument(name, self))
 
@@ -77,6 +88,7 @@ class Ensemble(SavesToJSON):
             microtonal playback, since pitch bends are applied per channel.
         :param audio_driver: which audio driver to use for this instrument (defaults to ensemble default)
         :param max_pitch_bend: max pitch bend to use for this instrument
+        :return: the newly created ScampInstrument
         """
         # Resolve soundfont and audio driver to ensemble defaults if necessary (these may well be the string
         # "default", in which case it gets resolved to the playback_settings default)
@@ -109,6 +121,7 @@ class Ensemble(SavesToJSON):
             microtonal playback, since pitch bends are applied per channel.
         :param midi_output_name: name of this part
         :param max_pitch_bend: max pitch bend to use for this instrument
+        :return: the newly created ScampInstrument
         """
         midi_output_device = self.default_midi_output_device if midi_output_device == "default" else midi_output_device
 
@@ -132,6 +145,7 @@ class Ensemble(SavesToJSON):
         :param osc_message_addresses: dictionary defining the address used for each type of playback message. defaults
             to using "start_note", "end_note", "change_pitch", "change_volume", "change_parameter". The default can
             be changed in playback settings.
+        :return: the newly created ScampInstrument
         """
         name = "Track " + str(len(self.instruments) + 1) if name is None else name
 

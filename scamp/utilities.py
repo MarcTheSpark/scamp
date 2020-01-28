@@ -1,3 +1,7 @@
+"""
+Various and sundry utility functions used by SCAMP.
+"""
+
 __author__ = 'mpevans'
 
 import os

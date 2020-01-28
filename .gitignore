@@ -8,3 +8,6 @@ docs/_build
 docs/make.bat
 docs/Makefile
 docs/scamp.rst
+docs/clockblocks.rst
+docs/expenvelope.rst
+docs/pymusicxml.rst

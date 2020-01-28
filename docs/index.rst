@@ -6,24 +6,19 @@
 Welcome to scamp's documentation!
 =================================
 
-Hey there!
-
-.. autosummary::
-   :toctree: stubs
-   :template: autosummary/class.rst
-
-   scamp.Session
-   clockblocks.clockblocks.Clock
-   scamp.instruments.ScampInstrument
-   scamp.instruments.NoteHandle
-   scamp.instruments.ChordHandle
-   expenvelope.Envelope
+Hey there! Check out the :class:`scamp.session.Session` class
 
 .. toctree::
    :maxdepth: 4
-   :caption: Contents:
+   :caption: Packages:
 
    scamp
+
+   clockblocks
+
+   expenvelope
+
+   pymusicxml
 
 
 Indices and tables

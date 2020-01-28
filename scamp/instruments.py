@@ -11,18 +11,20 @@ from threading import Lock
 
 
 class NoteHandle:
+    """
+    This handle, which is returned by instrument.start_note, allows us to manipulate the note that we have started,
+    (i.e. by changing pitch, volume, or another other parameter, or by ending the note). You would never create
+    one of these directly.
+
+    :param note_id: the reference id of the note
+    :param instrument: the instrument playing the note
+    :ivar note_id: the reference id of the note
+    :ivar instrument: the instrument playing the note
+    """
 
     def __init__(self, note_id, instrument):
-        """
-        This handle, returned by instrument.start_note, allows us to manipulate the note that we have started,
-        (i.e. by changing pitch, volume, or another other parameter, or by ending the note). You would never create
-        one of these directly.
-
-        :param note_id: the reference id of the note
-        :param instrument: the instrument playing the note
-        """
-        self._note_id = note_id
-        self._instrument: ScampInstrument = instrument
+        self.note_id = note_id
+        self.instrument: ScampInstrument = instrument
 
     def change_parameter(self, param_name, target_value_or_values, transition_length_or_lengths=0,
                          transition_curve_shape_or_shapes=0, clock="from_note"):
@@ -43,8 +45,8 @@ class NoteHandle:
         :param clock: The clock with which to interpret the transition timings. The default value of "from_note", which
             you likely don't want to change, carries out the timings on the clock on which the note was started.
         """
-        self._instrument.change_note_parameter(self._note_id, param_name, target_value_or_values,
-                                               transition_length_or_lengths, transition_curve_shape_or_shapes, clock)
+        self.instrument.change_note_parameter(self.note_id, param_name, target_value_or_values,
+                                              transition_length_or_lengths, transition_curve_shape_or_shapes, clock)
 
     def change_pitch(self, target_value_or_values, transition_length_or_lengths=0, transition_curve_shape_or_shapes=0,
                      clock="from_note"):
@@ -63,8 +65,8 @@ class NoteHandle:
         :param clock: The clock with which to interpret the transition timings. The default value of "from_note", which
             you likely don't want to change, carries out the timings on the clock on which the note was started.
         """
-        self._instrument.change_note_pitch(self._note_id, target_value_or_values, transition_length_or_lengths,
-                                           transition_curve_shape_or_shapes, clock)
+        self.instrument.change_note_pitch(self.note_id, target_value_or_values, transition_length_or_lengths,
+                                          transition_curve_shape_or_shapes, clock)
 
     def change_volume(self, target_value_or_values, transition_length_or_lengths=0, transition_curve_shape_or_shapes=0,
                       clock="from_note"):
@@ -83,36 +85,36 @@ class NoteHandle:
         :param clock: The clock with which to interpret the transition timings. The default value of "from_note", which
             you likely don't want to change, carries out the timings on the clock on which the note was started.
         """
-        self._instrument.change_note_volume(self._note_id, target_value_or_values, transition_length_or_lengths,
-                                            transition_curve_shape_or_shapes, clock)
+        self.instrument.change_note_volume(self.note_id, target_value_or_values, transition_length_or_lengths,
+                                           transition_curve_shape_or_shapes, clock)
 
     def split(self):
         """
         Adds a split point to this note, causing it later to be rendered as tied pieces.
         """
-        self._instrument.split_note(self._note_id)
+        self.instrument.split_note(self.note_id)
 
     def end(self):
         """
         Ends this note.
         """
-        self._instrument.end_note(self._note_id)
+        self.instrument.end_note(self.note_id)
 
     def __repr__(self):
-        return "NoteHandle({}, {})".format(self._note_id, self._instrument)
+        return "NoteHandle({}, {})".format(self.note_id, self.instrument)
 
 
 class ChordHandle:
+    """
+    This handle, returned by instrument.start_chord, allows us to manipulate a chord that we have started,
+    (i.e. by changing pitch, volume, or another other parameter, or by ending the note). You would never create
+    one of these directly.
 
+    :param note_handles: the handles of the notes that make up this chord
+    :param intervals: the original pitch intervals between the chord tones
+    :ivar note_handles: the handles of the notes that make up this chord
+    """
     def __init__(self, note_handles, intervals):
-        """
-        This handle, returned by instrument.start_chord, allows us to manipulate a chord that we have started,
-        (i.e. by changing pitch, volume, or another other parameter, or by ending the note). You would never create
-        one of these directly.
-
-        :param note_handles: the handles of the notes that make up this chord
-        :param intervals: the original pitch intervals between the chord tones
-        """
         self.note_handles = tuple(note_handles) if not isinstance(note_handles, tuple) else note_handles
         self._intervals = tuple(intervals) if not isinstance(intervals, tuple) else intervals
 
@@ -206,6 +208,7 @@ class _ParameterChangeSegment(EnvelopeSegment):
                  clock, call_priority, temporal_resolution=0.01):
         """
         Convenient class for handling interruptable transitions of parameter values and storing info on them
+
         :param parameter_change_function: since this is for general parameters, we pass the function to be called
         to set the parameter. Generally will call _do_change_note_parameter/pitch/volume for a given note_id
         :param start_value: start value of the parameter in the transition
@@ -359,17 +362,23 @@ class _ParameterChangeSegment(EnvelopeSegment):
 
 class ScampInstrument(SavesToJSON):
 
+    """
+    Instrument class that does the playing of the notes. Generally this will be created through one of the
+    "new_part" methods of the Session or Ensemble class.
+
+    :param name: name of this instrument (e.g. when printed in a score)
+    :param ensemble: Ensemble to which this instrument will belong.
+    :ivar name: name of this instrument (e.g. when printed in a score)
+    :ivar name_count: when there are multiple instruments of the same name within an Ensemble, this variable assigns
+        each a unique index (starting with 0), to distinguish them
+    :ivar ensemble: Ensemble to which this instrument will belong.
+    :ivar playback_implementations: list of PlaybackImplementation(s) used to actually playback notes
+    """
+
     _note_id_generator = itertools.count()
     _change_param_call_counter = itertools.count()
 
     def __init__(self, name=None, ensemble=None):
-        """
-        Instrument class that does the playing of the notes. Generally this will be created through one of the
-        "new_part" methods of the Session or Ensemble class.
-
-        :param name: name of this instrument (e.g. when printed in a score)
-        :param ensemble: Ensemble to which this instrument will belong.
-        """
         self.name = name
         # used to help distinguish between identically named instruments in the same ensemble
         self.name_count = ensemble._get_part_name_count(self.name) if ensemble is not None else 0
@@ -378,14 +387,14 @@ class ScampInstrument(SavesToJSON):
         self._transcribers_to_notify = []
 
         self._note_info_by_id = {}
-        self.playback_implementations: List[PlaybackImplementation] = []
+        self.playback_implementations = []
 
         # A policy for spelling notes used as the default for this instrument. Overrides any broader defaults.
         # (Has a getter and setter method allowing constructor strings to be passed.)
         self._default_spelling_policy = None
 
         # this lock stops multiple threads from simultaneously accessing the self._note_info_by_id
-        self.note_info_lock = Lock()
+        self._note_info_lock = Lock()
 
         super().__init__()
 
@@ -618,7 +627,7 @@ class ScampInstrument(SavesToJSON):
         other_param_start_values = {param: value.start_level() if isinstance(value, Envelope) else value
                                     for param, value in properties.iterate_extra_parameters_and_values()}
 
-        with self.note_info_lock:
+        with self._note_info_lock:
             # generate a new id for this note, and set up all of its info
             note_id = next(ScampInstrument._note_id_generator)
             self._note_info_by_id[note_id] = {
@@ -735,8 +744,8 @@ class ScampInstrument(SavesToJSON):
         :param transition_curve_shape_or_shapes: curve shape(s) for the transition(s)
         :param clock: which clock all of this happens on; "from_note" simply reuses the clock that the note started on.
         """
-        with self.note_info_lock:
-            note_id = note_id._note_id if isinstance(note_id, NoteHandle) else note_id
+        with self._note_info_lock:
+            note_id = note_id.note_id if isinstance(note_id, NoteHandle) else note_id
             note_info = self._note_info_by_id[note_id]
 
             if clock == "from_note":
@@ -873,8 +882,8 @@ class ScampInstrument(SavesToJSON):
 
         :param note_id: Which note or NoteHandle to split
         """
-        with self.note_info_lock:
-            note_id = note_id._note_id if isinstance(note_id, NoteHandle) else note_id
+        with self._note_info_lock:
+            note_id = note_id.note_id if isinstance(note_id, NoteHandle) else note_id
             note_info = self._note_info_by_id[note_id]
             note_info["split_points"].append(TimeStamp(note_info["clock"]))
 
@@ -886,9 +895,9 @@ class ScampInstrument(SavesToJSON):
 
         :param note_id: either the id itself or a NoteHandle with that id
         """
-        with self.note_info_lock:
+        with self._note_info_lock:
             # in case we're passed a NoteHandle instead of an actual id number, get the number from the handle
-            note_id = note_id._note_id if isinstance(note_id, NoteHandle) else note_id
+            note_id = note_id.note_id if isinstance(note_id, NoteHandle) else note_id
 
             if note_id is not None:
                 # as specific note_id has been given, so it had better belong to a currently playing note!
