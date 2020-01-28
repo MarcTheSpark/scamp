@@ -1,4 +1,12 @@
+"""
+Module containing user-facing playback classes: Ensemble, ScampInstrument, and NoteHandle/ChordHandle
+The underlying implementation of playback is done by PlaybackImplementation and all of its subclasses,
+which are found in playback_implementations.py:
+"""
+
 import itertools
+from .soundfont_host import get_best_preset_match_for_name, print_soundfont_presets
+from .utilities import SavesToJSON
 from .spelling import SpellingPolicy
 from ._note_properties import NotePropertiesDictionary
 from .playback_implementations import *
@@ -6,358 +14,221 @@ from scamp.utilities import iterate_all_subclasses
 from clockblocks import *
 import logging
 import time
-from numbers import Number
 from threading import Lock
 
 
-class NoteHandle:
+class Ensemble(SavesToJSON):
+
     """
-    This handle, which is returned by instrument.start_note, allows us to manipulate the note that we have started,
-    (i.e. by changing pitch, volume, or another other parameter, or by ending the note). You would never create
-    one of these directly.
+    Host for multiple ScampInstruments, keeping shared resources, and shared default settings.
+    A Session is, among other things, an Ensemble.
 
-    :param note_id: the reference id of the note
-    :param instrument: the instrument playing the note
-    :ivar note_id: the reference id of the note
-    :ivar instrument: the instrument playing the note
+    :param default_audio_driver: value to initialize default_audio_driver instance variable to
+    :param default_soundfont: value to initialize default_soundfont instance variable to
+    :param default_midi_output_device: value to initialize default_midi_output_device instance variable to
+    :ivar default_audio_driver: the audio driver instruments in this ensemble will default to. If "default", then
+        this defers to the scamp global playback_settings default.
+    :ivar default_soundfont: the soundfont that instruments in this ensemble will default to. If "default", then
+        this defers to the scamp global playback_settings default.
+    :ivar default_midi_output_device: the midi output device that instruments in this ensemble will default to.
+        If "default", then this defers to the scamp global playback_settings default.
+    :ivar instruments: List of all of the ScampInstruments within the Ensemble.
+    :type instruments: list
     """
 
-    def __init__(self, note_id, instrument):
-        self.note_id = note_id
-        self.instrument: ScampInstrument = instrument
+    def __init__(self, default_soundfont="default", default_audio_driver="default",
+                 default_midi_output_device="default"):
 
-    def change_parameter(self, param_name, target_value_or_values, transition_length_or_lengths=0,
-                         transition_curve_shape_or_shapes=0, clock="from_note"):
+        self.default_soundfont = default_soundfont
+        self.default_audio_driver = default_audio_driver
+        self.default_midi_output_device = default_midi_output_device
+
+        self._default_spelling_policy = None
+
+        self.instruments = []
+        self.shared_resources = {}
+
+    def add_instrument(self, instrument):
         """
-        Change a custom playback parameter for this note to a given target value or values, over a given duration and
-        with a given curve shape.
+        Adds an instance of ScampInstrument to this Ensemble. Generally this will be done indirectly
+        by calling one of the "new_instrument" methods.
 
-        :param param_name: name of the parameter to change
-        :param target_value_or_values: either a single value or a list of values to which we want to change the
-            parameter of interest.
-        :param transition_length_or_lengths: the duration (in beats) that we want it to take to reach the target value.
-            The default value of 0 represents an instantaneous change. If multiple target values were given, a list of
-            durations should be given for each segment.
-        :param transition_curve_shape_or_shapes: the curve shape used in transitioning to the new target value.
-            The default value of 0 represents an linear change, a value greater than zero represents late change,
-            and a value less than 0 represents early change. If multiple target values were given, a list of curve
-            shapes should be given (unless it is left as the default 0, in which case all segments are linear).
-        :param clock: The clock with which to interpret the transition timings. The default value of "from_note", which
-            you likely don't want to change, carries out the timings on the clock on which the note was started.
+        :param instrument: instrument to add to this ensemble
+        :type instrument: ScampInstrument
         """
-        self.instrument.change_note_parameter(self.note_id, param_name, target_value_or_values,
-                                              transition_length_or_lengths, transition_curve_shape_or_shapes, clock)
+        if not hasattr(instrument, "name") or instrument.name is None:
+            instrument.name = "Track " + str(len(self.instruments) + 1)
+        instrument.ensemble = self
+        self.instruments.append(instrument)
+        return instrument
 
-    def change_pitch(self, target_value_or_values, transition_length_or_lengths=0, transition_curve_shape_or_shapes=0,
-                     clock="from_note"):
+    def new_silent_part(self, name=None):
         """
-        Change the pitch of this note to a given target value or values, over a given duration and with a given
-        curve shape.
+        Creates and returns a new ScampInstrument for this Ensemble with no PlaybackImplementations.
 
-        :param target_value_or_values: either a single target pitch or a list of target pitches.
-        :param transition_length_or_lengths: the duration (in beats) that we want it to take to reach the target pitch.
-            The default value of 0 represents an instantaneous change. If multiple target values were given, a list of
-            durations should be given for each segment.
-        :param transition_curve_shape_or_shapes: the curve shape used in transitioning to the new target pitch.
-            The default value of 0 represents an linear change, a value greater than zero represents late change,
-            and a value less than 0 represents early change. If multiple target values were given, a list of curve
-            shapes should be given (unless it is left as the default 0, in which case all segments are linear).
-        :param clock: The clock with which to interpret the transition timings. The default value of "from_note", which
-            you likely don't want to change, carries out the timings on the clock on which the note was started.
+        :param name: name of the new part
+        :return: the newly created ScampInstrument
         """
-        self.instrument.change_note_pitch(self.note_id, target_value_or_values, transition_length_or_lengths,
-                                          transition_curve_shape_or_shapes, clock)
+        return self.add_instrument(ScampInstrument(name, self))
 
-    def change_volume(self, target_value_or_values, transition_length_or_lengths=0, transition_curve_shape_or_shapes=0,
-                      clock="from_note"):
-        """
-        Change the volume of this note to a given target value or values, over a given duration and with a given
-        curve shape.
-
-        :param target_value_or_values: either a single target volume or a list of target volumes.
-        :param transition_length_or_lengths: the duration (in beats) that we want it to take to reach the target volume.
-            The default value of 0 represents an instantaneous change. If multiple target values were given, a list of
-            durations should be given for each segment.
-        :param transition_curve_shape_or_shapes: the curve shape used in transitioning to the new target volume.
-            The default value of 0 represents an linear change, a value greater than zero represents late change,
-            and a value less than 0 represents early change. If multiple target values were given, a list of curve
-            shapes should be given (unless it is left as the default 0, in which case all segments are linear).
-        :param clock: The clock with which to interpret the transition timings. The default value of "from_note", which
-            you likely don't want to change, carries out the timings on the clock on which the note was started.
-        """
-        self.instrument.change_note_volume(self.note_id, target_value_or_values, transition_length_or_lengths,
-                                           transition_curve_shape_or_shapes, clock)
-
-    def split(self):
-        """
-        Adds a split point to this note, causing it later to be rendered as tied pieces.
-        """
-        self.instrument.split_note(self.note_id)
-
-    def end(self):
-        """
-        Ends this note.
-        """
-        self.instrument.end_note(self.note_id)
-
-    def __repr__(self):
-        return "NoteHandle({}, {})".format(self.note_id, self.instrument)
-
-
-class ChordHandle:
-    """
-    This handle, returned by instrument.start_chord, allows us to manipulate a chord that we have started,
-    (i.e. by changing pitch, volume, or another other parameter, or by ending the note). You would never create
-    one of these directly.
-
-    :param note_handles: the handles of the notes that make up this chord
-    :param intervals: the original pitch intervals between the chord tones
-    :ivar note_handles: the handles of the notes that make up this chord
-    """
-    def __init__(self, note_handles, intervals):
-        self.note_handles = tuple(note_handles) if not isinstance(note_handles, tuple) else note_handles
-        self._intervals = tuple(intervals) if not isinstance(intervals, tuple) else intervals
-
-    def change_parameter(self, param_name, target_value_or_values, transition_length_or_lengths=0,
-                         transition_curve_shape_or_shapes=0, clock="from_note"):
-        """
-        Change a custom playback parameter for all notes in this chord to a given target value or values, over a given
-        duration and with a given curve shape.
-
-        :param param_name: name of the parameter to change
-        :param target_value_or_values: either a single value or a list of values to which we want to change the
-            parameter of interest.
-        :param transition_length_or_lengths: the duration (in beats) that we want it to take to reach the target value.
-            The default value of 0 represents an instantaneous change. If multiple target values were given, a list of
-            durations should be given for each segment.
-        :param transition_curve_shape_or_shapes: the curve shape used in transitioning to the new target value.
-            The default value of 0 represents an linear change, a value greater than zero represents late change,
-            and a value less than 0 represents early change. If multiple target values were given, a list of curve
-            shapes should be given (unless it is left as the default 0, in which case all segments are linear).
-        :param clock: The clock with which to interpret the transition timings. The default value of "from_note", which
-            you likely don't want to change, carries out the timings on the clock on which the note was started.
-        """
-        for note_handle in self.note_handles:
-            note_handle.change_parameter(param_name, target_value_or_values, transition_length_or_lengths,
-                                         transition_curve_shape_or_shapes, clock)
-
-    def change_pitch(self, target_value_or_values, transition_length_or_lengths=0, transition_curve_shape_or_shapes=0,
-                     clock="from_note"):
-        """
-        Change the pitches of this chord such that the first note of the chord goes to the given target value or values,
-        over a given duration and with a given curve shape.
-
-        :param target_value_or_values: either a single target pitch or a list of target pitches. Note that this is the
-            pitch that the first note of the chord gets changed to; all of the other notes in the chord follow suit,
-            maintaining the same interval as before with the first note of the chord.
-        :param transition_length_or_lengths: the duration (in beats) that we want it to take to reach the target pitch.
-            The default value of 0 represents an instantaneous change. If multiple target values were given, a list of
-            durations should be given for each segment.
-        :param transition_curve_shape_or_shapes: the curve shape used in transitioning to the new target pitch.
-            The default value of 0 represents an linear change, a value greater than zero represents late change,
-            and a value less than 0 represents early change. If multiple target values were given, a list of curve
-            shapes should be given (unless it is left as the default 0, in which case all segments are linear).
-        :param clock: The clock with which to interpret the transition timings. The default value of "from_note", which
-            you likely don't want to change, carries out the timings on the clock on which the note was started.
-        """
-        for note_handle, interval in zip(self.note_handles, self._intervals):
-            this_note_pitch_targets = [target_value + interval for target_value in target_value_or_values] \
-                if hasattr(target_value_or_values, "__len__") else target_value_or_values + interval
-            note_handle.change_pitch(this_note_pitch_targets, transition_length_or_lengths,
-                                     transition_curve_shape_or_shapes, clock)
-
-    def change_volume(self, target_value_or_values, transition_length_or_lengths=0, transition_curve_shape_or_shapes=0,
-                      clock="from_note"):
-        """
-        Change the volume for all notes in this chord to a given target value or values, over a given duration and with
-        a given curve shape.
-
-        :param target_value_or_values: either a single target volume or a list of target volumes.
-        :param transition_length_or_lengths: the duration (in beats) that we want it to take to reach the target volume.
-            The default value of 0 represents an instantaneous change. If multiple target values were given, a list of
-            durations should be given for each segment.
-        :param transition_curve_shape_or_shapes: the curve shape used in transitioning to the new target volume.
-            The default value of 0 represents an linear change, a value greater than zero represents late change,
-            and a value less than 0 represents early change. If multiple target values were given, a list of curve
-            shapes should be given (unless it is left as the default 0, in which case all segments are linear).
-        :param clock: The clock with which to interpret the transition timings. The default value of "from_note", which
-            you likely don't want to change, carries out the timings on the clock on which the note was started.
-        """
-        for note_handle in self.note_handles:
-            note_handle.change_volume(target_value_or_values, transition_length_or_lengths,
-                                      transition_curve_shape_or_shapes, clock)
-
-    def split(self):
-        """
-        Adds a split point to this chord, causing it later to be rendered as tied pieces.
-        """
-        for note_handle in self.note_handles:
-            note_handle.split()
-
-    def end(self):
-        """
-        Ends all notes in this chord.
-        """
-        for note_handle in self.note_handles:
-            note_handle.end()
-
-
-class _ParameterChangeSegment(EnvelopeSegment):
-
-    def __init__(self, parameter_change_function, start_value, target_value, transition_length, transition_curve_shape,
-                 clock, call_priority, temporal_resolution=0.01):
-        """
-        Convenient class for handling interruptable transitions of parameter values and storing info on them
-
-        :param parameter_change_function: since this is for general parameters, we pass the function to be called
-        to set the parameter. Generally will call _do_change_note_parameter/pitch/volume for a given note_id
-        :param start_value: start value of the parameter in the transition
-        :param target_value: target value of the parameter in the transition
-        :param transition_length: length of the transition in beats on the clock given
-        :param transition_curve_shape: curve shape of the transition
-        :param clock: the clock that all of this happens in reference to
-        :param call_priority: this is used to determine which call to change_parameter happened first, since once these
-        things get spawned in threads, the order gets indeterminate.
-        :param temporal_resolution: time resolution of the unsynchronized process. One of the following:
-         - just a number (in seconds)
-         - the string "pitch-based", in which case we derive it based on trying to get a smooth pitch change
-         - the string "volume-based", in which case we derive it based on trying to get a smooth volume change.
-        """
-        # set this up as an envelope
-        super().__init__(0, transition_length, start_value, target_value, transition_curve_shape)
-        # "do_change_parameter" feels more like an action name
-        self.do_change_parameter = parameter_change_function
-
-        self.clock = clock  # the parent clock that this process runs on
-        self._run_clock = None  # the sub-clock created by forking this process
-        self.running = False  # flag used for aborting the unsynchronized process
-
-        # some of the key data that this envelope holds onto are the time stamps at which it starts and finishes
-        # this can be used to construct the appropriate envelope segment on whichever clock we're recording on
-        self.start_time_stamp = None
-        self.end_time_stamp = None
-        self.call_priority = call_priority
-
-        self.temporal_resolution = temporal_resolution
-
-    def run(self, silent=False):
-        """
-        Runs the segment from start to finish, gradually changing the parameter.
-        This function runs as a synchronized clock process (it should be forked), and it starts a parallel,
-        unsynchronized process ("_animation_function") to do the actual calls to change parameter
-        :param silent: this flag causes none of the animation to actually happen. This is used when we're trying to
-        notate a note but not play it back, as in the case of a note that has been adjusted (where we playback -- but
-        don't notate -- the adjusted version, while we run -- but don't play back -- the unadjusted version.)
-        """
-        self.start_time_stamp = TimeStamp(self.clock)
-
-        # if this segment has no duration, no need to do any animation
-        # just set it to the final value and return
-        if self.duration == 0:
-            self.end_time_stamp = TimeStamp(self.clock)
-            self.do_change_parameter(self.end_level)
-            return
-
-        self.start_time_stamp = TimeStamp(self.clock)
-        self.running = True  # used to kill the unsynchronized process when we abort or this synchronized one ends
-
-        # we note down the clock we're running this on. If abort is called, this clock gets killed
-        self._run_clock = current_clock()
-
-        # if there's no change, or if we're skipping animation, just wait and finish
-        if self.end_level == self.start_level or silent:
-            wait(self.duration)
-            self.end_time_stamp = TimeStamp(self.clock)
-            self.do_change_parameter(self.end_level)
-            self.running = False
-            return
-
-        # determine the time increment, perhaps by calculating a good one for the given parameter
-        if self.temporal_resolution == "pitch-based":
-            time_increment = self._get_good_pitch_bend_temporal_resolution()
-        elif self.temporal_resolution == "volume-based":
-            time_increment = self._get_good_volume_temporal_resolution()
+    @staticmethod
+    def _resolve_preset_from_name(name, soundfont):
+        # if preset is auto, try to find a match in the soundfont
+        if name is None:
+            preset = (0, 0)
         else:
-            time_increment = self.temporal_resolution
-        # don't animate faster than 4ms though
-        time_increment = max(0.004, time_increment)
+            preset_match, match_score = get_best_preset_match_for_name(name, which_soundfont=soundfont)
+            if match_score > 1.0:
+                preset = preset_match.bank, preset_match.preset
+                print("Using preset {} for {}".format(preset_match.name, name))
+            else:
+                logging.warning("Could not find preset matching {}. "
+                                "Falling back to preset 0 (probably piano).".format(name))
+                preset = (0, 0)
+        return preset
 
-        def _animation_function():
-            # does the intermediate changing of values; since it's sleeping in small time increments, we fork it
-            # as unsynchronized parallel process so that it doesn't gum up the clocks with the overhead of
-            # waking and sleeping rapidly
-            beats_passed = 0
-
-            while beats_passed < self.duration and self.running:
-                start = time.time()
-                if beats_passed > 0:  # no need to change the parameter the first time, before we had a chance to wait
-                    self.do_change_parameter(self.value_at(beats_passed))
-                time.sleep(time_increment)
-                # TODO: Absolute_rate would be great, except that it doesn't update between synchronized clock events
-                # Is there a way of improving this??
-                beats_passed += (time.time() - start) * self.clock.absolute_rate()
-
-        # start the unsynchronized animation function
-        self.clock.fork_unsynchronized(_animation_function)
-        # waits in a synchronized fashion so that it can save an accurate time stamp at the end
-        wait(self.duration)
-
-        # we only get here if it wasn't aborted while running, since that will call kill on the child clock
-        self.running = False
-        self.end_time_stamp = TimeStamp(self.clock)
-        self.do_change_parameter(self.end_level)
-
-    def abort_if_running(self):
-        if self.running:
-            # if we were running, we save the time stamp at which we aborted as the end time stamp
-            self.end_time_stamp = TimeStamp(self.clock)
-            self._run_clock.kill()  # kill the clock doing the "run" function
-            # since the units of this envelope are beats in self.clock, see how far we got in the envelope by
-            # subtracting converting the start and end time stamps to those beats and subtracting
-            how_far_we_got = self.end_time_stamp.beat_in_clock(self.clock) - \
-                             self.start_time_stamp.beat_in_clock(self.clock)
-
-            # now split there, discarding the rest of the envelope. This makes self.end_level the value we ended up at.
-            if self.start_time < how_far_we_got < self.end_time:
-                self.split_at(how_far_we_got)
-            elif self.start_time == how_far_we_got:
-                # this was aborted before it even got going. Later, the transcriber will ignore this nothing segment
-                self.end_time = self.start_time
-                self.end_level = self.start_level
-                self.running = False
-                return
-
-            self.do_change_parameter(self.end_level)  # set it to where we should be at this point
-        self.running = False  # this will make sure to abort the animation function
-
-    def completed(self):
-        # it's not running, but because it finished, not because it never started
-        return not self.running and self.end_time_stamp is not None
-
-    def _get_good_pitch_bend_temporal_resolution(self):
+    def new_part(self, name=None, preset="auto", soundfont="default", num_channels=8,
+                 audio_driver="default", max_pitch_bend="default"):
         """
-        Returns a reasonable temporal resolution, based on this clock's envelope and rate, assuming it's a pitch curve
-        """
-        max_cents_per_second = self.max_absolute_slope() * 100 * self.clock.absolute_rate()
-        # cents / update * updates / sec = cents / sec   =>  updates_freq = cents_per_second / cents_per_update
-        # we'll aim for 4 cents per update, since some say the JND is 5-6 cents
-        update_freq = max_cents_per_second / 4.0
-        return 1 / update_freq
+        Creates and returns a new ScampInstrument for this Ensemble that uses a SoundfontPlaybackImplementation. Unless
+        otherwise specified, the default soundfont for this Ensemble/Session will be used, and we will search for the
+        preset that best matches the name given.
 
-    def _get_good_volume_temporal_resolution(self):
+        :param name: name used for this instrument in score, etc.
+        :param preset: if an int, assumes bank #0; can also be a tuple of form (bank, preset). If "auto", searches
+            for a preset of the appropriate name.
+        :param soundfont: the name of the soundfont to use for fluidsynth playback
+        :param num_channels: maximum of midi channels available to this midi part. It's wise to use more when doing
+            microtonal playback, since pitch bends are applied per channel.
+        :param audio_driver: which audio driver to use for this instrument (defaults to ensemble default)
+        :param max_pitch_bend: max pitch bend to use for this instrument
+        :return: the newly created ScampInstrument
         """
-        Returns a reasonable temporal resolution, based on this clock's envelope and rate, assuming it's a volume curve
+        # Resolve soundfont and audio driver to ensemble defaults if necessary (these may well be the string
+        # "default", in which case it gets resolved to the playback_settings default)
+        soundfont = self.default_soundfont if soundfont == "default" else soundfont
+        audio_driver = self.default_audio_driver if audio_driver == "default" else audio_driver
+
+        # if preset is auto, try to find a match in the soundfont
+        if preset == "auto":
+            preset = Ensemble._resolve_preset_from_name(name, soundfont)
+        elif isinstance(preset, int):
+            preset = (0, preset)
+
+        name = "Track " + str(len(self.instruments) + 1) if name is None else name
+
+        instrument = self.new_silent_part(name)
+        instrument.add_soundfont_playback(preset, soundfont, num_channels, audio_driver, max_pitch_bend)
+
+        return instrument
+
+    def new_midi_part(self, name=None, midi_output_device="default", num_channels=8,
+                      midi_output_name=None, max_pitch_bend="default"):
         """
-        max_volume_per_second = self.max_absolute_slope() * self.clock.absolute_rate()
-        # based on the idea that for midi volumes, it's quantized from 0 to 127, so there's not much point in updating
-        # in between those quantization levels. It's a decent enough rule even if not using midi output.
-        update_freq = max_volume_per_second * 127
-        return 1 / update_freq
+        Creates and returns a new ScampInstrument for this Ensemble that uses a MIDIStreamPlaybackImplementation.
+        This means that when notes are played by this instrument, midi messages are sent out to the given device.
+
+        :param name: name used for this instrument in score, etc. for a preset of the appropriate name.
+        :param midi_output_device: name or number of the device used to output midi. Call
+            get_available_ports_and_devices to check what's available.
+        :param num_channels: maximum of midi channels available to this midi part. It's wise to use more when doing
+            microtonal playback, since pitch bends are applied per channel.
+        :param midi_output_name: name of this part
+        :param max_pitch_bend: max pitch bend to use for this instrument
+        :return: the newly created ScampInstrument
+        """
+        midi_output_device = self.default_midi_output_device if midi_output_device == "default" else midi_output_device
+
+        name = "Track " + str(len(self.instruments) + 1) if name is None else name
+
+        instrument = self.new_silent_part(name)
+        instrument.add_streaming_midi_playback(midi_output_device, num_channels, midi_output_name, max_pitch_bend)
+
+        return instrument
+
+    def new_osc_part(self, name=None, port=None, ip_address="127.0.0.1", message_prefix=None,
+                     osc_message_addresses="default"):
+        """
+        Creates and returns a new ScampInstrument for this Ensemble that uses a OSCPlaybackImplementation. This means
+        that when notes are played by this instrument, osc messages are sent out to the specified address
+
+        :param name: name used for this instrument in score, etc. for a preset of the appropriate name.
+        :param port: port osc messages are sent to
+        :param ip_address: ip_address osc messages are sent to
+        :param message_prefix: prefix used for this instrument in osc messages
+        :param osc_message_addresses: dictionary defining the address used for each type of playback message. defaults
+            to using "start_note", "end_note", "change_pitch", "change_volume", "change_parameter". The default can
+            be changed in playback settings.
+        :return: the newly created ScampInstrument
+        """
+        name = "Track " + str(len(self.instruments) + 1) if name is None else name
+
+        instrument = self.new_silent_part(name)
+        instrument.add_osc_playback(port, ip_address, message_prefix, osc_message_addresses)
+
+        return instrument
+
+    def _get_part_name_count(self, name):
+        return sum(i.name == name for i in self.instruments)
+
+    def get_instrument_by_name(self, name, which=0):
+        """
+        Returns the instrument of the given name. If there are multiple with the same name, the which parameter
+        specifies the one returned. (If none match the number given by which, the first name match is returned)
+        """
+        # if there are multiple instruments of the same name, which determines which one is chosen
+        imperfect_match = None
+        for instrument in self.instruments:
+            if name == instrument.name:
+                if which == instrument.name_count:
+                    return instrument
+                else:
+                    imperfect_match = instrument if imperfect_match is None else imperfect_match
+        return imperfect_match
+
+    def print_default_soundfont_presets(self):
+        """
+        Prints a list of presets available with the default soundfont.
+        """
+        print_soundfont_presets(self.default_soundfont)
+
+    @property
+    def default_spelling_policy(self):
+        """
+        Default spelling policy used for transcriptions made with this Ensemble.
+        """
+        return self._default_spelling_policy
+
+    @default_spelling_policy.setter
+    def default_spelling_policy(self, value):
+        if value is None or isinstance(value, SpellingPolicy):
+            self._default_spelling_policy = value
+        elif isinstance(value, str):
+            self._default_spelling_policy = SpellingPolicy.from_string(value)
+        else:
+            raise ValueError("Spelling policy not understood.")
+
+    def _to_json(self):
+        return {
+            "default_soundfont": self.default_soundfont,
+            "default_audio_driver": self.default_audio_driver,
+            "default_midi_output_device": self.default_midi_output_device,
+            "default_spelling_policy": self.default_spelling_policy,
+            "instruments": [instrument._to_json() for instrument in self.instruments]
+        }
+
+    @classmethod
+    def _from_json(cls, json_dict):
+        json_instruments = json_dict.pop("instruments")
+        default_spelling_policy = json_dict.pop("default_spelling_policy")
+        ensemble = cls(**json_dict)
+        ensemble.default_spelling_policy = default_spelling_policy
+        ensemble.instruments = [ScampInstrument._from_json(json_instrument, ensemble)
+                                for json_instrument in json_instruments]
+        return ensemble
 
     def __repr__(self):
-        return "_ParameterChangeSegment[{}, {}, {}, {}, {}]".format(
-            self.start_time_stamp, self.end_time_stamp, self.start_level, self.end_level, self.curve_shape
-        )
+        return "Ensemble.from_json({})".format(self._to_json())
 
 
 class ScampInstrument(SavesToJSON):
@@ -971,7 +842,6 @@ class ScampInstrument(SavesToJSON):
             if self.ensemble is not None and soundfont == "default" else soundfont
 
         if isinstance(preset, str):
-            from .ensemble import Ensemble
             preset = Ensemble._resolve_preset_from_name(self.name if preset == "auto" else preset, soundfont)
         elif isinstance(preset, int):
             preset = (0, preset)
@@ -1116,3 +986,355 @@ class ScampInstrument(SavesToJSON):
 
     def __repr__(self):
         return "ScampInstrument.from_json({})".format(self._to_json())
+
+
+class NoteHandle:
+    """
+    This handle, which is returned by instrument.start_note, allows us to manipulate the note that we have started,
+    (i.e. by changing pitch, volume, or another other parameter, or by ending the note). You would never create
+    one of these directly.
+
+    :param note_id: the reference id of the note
+    :param instrument: the instrument playing the note
+    :ivar note_id: the reference id of the note
+    :ivar instrument: the instrument playing the note
+    """
+
+    def __init__(self, note_id, instrument):
+        self.note_id = note_id
+        self.instrument: ScampInstrument = instrument
+
+    def change_parameter(self, param_name, target_value_or_values, transition_length_or_lengths=0,
+                         transition_curve_shape_or_shapes=0, clock="from_note"):
+        """
+        Change a custom playback parameter for this note to a given target value or values, over a given duration and
+        with a given curve shape.
+
+        :param param_name: name of the parameter to change
+        :param target_value_or_values: either a single value or a list of values to which we want to change the
+            parameter of interest.
+        :param transition_length_or_lengths: the duration (in beats) that we want it to take to reach the target value.
+            The default value of 0 represents an instantaneous change. If multiple target values were given, a list of
+            durations should be given for each segment.
+        :param transition_curve_shape_or_shapes: the curve shape used in transitioning to the new target value.
+            The default value of 0 represents an linear change, a value greater than zero represents late change,
+            and a value less than 0 represents early change. If multiple target values were given, a list of curve
+            shapes should be given (unless it is left as the default 0, in which case all segments are linear).
+        :param clock: The clock with which to interpret the transition timings. The default value of "from_note", which
+            you likely don't want to change, carries out the timings on the clock on which the note was started.
+        """
+        self.instrument.change_note_parameter(self.note_id, param_name, target_value_or_values,
+                                              transition_length_or_lengths, transition_curve_shape_or_shapes, clock)
+
+    def change_pitch(self, target_value_or_values, transition_length_or_lengths=0, transition_curve_shape_or_shapes=0,
+                     clock="from_note"):
+        """
+        Change the pitch of this note to a given target value or values, over a given duration and with a given
+        curve shape.
+
+        :param target_value_or_values: either a single target pitch or a list of target pitches.
+        :param transition_length_or_lengths: the duration (in beats) that we want it to take to reach the target pitch.
+            The default value of 0 represents an instantaneous change. If multiple target values were given, a list of
+            durations should be given for each segment.
+        :param transition_curve_shape_or_shapes: the curve shape used in transitioning to the new target pitch.
+            The default value of 0 represents an linear change, a value greater than zero represents late change,
+            and a value less than 0 represents early change. If multiple target values were given, a list of curve
+            shapes should be given (unless it is left as the default 0, in which case all segments are linear).
+        :param clock: The clock with which to interpret the transition timings. The default value of "from_note", which
+            you likely don't want to change, carries out the timings on the clock on which the note was started.
+        """
+        self.instrument.change_note_pitch(self.note_id, target_value_or_values, transition_length_or_lengths,
+                                          transition_curve_shape_or_shapes, clock)
+
+    def change_volume(self, target_value_or_values, transition_length_or_lengths=0, transition_curve_shape_or_shapes=0,
+                      clock="from_note"):
+        """
+        Change the volume of this note to a given target value or values, over a given duration and with a given
+        curve shape.
+
+        :param target_value_or_values: either a single target volume or a list of target volumes.
+        :param transition_length_or_lengths: the duration (in beats) that we want it to take to reach the target volume.
+            The default value of 0 represents an instantaneous change. If multiple target values were given, a list of
+            durations should be given for each segment.
+        :param transition_curve_shape_or_shapes: the curve shape used in transitioning to the new target volume.
+            The default value of 0 represents an linear change, a value greater than zero represents late change,
+            and a value less than 0 represents early change. If multiple target values were given, a list of curve
+            shapes should be given (unless it is left as the default 0, in which case all segments are linear).
+        :param clock: The clock with which to interpret the transition timings. The default value of "from_note", which
+            you likely don't want to change, carries out the timings on the clock on which the note was started.
+        """
+        self.instrument.change_note_volume(self.note_id, target_value_or_values, transition_length_or_lengths,
+                                           transition_curve_shape_or_shapes, clock)
+
+    def split(self):
+        """
+        Adds a split point to this note, causing it later to be rendered as tied pieces.
+        """
+        self.instrument.split_note(self.note_id)
+
+    def end(self):
+        """
+        Ends this note.
+        """
+        self.instrument.end_note(self.note_id)
+
+    def __repr__(self):
+        return "NoteHandle({}, {})".format(self.note_id, self.instrument)
+
+
+class ChordHandle:
+    """
+    This handle, returned by instrument.start_chord, allows us to manipulate a chord that we have started,
+    (i.e. by changing pitch, volume, or another other parameter, or by ending the note). You would never create
+    one of these directly.
+
+    :param note_handles: the handles of the notes that make up this chord
+    :param intervals: the original pitch intervals between the chord tones
+    :ivar note_handles: the handles of the notes that make up this chord
+    """
+    def __init__(self, note_handles, intervals):
+        self.note_handles = tuple(note_handles) if not isinstance(note_handles, tuple) else note_handles
+        self._intervals = tuple(intervals) if not isinstance(intervals, tuple) else intervals
+
+    def change_parameter(self, param_name, target_value_or_values, transition_length_or_lengths=0,
+                         transition_curve_shape_or_shapes=0, clock="from_note"):
+        """
+        Change a custom playback parameter for all notes in this chord to a given target value or values, over a given
+        duration and with a given curve shape.
+
+        :param param_name: name of the parameter to change
+        :param target_value_or_values: either a single value or a list of values to which we want to change the
+            parameter of interest.
+        :param transition_length_or_lengths: the duration (in beats) that we want it to take to reach the target value.
+            The default value of 0 represents an instantaneous change. If multiple target values were given, a list of
+            durations should be given for each segment.
+        :param transition_curve_shape_or_shapes: the curve shape used in transitioning to the new target value.
+            The default value of 0 represents an linear change, a value greater than zero represents late change,
+            and a value less than 0 represents early change. If multiple target values were given, a list of curve
+            shapes should be given (unless it is left as the default 0, in which case all segments are linear).
+        :param clock: The clock with which to interpret the transition timings. The default value of "from_note", which
+            you likely don't want to change, carries out the timings on the clock on which the note was started.
+        """
+        for note_handle in self.note_handles:
+            note_handle.change_parameter(param_name, target_value_or_values, transition_length_or_lengths,
+                                         transition_curve_shape_or_shapes, clock)
+
+    def change_pitch(self, target_value_or_values, transition_length_or_lengths=0, transition_curve_shape_or_shapes=0,
+                     clock="from_note"):
+        """
+        Change the pitches of this chord such that the first note of the chord goes to the given target value or values,
+        over a given duration and with a given curve shape.
+
+        :param target_value_or_values: either a single target pitch or a list of target pitches. Note that this is the
+            pitch that the first note of the chord gets changed to; all of the other notes in the chord follow suit,
+            maintaining the same interval as before with the first note of the chord.
+        :param transition_length_or_lengths: the duration (in beats) that we want it to take to reach the target pitch.
+            The default value of 0 represents an instantaneous change. If multiple target values were given, a list of
+            durations should be given for each segment.
+        :param transition_curve_shape_or_shapes: the curve shape used in transitioning to the new target pitch.
+            The default value of 0 represents an linear change, a value greater than zero represents late change,
+            and a value less than 0 represents early change. If multiple target values were given, a list of curve
+            shapes should be given (unless it is left as the default 0, in which case all segments are linear).
+        :param clock: The clock with which to interpret the transition timings. The default value of "from_note", which
+            you likely don't want to change, carries out the timings on the clock on which the note was started.
+        """
+        for note_handle, interval in zip(self.note_handles, self._intervals):
+            this_note_pitch_targets = [target_value + interval for target_value in target_value_or_values] \
+                if hasattr(target_value_or_values, "__len__") else target_value_or_values + interval
+            note_handle.change_pitch(this_note_pitch_targets, transition_length_or_lengths,
+                                     transition_curve_shape_or_shapes, clock)
+
+    def change_volume(self, target_value_or_values, transition_length_or_lengths=0, transition_curve_shape_or_shapes=0,
+                      clock="from_note"):
+        """
+        Change the volume for all notes in this chord to a given target value or values, over a given duration and with
+        a given curve shape.
+
+        :param target_value_or_values: either a single target volume or a list of target volumes.
+        :param transition_length_or_lengths: the duration (in beats) that we want it to take to reach the target volume.
+            The default value of 0 represents an instantaneous change. If multiple target values were given, a list of
+            durations should be given for each segment.
+        :param transition_curve_shape_or_shapes: the curve shape used in transitioning to the new target volume.
+            The default value of 0 represents an linear change, a value greater than zero represents late change,
+            and a value less than 0 represents early change. If multiple target values were given, a list of curve
+            shapes should be given (unless it is left as the default 0, in which case all segments are linear).
+        :param clock: The clock with which to interpret the transition timings. The default value of "from_note", which
+            you likely don't want to change, carries out the timings on the clock on which the note was started.
+        """
+        for note_handle in self.note_handles:
+            note_handle.change_volume(target_value_or_values, transition_length_or_lengths,
+                                      transition_curve_shape_or_shapes, clock)
+
+    def split(self):
+        """
+        Adds a split point to this chord, causing it later to be rendered as tied pieces.
+        """
+        for note_handle in self.note_handles:
+            note_handle.split()
+
+    def end(self):
+        """
+        Ends all notes in this chord.
+        """
+        for note_handle in self.note_handles:
+            note_handle.end()
+
+
+class _ParameterChangeSegment(EnvelopeSegment):
+
+    """
+    Convenient class for handling interruptable transitions of parameter values and storing info on them
+    (This is an implementation detail.)
+
+    :param parameter_change_function: since this is for general parameters, we pass the function to be called
+    to set the parameter. Generally will call _do_change_note_parameter/pitch/volume for a given note_id
+    :param start_value: start value of the parameter in the transition
+    :param target_value: target value of the parameter in the transition
+    :param transition_length: length of the transition in beats on the clock given
+    :param transition_curve_shape: curve shape of the transition
+    :param clock: the clock that all of this happens in reference to
+    :param call_priority: this is used to determine which call to change_parameter happened first, since once these
+    things get spawned in threads, the order gets indeterminate.
+    :param temporal_resolution: time resolution of the unsynchronized process. One of the following:
+     - just a number (in seconds)
+     - the string "pitch-based", in which case we derive it based on trying to get a smooth pitch change
+     - the string "volume-based", in which case we derive it based on trying to get a smooth volume change.
+    """
+
+    def __init__(self, parameter_change_function, start_value, target_value, transition_length, transition_curve_shape,
+                 clock, call_priority, temporal_resolution=0.01):
+        # set this up as an envelope
+        super().__init__(0, transition_length, start_value, target_value, transition_curve_shape)
+        # "do_change_parameter" feels more like an action name
+        self.do_change_parameter = parameter_change_function
+
+        self.clock = clock  # the parent clock that this process runs on
+        self._run_clock = None  # the sub-clock created by forking this process
+        self.running = False  # flag used for aborting the unsynchronized process
+
+        # some of the key data that this envelope holds onto are the time stamps at which it starts and finishes
+        # this can be used to construct the appropriate envelope segment on whichever clock we're recording on
+        self.start_time_stamp = None
+        self.end_time_stamp = None
+        self.call_priority = call_priority
+
+        self.temporal_resolution = temporal_resolution
+
+    def run(self, silent=False):
+        """
+        Runs the segment from start to finish, gradually changing the parameter.
+        This function runs as a synchronized clock process (it should be forked), and it starts a parallel,
+        unsynchronized process ("_animation_function") to do the actual calls to change parameter
+        :param silent: this flag causes none of the animation to actually happen. This is used when we're trying to
+        notate a note but not play it back, as in the case of a note that has been adjusted (where we playback -- but
+        don't notate -- the adjusted version, while we run -- but don't play back -- the unadjusted version.)
+        """
+        self.start_time_stamp = TimeStamp(self.clock)
+
+        # if this segment has no duration, no need to do any animation
+        # just set it to the final value and return
+        if self.duration == 0:
+            self.end_time_stamp = TimeStamp(self.clock)
+            self.do_change_parameter(self.end_level)
+            return
+
+        self.start_time_stamp = TimeStamp(self.clock)
+        self.running = True  # used to kill the unsynchronized process when we abort or this synchronized one ends
+
+        # we note down the clock we're running this on. If abort is called, this clock gets killed
+        self._run_clock = current_clock()
+
+        # if there's no change, or if we're skipping animation, just wait and finish
+        if self.end_level == self.start_level or silent:
+            wait(self.duration)
+            self.end_time_stamp = TimeStamp(self.clock)
+            self.do_change_parameter(self.end_level)
+            self.running = False
+            return
+
+        # determine the time increment, perhaps by calculating a good one for the given parameter
+        if self.temporal_resolution == "pitch-based":
+            time_increment = self._get_good_pitch_bend_temporal_resolution()
+        elif self.temporal_resolution == "volume-based":
+            time_increment = self._get_good_volume_temporal_resolution()
+        else:
+            time_increment = self.temporal_resolution
+        # don't animate faster than 4ms though
+        time_increment = max(0.004, time_increment)
+
+        def _animation_function():
+            # does the intermediate changing of values; since it's sleeping in small time increments, we fork it
+            # as unsynchronized parallel process so that it doesn't gum up the clocks with the overhead of
+            # waking and sleeping rapidly
+            beats_passed = 0
+
+            while beats_passed < self.duration and self.running:
+                start = time.time()
+                if beats_passed > 0:  # no need to change the parameter the first time, before we had a chance to wait
+                    self.do_change_parameter(self.value_at(beats_passed))
+                time.sleep(time_increment)
+                # TODO: Absolute_rate would be great, except that it doesn't update between synchronized clock events
+                # Is there a way of improving this??
+                beats_passed += (time.time() - start) * self.clock.absolute_rate()
+
+        # start the unsynchronized animation function
+        self.clock.fork_unsynchronized(_animation_function)
+        # waits in a synchronized fashion so that it can save an accurate time stamp at the end
+        wait(self.duration)
+
+        # we only get here if it wasn't aborted while running, since that will call kill on the child clock
+        self.running = False
+        self.end_time_stamp = TimeStamp(self.clock)
+        self.do_change_parameter(self.end_level)
+
+    def abort_if_running(self):
+        if self.running:
+            # if we were running, we save the time stamp at which we aborted as the end time stamp
+            self.end_time_stamp = TimeStamp(self.clock)
+            self._run_clock.kill()  # kill the clock doing the "run" function
+            # since the units of this envelope are beats in self.clock, see how far we got in the envelope by
+            # subtracting converting the start and end time stamps to those beats and subtracting
+            how_far_we_got = self.end_time_stamp.beat_in_clock(self.clock) - \
+                             self.start_time_stamp.beat_in_clock(self.clock)
+
+            # now split there, discarding the rest of the envelope. This makes self.end_level the value we ended up at.
+            if self.start_time < how_far_we_got < self.end_time:
+                self.split_at(how_far_we_got)
+            elif self.start_time == how_far_we_got:
+                # this was aborted before it even got going. Later, the transcriber will ignore this nothing segment
+                self.end_time = self.start_time
+                self.end_level = self.start_level
+                self.running = False
+                return
+
+            self.do_change_parameter(self.end_level)  # set it to where we should be at this point
+        self.running = False  # this will make sure to abort the animation function
+
+    def completed(self):
+        # it's not running, but because it finished, not because it never started
+        return not self.running and self.end_time_stamp is not None
+
+    def _get_good_pitch_bend_temporal_resolution(self):
+        """
+        Returns a reasonable temporal resolution, based on this clock's envelope and rate, assuming it's a pitch curve
+        """
+        max_cents_per_second = self.max_absolute_slope() * 100 * self.clock.absolute_rate()
+        # cents / update * updates / sec = cents / sec   =>  updates_freq = cents_per_second / cents_per_update
+        # we'll aim for 4 cents per update, since some say the JND is 5-6 cents
+        update_freq = max_cents_per_second / 4.0
+        return 1 / update_freq
+
+    def _get_good_volume_temporal_resolution(self):
+        """
+        Returns a reasonable temporal resolution, based on this clock's envelope and rate, assuming it's a volume curve
+        """
+        max_volume_per_second = self.max_absolute_slope() * self.clock.absolute_rate()
+        # based on the idea that for midi volumes, it's quantized from 0 to 127, so there's not much point in updating
+        # in between those quantization levels. It's a decent enough rule even if not using midi output.
+        update_freq = max_volume_per_second * 127
+        return 1 / update_freq
+
+    def __repr__(self):
+        return "_ParameterChangeSegment[{}, {}, {}, {}, {}]".format(
+            self.start_time_stamp, self.end_time_stamp, self.start_level, self.end_level, self.curve_shape
+        )

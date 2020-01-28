@@ -1,7 +1,6 @@
-from .ensemble import Ensemble
 from .transcriber import Transcriber
 from .midi_listener import *
-from .instruments import ScampInstrument
+from .instruments import Ensemble, ScampInstrument
 from clockblocks import Clock, current_clock
 from .utilities import SavesToJSON
 from ._dependencies import pynput, pythonosc

@@ -3,6 +3,7 @@ import inspect
 from ._dependencies import rtmidi
 import threading
 from .utilities import get_average_square_correlation
+import functools
 
 
 def get_available_ports_and_devices():
@@ -42,15 +43,26 @@ def get_port_number_of_device(device_name):
     return best_match
 
 
-def start_midi_listener(port_number: int, callback_function, clock: Clock):
+def start_midi_listener(port_number_or_device_name, callback_function, clock):
     """
-    Start a midi listener on a given port
+    Start a midi listener on a given port (or for the given device)
 
-    :param port_number: the port number to listen on.
+    :param port_number_or_device_name: either the port number to be used, or an device name for which the port
+            number will be determined. (Fuzzy string matching is used to pick the device with closest name.)
+    :type port_number_or_device_name: int or str
     :param callback_function: the callback function used when a new midi event arrives. Should take either one
         argument (the midi message) or two arguments (the midi message, and the dt since the last message)
     :param clock: the clock to rouse when this callback operates
+    :type clock: Clock
     """
+
+    port_number = get_port_number_of_device(port_number_or_device_name) \
+        if isinstance(port_number_or_device_name, str) else port_number_or_device_name
+
+    if port_number is None:
+        raise ValueError("Could not find matching MIDI device.")
+    elif port_number not in (x[0] for x in get_available_ports_and_devices()):
+        raise ValueError("Invalid port number for midi listener.")
 
     callback_function_signature = inspect.signature(callback_function)
     if not 1 <= len(callback_function_signature.parameters) <= 2:
@@ -61,6 +73,7 @@ def start_midi_listener(port_number: int, callback_function, clock: Clock):
     from rtmidi.midiutil import open_midiinput
     midi_in, _ = open_midiinput(port_number)
 
+    @functools.wraps(callback_function)
     def callback_wrapper(message, data=None):
         clock.rouse_and_hold()
         threading.current_thread().__clock__ = clock

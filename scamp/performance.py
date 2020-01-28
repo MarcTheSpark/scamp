@@ -2,7 +2,7 @@ import bisect
 from .quantization import quantize_performance_part, QuantizationRecord, QuantizationScheme
 from .settings import quantization_settings
 from clockblocks import Clock, TempoEnvelope, current_clock
-from .ensemble import Ensemble
+from .instruments import Ensemble
 from .performance_note import *
 from .score import Score, StaffGroup
 from .utilities import SavesToJSON
