@@ -272,7 +272,7 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
                     # this note is done ringing, so remove it from the ringing notes list
                     self.ringing_notes.remove(ringing_note_info)
 
-                    with self.host_instrument.note_info_lock:
+                    with self.host_instrument._note_info_lock:
                         # if there's another active note on this channel, don't reset the pitch and expression
                         for other_note_id, other_note_info in self.note_info_dict.items():
                             if self in other_note_info and other_note_info[self]["channel"] == ringing_note_info[0]:
