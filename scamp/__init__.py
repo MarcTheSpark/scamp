@@ -4,7 +4,7 @@ SCAMP: A Suite for Computer-Assisted Music in Python
 
 __author__ = 'mpevans'
 
-from clockblocks import Clock, TempoEnvelope, wait, fork_unsynchronized, fork, current_clock
+from clockblocks import Clock, TempoEnvelope, MetricPhaseTarget, wait, fork_unsynchronized, fork, current_clock
 from expenvelope import Envelope, EnvelopeSegment
 from .session import Session
 from .instruments import Ensemble, ScampInstrument, NoteHandle, ChordHandle
