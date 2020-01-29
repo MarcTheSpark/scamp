@@ -446,13 +446,17 @@ class ScampInstrument(SavesToJSON):
             max_volume=volume.max_level() if isinstance(volume, Envelope) else volume
         )
 
-        if hasattr(length, "__len__"):
-            for length_segment in length:
-                clock.wait(length_segment)
-                note_handle.split()
-        else:
-            clock.wait(length)
-        note_handle.end()
+        try:
+            if hasattr(length, "__len__"):
+                for length_segment in length:
+                    clock.wait(length_segment)
+                    note_handle.split()
+            else:
+                clock.wait(length)
+            note_handle.end()
+        except ClockKilledException as e:
+            note_handle.end()
+            raise e
 
     def start_note(self, pitch, volume, properties=None, clock="auto", max_volume=1, flags=None):
         """
