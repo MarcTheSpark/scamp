@@ -166,6 +166,7 @@ class Transcriber:
         :param which_performance: which performance to stop transcribing; defaults to oldest started
         :param tempo_envelope_tolerance: error tolerance when extracting the absolute tempo envelope for the Performance
         :return: the created Performance
+        :rtype: Performance
         """
         transcription = None
         if which_performance is None:

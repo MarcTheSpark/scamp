@@ -1,5 +1,5 @@
+from ._midi import SimpleRtMidiOut
 from .soundfont_host import *
-from .simple_rtmidi_wrapper import *
 from clockblocks import fork_unsynchronized
 import time
 from abc import ABC, abstractmethod

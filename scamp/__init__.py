@@ -13,10 +13,10 @@ from .transcriber import Transcriber
 from .performance import Performance, PerformancePart
 from .score import *
 from .quantization import *
-from .simple_rtmidi_wrapper import get_available_midi_output_devices
 from .settings import *
 from .soundfont_host import get_soundfont_presets, print_soundfont_presets, get_soundfont_presets_with_substring
-from .midi_listener import get_available_ports_and_devices, get_port_number_of_device
+from ._midi import get_available_midi_input_devices, get_available_midi_output_devices, \
+    print_available_midi_input_devices, print_available_midi_output_devices, get_port_number_of_midi_device
 from .playback_adjustments import NotePlaybackAdjustment, ParamPlaybackAdjustment, PlaybackAdjustmentsDictionary
 
 assert isinstance(playback_settings, PlaybackSettings)

@@ -6,6 +6,7 @@ which are found in playback_implementations.py:
 
 import itertools
 from .soundfont_host import get_best_preset_match_for_name, print_soundfont_presets
+from ._midi import get_available_midi_output_devices, print_available_midi_output_devices
 from .utilities import SavesToJSON
 from .spelling import SpellingPolicy
 from ._note_properties import NotePropertiesDictionary
@@ -130,7 +131,7 @@ class Ensemble(SavesToJSON):
 
         :param name: name used for this instrument in score, etc. for a preset of the appropriate name.
         :param midi_output_device: name or number of the device used to output midi. Call
-            get_available_ports_and_devices to check what's available.
+            get_available_midi_output_devices to check what's available.
         :param num_channels: maximum of midi channels available to this midi part. It's wise to use more when doing
             microtonal playback, since pitch bends are applied per channel.
         :param midi_output_name: name of this part
@@ -191,6 +192,20 @@ class Ensemble(SavesToJSON):
         Prints a list of presets available with the default soundfont.
         """
         print_soundfont_presets(self.default_soundfont)
+
+    @staticmethod
+    def get_available_midi_output_devices():
+        """
+        Returns a list of available ports and devices for midi output.
+        """
+        return get_available_midi_output_devices()
+
+    @staticmethod
+    def print_available_midi_output_devices():
+        """
+        Prints a list of available midi ports and devices for reference.
+        """
+        print_available_midi_output_devices()
 
     @property
     def default_spelling_policy(self):

@@ -1,5 +1,5 @@
 from .transcriber import Transcriber
-from .midi_listener import *
+from ._midi import *
 from .instruments import Ensemble, ScampInstrument
 from clockblocks import Clock, current_clock
 from .utilities import SavesToJSON
@@ -57,18 +57,12 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
     # ----------------------------------- Listeners ----------------------------------
 
     @staticmethod
-    def get_available_midi_ports_and_devices():
-        """
-        Returns a list of available midi ports and devices.
-        """
-        return get_available_ports_and_devices()
+    def get_available_midi_input_devices():
+        return get_available_midi_input_devices()
 
     @staticmethod
-    def print_available_midi_ports_and_devices():
-        """
-        Prints a list of available midi ports and devices for reference.
-        """
-        print_available_ports_and_devices()
+    def print_available_midi_input_devices():
+        return print_available_midi_input_devices()
 
     def register_midi_listener(self, port_number_or_device_name, callback_function):
         """
@@ -79,12 +73,12 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         :param callback_function: the callback function used when a new midi event arrives. Should take either one
             argument (the midi message) or two arguments (the midi message, and the dt since the last message)
         """
-        port_number = get_port_number_of_device(port_number_or_device_name) \
+        port_number = get_port_number_of_midi_device(port_number_or_device_name, "input") \
             if isinstance(port_number_or_device_name, str) else port_number_or_device_name
 
         if port_number is None:
             raise ValueError("Could not find matching MIDI device.")
-        elif port_number not in (x[0] for x in get_available_ports_and_devices()):
+        elif port_number not in (x[0] for x in get_available_midi_input_devices()):
             raise ValueError("Invalid port number for midi listener.")
 
         if port_number in self._listeners["midi"]:
@@ -98,7 +92,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         :param port_number_or_device_name: either the port number to be used, or an device name for which the port
             number will be determined. (Fuzzy string matching is used to pick the device with closest name.)
         """
-        port_number = get_port_number_of_device(port_number_or_device_name) \
+        port_number = get_port_number_of_midi_device(port_number_or_device_name, "input") \
             if isinstance(port_number_or_device_name, str) else port_number_or_device_name
         if port_number not in self._listeners["midi"]:
             raise ValueError("No midi listener to remove on port", port_number)
