@@ -1,7 +1,5 @@
 from .utilities import SavesToJSON
 from ._engraving_translations import *
-from expenvelope import Envelope
-import json
 
 
 def _split_string_at_outer_spaces(s):

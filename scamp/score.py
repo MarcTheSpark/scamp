@@ -1,7 +1,7 @@
 from .settings import quantization_settings, engraving_settings
 from expenvelope import Envelope
 from .quantization import QuantizationRecord, QuantizationScheme, TimeSignature
-from .performance_note import PerformanceNote
+from . import performance as performance_module  # to distinguish it from variables named performance
 from .utilities import prime_factor, floor_x_to_pow_of_y, is_x_pow_of_y, ceil_to_multiple, floor_to_multiple
 from ._engraving_translations import get_xml_notehead, get_lilypond_notehead_name, articulation_to_xml_element_name, \
     notations_to_xml_notations_element
@@ -1227,12 +1227,12 @@ class Voice(ScoreComponent, ScoreContainer):
         t = 0
         for note in notes:
             if t + 1e-10 < note.start_time:
-                notes_and_rests.append(PerformanceNote(t, note.start_time - t, None, None, {}))
+                notes_and_rests.append(performance_module.PerformanceNote(t, note.start_time - t, None, None, {}))
             notes_and_rests.append(note)
             t = note.end_time
 
         if t < total_length:
-            notes_and_rests.append(PerformanceNote(t, total_length - t, None, None, {}))
+            notes_and_rests.append(performance_module.PerformanceNote(t, total_length - t, None, None, {}))
         return notes_and_rests
 
     @staticmethod
