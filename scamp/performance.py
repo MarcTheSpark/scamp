@@ -26,23 +26,23 @@ class PerformanceNote(SavesToJSON):
     """
     Represents a single note played by a ScampInstrument.
 
-    :ivar start_time: the start beat of the note
-    :type start_time: float
+    :ivar start_beat: the start beat of the note
+    :type start_beat: float
     :ivar length: the length of the note in beats (either a float or a tuple of floats representing tied segments)
     :ivar pitch: the pitch of the note (float or Envelope)
     :ivar volume: the volume of the note (float or Envelope)
     :ivar properties: dictionary of note properties, or string representing those properties
     """
 
-    def __init__(self, start_time, length, pitch, volume, properties):
+    def __init__(self, start_beat, length, pitch, volume, properties):
         """
-        :param start_time: the start beat of the note
+        :param start_beat: the start beat of the note
         :param length: the length of the note in beats (either a float or a tuple of floats representing tied segments)
         :param pitch: the pitch of the note (float or Envelope)
         :param volume: the volume of the note (float or Envelope)
         :param properties: dictionary of note properties, or string representing those properties
         """
-        self.start_time = start_time
+        self.start_beat = start_beat
         # if length is a tuple, this indicates that the note is to be split into tied segments
         self.length = length
         # if pitch is a tuple, this indicates a chord
@@ -61,15 +61,15 @@ class PerformanceNote(SavesToJSON):
         return sum(self.length) if hasattr(self.length, "__len__") else self.length
 
     @property
-    def end_time(self):
+    def end_beat(self):
         """
         End beat of this note
         """
-        return self.start_time + self.length_sum()
+        return self.start_beat + self.length_sum()
 
-    @end_time.setter
-    def end_time(self, new_end_time):
-        new_length = new_end_time - self.start_time
+    @end_beat.setter
+    def end_beat(self, new_end_beat):
+        new_length = new_end_beat - self.start_beat
         if hasattr(self.length, "__len__"):
             ratio = new_length / self.length_sum()
             self.length = tuple(segment_length * ratio for segment_length in self.length)
@@ -169,14 +169,14 @@ class PerformanceNote(SavesToJSON):
         :return: tuple of (first half note, second half note) if split beat is within the note.
         Otherwise just return the unchanged note in a length-1 tuple.
         """
-        if not self.start_time + 1e-10 < split_beat < self.end_time - 1e-10:
+        if not self.start_beat + 1e-10 < split_beat < self.end_beat - 1e-10:
             # if we're asked to split at a beat that is outside the note, it has no effect
             # since the expectation is a tuple as return value, return the note unaltered in a length-1 tuple
             return self,
         else:
             second_part = deepcopy(self)
-            second_part.start_time = split_beat
-            self.length, second_part.length = PerformanceNote._split_length(self.length, split_beat - self.start_time)
+            second_part.start_beat = split_beat
+            self.length, second_part.length = PerformanceNote._split_length(self.length, split_beat - self.start_beat)
 
             if self.pitch is not None:
                 if isinstance(self.pitch, Envelope):
@@ -242,7 +242,7 @@ class PerformanceNote(SavesToJSON):
         pieces = [self]
         for piece_length in self.length:
             last_piece = pieces.pop()
-            pieces.extend(last_piece.split_at_beat(last_piece.start_time + piece_length))
+            pieces.extend(last_piece.split_at_beat(last_piece.start_beat + piece_length))
         return pieces
 
     def attempt_chord_merger_with(self, other):
@@ -254,7 +254,7 @@ class PerformanceNote(SavesToJSON):
         """
         assert isinstance(other, PerformanceNote)
         # to merge, the start time, length, and volume must match and the properties need to be compatible
-        if self.start_time != other.start_time or self.length != other.length \
+        if self.start_beat != other.start_beat or self.length != other.length \
                 or self.volume != other.volume or not self.properties.mergeable_with(other.properties):
             return False
 
@@ -291,15 +291,15 @@ class PerformanceNote(SavesToJSON):
     def __lt__(self, other):
         # this allows it to be compared with numbers. I use that below to bisect a list of notes
         if isinstance(other, PerformanceNote):
-            return self.start_time < other.start_time
+            return self.start_beat < other.start_beat
         else:
-            return self.start_time < other
+            return self.start_beat < other
 
     def __eq__(self, other):
         if isinstance(other, PerformanceNote):
-            return self.start_time == other.start_time
+            return self.start_beat == other.start_beat
         else:
-            return self.start_time == other
+            return self.start_beat == other
 
     def _to_json(self):
         if isinstance(self.pitch, (tuple, list)):
@@ -311,7 +311,7 @@ class PerformanceNote(SavesToJSON):
             json_pitch = self.pitch
 
         return {
-            "start_time": self.start_time,
+            "start_beat": self.start_beat,
             "length": self.length,
             "pitch": json_pitch,
             "volume": self.volume._to_json() if isinstance(self.volume, Envelope) else self.volume,
@@ -339,8 +339,8 @@ class PerformanceNote(SavesToJSON):
         return PerformanceNote(**json_object)
 
     def __repr__(self):
-        return "PerformanceNote(start_time={}, length={}, pitch={}, volume={}, properties={})".format(
-            self.start_time, self.length, self.pitch, self.volume, self.properties
+        return "PerformanceNote(start_beat={}, length={}, pitch={}, volume={}, properties={})".format(
+            self.start_beat, self.length, self.pitch, self.volume, self.properties
         )
 
 
@@ -433,26 +433,26 @@ class PerformancePart(SavesToJSON):
             self.voices[voice_name] = []
         voice = self.voices[voice_name]
 
-        last_note_start_time = voice[-1].start_time if len(voice) > 0 else 0
+        last_note_start_beat = voice[-1].start_beat if len(voice) > 0 else 0
         voice.append(note)
-        if note.start_time < last_note_start_time:
+        if note.start_beat < last_note_start_beat:
             # always keep self.notes sorted; if we're appending something that shouldn't be at the
             # very end, we'll need to sort the list after appending. This probably doesn't come up much.
-            voice.sort()  # they are defined to sort by start_time
+            voice.sort()  # they are defined to sort by start_beat
 
-    def new_note(self, start_time, length, pitch, volume, properties):
+    def new_note(self, start_beat, length, pitch, volume, properties):
         """
         Construct and add a new PerformanceNote to this Performance
 
-        :param start_time: the start time of the note (in beats)
-        :type start_time: float
+        :param start_beat: the start beat of the note
+        :type start_beat: float
         :param length: length of the note in beats (either a float or a list of floats representing tied segments)
         :param pitch: pitch of the note (float or Envelope)
         :param volume: volume of the note (float or Envelope)
         :param properties: dictionary of note properties, or string representing those properties
         :return: the note just added
         """
-        return self.add_note(PerformanceNote(start_time, length, pitch, volume, properties))
+        return self.add_note(PerformanceNote(start_beat, length, pitch, volume, properties))
 
     def set_instrument(self, instrument):
         """
@@ -465,21 +465,21 @@ class PerformancePart(SavesToJSON):
         self._instrument_id = instrument.name, instrument.name_count
 
     @property
-    def end_time(self):
+    def end_beat(self):
         """
-        End beat of the note (based on start_time and length)
+        End beat of the note (based on start_beat and length)
         """
         if len(self.voices) == 0:
             return 0
-        return max(max(n.start_time + n.length_sum() for n in voice) if len(voice) > 0 else 0
+        return max(max(n.start_beat + n.length_sum() for n in voice) if len(voice) > 0 else 0
                    for voice in self.voices.values())
 
-    def get_note_iterator(self, start_time=0, stop_time=None, selected_voices=None):
+    def get_note_iterator(self, start_beat=0, stop_beat=None, selected_voices=None):
         """
-        Returns an iterator returning all the notes from start_time to stop_time in the selected voices
+        Returns an iterator returning all the notes from start_beat to stop_beat in the selected voices
 
-        :param start_time: beat to start on
-        :param stop_time: beat to stop on (None keeps going until the end of the part)
+        :param start_beat: beat to start on
+        :param stop_beat: beat to stop on (None keeps going until the end of the part)
         :param selected_voices: which voices to take notes from (defaults to all if None)
         :return: an iterator
         """
@@ -489,22 +489,22 @@ class PerformancePart(SavesToJSON):
         all_notes.sort()
 
         def iterator():
-            note_index = bisect.bisect_left(all_notes, start_time)
-            while note_index < len(all_notes) and (stop_time is None or all_notes[note_index].start_time < stop_time):
+            note_index = bisect.bisect_left(all_notes, start_beat)
+            while note_index < len(all_notes) and (stop_beat is None or all_notes[note_index].start_beat < stop_beat):
                 yield all_notes[note_index]
                 note_index += 1
 
         return iterator()
 
-    def play(self, start_time=0, stop_time=None, instrument=None, clock=None, blocking=True,
+    def play(self, start_beat=0, stop_beat=None, instrument=None, clock=None, blocking=True,
              tempo_envelope=None, selected_voices=None):
         """
         Play this PerformancePart (or a selection of it)
 
-        :param start_time: Place to start playing from
-        :type start_time: float
-        :param stop_time: Place to stop playing at
-        :type stop_time: float
+        :param start_beat: Place to start playing from
+        :type start_beat: float
+        :param stop_beat: Place to stop playing at
+        :type stop_beat: float
         :param instrument: instrument to play back with
         :type instrument: ScampInstrument
         :param clock: clock to use for playback
@@ -521,19 +521,19 @@ class PerformancePart(SavesToJSON):
         clock = Clock(instrument.name + " clock", pool_size=20) if clock is None else clock
         if not isinstance(clock, Clock):
             raise ValueError("PerformancePart was given an invalid clock.")
-        stop_time = self.end_time if stop_time is None else stop_time
-        if not stop_time >= start_time:
-            raise ValueError("Stop time must be after start time.")
+        stop_beat = self.end_beat if stop_beat is None else stop_beat
+        if not stop_beat >= start_beat:
+            raise ValueError("Stop beat must be after start beat.")
 
         def _play_thread(child_clock):
-            note_iterator = self.get_note_iterator(start_time, stop_time, selected_voices)
-            self.get_note_iterator(start_time, stop_time)
+            note_iterator = self.get_note_iterator(start_beat, stop_beat, selected_voices)
+            self.get_note_iterator(start_beat, stop_beat)
             try:
                 current_note = next(note_iterator)
             except StopIteration:
                 return
 
-            child_clock.wait(current_note.start_time - start_time)
+            child_clock.wait(current_note.start_beat - start_beat)
 
             while True:
                 assert isinstance(current_note, PerformanceNote)
@@ -541,7 +541,7 @@ class PerformancePart(SavesToJSON):
 
                 try:
                     next_note = next(note_iterator)
-                    child_clock.wait(next_note.start_time - current_note.start_time)
+                    child_clock.wait(next_note.start_beat - current_note.start_beat)
 
                     current_note = next_note
                 except StopIteration:
@@ -782,30 +782,30 @@ class Performance(SavesToJSON):
         return [x for x in self.parts if x.instrument == instrument]
 
     @property
-    def end_time(self):
+    def end_beat(self):
         """
         The end beat of this performance (i.e. the beat corresponding to the end of the last note)
 
         :return: float representing the beat at which all notes are done playing
         """
-        return max(p.end_time for p in self.parts)
+        return max(p.end_beat for p in self.parts)
 
     def length(self):
         """
-        Total length of this performance. (Identical to Performance.end_time)
+        Total length of this performance. (Identical to Performance.end_beat)
 
         :return: float representing the total length of the Performance
         """
-        return self.end_time
+        return self.end_beat
 
-    def play(self, start_time=0, stop_time=None, ensemble="auto", clock="auto", blocking=True, tempo_envelope="auto"):
+    def play(self, start_beat=0, stop_beat=None, ensemble="auto", clock="auto", blocking=True, tempo_envelope="auto"):
         """
         Play back this performance (or a selection of it)
 
-        :param start_time: Place to start playing from
-        :type start_time: float
-        :param stop_time: Place to stop playing at
-        :type stop_time: float
+        :param start_beat: Place to start playing from
+        :type start_beat: float
+        :param stop_beat: Place to stop playing at
+        :type stop_beat: float
         :param ensemble: The Ensemble whose instruments to use for playback. If "auto", checks to see if we are
             operating in a particular Session, and uses those instruments if so.
         :type ensemble: Ensemble
@@ -838,11 +838,11 @@ class Performance(SavesToJSON):
         if tempo_envelope == "auto":
             tempo_envelope = self.tempo_envelope
 
-        if stop_time is None:
-            stop_time = max(p.end_time for p in self.parts)
+        if stop_beat is None:
+            stop_beat = max(p.end_beat for p in self.parts)
 
         for p in self.parts:
-            p.play(start_time, stop_time, clock=clock, blocking=False, tempo_envelope=tempo_envelope)
+            p.play(start_beat, stop_beat, clock=clock, blocking=False, tempo_envelope=tempo_envelope)
 
         if blocking:
             clock.wait_for_children_to_finish()

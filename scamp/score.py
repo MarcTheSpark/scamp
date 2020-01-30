@@ -707,15 +707,15 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         # save each to measures_with_quantizations, in a tuple along with the corresponding quantization
         measures_with_quantizations = []
         for measure_quantization in measure_quantizations:
-            measure_end_time = measure_quantization.start_time + measure_quantization.measure_length
+            measure_end_beat = measure_quantization.start_beat + measure_quantization.measure_length
             this_measure_notes = []
             remaining_notes = []
             for note in notes:
                 # check if the note starts in the measure
-                if measure_quantization.start_time <= note.start_time < measure_end_time:
+                if measure_quantization.start_beat <= note.start_beat < measure_end_beat:
                     # check if it straddles the following barline
-                    if note.end_time > measure_end_time:
-                        first_half, second_half = note.split_at_beat(measure_end_time)
+                    if note.end_beat > measure_end_beat:
+                        first_half, second_half = note.split_at_beat(measure_end_beat)
                         this_measure_notes.append(first_half)
                         remaining_notes.append(second_half)
                     else:
@@ -772,11 +772,11 @@ class StaffGroup(ScoreComponent, ScoreContainer):
 
             for performance_note in note_list:
                 # update so that current_measure is the measure that performance_note starts in
-                while performance_note.start_time >= current_measure.start_time + current_measure.measure_length:
+                while performance_note.start_beat >= current_measure.start_beat + current_measure.measure_length:
                     # we're past the old measure, so increment to next measure
                     current_measure_num, current_measure = next(measure_quantization_iterator)
                     # if this measure break coincides with a rest, then we start a new fragment
-                    if len(current_fragment) > 0 and current_fragment[-1].end_time < performance_note.start_time:
+                    if len(current_fragment) > 0 and current_fragment[-1].end_beat < performance_note.start_beat:
                         fragments.append(StaffGroup._construct_voice_fragment(
                             voice_name, current_fragment, fragment_start_measure, fragment_measure_quantizations
                         ))
@@ -797,7 +797,7 @@ class StaffGroup(ScoreComponent, ScoreContainer):
 
                 # now we move forward to the end of the note, and update the measure we're on
                 # (Note the > rather than a >= sign. For the end of the note, it has to actually cross the barline.)
-                while performance_note.end_time > current_measure.start_time + current_measure.measure_length:
+                while performance_note.end_beat > current_measure.start_beat + current_measure.measure_length:
                     current_measure_num, current_measure = next(measure_quantization_iterator)
                     # when we cross into a new measure, add it to the measure quantizations
                     fragment_measure_quantizations.append(current_measure)
@@ -1194,15 +1194,15 @@ class Voice(ScoreComponent, ScoreContainer):
         # split any notes that have a tuple length into segments of those lengths
         notes = [segment for note in notes for segment in note.split_at_length_divisions()]
 
-        # change each PerformanceNote to have a start_time relative to the start of the measure
+        # change each PerformanceNote to have a start_beat relative to the start of the measure
         for note in notes:
-            note.start_time -= measure_quantization.start_time
+            note.start_beat -= measure_quantization.start_beat
 
         notes = Voice._fill_in_rests(notes, length)
         # break notes that cross beat boundaries into two tied notes
         # later, some of these can be recombined, but we need to convert them to NoteLikes first
 
-        notes = Voice._split_notes_at_beats(notes, [beat.start_time_in_measure for beat in measure_quantization.beats])
+        notes = Voice._split_notes_at_beats(notes, [beat.start_beat_in_measure for beat in measure_quantization.beats])
 
         # construct the processed contents of this voice (made up of NoteLikes Tuplets)
         processed_beats = []
@@ -1210,7 +1210,7 @@ class Voice(ScoreComponent, ScoreContainer):
             notes_from_this_beat = []
 
             while len(notes) > 0 and \
-                    notes[0].start_time + 1e-10 < beat_quantization.start_time_in_measure + beat_quantization.length:
+                    notes[0].start_beat + 1e-10 < beat_quantization.start_beat_in_measure + beat_quantization.length:
                 # go through all the notes in this beat
                 notes_from_this_beat.append(notes.pop(0))
 
@@ -1226,10 +1226,10 @@ class Voice(ScoreComponent, ScoreContainer):
         notes_and_rests = []
         t = 0
         for note in notes:
-            if t + 1e-10 < note.start_time:
-                notes_and_rests.append(performance_module.PerformanceNote(t, note.start_time - t, None, None, {}))
+            if t + 1e-10 < note.start_beat:
+                notes_and_rests.append(performance_module.PerformanceNote(t, note.start_beat - t, None, None, {}))
             notes_and_rests.append(note)
-            t = note.end_time
+            t = note.end_beat
 
         if t < total_length:
             notes_and_rests.append(performance_module.PerformanceNote(t, total_length - t, None, None, {}))
@@ -1246,7 +1246,7 @@ class Voice(ScoreComponent, ScoreContainer):
 
     @staticmethod
     def _process_and_convert_beat(beat_notes, beat_quantization):
-        beat_start_time = beat_notes[0].start_time
+        beat_start = beat_notes[0].start_beat
 
         # this covers the case in which a single voice was quantized, some notes overlapped so it had to be split in
         # two, and the two voices were forced to share the same divisor. If this is one of those voices and it ended up
@@ -1296,7 +1296,7 @@ class Voice(ScoreComponent, ScoreContainer):
             hierarchy2_badness = 0
 
         for note in beat_notes:
-            start_division = int(round((note.start_time - beat_start_time) / beat_quantization.length * divisor))
+            start_division = int(round((note.start_beat - beat_start) / beat_quantization.length * divisor))
             length_in_divisions = int(round(note.length_sum() / beat_quantization.length * divisor))
             end_division = start_division + length_in_divisions
 
@@ -1326,7 +1326,7 @@ class Voice(ScoreComponent, ScoreContainer):
             remainder = note
             for segment_length in written_length_components:
 
-                split_note = remainder.split_at_beat(remainder.start_time + segment_length / dilation_factor)
+                split_note = remainder.split_at_beat(remainder.start_beat + segment_length / dilation_factor)
                 if len(split_note) > 1:
                     this_segment, remainder = split_note
                 else:

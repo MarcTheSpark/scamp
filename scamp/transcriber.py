@@ -51,17 +51,17 @@ class Transcriber:
         :param instrument: the ScampInstrument that played the note
         :param note_info: the note info dictionary on that note, containing time stamps, parameter changes, etc.
         """
-        assert note_info["end_time"] is not None, "Cannot register unfinished note!"
+        assert note_info["end_time_stamp"] is not None, "Cannot register unfinished note!"
         param_change_segments = note_info["parameter_change_segments"]
 
-        if note_info["start_time"].time_in_master == note_info["end_time"].time_in_master:
+        if note_info["start_time_stamp"].time_in_master == note_info["end_time_stamp"].time_in_master:
             return
 
         # loop through all the transcriptions in progress
         for performance, clock, clock_start_beat, units in self._transcriptions_in_progress:
             # figure out the start_beat and length relative to this transcription's clock and start beat
-            start_beat_in_clock = Transcriber._resolve_time_stamp(note_info["start_time"], clock, units)
-            end_beat_in_clock = Transcriber._resolve_time_stamp(note_info["end_time"], clock, units)
+            start_beat_in_clock = Transcriber._resolve_time_stamp(note_info["start_time_stamp"], clock, units)
+            end_beat_in_clock = Transcriber._resolve_time_stamp(note_info["end_time_stamp"], clock, units)
 
             note_start_beat = start_beat_in_clock - clock_start_beat
             note_length = end_beat_in_clock - start_beat_in_clock

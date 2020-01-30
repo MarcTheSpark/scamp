@@ -522,8 +522,8 @@ class ScampInstrument(SavesToJSON):
             note_id = next(ScampInstrument._note_id_generator)
             self._note_info_by_id[note_id] = {
                 "clock": clock,
-                "start_time": TimeStamp(clock),
-                "end_time": None,
+                "start_time_stamp": TimeStamp(clock),
+                "end_time_stamp": None,
                 "split_points": [],
                 "parameter_start_values": dict(other_param_start_values, pitch=start_pitch, volume=start_volume),
                 "parameter_values": dict(other_param_start_values, pitch=start_pitch, volume=start_volume),
@@ -813,7 +813,7 @@ class ScampInstrument(SavesToJSON):
                     note_info["parameter_change_segments"][param_name][-1].abort_if_running()
 
             # transcribe the note, if applicable
-            note_info["end_time"] = TimeStamp(clock)
+            note_info["end_time_stamp"] = TimeStamp(clock)
             if "no_transcribe" not in note_info["flags"]:
                 for transcriber in self._transcribers_to_notify:
                     transcriber.register_note(self, note_info)

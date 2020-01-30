@@ -10,9 +10,9 @@ from numbers import Number
 from typing import Sequence
 import textwrap
 
-QuantizedBeat = namedtuple("QuantizedBeat", "start_time start_time_in_measure length divisor")
+QuantizedBeat = namedtuple("QuantizedBeat", "start_beat start_beat_in_measure length divisor")
 
-QuantizedMeasure = namedtuple("QuantizedMeasure", "start_time measure_length beats time_signature beat_depths")
+QuantizedMeasure = namedtuple("QuantizedMeasure", "start_beat measure_length beats time_signature beat_depths")
 
 
 class QuantizationRecord(SavesToJSON):
@@ -128,15 +128,15 @@ def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="def
             note._divide_length_at_gliss_control_points()
 
     # make list of (note onset time, note) tuples
-    raw_onsets = [(performance_note.start_time, performance_note) for performance_note in voice]
+    raw_onsets = [(performance_note.start_beat, performance_note) for performance_note in voice]
     # make list of (note termination time, note) tuples
-    raw_terminations = [(performance_note.start_time + performance_note.length_sum(), performance_note)
+    raw_terminations = [(performance_note.start_beat + performance_note.length_sum(), performance_note)
                         for performance_note in voice]
     # make list of (inner split time, note) tuples
     raw_inner_splits = []
     for performance_note in voice:
         if hasattr(performance_note.length, "__len__"):
-            t = performance_note.start_time
+            t = performance_note.start_beat
             for length_segment in performance_note.length[:-1]:
                 t += length_segment
                 raw_inner_splits.append((t, performance_note))
@@ -151,23 +151,23 @@ def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="def
 
     while len(raw_onsets) + len(raw_inner_splits) + len(raw_terminations) > 0:
         # First, use all the onsets, inner splits, and terminations in this beat to determine the best divisor
-        beat_scheme, beat_start_time = next(beat_scheme_iterator)
+        beat_scheme, beat_start = next(beat_scheme_iterator)
         assert isinstance(beat_scheme, BeatQuantizationScheme)
-        beat_end_time = beat_start_time + beat_scheme.length
+        beat_end = beat_start + beat_scheme.length
 
         # find the onsets in this beat
         onsets_in_this_beat = []
-        while len(raw_onsets) > 0 and raw_onsets[0][0] < beat_end_time:
+        while len(raw_onsets) > 0 and raw_onsets[0][0] < beat_end:
             onsets_in_this_beat.append(raw_onsets.pop(0))
 
         # find the terminations in this beat
         terminations_in_this_beat = []
-        while len(raw_terminations) > 0 and raw_terminations[0][0] < beat_end_time:
+        while len(raw_terminations) > 0 and raw_terminations[0][0] < beat_end:
             terminations_in_this_beat.append(raw_terminations.pop(0))
 
         # find the inner splits in this beat
         inner_splits_in_this_beat = []
-        while len(raw_inner_splits) > 0 and raw_inner_splits[0][0] < beat_end_time:
+        while len(raw_inner_splits) > 0 and raw_inner_splits[0][0] < beat_end:
             inner_splits_in_this_beat.append(raw_inner_splits.pop(0))
 
         if len(onsets_in_this_beat) + len(terminations_in_this_beat) + len(inner_splits_in_this_beat) == 0:
@@ -176,7 +176,7 @@ def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="def
             continue
 
         best_divisor = _get_best_divisor_for_beat(
-            beat_scheme, beat_start_time, onsets_in_this_beat, terminations_in_this_beat, inner_splits_in_this_beat,
+            beat_scheme, beat_start, onsets_in_this_beat, terminations_in_this_beat, inner_splits_in_this_beat,
             onset_weighting, termination_weighting, inner_split_weighting
         )
         beat_divisors.append(best_divisor)
@@ -184,12 +184,12 @@ def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="def
         # Now, quantize all of the notes that start or end in this beat accordingly
         division_length = beat_scheme.length / best_divisor
         for onset, note in onsets_in_this_beat:
-            divisions_after_beat_start = round((onset - beat_start_time) / division_length)
-            note.start_time = beat_start_time + divisions_after_beat_start * division_length
+            divisions_after_beat_start = round((onset - beat_start) / division_length)
+            note.start_beat = beat_start + divisions_after_beat_start * division_length
 
         for termination, note in terminations_in_this_beat:
-            divisions_after_beat_start = round((termination - beat_start_time) / division_length)
-            note.end_time = beat_start_time + divisions_after_beat_start * division_length
+            divisions_after_beat_start = round((termination - beat_start) / division_length)
+            note.end_beat = beat_start + divisions_after_beat_start * division_length
 
             if note.length_sum() <= 0:
                 # this covers a rare case in which the note has multiple segments, but is getting squeezed by the
@@ -198,46 +198,46 @@ def _quantize_performance_voice(voice, quantization_scheme, onset_weighting="def
                     note.length = 0
                 # if the quantization collapses the start and end times of a note to the same point,
                 # adjust so the the note is a single division_length long.
-                if note.end_time + division_length <= beat_end_time:
+                if note.end_beat + division_length <= beat_end:
                     # if there's room to, just move the end of the note one division forward
                     note.length += division_length
                 else:
                     # otherwise, move the start of the note one division backward
-                    note.start_time -= division_length
+                    note.start_beat -= division_length
                     note.length += division_length
 
         # we take note of where all the inner splits quantize to, and then once all of the start
         # and end times for the notes are adjusted, we go ahead and put them it.
         for inner_split, note in inner_splits_in_this_beat:
-            divisions_after_beat_start = round((inner_split - beat_start_time) / division_length)
-            quantized_split_time = beat_start_time + divisions_after_beat_start * division_length
+            divisions_after_beat_start = round((inner_split - beat_start) / division_length)
+            quantized_split_beat = beat_start + divisions_after_beat_start * division_length
             if "split_points" in note.properties.temp:
-                note.properties.temp["split_points"].append(quantized_split_time)
+                note.properties.temp["split_points"].append(quantized_split_beat)
             else:
-                note.properties.temp["split_points"] = [quantized_split_time]
+                note.properties.temp["split_points"] = [quantized_split_beat]
 
-    last_note_end_time = 0
+    last_note_end_beat = 0
     for note in voice:
         # now that all the start and end points have been adjusted,
         # we implement the quantized split points where applicable
         if "split_points" in note.properties.temp:
-            last_split_point = note.start_time
+            last_split_point = note.start_beat
             new_lengths = []
             for split_point in sorted(note.properties.temp["split_points"]):
                 if round(split_point - last_split_point, 10) > 0:
                     new_lengths.append(split_point - last_split_point)
                 last_split_point = split_point
-            if round(note.end_time - last_split_point, 10) > 0:
-                new_lengths.append(note.end_time - last_split_point)
+            if round(note.end_beat - last_split_point, 10) > 0:
+                new_lengths.append(note.end_beat - last_split_point)
             note.length = tuple(new_lengths)
 
-        last_note_end_time = max(note.end_time, last_note_end_time)
+        last_note_end_beat = max(note.end_beat, last_note_end_beat)
 
         # also normalize the pitch envelopes
         if isinstance(note.pitch, Envelope):
             note.pitch.normalize_to_duration(note.length_sum())
 
-    return _construct_quantization_record(beat_divisors, last_note_end_time, quantization_scheme)
+    return _construct_quantization_record(beat_divisors, last_note_end_beat, quantization_scheme)
 
 
 def _collapse_chords(notes):
@@ -272,7 +272,7 @@ def _separate_into_non_overlapping_voices(notes, max_overlap=1e-10):
         voice_to_add_to = None
         for voice in voices:
             # check each voice to see if its last note ends before the note we want to add
-            if voice[-1].end_time <= note.start_time + max_overlap:
+            if voice[-1].end_beat <= note.start_beat + max_overlap:
                 voice_to_add_to = voice
                 break
         if voice_to_add_to is None:
@@ -324,14 +324,14 @@ def _get_best_divisor_for_beat(beat_scheme, beat_start_time, onsets_in_beat, ter
     return best_divisor
 
 
-def _construct_quantization_record(beat_divisors, end_time, quantization_scheme):
+def _construct_quantization_record(beat_divisors, end_beat, quantization_scheme):
     """
     Constructs a QuantizationRecord from the given scheme and divisors
 
     :param beat_divisors: a list of beat divisors resulting from quantization
-    :param end_time: This helps us cover the special case in which the last note ends at the very end of a measure.
+    :param end_beat: This helps us cover the special case in which the last note ends at the very end of a measure.
         In this case, it's termination gets quantized in the first beat of the next measure, so we have a beat divisor
-        in that measure but no actual notes there. By checking if we've hit the end_time we can avoid constructing
+        in that measure but no actual notes there. By checking if we've hit the end_beat we can avoid constructing
         that extra measure.
     :param quantization_scheme: the quantization scheme being used
     :return: a QuantizationRecord
@@ -340,14 +340,14 @@ def _construct_quantization_record(beat_divisors, end_time, quantization_scheme)
     quantized_measures = []
 
     for measure_scheme, t in quantization_scheme.measure_scheme_iterator():
-        measure_start_time = t
+        measure_start_beat = t
         beats = []
         min_duple_subdivision = float("inf")
 
         for beat_scheme in measure_scheme.beat_schemes:
             divisor = beat_divisors.pop(0) if len(beat_divisors) > 0 else None
             beats.append(
-                QuantizedBeat(t, t - measure_start_time, beat_scheme.length, divisor)
+                QuantizedBeat(t, t - measure_start_beat, beat_scheme.length, divisor)
             )
             if divisor is not None:
                 subdivision_length = beat_scheme.length / divisor
@@ -358,12 +358,12 @@ def _construct_quantization_record(beat_divisors, end_time, quantization_scheme)
         beat_depths = (0.5, measure_scheme.get_beat_hierarchies(0.5)) if min_duple_subdivision == float("inf") \
             else (min_duple_subdivision, measure_scheme.get_beat_hierarchies(min_duple_subdivision))
 
-        quantized_measure = QuantizedMeasure(measure_start_time, measure_scheme.length, beats,
+        quantized_measure = QuantizedMeasure(measure_start_beat, measure_scheme.length, beats,
                                              measure_scheme.time_signature, beat_depths)
 
         quantized_measures.append(quantized_measure)
 
-        if len(beat_divisors) == 0 or t >= end_time:
+        if len(beat_divisors) == 0 or t >= end_beat:
             return QuantizationRecord(quantized_measures)
 
 
@@ -777,7 +777,7 @@ class QuantizationScheme:
         return cls(measure_schemes, loop=loop)
 
     def measure_scheme_iterator(self):
-        # iterates and returns tuples of (measure_scheme, start_time)
+        # iterates and returns tuples of (measure_scheme, start_beat)
         t = 0
         while self.loop or t == 0:
             # if loop is True, then we repeatedly loop through the measure schemes array,
@@ -791,7 +791,7 @@ class QuantizationScheme:
             t += self.measure_schemes[-1].length
 
     def beat_scheme_iterator(self):
-        # iterates and returns tuples of (beat_scheme, start_time)
+        # iterates and returns tuples of (beat_scheme, start_beat)
         for measure_scheme, t in self.measure_scheme_iterator():
             for beat_scheme in measure_scheme.beat_schemes:
                 yield beat_scheme, t

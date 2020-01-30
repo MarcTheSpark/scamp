@@ -10,41 +10,24 @@
             "voices": {
                 "_unspecified_": [
                     {
-                        "length": 2.5,
-                        "pitch": 75,
+                        "length": 0.22491874046870208,
+                        "pitch": 87,
                         "properties": {},
-                        "start_time": 0.5,
-                        "volume": {
-                            "curve_shapes": [
-                                0,
-                                2,
-                                0
-                            ],
-                            "durations": [
-                                0.32608695652173836,
-                                1.8478260869565233,
-                                0.32608695652173836
-                            ],
-                            "levels": [
-                                1.0,
-                                0.2,
-                                1.0,
-                                1.0
-                            ]
-                        }
+                        "start_beat": 1.821391251790672,
+                        "volume": 1.0
                     },
                     {
-                        "length": 0.23471087640210087,
-                        "pitch": 70,
+                        "length": 0.24379991897218645,
+                        "pitch": 73,
                         "properties": {},
-                        "start_time": 3.5,
+                        "start_beat": 3.046309992259374,
                         "volume": 1.0
                     },
                     {
                         "length": 2.5,
                         "pitch": 97,
                         "properties": {},
-                        "start_time": 4.734710876402101,
+                        "start_beat": 5.290109911231561,
                         "volume": {
                             "curve_shapes": [
                                 0,
@@ -65,24 +48,17 @@
                         }
                     },
                     {
-                        "length": 0.2430993747303667,
-                        "pitch": 82,
+                        "length": 0.21930618080145337,
+                        "pitch": 75,
                         "properties": {},
-                        "start_time": 7.734710876402101,
-                        "volume": 1.0
-                    },
-                    {
-                        "length": 0.2221885645844317,
-                        "pitch": 70,
-                        "properties": {},
-                        "start_time": 8.977810251132468,
+                        "start_beat": 8.29010991123156,
                         "volume": 1.0
                     },
                     {
                         "length": 2.5,
-                        "pitch": 85,
+                        "pitch": 97,
                         "properties": {},
-                        "start_time": 12.1999988157169,
+                        "start_beat": 11.509416092033014,
                         "volume": {
                             "curve_shapes": [
                                 0,
@@ -116,422 +92,422 @@
                 "_unspecified_": [
                     {
                         "length": 0.25,
-                        "pitch": 95.18758487213728,
+                        "pitch": 90.92922210699005,
                         "properties": {},
-                        "start_time": 0.0,
+                        "start_beat": 0.0,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 94.03937886271181,
+                        "pitch": 95.70965846014195,
                         "properties": {},
-                        "start_time": 0.25,
+                        "start_beat": 0.25,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 91.98330894837103,
+                        "pitch": 94.27735082474334,
                         "properties": {},
-                        "start_time": 0.5,
+                        "start_beat": 0.5,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 92.90114657282166,
+                        "pitch": 91.12520402771243,
                         "properties": {},
-                        "start_time": 0.75,
+                        "start_beat": 0.75,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 90.98925934929957,
+                        "pitch": 94.08959094684398,
                         "properties": {},
-                        "start_time": 1.0,
+                        "start_beat": 1.0,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 93.25553522183544,
+                        "pitch": 94.81505296957586,
                         "properties": {},
-                        "start_time": 1.25,
+                        "start_beat": 1.25,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 91.48439074737692,
+                        "pitch": 94.26325598492474,
                         "properties": {},
-                        "start_time": 1.5,
+                        "start_beat": 1.5,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 90.94072095715374,
+                        "pitch": 90.35940757532549,
                         "properties": {},
-                        "start_time": 1.75,
+                        "start_beat": 1.75,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 96.47239881644245,
+                        "pitch": 91.1976693851998,
                         "properties": {},
-                        "start_time": 2.0,
+                        "start_beat": 2.0,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 93.90188819304794,
+                        "pitch": 95.53731455803506,
                         "properties": {},
-                        "start_time": 2.25,
+                        "start_beat": 2.25,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 95.10441779970004,
+                        "pitch": 89.88940713874429,
                         "properties": {},
-                        "start_time": 2.5,
+                        "start_beat": 2.5,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 95.24061865761055,
+                        "pitch": 96.51282688304076,
                         "properties": {},
-                        "start_time": 2.75,
+                        "start_beat": 2.75,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 95.41991278147758,
+                        "pitch": 91.71119416224106,
                         "properties": {},
-                        "start_time": 3.0,
+                        "start_beat": 3.0,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 95.33383868802028,
+                        "pitch": 90.040761167016,
                         "properties": {},
-                        "start_time": 3.25,
+                        "start_beat": 3.25,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 90.01133328138609,
+                        "pitch": 95.14378347310326,
                         "properties": {},
-                        "start_time": 3.5,
+                        "start_beat": 3.5,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 95.50742915662057,
+                        "pitch": 90.67605596855071,
                         "properties": {},
-                        "start_time": 3.75,
+                        "start_beat": 3.75,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 95.68864395786218,
+                        "pitch": 94.7829240620968,
                         "properties": {},
-                        "start_time": 4.0,
+                        "start_beat": 4.0,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 93.1499095644243,
+                        "pitch": 89.07526948155187,
                         "properties": {},
-                        "start_time": 4.25,
+                        "start_beat": 4.25,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 89.78562551532852,
+                        "pitch": 91.4319399476634,
                         "properties": {},
-                        "start_time": 4.5,
+                        "start_beat": 4.5,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 95.50294967406383,
+                        "pitch": 93.04939692347787,
                         "properties": {},
-                        "start_time": 4.75,
+                        "start_beat": 4.75,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 89.9521001173501,
+                        "pitch": 93.32792098421655,
                         "properties": {},
-                        "start_time": 5.0,
+                        "start_beat": 5.0,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 95.25082394223507,
+                        "pitch": 88.80049122118788,
                         "properties": {},
-                        "start_time": 5.25,
+                        "start_beat": 5.25,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 94.25155203105838,
+                        "pitch": 89.15618391122004,
                         "properties": {},
-                        "start_time": 5.5,
+                        "start_beat": 5.5,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 94.03360246968094,
+                        "pitch": 88.95842145692603,
                         "properties": {},
-                        "start_time": 5.75,
+                        "start_beat": 5.75,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 94.02521302330624,
+                        "pitch": 92.47325017487968,
                         "properties": {},
-                        "start_time": 6.0,
+                        "start_beat": 6.0,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 88.78807074408802,
+                        "pitch": 92.0195560964254,
                         "properties": {},
-                        "start_time": 6.25,
+                        "start_beat": 6.25,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 88.14755843227393,
+                        "pitch": 94.01798547062745,
                         "properties": {},
-                        "start_time": 6.5,
+                        "start_beat": 6.5,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 90.44707139991809,
+                        "pitch": 93.00972780291272,
                         "properties": {},
-                        "start_time": 6.75,
+                        "start_beat": 6.75,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 90.48093637355541,
+                        "pitch": 87.73831942477115,
                         "properties": {},
-                        "start_time": 7.0,
+                        "start_beat": 7.0,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 88.30097860676865,
+                        "pitch": 87.87538982310426,
                         "properties": {},
-                        "start_time": 7.25,
+                        "start_beat": 7.25,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 91.55151571628812,
+                        "pitch": 88.68444323130781,
                         "properties": {},
-                        "start_time": 7.5,
+                        "start_beat": 7.5,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 87.4635470401476,
+                        "pitch": 90.56165421662112,
                         "properties": {},
-                        "start_time": 7.75,
+                        "start_beat": 7.75,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 87.13156380312375,
+                        "pitch": 91.58857074845447,
                         "properties": {},
-                        "start_time": 8.0,
+                        "start_beat": 8.0,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 89.37314568171502,
+                        "pitch": 90.34536705202183,
                         "properties": {},
-                        "start_time": 8.25,
+                        "start_beat": 8.25,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 88.6997666007782,
+                        "pitch": 89.37470824605009,
                         "properties": {},
-                        "start_time": 8.5,
+                        "start_beat": 8.5,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 91.92528537114751,
+                        "pitch": 85.43464512754278,
                         "properties": {},
-                        "start_time": 8.75,
+                        "start_beat": 8.75,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 88.73261632420713,
+                        "pitch": 89.7454082020912,
                         "properties": {},
-                        "start_time": 9.0,
+                        "start_beat": 9.0,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 88.13027493025525,
+                        "pitch": 90.53799606916468,
                         "properties": {},
-                        "start_time": 9.25,
+                        "start_beat": 9.25,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 84.59596620310725,
+                        "pitch": 89.24567689558535,
                         "properties": {},
-                        "start_time": 9.5,
+                        "start_beat": 9.5,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 85.73144754230032,
+                        "pitch": 86.37002423923457,
                         "properties": {},
-                        "start_time": 9.75,
+                        "start_beat": 9.75,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 87.38203220580236,
+                        "pitch": 90.4335921309733,
                         "properties": {},
-                        "start_time": 10.0,
+                        "start_beat": 10.0,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 85.36281285766171,
+                        "pitch": 88.02718374874053,
                         "properties": {},
-                        "start_time": 10.25,
+                        "start_beat": 10.25,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 87.58691799472071,
+                        "pitch": 85.13434896621008,
                         "properties": {},
-                        "start_time": 10.5,
+                        "start_beat": 10.5,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 87.21286256634713,
+                        "pitch": 89.20454896081196,
                         "properties": {},
-                        "start_time": 10.75,
+                        "start_beat": 10.75,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 86.87359607286257,
+                        "pitch": 88.09276294354237,
                         "properties": {},
-                        "start_time": 11.0,
+                        "start_beat": 11.0,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 87.24709715185254,
+                        "pitch": 84.79449418951445,
                         "properties": {},
-                        "start_time": 11.25,
+                        "start_beat": 11.25,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 85.69104306467669,
+                        "pitch": 86.94405649592649,
                         "properties": {},
-                        "start_time": 11.5,
+                        "start_beat": 11.5,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 84.0654336383992,
+                        "pitch": 83.15186492983007,
                         "properties": {},
-                        "start_time": 11.75,
+                        "start_beat": 11.75,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 87.6705395651388,
+                        "pitch": 83.1095777067208,
                         "properties": {},
-                        "start_time": 12.0,
+                        "start_beat": 12.0,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 87.13879753054339,
+                        "pitch": 81.13552131437262,
                         "properties": {},
-                        "start_time": 12.25,
+                        "start_beat": 12.25,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 84.74644343409659,
+                        "pitch": 86.03720858341214,
                         "properties": {},
-                        "start_time": 12.5,
+                        "start_beat": 12.5,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 83.14809656811278,
+                        "pitch": 84.8481504444612,
                         "properties": {},
-                        "start_time": 12.75,
+                        "start_beat": 12.75,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 82.9645706761459,
+                        "pitch": 81.69605611648704,
                         "properties": {},
-                        "start_time": 13.0,
+                        "start_beat": 13.0,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 82.70510600038868,
+                        "pitch": 84.27546758876488,
                         "properties": {},
-                        "start_time": 13.25,
+                        "start_beat": 13.25,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 79.40821514205558,
+                        "pitch": 85.97521458211007,
                         "properties": {},
-                        "start_time": 13.5,
+                        "start_beat": 13.5,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 83.2246636672686,
+                        "pitch": 83.9232731056221,
                         "properties": {},
-                        "start_time": 13.75,
+                        "start_beat": 13.75,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 82.78606397399545,
+                        "pitch": 80.42923655480494,
                         "properties": {},
-                        "start_time": 14.0,
+                        "start_beat": 14.0,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 79.70971389387283,
+                        "pitch": 84.22481172295647,
                         "properties": {},
-                        "start_time": 14.25,
+                        "start_beat": 14.25,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 81.62234779206325,
+                        "pitch": 79.43556120868539,
                         "properties": {},
-                        "start_time": 14.5,
+                        "start_beat": 14.5,
                         "volume": 0.4
                     },
                     {
                         "length": 0.25,
-                        "pitch": 79.34550872463596,
+                        "pitch": 81.51904993651016,
                         "properties": {},
-                        "start_time": 14.75,
+                        "start_beat": 14.75,
                         "volume": 0.4
                     }
                 ]
