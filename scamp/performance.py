@@ -346,11 +346,19 @@ class PerformanceNote(SavesToJSON):
 
 class PerformancePart(SavesToJSON):
 
+    """
+    Transcription of the notes played by a single ScampInstrument.
+    Can be saved to and loaded from a json file and played back on a clock.
+
+    :ivar instrument: the ScampInstrument associated with this part; used for playback
+    :ivar name: The name of this part
+    :ivar voices: dictionary mapping voice names to lists of notes.
+    :ivar instrument_id: a json serializable record of the instrument used
+    :ivar voice_quantization_records: dictionary mapping voice names to QuantizationRecords, if this is quantized
+    """
+
     def __init__(self, instrument=None, name=None, voices=None, instrument_id=None, voice_quantization_records=None):
         """
-        Transcription of the notes played by a single ScampInstrument.
-        Can be saved to and loaded from a json file and played back on a clock.
-
         :param instrument: the ScampInstrument associated with this part; used for playback
         :param name: The name of this part
         :param voices: either a list of PerformanceNotes (which is interpreted as one unnamed voice), a list of lists
@@ -717,13 +725,18 @@ class PerformancePart(SavesToJSON):
 
 class Performance(SavesToJSON):
 
+    """
+    Representation of note playback events, usually a transcription of the notes played by an Ensemble.
+    Operates in continuous time, without regard to any particular way of notating it. (As opposed to a Score,
+    which represents the notated music.)
+
+    :ivar parts: list of parts (PerformancePart objects) in this Performance
+    :ivar tempo_envelope: the tempo_envelope associated this performance and used for playback by default
+    """
+
     def __init__(self, parts=None, tempo_envelope=None):
         """
-        Representation of note playback events, usually a transcription of the notes played by an Ensemble.
-        Operates in continuous time, without regard to any particular way of notating it. (As opposed to a Score,
-        which represents the notated music.)
-
-        :param parts: list of PerformanceParts to start with (defaults to empty list)
+        :param parts: list of parts (PerformancePart objects) to start with (defaults to empty list)
         :param tempo_envelope: a tempo_envelope to associate with this performance
         """
         self.parts = [] if parts is None else parts

@@ -24,9 +24,6 @@ class Ensemble(SavesToJSON):
     Host for multiple ScampInstruments, keeping shared resources, and shared default settings.
     A Session is, among other things, an Ensemble.
 
-    :param default_audio_driver: value to initialize default_audio_driver instance variable to
-    :param default_soundfont: value to initialize default_soundfont instance variable to
-    :param default_midi_output_device: value to initialize default_midi_output_device instance variable to
     :ivar default_audio_driver: the audio driver instruments in this ensemble will default to. If "default", then
         this defers to the scamp global playback_settings default.
     :ivar default_soundfont: the soundfont that instruments in this ensemble will default to. If "default", then
@@ -39,6 +36,11 @@ class Ensemble(SavesToJSON):
 
     def __init__(self, default_soundfont="default", default_audio_driver="default",
                  default_midi_output_device="default"):
+        """
+        :param default_audio_driver: value to initialize default_audio_driver instance variable to
+        :param default_soundfont: value to initialize default_soundfont instance variable to
+        :param default_midi_output_device: value to initialize default_midi_output_device instance variable to
+        """
 
         self.default_soundfont = default_soundfont
         self.default_audio_driver = default_audio_driver
@@ -252,8 +254,6 @@ class ScampInstrument(SavesToJSON):
     Instrument class that does the playing of the notes. Generally this will be created through one of the
     "new_part" methods of the Session or Ensemble class.
 
-    :param name: name of this instrument (e.g. when printed in a score)
-    :param ensemble: Ensemble to which this instrument will belong.
     :ivar name: name of this instrument (e.g. when printed in a score)
     :ivar name_count: when there are multiple instruments of the same name within an Ensemble, this variable assigns
         each a unique index (starting with 0), to distinguish them
@@ -265,6 +265,10 @@ class ScampInstrument(SavesToJSON):
     _change_param_call_counter = itertools.count()
 
     def __init__(self, name=None, ensemble=None):
+        """
+        :param name: name of this instrument (e.g. when printed in a score)
+        :param ensemble: Ensemble to which this instrument will belong.
+        """
         self.name = name
         # used to help distinguish between identically named instruments in the same ensemble
         self.name_count = ensemble._get_part_name_count(self.name) if ensemble is not None else 0
@@ -1013,13 +1017,15 @@ class NoteHandle:
     (i.e. by changing pitch, volume, or another other parameter, or by ending the note). You would never create
     one of these directly.
 
-    :param note_id: the reference id of the note
-    :param instrument: the instrument playing the note
     :ivar note_id: the reference id of the note
     :ivar instrument: the instrument playing the note
     """
 
     def __init__(self, note_id, instrument):
+        """
+        :param note_id: the reference id of the note
+        :param instrument: the instrument playing the note
+        """
         self.note_id = note_id
         self.instrument: ScampInstrument = instrument
 
@@ -1107,11 +1113,13 @@ class ChordHandle:
     (i.e. by changing pitch, volume, or another other parameter, or by ending the note). You would never create
     one of these directly.
 
-    :param note_handles: the handles of the notes that make up this chord
-    :param intervals: the original pitch intervals between the chord tones
     :ivar note_handles: the handles of the notes that make up this chord
     """
     def __init__(self, note_handles, intervals):
+        """
+        :param note_handles: the handles of the notes that make up this chord
+        :param intervals: the original pitch intervals between the chord tones
+        """
         self.note_handles = tuple(note_handles) if not isinstance(note_handles, tuple) else note_handles
         self._intervals = tuple(intervals) if not isinstance(intervals, tuple) else intervals
 
