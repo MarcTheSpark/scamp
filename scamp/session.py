@@ -58,10 +58,16 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
 
     @staticmethod
     def get_available_midi_input_devices():
+        """
+        Returns a list of available ports and devices for midi input.
+        """
         return get_available_midi_input_devices()
 
     @staticmethod
     def print_available_midi_input_devices():
+        """
+        Prints a list of available ports and devices for midi input.
+        """
         return print_available_midi_input_devices()
 
     def register_midi_listener(self, port_number_or_device_name, callback_function):
@@ -310,7 +316,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         :param units: one of ["beats", "time"]. Do we use the beats of the clock or the time?
         :type units: str
 
-        :return the Performance we will be transcribing to
+        :return: the Performance we will be transcribing to
         """
         if instrument_or_instruments is None and len(self.instruments) == 0:
             raise ValueError("Can't record with empty ensemble; did you call \"start_transcribing\" before adding "

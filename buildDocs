@@ -1,13 +1,11 @@
 #!/bin/bash
-EXCLUSIONS=scamp/thirdparty\ scamp/dependencies.py
 
-# remove everything except the conf file
-find docs/* ! \( -iname "conf.py" -or -path "*_static/*" -or -path "*index.rst" \) -delete
-# generate the api documentation, excluding the defined directories
-sphinx-apidoc -F -o docs ../pymusicxml/pymusicxml $EXCLUSIONS
-sphinx-apidoc -F -o docs ../expenvelope/expenvelope $EXCLUSIONS
-sphinx-apidoc -F -o docs ../clockblocks/clockblocks $EXCLUSIONS
-sphinx-apidoc -F -o docs scamp $EXCLUSIONS
+# remove everything we're about to build
+find docs/* ! \( -iname "conf.py" -or -iname "makePackageRSTs.py" -or -path "*_static/*" -or -path "*_templates/*" -or -path "*index.rst" \) -delete
+
 cd docs
-make html
-firefox _build/html/index.html
+python3 ./makePackageRSTs.py
+
+sphinx-build . build
+
+firefox build/index.html

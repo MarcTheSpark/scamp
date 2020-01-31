@@ -1,7 +1,8 @@
 """
 Module containing user-facing playback classes: Ensemble, ScampInstrument, and NoteHandle/ChordHandle
+
 The underlying implementation of playback is done by PlaybackImplementation and all of its subclasses,
-which are found in playback_implementations.py:
+which are found in playback_implementations.py.
 """
 
 import itertools
@@ -32,15 +33,13 @@ class Ensemble(SavesToJSON):
         If "default", then this defers to the scamp global playback_settings default.
     :ivar instruments: List of all of the ScampInstruments within the Ensemble.
     :type instruments: list
+    :param default_audio_driver: value to initialize default_audio_driver instance variable to
+    :param default_soundfont: value to initialize default_soundfont instance variable to
+    :param default_midi_output_device: value to initialize default_midi_output_device instance variable to
     """
 
     def __init__(self, default_soundfont="default", default_audio_driver="default",
                  default_midi_output_device="default"):
-        """
-        :param default_audio_driver: value to initialize default_audio_driver instance variable to
-        :param default_soundfont: value to initialize default_soundfont instance variable to
-        :param default_midi_output_device: value to initialize default_midi_output_device instance variable to
-        """
 
         self.default_soundfont = default_soundfont
         self.default_audio_driver = default_audio_driver
@@ -205,7 +204,7 @@ class Ensemble(SavesToJSON):
     @staticmethod
     def print_available_midi_output_devices():
         """
-        Prints a list of available midi ports and devices for reference.
+        Prints a list of available ports and devices for midi output.
         """
         print_available_midi_output_devices()
 
@@ -266,6 +265,8 @@ class ScampInstrument(SavesToJSON):
 
     def __init__(self, name=None, ensemble=None):
         """
+        Constructor for ScampInstrument
+
         :param name: name of this instrument (e.g. when printed in a score)
         :param ensemble: Ensemble to which this instrument will belong.
         """

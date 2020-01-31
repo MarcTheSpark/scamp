@@ -6,10 +6,13 @@
 Welcome to scamp's documentation!
 =================================
 
-Hey there! Check out the :class:`scamp.session.Session` class
+Hey there! Check out the :class:`scamp.session.Session` and :class:`clockblocks.tempo_envelope.TempoEnvelope` classes
+
+API Reference
+=============
 
 .. toctree::
-   :maxdepth: 4
+   :maxdepth: 2
    :caption: Packages:
 
    scamp
