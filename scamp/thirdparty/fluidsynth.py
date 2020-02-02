@@ -20,6 +20,8 @@ Tried to build in fluidsynth 2 capability while maintaining backwards compatibil
 
 from ctypes import *
 from ctypes.util import find_library
+import platform
+import os
 
 # Python2-3 compatibility hack
 try:
@@ -27,29 +29,30 @@ try:
 except NameError:
     str = basestring
 
-# A short circuited or expression to find the FluidSynth library
-# (mostly needed for Windows distributions of libfluidsynth supplied with QSynth)
 
-lib = find_library('fluidsynth') or \
-    find_library('libfluidsynth') or \
-    find_library('libfluidsynth-1')
+_fl = None  # this will contain the loaded library
 
-
-if lib is None:
-    import platform
-    import os
-    if platform.system() == "Windows":
-        # Backup plan for windows. If we can't find the library, use a copy located inside of scamp
+try:
+    # On Mac or Windows, try to load the library from inside the SCAMP package
+    if platform.system() == "Darwin":
+        _fl = CDLL(os.path.join(os.path.dirname(__file__), "libfluidsynth.1.5.2.dylib"))
+    elif platform.system() == "Windows":
         try:
             _fl = CDLL(os.path.join(os.path.dirname(__file__), "libfluidsynth64.dll"))
         except OSError:
             _fl = CDLL(os.path.join(os.path.dirname(__file__), "libfluidsynth.dll"))
+finally:
+    # if we are on linux, or if the copy within the package doesn't work...
+    if _fl is None:
+        # ...look for the library on the system
+        lib = find_library('fluidsynth') or \
+              find_library('libfluidsynth') or \
+              find_library('libfluidsynth-1')
 
-    else:
-        raise ImportError("Couldn't find the FluidSynth library.")
-else:
-    # Dynamically link the FluidSynth library
-    _fl = CDLL(lib)
+        if lib is not None:
+            _fl = CDLL(lib)
+        else:
+            raise ImportError("Couldn't find the FluidSynth library.")
 
 
 # Helper function for declaring function prototypes
