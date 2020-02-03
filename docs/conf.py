@@ -170,6 +170,7 @@ autodoc_default_options = {
     'show-inheritance': True,
     'inherited-members': True,
     'undoc-members': True,
+    'exclude-members': '__init__'
 }
 
 # -- Options for LaTeX output ------------------------------------------------

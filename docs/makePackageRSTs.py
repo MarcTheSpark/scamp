@@ -3,7 +3,7 @@ import importlib
 
 
 template = """{package_name} package
-=============
+==============================================
 
 .. automodule:: {package_name}
    :members:
