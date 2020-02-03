@@ -32,4 +32,3 @@ performance.to_score(time_signature="3/4", title="Default Quantization").show()
 performance.to_score(time_signature="3/4", max_divisor=4, title="Max Divisor of 4").show()
 # finally, try it with a higher max divisor, but a strong simplicity_preference
 performance.to_score(time_signature="3/4", simplicity_preference=3, title="Strong Simplicity Preference").show()
-

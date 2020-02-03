@@ -16,7 +16,7 @@ s = Session()
 # add a new violin part to the session
 violin = s.new_part("Violin")
 
-for _ in range(2):  # loop forever
+for _ in range(2):  # loop twice
     for pitch in [60, 64, 67, 72]:
         # pick a duration between 0.5 to 1.5
         dur = random.uniform(0.5, 1.5)
