@@ -22,7 +22,8 @@ setuptools.setup(
         'mouse and keyboard input': 'pynput'
     },
     package_data={
-        'scamp': ['settings/*', 'soundfonts/*', 'thirdparty/libfluidsynth64.dll', 'thirdparty/libfluidsynth.dll']
+        'scamp': ['settings/*', 'soundfonts/*', 'thirdparty/libfluidsynth64.dll', 'thirdparty/libfluidsynth.dll',
+                  'thirdparty/libfluidsynth.1.5.2.dylib']
     },
     classifiers=[
         "Programming Language :: Python :: 3.6",
