@@ -1,10 +1,12 @@
 from ._midi import SimpleRtMidiOut
 from .soundfont_host import *
+from . import instruments as instruments_module
 from clockblocks import fork_unsynchronized
 import time
 from abc import ABC, abstractmethod
 import atexit
 from ._dependencies import pythonosc
+from typing import Tuple, Optional
 
 
 class PlaybackImplementation(ABC):
@@ -334,8 +336,9 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
 
 class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
 
-    def __init__(self, host_instrument, bank_and_preset=(0, 0), soundfont="default",
-                 num_channels=8, audio_driver="default", max_pitch_bend="default"):
+    def __init__(self, host_instrument: 'instruments_module.ScampInstrument', bank_and_preset: Tuple[int, int] = (0, 0),
+                 soundfont: str = "default", num_channels: int = 8, audio_driver: str = "default",
+                 max_pitch_bend: int = "default"):
         super().__init__(host_instrument, num_channels)
 
         # we hold onto these arguments for the purposes of json serialization
@@ -399,8 +402,8 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
 
 class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
 
-    def __init__(self, host_instrument, midi_output_device="default", num_channels=8,
-                 midi_output_name=None, max_pitch_bend="default"):
+    def __init__(self, host_instrument: 'instruments_module.ScampInstrument', midi_output_device: str = "default",
+                 num_channels=8, midi_output_name: Optional[str] = None, max_pitch_bend: int ="default"):
         super().__init__(host_instrument)
 
         # we hold onto these arguments for the purposes of json serialization
@@ -510,8 +513,8 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
 
 class OSCPlaybackImplementation(PlaybackImplementation):
 
-    def __init__(self, host_instrument, port, ip_address="127.0.0.1", message_prefix=None,
-                 osc_message_addresses="default"):
+    def __init__(self, host_instrument: 'instruments_module.ScampInstrument', port: int, ip_address: str = "127.0.0.1",
+                 message_prefix: Optional[str] = None, osc_message_addresses: dict = "default"):
         super().__init__(host_instrument)
         # the output client for OSC messages
         # by default the IP address is the local 127.0.0.1

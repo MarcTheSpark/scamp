@@ -17,6 +17,8 @@ from clockblocks import *
 import logging
 import time
 from threading import Lock
+from typing import Union, Sequence, Optional
+from expenvelope import Envelope
 
 
 class Ensemble(SavesToJSON):
@@ -24,6 +26,10 @@ class Ensemble(SavesToJSON):
     """
     Host for multiple ScampInstruments, keeping shared resources, and shared default settings.
     A Session is, among other things, an Ensemble.
+
+    :param default_audio_driver: value to initialize default_audio_driver instance variable to
+    :param default_soundfont: value to initialize default_soundfont instance variable to
+    :param default_midi_output_device: value to initialize default_midi_output_device instance variable to
 
     :ivar default_audio_driver: the audio driver instruments in this ensemble will default to. If "default", then
         this defers to the scamp global playback_settings default.
@@ -33,13 +39,10 @@ class Ensemble(SavesToJSON):
         If "default", then this defers to the scamp global playback_settings default.
     :ivar instruments: List of all of the ScampInstruments within the Ensemble.
     :type instruments: list
-    :param default_audio_driver: value to initialize default_audio_driver instance variable to
-    :param default_soundfont: value to initialize default_soundfont instance variable to
-    :param default_midi_output_device: value to initialize default_midi_output_device instance variable to
     """
 
-    def __init__(self, default_soundfont="default", default_audio_driver="default",
-                 default_midi_output_device="default"):
+    def __init__(self, default_soundfont: str = "default", default_audio_driver: str = "default",
+                 default_midi_output_device: str = "default"):
 
         self.default_soundfont = default_soundfont
         self.default_audio_driver = default_audio_driver
@@ -50,13 +53,13 @@ class Ensemble(SavesToJSON):
         self.instruments = []
         self.shared_resources = {}
 
-    def add_instrument(self, instrument):
+    def add_instrument(self, instrument: 'ScampInstrument') -> 'ScampInstrument':
         """
         Adds an instance of ScampInstrument to this Ensemble. Generally this will be done indirectly
         by calling one of the "new_instrument" methods.
 
         :param instrument: instrument to add to this ensemble
-        :type instrument: ScampInstrument
+        :return: self
         """
         if not hasattr(instrument, "name") or instrument.name is None:
             instrument.name = "Track " + str(len(self.instruments) + 1)
@@ -64,7 +67,7 @@ class Ensemble(SavesToJSON):
         self.instruments.append(instrument)
         return instrument
 
-    def new_silent_part(self, name=None):
+    def new_silent_part(self, name: Optional[str] = None) -> 'ScampInstrument':
         """
         Creates and returns a new ScampInstrument for this Ensemble with no PlaybackImplementations.
 
@@ -89,8 +92,8 @@ class Ensemble(SavesToJSON):
                 preset = (0, 0)
         return preset
 
-    def new_part(self, name=None, preset="auto", soundfont="default", num_channels=8,
-                 audio_driver="default", max_pitch_bend="default"):
+    def new_part(self, name: Optional[str] = None, preset="auto", soundfont: str = "default", num_channels: int = 8,
+                 audio_driver: str = "default", max_pitch_bend: int = "default") -> 'ScampInstrument':
         """
         Creates and returns a new ScampInstrument for this Ensemble that uses a SoundfontPlaybackImplementation. Unless
         otherwise specified, the default soundfont for this Ensemble/Session will be used, and we will search for the
@@ -124,8 +127,9 @@ class Ensemble(SavesToJSON):
 
         return instrument
 
-    def new_midi_part(self, name=None, midi_output_device="default", num_channels=8,
-                      midi_output_name=None, max_pitch_bend="default"):
+    def new_midi_part(self, name: Optional[str] = None, midi_output_device: Union[int, str] = "default",
+                      num_channels: int = 8, midi_output_name: str = None,
+                      max_pitch_bend: int = "default") -> 'ScampInstrument':
         """
         Creates and returns a new ScampInstrument for this Ensemble that uses a MIDIStreamPlaybackImplementation.
         This means that when notes are played by this instrument, midi messages are sent out to the given device.
@@ -148,8 +152,8 @@ class Ensemble(SavesToJSON):
 
         return instrument
 
-    def new_osc_part(self, name=None, port=None, ip_address="127.0.0.1", message_prefix=None,
-                     osc_message_addresses="default"):
+    def new_osc_part(self, name: Optional[str] = None, port: int = None, ip_address: str = "127.0.0.1",
+                     message_prefix: Optional[str] = None, osc_message_addresses: dict = "default") -> 'ScampInstrument':
         """
         Creates and returns a new ScampInstrument for this Ensemble that uses a OSCPlaybackImplementation. This means
         that when notes are played by this instrument, osc messages are sent out to the specified address
@@ -173,10 +177,13 @@ class Ensemble(SavesToJSON):
     def _get_part_name_count(self, name):
         return sum(i.name == name for i in self.instruments)
 
-    def get_instrument_by_name(self, name, which=0):
+    def get_instrument_by_name(self, name: str, which: int = 0):
         """
-        Returns the instrument of the given name. If there are multiple with the same name, the which parameter
-        specifies the one returned. (If none match the number given by which, the first name match is returned)
+        Returns the instrument of the given name.
+
+        :param name: name of the instrument to return
+        :param which: If there are multiple with the same name, this parameter specifies the one returned. (If none
+            match the number given by which, the first name match is returned)
         """
         # if there are multiple instruments of the same name, which determines which one is chosen
         imperfect_match = None
@@ -188,35 +195,35 @@ class Ensemble(SavesToJSON):
                     imperfect_match = instrument if imperfect_match is None else imperfect_match
         return imperfect_match
 
-    def print_default_soundfont_presets(self):
+    def print_default_soundfont_presets(self) -> None:
         """
         Prints a list of presets available with the default soundfont.
         """
         print_soundfont_presets(self.default_soundfont)
 
     @staticmethod
-    def get_available_midi_output_devices():
+    def get_available_midi_output_devices() -> enumerate:
         """
-        Returns a list of available ports and devices for midi output.
+        Returns an enumeration of available ports and devices for midi output.
         """
         return get_available_midi_output_devices()
 
     @staticmethod
-    def print_available_midi_output_devices():
+    def print_available_midi_output_devices() -> None:
         """
         Prints a list of available ports and devices for midi output.
         """
         print_available_midi_output_devices()
 
     @property
-    def default_spelling_policy(self):
+    def default_spelling_policy(self) -> 'SpellingPolicy':
         """
         Default spelling policy used for transcriptions made with this Ensemble.
         """
         return self._default_spelling_policy
 
     @default_spelling_policy.setter
-    def default_spelling_policy(self, value):
+    def default_spelling_policy(self, value: Union[SpellingPolicy, str]):
         if value is None or isinstance(value, SpellingPolicy):
             self._default_spelling_policy = value
         elif isinstance(value, str):
@@ -253,6 +260,8 @@ class ScampInstrument(SavesToJSON):
     Instrument class that does the playing of the notes. Generally this will be created through one of the
     "new_part" methods of the Session or Ensemble class.
 
+    :param name: name of this instrument (e.g. when printed in a score)
+    :param ensemble: Ensemble to which this instrument will belong.
     :ivar name: name of this instrument (e.g. when printed in a score)
     :ivar name_count: when there are multiple instruments of the same name within an Ensemble, this variable assigns
         each a unique index (starting with 0), to distinguish them
@@ -263,13 +272,7 @@ class ScampInstrument(SavesToJSON):
     _note_id_generator = itertools.count()
     _change_param_call_counter = itertools.count()
 
-    def __init__(self, name=None, ensemble=None):
-        """
-        Constructor for ScampInstrument
-
-        :param name: name of this instrument (e.g. when printed in a score)
-        :param ensemble: Ensemble to which this instrument will belong.
-        """
+    def __init__(self, name: Optional[str] = None, ensemble: Optional['Ensemble'] = None):
         self.name = name
         # used to help distinguish between identically named instruments in the same ensemble
         self.name_count = ensemble._get_part_name_count(self.name) if ensemble is not None else 0
@@ -289,44 +292,8 @@ class ScampInstrument(SavesToJSON):
 
         super().__init__()
 
-    def play_chord(self, pitches, volume, length, properties=None, blocking=True, clock="auto"):
-        """
-        Play a chord with the given pitches, volume, and length. Essentially, this is a convenience method that
-        bundles together several calls to "play_note" and takes a list of pitches rather than a single pitch
-
-        :param pitches: a list of pitches for the notes of this chord
-        :param volume: see description for "play_note"
-        :param length: see description for "play_note"
-        :param properties: see description for "play_note". One extra wrinkle to note with chords: if one value is
-            given for the "notehead" property then all noteheads are set to that value. If multiple values are given,
-            they will be assigned to individual noteheads, and there should be the same number as notes in the chord.
-        :param blocking: see description for "play_note"
-        :param clock: see description for "play_note"
-        """
-        if not hasattr(pitches, "__len__"):
-            raise ValueError("'pitches' must be a list of pitches.")
-
-        properties = self._standardize_properties(properties)
-
-        # we should either be given a number of noteheads equal to the number of pitches or just one notehead for all
-        if not (len(properties.noteheads) == len(pitches) or len(properties.noteheads) == 1):
-            raise ValueError("Wrong number of noteheads for chord.")
-
-        for i, pitch in enumerate(pitches[:-1]):
-            # for all but the last pitch, play it without blocking, so we can start all the others
-            # also copy the properties dictionary, and pick out the correct notehead if we've been given several
-            properties_copy = deepcopy(properties)
-            if len(properties.noteheads) > 1:
-                properties_copy.noteheads = [properties_copy.noteheads[i]]
-            self.play_note(pitch, volume, length, properties=properties_copy, blocking=False, clock=clock)
-
-        # for the last pitch, block or not based on the blocking parameter
-        # also, if we've been given a list of noteheads, pick out the last one
-        if len(properties.noteheads) > 1:
-            properties.noteheads = [properties.noteheads[-1]]
-        self.play_note(pitches[-1], volume, length, properties=properties, blocking=blocking, clock=clock)
-
-    def play_note(self, pitch, volume, length, properties=None, blocking=True, clock="auto"):
+    def play_note(self, pitch, volume, length, properties: dict = None, blocking: bool = True,
+                  clock: Optional[Clock] = None) -> None:
         """
         Play a note on this instrument, with the given pitch, volume and length.
 
@@ -337,7 +304,9 @@ class ScampInstrument(SavesToJSON):
             with 0 representing silence and 1 representing max volume.
         :param length: either a number (of beats), or a tuple representing a set of tied segments
         :param properties: Catch-all for a wide range of other playback and notation details that we may want to convey
-            about a note. These details can either be given in a dictionary or a string for greater brevity. Recognized
+            about a note.
+
+            These details can either be given in a dictionary or a string for greater brevity. Recognized
             dictionary keys are "articulation(s)", "notehead(s)", "notation(s)", "text(s)", "playback_adjustment(s)",
             "key"/"spelling_policy", "voice", and "param_*" (for specifying arbitrary extra parameters). For example:
 
@@ -369,9 +338,9 @@ class ScampInstrument(SavesToJSON):
             "harmonic" is a notehead, that the "#" is a desired spelling, and that "volume * 0.7" is a string to be
             parsed as a playback adjustment.
         :param blocking: if True, don't return until the note is done playing; if False, return immediately
-        :param clock: which clock to use. If "auto", capture the clock from context.
+        :param clock: which clock to use. If None, capture the clock from context.
         """
-        if clock == "auto":
+        if clock is None:
             # first try to just get the clock operating on the current thread
             clock = current_clock()
             if clock is None:
@@ -478,14 +447,54 @@ class ScampInstrument(SavesToJSON):
             note_handle.end()
             raise e
 
-    def start_note(self, pitch, volume, properties=None, clock="auto", max_volume=1, flags=None):
+    def play_chord(self, pitches: Sequence, volume, length, properties: dict = None, blocking: bool = True,
+                   clock: Optional[Clock] = None) -> None:
+        """
+        Play a chord with the given pitches, volume, and length. Essentially, this is a convenience method that
+        bundles together several calls to "play_note" and takes a list of pitches rather than a single pitch
+
+        :param pitches: a list of pitches for the notes of this chord
+        :param volume: see description for "play_note"
+        :param length: see description for "play_note"
+        :param properties: see description for "play_note". One extra wrinkle to note with chords: if one value is
+            given for the "notehead" property then all noteheads are set to that value. If multiple values are given,
+            they will be assigned to individual noteheads, and there should be the same number as notes in the chord.
+        :param blocking: see description for "play_note"
+        :param clock: see description for "play_note"
+        """
+        if not hasattr(pitches, "__len__"):
+            raise ValueError("'pitches' must be a list of pitches.")
+
+        properties = self._standardize_properties(properties)
+
+        # we should either be given a number of noteheads equal to the number of pitches or just one notehead for all
+        if not (len(properties.noteheads) == len(pitches) or len(properties.noteheads) == 1):
+            raise ValueError("Wrong number of noteheads for chord.")
+
+        for i, pitch in enumerate(pitches[:-1]):
+            # for all but the last pitch, play it without blocking, so we can start all the others
+            # also copy the properties dictionary, and pick out the correct notehead if we've been given several
+            properties_copy = deepcopy(properties)
+            if len(properties.noteheads) > 1:
+                properties_copy.noteheads = [properties_copy.noteheads[i]]
+            self.play_note(pitch, volume, length, properties=properties_copy, blocking=False, clock=clock)
+
+        # for the last pitch, block or not based on the blocking parameter
+        # also, if we've been given a list of noteheads, pick out the last one
+        if len(properties.noteheads) > 1:
+            properties.noteheads = [properties.noteheads[-1]]
+        self.play_note(pitches[-1], volume, length, properties=properties, blocking=blocking, clock=clock)
+
+    def start_note(self, pitch: float, volume: float, properties: dict = None, clock: Optional[Clock] = None,
+                   max_volume: float = 1, flags: Sequence[str] = None) -> 'NoteHandle':
         """
         Start a note with the given pitch, volume, and properties
 
         :param pitch: the pitch / starting pitch of the note (not an Envelope)
         :param volume: the volume / starting volume of the note (not an Envelope)
         :param properties: see description under "play_note"
-        :param clock: the clock on which to run any animation of pitch, volume, etc., if applicable
+        :param clock: the clock on which to run any animation of pitch, volume, etc. If None, captures the clock from
+            context.
         :param max_volume: This is a bit of a pain, but since midi playback requires us to set the velocity at the
             beginning of the note, and thereafter vary volume using expression, and since expression can only make the
             note quieter, we need to start the note with velocity equal to the max desired volume (using expression to
@@ -498,7 +507,7 @@ class ScampInstrument(SavesToJSON):
             ignored by a normal user.
         :return: a NoteHandle with which to later manipulate the note
         """
-        if clock == "auto":
+        if clock is None:
             # first try to just get the clock operating on the current thread
             clock = current_clock()
             if clock is None:
@@ -562,11 +571,12 @@ class ScampInstrument(SavesToJSON):
 
         return handle
 
-    def start_chord(self, pitches, volume, properties=None, clock="auto", max_volume=1, flags=None):
+    def start_chord(self, pitches: Sequence[float], volume: float, properties: dict = None,
+                    clock: Optional[Clock] = None, max_volume: float = 1, flags: Sequence[str] = None) -> 'ChordHandle':
         """
         Simple utility for starting chords without starting each note individually.
 
-        :param pitches: a list of pitches
+        :param pitches: a list of pitches (not Envelopes)
         :param volume: see start_note
         :param properties: see start_note. In general, properties are cloned to all members of the chord. However,
         noteheads can be separately defined using this syntax: "noteheads: diamond / normal / cross"
@@ -627,8 +637,11 @@ class ScampInstrument(SavesToJSON):
             # if the host doesn't have a default, then don't do anything and it will fall back to playback_settings
         return properties
 
-    def change_note_parameter(self, note_id, param_name, target_value_or_values, transition_length_or_lengths=0,
-                              transition_curve_shape_or_shapes=0, clock="from_note"):
+    def change_note_parameter(self, note_id: Union[int, 'NoteHandle'], param_name: str,
+                              target_value_or_values: Union[float, Sequence],
+                              transition_length_or_lengths: Union[float, Sequence] = 0,
+                              transition_curve_shape_or_shapes: Union[float, Sequence] = 0,
+                              clock: Optional[Clock] = None) -> None:
         """
         Changes the value of parameter of note playback over a given time; can also take a sequence of targets and times
 
@@ -637,13 +650,13 @@ class ScampInstrument(SavesToJSON):
         :param target_value_or_values: target value (or list of values) for the parameter
         :param transition_length_or_lengths: transition time(s) in beats to the target value(s)
         :param transition_curve_shape_or_shapes: curve shape(s) for the transition(s)
-        :param clock: which clock all of this happens on; "from_note" simply reuses the clock that the note started on.
+        :param clock: which clock all of this happens on; by default, reuses the clock that the note started on.
         """
         with self._note_info_lock:
             note_id = note_id.note_id if isinstance(note_id, NoteHandle) else note_id
             note_info = self._note_info_by_id[note_id]
 
-            if clock == "from_note":
+            if clock is None:
                 clock = note_info["clock"]
             assert isinstance(clock, Clock), "Invalid clock argument."
 
@@ -743,8 +756,10 @@ class ScampInstrument(SavesToJSON):
                     segments_list.append(parameter_change_segment)
                 clock.fork(parameter_change_segment.run, kwargs={"silent": "silent" in note_info["flags"]})
 
-    def change_note_pitch(self, note_id, target_value_or_values, transition_length_or_lengths=0,
-                          transition_curve_shape_or_shapes=0, clock="from_note"):
+    def change_note_pitch(self, note_id: Union[int, 'NoteHandle'], target_value_or_values: Union[float, Sequence],
+                              transition_length_or_lengths: Union[float, Sequence] = 0,
+                              transition_curve_shape_or_shapes: Union[float, Sequence] = 0,
+                              clock: Optional[Clock] = None) -> None:
         """
         Change the pitch of an already started note; can also take a sequence of targets and times
 
@@ -752,13 +767,15 @@ class ScampInstrument(SavesToJSON):
         :param target_value_or_values: target value (or list of values) for the parameter
         :param transition_length_or_lengths: transition time(s) in beats to the target value(s)
         :param transition_curve_shape_or_shapes: curve shape(s) for the transition(s)
-        :param clock: which clock all of this happens on; "from_note" simply reuses the clock that the note started on.
+        :param clock: which clock all of this happens on; by default, reuses the clock that the note started on.
         """
         self.change_note_parameter(note_id, "pitch", target_value_or_values, transition_length_or_lengths,
                                    transition_curve_shape_or_shapes, clock)
 
-    def change_note_volume(self, note_id, target_value_or_values, transition_length_or_lengths=0,
-                           transition_curve_shape_or_shapes=0, clock="from_note"):
+    def change_note_volume(self, note_id: Union[int, 'NoteHandle'], target_value_or_values: Union[float, Sequence],
+                           transition_length_or_lengths: Union[float, Sequence] = 0,
+                           transition_curve_shape_or_shapes: Union[float, Sequence] = 0,
+                           clock: Optional[Clock] = None) -> None:
         """
         Change the volume of an already started note; can also take a sequence of targets and times
 
@@ -771,7 +788,7 @@ class ScampInstrument(SavesToJSON):
         self.change_note_parameter(note_id, "volume", target_value_or_values, transition_length_or_lengths,
                                    transition_curve_shape_or_shapes, clock)
 
-    def split_note(self, note_id):
+    def split_note(self, note_id: Union[int, 'NoteHandle']) -> None:
         """
         Adds a split point in a note, causing it later to be rendered as tied pieces.
 
@@ -782,13 +799,13 @@ class ScampInstrument(SavesToJSON):
             note_info = self._note_info_by_id[note_id]
             note_info["split_points"].append(TimeStamp(note_info["clock"]))
 
-    def end_note(self, note_id=None):
+    def end_note(self, note_id: Union[int, 'NoteHandle'] = None) -> None:
         """
-        Ends the note with the given note id. If none is specified, it ends the note we started longest ago.
-        Note that this only applies to notes started in an open-ended way with 'start_note', notes created
-        using play_note have their lifecycle controlled automatically.
+        Ends the note with the given note id. If none is specified, ends oldest note started.
+        Note that this only applies to notes started in an open-ended way with 'start_note', notes created using
+        play_note have their lifecycle controlled automatically.
 
-        :param note_id: either the id itself or a NoteHandle with that id
+        :param note_id: either the id itself or a NoteHandle with that id. Default of None ends the oldest note
         """
         with self._note_info_lock:
             # in case we're passed a NoteHandle instead of an actual id number, get the number from the handle
@@ -831,14 +848,14 @@ class ScampInstrument(SavesToJSON):
             # remove from active notes and delete the note info
             del self._note_info_by_id[note_id]
 
-    def end_all_notes(self):
+    def end_all_notes(self) -> None:
         """
         Ends all notes currently playing
         """
         while len(self._note_info_by_id) > 0:
             self.end_note()
 
-    def num_notes_playing(self):
+    def num_notes_playing(self) -> int:
         """
         Returns the number of notes currently playing.
         """
@@ -848,15 +865,18 @@ class ScampInstrument(SavesToJSON):
     ---------------------------------------- Adding and removing playback ----------------------------------------
     """
 
-    def add_soundfont_playback(self, preset="auto", soundfont="default", num_channels=8,
-                               audio_driver="default", max_pitch_bend="default"):
+    def add_soundfont_playback(self, preset: Union[str, int, Sequence] = "auto", soundfont: str = "default",
+                               num_channels: int = 8, audio_driver: str = "default",
+                               max_pitch_bend: int = "default") -> 'ScampInstrument':
         """
         Add a soundfont playback implementation for this instrument
 
-        :param preset: either a tuple of (bank, preset), a string giving a name to search the soundfont for, or
-            the string "auto" in which case the name of this instrument is used to search for a preset.
-        :param soundfont: which soundfont to use. If this instrument belongs to an Ensemble, "default" means use the
-            Ensemble default; if not, we will fall back to the default provided in playbacK_settings
+        :param preset: either a preset number, a tuple of (bank, preset), a string giving a name to search for in the
+            soundfont, or the string "auto", in which case the name of this instrument is used to search for a preset.
+        :param soundfont: which soundfont to use. This can be either a path to a soundfont or the name of one of the
+            soundfonts specified in playback_settings.named_soundfonts. If this instrument belongs to an Ensemble,
+            "default" means use the Ensemble default; if not, we will fall back to the default provided in
+            playback_settings.
         :param num_channels: how many channels to allocate for managing pitch bends, etc.
         :param audio_driver: which driver to use
         :param max_pitch_bend: max pitch bend to allow
@@ -873,7 +893,7 @@ class ScampInstrument(SavesToJSON):
                                         audio_driver=audio_driver, max_pitch_bend=max_pitch_bend)
         return self
 
-    def remove_soundfont_playback(self):
+    def remove_soundfont_playback(self) -> 'ScampInstrument':
         """
         Remove the most recent SoundfontPlaybackImplementation from this instrument
 
@@ -885,8 +905,9 @@ class ScampInstrument(SavesToJSON):
                 break
         return self
 
-    def add_streaming_midi_playback(self, midi_output_device="default", num_channels=8,
-                                    midi_output_name=None, max_pitch_bend="default"):
+    def add_streaming_midi_playback(self, midi_output_device: Union[int, str] = "default",
+                                    num_channels: int = 8, midi_output_name: Optional[str] = None,
+                                    max_pitch_bend: int = "default") -> 'ScampInstrument':
         """
         Add a streaming MIDI playback implementation for this instrument
 
@@ -899,7 +920,7 @@ class ScampInstrument(SavesToJSON):
         MIDIStreamPlaybackImplementation(self, midi_output_device, num_channels, midi_output_name, max_pitch_bend)
         return self
 
-    def remove_streaming_midi_playback(self):
+    def remove_streaming_midi_playback(self) -> 'ScampInstrument':
         """
         Remove the most recent MIDIStreamPlaybackImplementation from this instrument
 
@@ -911,7 +932,8 @@ class ScampInstrument(SavesToJSON):
                 break
         return self
 
-    def add_osc_playback(self, port, ip_address="127.0.0.1", message_prefix=None, osc_message_addresses="default"):
+    def add_osc_playback(self, port: int, ip_address: str = "127.0.0.1", message_prefix: Optional[str] = None,
+                         osc_message_addresses: dict = "default"):
         """
         Add an OSCPlaybackImplementation for this instrument
 
@@ -926,7 +948,7 @@ class ScampInstrument(SavesToJSON):
         OSCPlaybackImplementation(self, port, ip_address, message_prefix, osc_message_addresses)
         return self
 
-    def remove_osc_playback(self):
+    def remove_osc_playback(self) -> 'ScampInstrument':
         """
         Remove the most recent OSCPlaybackImplementation from this instrument
 
@@ -942,14 +964,14 @@ class ScampInstrument(SavesToJSON):
     ------------------------------------------------- Other -----------------------------------------------------
     """
 
-    def set_max_pitch_bend(self, semitones):
+    def set_max_pitch_bend(self, semitones: int) -> None:
         """
         Set the max pitch bend for all midi playback implementations on this instrument
         """
         for playback_implementation in self.playback_implementations:
             playback_implementation.set_max_pitch_bend(semitones)
 
-    def send_midi_cc(self, cc_number, value_from_0_to_1):
+    def send_midi_cc(self, cc_number: int, value_from_0_to_1: float) -> None:
         """
         Sends a midi cc message to all midi-based playback implementations, affecting all channels this instrument uses.
         This is useful for stuff like pedal messages, that we don't really want to bundle with note playback, and that
@@ -971,7 +993,7 @@ class ScampInstrument(SavesToJSON):
         return self._default_spelling_policy
 
     @default_spelling_policy.setter
-    def default_spelling_policy(self, value):
+    def default_spelling_policy(self, value: Union[SpellingPolicy, str]):
         if value is None or isinstance(value, SpellingPolicy):
             self._default_spelling_policy = value
         elif isinstance(value, str):
@@ -1018,20 +1040,20 @@ class NoteHandle:
     (i.e. by changing pitch, volume, or another other parameter, or by ending the note). You would never create
     one of these directly.
 
+    :param note_id: the reference id of the note
+    :param instrument: the instrument playing the note
     :ivar note_id: the reference id of the note
     :ivar instrument: the instrument playing the note
     """
 
-    def __init__(self, note_id, instrument):
-        """
-        :param note_id: the reference id of the note
-        :param instrument: the instrument playing the note
-        """
-        self.note_id = note_id
+    def __init__(self, note_id: int, instrument: ScampInstrument):
+        self.note_id: int = note_id
         self.instrument: ScampInstrument = instrument
 
-    def change_parameter(self, param_name, target_value_or_values, transition_length_or_lengths=0,
-                         transition_curve_shape_or_shapes=0, clock="from_note"):
+    def change_parameter(self, param_name: str, target_value_or_values: Union[float, Sequence],
+                         transition_length_or_lengths: Union[float, Sequence] = 0,
+                         transition_curve_shape_or_shapes: Union[float, Sequence] = 0,
+                         clock: Optional[Clock] = None) -> None:
         """
         Change a custom playback parameter for this note to a given target value or values, over a given duration and
         with a given curve shape.
@@ -1052,8 +1074,10 @@ class NoteHandle:
         self.instrument.change_note_parameter(self.note_id, param_name, target_value_or_values,
                                               transition_length_or_lengths, transition_curve_shape_or_shapes, clock)
 
-    def change_pitch(self, target_value_or_values, transition_length_or_lengths=0, transition_curve_shape_or_shapes=0,
-                     clock="from_note"):
+    def change_pitch(self, target_value_or_values: Union[float, Sequence],
+                     transition_length_or_lengths: Union[float, Sequence] = 0,
+                     transition_curve_shape_or_shapes: Union[float, Sequence] = 0,
+                     clock: Optional[Clock] = None) -> None:
         """
         Change the pitch of this note to a given target value or values, over a given duration and with a given
         curve shape.
@@ -1072,8 +1096,10 @@ class NoteHandle:
         self.instrument.change_note_pitch(self.note_id, target_value_or_values, transition_length_or_lengths,
                                           transition_curve_shape_or_shapes, clock)
 
-    def change_volume(self, target_value_or_values, transition_length_or_lengths=0, transition_curve_shape_or_shapes=0,
-                      clock="from_note"):
+    def change_volume(self,  target_value_or_values: Union[float, Sequence],
+                      transition_length_or_lengths: Union[float, Sequence] = 0,
+                      transition_curve_shape_or_shapes: Union[float, Sequence] = 0,
+                      clock: Optional[Clock] = None) -> None:
         """
         Change the volume of this note to a given target value or values, over a given duration and with a given
         curve shape.
@@ -1092,13 +1118,13 @@ class NoteHandle:
         self.instrument.change_note_volume(self.note_id, target_value_or_values, transition_length_or_lengths,
                                            transition_curve_shape_or_shapes, clock)
 
-    def split(self):
+    def split(self) -> None:
         """
         Adds a split point to this note, causing it later to be rendered as tied pieces.
         """
         self.instrument.split_note(self.note_id)
 
-    def end(self):
+    def end(self) -> None:
         """
         Ends this note.
         """
@@ -1114,18 +1140,18 @@ class ChordHandle:
     (i.e. by changing pitch, volume, or another other parameter, or by ending the note). You would never create
     one of these directly.
 
+    :param note_handles: the handles of the notes that make up this chord
+    :param intervals: the original pitch intervals between the chord tones
     :ivar note_handles: the handles of the notes that make up this chord
     """
-    def __init__(self, note_handles, intervals):
-        """
-        :param note_handles: the handles of the notes that make up this chord
-        :param intervals: the original pitch intervals between the chord tones
-        """
+    def __init__(self, note_handles: Sequence[NoteHandle], intervals: Sequence[float]):
         self.note_handles = tuple(note_handles) if not isinstance(note_handles, tuple) else note_handles
         self._intervals = tuple(intervals) if not isinstance(intervals, tuple) else intervals
 
-    def change_parameter(self, param_name, target_value_or_values, transition_length_or_lengths=0,
-                         transition_curve_shape_or_shapes=0, clock="from_note"):
+    def change_parameter(self, param_name: str, target_value_or_values: Union[float, Sequence],
+                         transition_length_or_lengths: Union[float, Sequence] = 0,
+                         transition_curve_shape_or_shapes: Union[float, Sequence] = 0,
+                         clock: Optional[Clock] = None) -> None:
         """
         Change a custom playback parameter for all notes in this chord to a given target value or values, over a given
         duration and with a given curve shape.
@@ -1147,8 +1173,10 @@ class ChordHandle:
             note_handle.change_parameter(param_name, target_value_or_values, transition_length_or_lengths,
                                          transition_curve_shape_or_shapes, clock)
 
-    def change_pitch(self, target_value_or_values, transition_length_or_lengths=0, transition_curve_shape_or_shapes=0,
-                     clock="from_note"):
+    def change_pitch(self, target_value_or_values: Union[float, Sequence],
+                     transition_length_or_lengths: Union[float, Sequence] = 0,
+                     transition_curve_shape_or_shapes: Union[float, Sequence] = 0,
+                     clock: Optional[Clock] = None) -> None:
         """
         Change the pitches of this chord such that the first note of the chord goes to the given target value or values,
         over a given duration and with a given curve shape.
@@ -1172,8 +1200,10 @@ class ChordHandle:
             note_handle.change_pitch(this_note_pitch_targets, transition_length_or_lengths,
                                      transition_curve_shape_or_shapes, clock)
 
-    def change_volume(self, target_value_or_values, transition_length_or_lengths=0, transition_curve_shape_or_shapes=0,
-                      clock="from_note"):
+    def change_volume(self,  target_value_or_values: Union[float, Sequence],
+                      transition_length_or_lengths: Union[float, Sequence] = 0,
+                      transition_curve_shape_or_shapes: Union[float, Sequence] = 0,
+                      clock: Optional[Clock] = None) -> None:
         """
         Change the volume for all notes in this chord to a given target value or values, over a given duration and with
         a given curve shape.
@@ -1193,14 +1223,14 @@ class ChordHandle:
             note_handle.change_volume(target_value_or_values, transition_length_or_lengths,
                                       transition_curve_shape_or_shapes, clock)
 
-    def split(self):
+    def split(self) -> None:
         """
         Adds a split point to this chord, causing it later to be rendered as tied pieces.
         """
         for note_handle in self.note_handles:
             note_handle.split()
 
-    def end(self):
+    def end(self) -> None:
         """
         Ends all notes in this chord.
         """

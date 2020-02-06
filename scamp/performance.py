@@ -12,13 +12,14 @@ from .settings import engraving_settings
 from .quantization import quantize_performance_part, QuantizationRecord, QuantizationScheme
 from .settings import quantization_settings
 from clockblocks import Clock, TempoEnvelope, current_clock
-from .instruments import Ensemble
+from .instruments import Ensemble, ScampInstrument
 from .score import Score, StaffGroup
 from .utilities import SavesToJSON
 import logging
 from copy import deepcopy
 import itertools
 import textwrap
+from typing import Union, Sequence, Tuple, Optional, Iterator
 
 
 @total_ordering
@@ -26,22 +27,22 @@ class PerformanceNote(SavesToJSON):
     """
     Represents a single note played by a ScampInstrument.
 
+    :param start_beat: the start beat of the note
+    :param length: the length of the note in beats (either a float or a tuple of floats representing tied segments)
+    :param pitch: the pitch of the note (float or Envelope)
+    :param volume: the volume of the note (float or Envelope)
+    :param properties: dictionary of note properties, or string representing those properties
     :ivar start_beat: the start beat of the note
-    :type start_beat: float
     :ivar length: the length of the note in beats (either a float or a tuple of floats representing tied segments)
-    :ivar pitch: the pitch of the note (float or Envelope)
+    :ivar pitch: the pitch of the note (float or Envelope); note that this can also be a tuple of pitches representing
+        a chord, but that this usually happens in the process of quantization when notes that can be merged into
+        chords are merged.
     :ivar volume: the volume of the note (float or Envelope)
     :ivar properties: dictionary of note properties, or string representing those properties
     """
 
-    def __init__(self, start_beat, length, pitch, volume, properties):
-        """
-        :param start_beat: the start beat of the note
-        :param length: the length of the note in beats (either a float or a tuple of floats representing tied segments)
-        :param pitch: the pitch of the note (float or Envelope)
-        :param volume: the volume of the note (float or Envelope)
-        :param properties: dictionary of note properties, or string representing those properties
-        """
+    def __init__(self, start_beat: float, length: Union[float, Tuple[float]], pitch: Union[float, Envelope, Sequence],
+                 volume: Union[float, Envelope], properties: dict):
         self.start_beat = start_beat
         # if length is a tuple, this indicates that the note is to be split into tied segments
         self.length = length
@@ -51,7 +52,7 @@ class PerformanceNote(SavesToJSON):
         self.properties = properties if isinstance(properties, NotePropertiesDictionary) \
             else NotePropertiesDictionary.from_unknown_format(properties)
 
-    def length_sum(self):
+    def length_sum(self) -> float:
         """
         Total length of this note, adding together any tied segments.
         (The attribute "length" can be a list of floats representing tied segments.)
@@ -61,14 +62,14 @@ class PerformanceNote(SavesToJSON):
         return sum(self.length) if hasattr(self.length, "__len__") else self.length
 
     @property
-    def end_beat(self):
+    def end_beat(self) -> float:
         """
         End beat of this note
         """
         return self.start_beat + self.length_sum()
 
     @end_beat.setter
-    def end_beat(self, new_end_beat):
+    def end_beat(self, new_end_beat: float):
         new_length = new_end_beat - self.start_beat
         if hasattr(self.length, "__len__"):
             ratio = new_length / self.length_sum()
@@ -76,7 +77,7 @@ class PerformanceNote(SavesToJSON):
         else:
             self.length = new_length
 
-    def average_pitch(self):
+    def average_pitch(self) -> float:
         """
         Averages the pitch of this note, accounting for if it's a glissando or a chord
 
@@ -88,14 +89,12 @@ class PerformanceNote(SavesToJSON):
         else:
             return self.pitch.average_level() if isinstance(self.pitch, Envelope) else self.pitch
 
-    def play(self, instrument, clock=None, blocking=True):
+    def play(self, instrument: ScampInstrument, clock: Optional[Clock] = None, blocking: bool = True) -> None:
         """
         Play this note with the given instrument on the given clock
 
         :param instrument: instrument to play back with
-        :type instrument: ScampInstrument
-        :param clock: the clock to play back on
-        :type clock: Clock
+        :param clock: the clock to play back on (if None, infers it from context)
         :param blocking: if True, don't return until the note is done playing; if False, return immediately
         """
         if isinstance(self.pitch, tuple):
@@ -106,7 +105,7 @@ class PerformanceNote(SavesToJSON):
     _id_generator = itertools.count()
 
     @staticmethod
-    def next_id():
+    def next_id() -> int:
         """
         Return a new unique ID number for this note, different from all PerformanceNotes created so far.
 
@@ -161,7 +160,7 @@ class PerformanceNote(SavesToJSON):
             # simple length, not a tuple
             return split_point, length - split_point
 
-    def split_at_beat(self, split_beat):
+    def split_at_beat(self, split_beat: float) -> Sequence['PerformanceNote']:
         """
         Splits this note at the given beat, returning a tuple of the pieces created
 
@@ -230,7 +229,7 @@ class PerformanceNote(SavesToJSON):
 
             return self, second_part
 
-    def split_at_length_divisions(self):
+    def split_at_length_divisions(self) -> Sequence['PerformanceNote']:
         """
         If the self.length is a tuple, indicating a set of tied constituents, splits this into separate PerformanceNotes
 
@@ -245,9 +244,11 @@ class PerformanceNote(SavesToJSON):
             pieces.extend(last_piece.split_at_beat(last_piece.start_beat + piece_length))
         return pieces
 
-    def attempt_chord_merger_with(self, other):
+    def attempt_chord_merger_with(self, other: 'PerformanceNote') -> bool:
         """
         Try to merge this note with another note to form a chord.
+        Returns whether it worked or not, and when it did, has the side effect of changing this note into a chord
+        that incorporates the other note.
 
         :param other: another PerformanceNote
         :return: True if the merger works, False otherwise
@@ -350,6 +351,13 @@ class PerformancePart(SavesToJSON):
     Transcription of the notes played by a single ScampInstrument.
     Can be saved to and loaded from a json file and played back on a clock.
 
+    :param instrument: the ScampInstrument associated with this part; used for playback
+    :param name: The name of this part
+    :param voices: either a list of PerformanceNotes (which is interpreted as one unnamed voice), a list of lists
+        of PerformanceNotes (which is interpreted as several numbered voices), or a dictionary mapping voice names
+        to lists of notes.
+    :param instrument_id: a json serializable record of the instrument used
+    :param voice_quantization_records: a record of how this part was quantized if it has been quantized
     :ivar instrument: the ScampInstrument associated with this part; used for playback
     :ivar name: The name of this part
     :ivar voices: dictionary mapping voice names to lists of notes.
@@ -357,16 +365,9 @@ class PerformancePart(SavesToJSON):
     :ivar voice_quantization_records: dictionary mapping voice names to QuantizationRecords, if this is quantized
     """
 
-    def __init__(self, instrument=None, name=None, voices=None, instrument_id=None, voice_quantization_records=None):
-        """
-        :param instrument: the ScampInstrument associated with this part; used for playback
-        :param name: The name of this part
-        :param voices: either a list of PerformanceNotes (which is interpreted as one unnamed voice), a list of lists
-            of PerformanceNotes (which is interpreted as several numbered voices), or a dictionary mapping voice names
-            to lists of notes.
-        :param instrument_id: a json serializable record of the instrument used
-        :param voice_quantization_records: a record of how this part was quantized if it has been quantized
-        """
+    def __init__(self, instrument: ScampInstrument = None, name: str = None,
+                 voices: Optional[Union[dict, Sequence]] = None,
+                 instrument_id: Tuple[str, int] = None, voice_quantization_records: Optional[dict] = None):
         self.instrument = instrument  # A ScampInstrument instance
         # the name of the part can be specified directly, or if not derives from the instrument it's attached to
         # if the part is not attached to an instrument, it starts with a name of None
@@ -409,14 +410,13 @@ class PerformancePart(SavesToJSON):
         # a record of the quantization that was applied to this part, if any
         self.voice_quantization_records = voice_quantization_records
 
-    def add_note(self, note: PerformanceNote, voice=None):
+    def add_note(self, note: PerformanceNote, voice: str = None) -> PerformanceNote:
         """
         Add a new Performance note to this PerformancePart.
 
         :param note: the note to add
-        :type note: scamp.performance.PerformanceNote
         :param voice: name of the voice to which to add it (defaults to "_unspecified_")
-        :type voice: str
+        :return: the note you just added (for chaining purposes)
         """
         # the voice kwarg here is only used when reconstructing this from a json serialization
         if voice is not None:
@@ -447,42 +447,42 @@ class PerformancePart(SavesToJSON):
             # always keep self.notes sorted; if we're appending something that shouldn't be at the
             # very end, we'll need to sort the list after appending. This probably doesn't come up much.
             voice.sort()  # they are defined to sort by start_beat
+        return note
 
-    def new_note(self, start_beat, length, pitch, volume, properties):
+    def new_note(self, start_beat: float, length, pitch, volume, properties: dict) -> PerformanceNote:
         """
         Construct and add a new PerformanceNote to this Performance
 
         :param start_beat: the start beat of the note
-        :type start_beat: float
         :param length: length of the note in beats (either a float or a list of floats representing tied segments)
-        :param pitch: pitch of the note (float or Envelope)
-        :param volume: volume of the note (float or Envelope)
+        :param pitch: pitch of the note (float, Envelope, or list to interpret as an envelope)
+        :param volume: volume of the note (float or Envelope, or list to interpret as an envelope)
         :param properties: dictionary of note properties, or string representing those properties
         :return: the note just added
         """
         return self.add_note(PerformanceNote(start_beat, length, pitch, volume, properties))
 
-    def set_instrument(self, instrument):
+    def set_instrument(self, instrument: ScampInstrument) -> None:
         """
         Set the instrument with which this PerformancePart will play back by default
 
         :param instrument: the instrument to use
-        :type instrument: ScampInstrument
         """
         self.instrument = instrument
         self._instrument_id = instrument.name, instrument.name_count
 
     @property
-    def end_beat(self):
+    def end_beat(self) -> float:
         """
-        End beat of the note (based on start_beat and length)
+        End beat of the last note in this part.
         """
         if len(self.voices) == 0:
             return 0
         return max(max(n.start_beat + n.length_sum() for n in voice) if len(voice) > 0 else 0
                    for voice in self.voices.values())
 
-    def get_note_iterator(self, start_beat=0, stop_beat=None, selected_voices=None):
+    def get_note_iterator(self, start_beat: float = 0, stop_beat: Optional[float] = None,
+                          selected_voices: Optional[Sequence[str]] = None) -> Iterator[PerformanceNote]:
         """
         Returns an iterator returning all the notes from start_beat to stop_beat in the selected voices
 
@@ -504,23 +504,21 @@ class PerformancePart(SavesToJSON):
 
         return iterator()
 
-    def play(self, start_beat=0, stop_beat=None, instrument=None, clock=None, blocking=True,
-             tempo_envelope=None, selected_voices=None):
+    def play(self, start_beat: float = 0, stop_beat: Optional[float] = None,
+             instrument: Optional[ScampInstrument] = None, clock: Optional[Clock] = None,
+             blocking: bool = True, tempo_envelope: Optional[TempoEnvelope] = None,
+             selected_voices: Optional[Sequence[str]] = None) -> Clock:
         """
         Play this PerformancePart (or a selection of it)
 
         :param start_beat: Place to start playing from
-        :type start_beat: float
         :param stop_beat: Place to stop playing at
-        :type stop_beat: float
         :param instrument: instrument to play back with
-        :type instrument: ScampInstrument
         :param clock: clock to use for playback
-        :type clock: Clock
         :param blocking: if True, don't return until the part is done playing; if False, return immediately
-        :type blocking: bool
         :param tempo_envelope: (optional) a tempo envelope to use for playback
         :param selected_voices: which voices to play back (defaults to all if None)
+        :return: the Clock on which playback takes place
         """
         instrument = self.instrument if instrument is None else instrument
         from scamp.instruments import ScampInstrument
@@ -569,12 +567,11 @@ class PerformancePart(SavesToJSON):
                 sub_clock.tempo_envelope.append_envelope(tempo_envelope)
             return sub_clock
 
-    def set_instrument_from_ensemble(self, ensemble):
+    def set_instrument_from_ensemble(self, ensemble: Ensemble) -> 'PerformancePart':
         """
         Set the default instrument to play back with based on the best fit in the given ensembel
 
         :param ensemble: the ensemble to search in
-        :type ensemble: Ensemble
         :return: self
         """
         self.instrument = ensemble.get_instrument_by_name(*self._instrument_id)
@@ -582,16 +579,18 @@ class PerformancePart(SavesToJSON):
             logging.warning("No matching instrument could be found for part {}.".format(self.name))
         return self
 
-    def quantize(self, quantization_scheme="default", onset_weighting="default", termination_weighting="default"):
+    def quantize(self, quantization_scheme: QuantizationScheme = "default",
+                 onset_weighting: float = "default",
+                 termination_weighting: float = "default") -> 'PerformancePart':
         """
         Quantizes this PerformancePart according to the quantization_scheme
 
         :param quantization_scheme: the QuantizationScheme to use. If "default", uses the default time signature defined
             in the quantization_settings.
-        :param onset_weighting: how much to weight note onsets in the quantization.
-        :type onset_weighting: float
-        :param termination_weighting: how much to weight note terminations in the quantization.
-        :type termination_weighting: float
+        :param onset_weighting: how much to weight note onsets in the quantization. If "default", uses the default
+            value defined in the quantization_settings.
+        :param termination_weighting: how much to weight note terminations in the quantization. If "default", uses the
+            default value defined in the quantization_settings.
         :return: this PerformancePart, having been quantized
         """
         if quantization_scheme == "default":
@@ -601,16 +600,18 @@ class PerformancePart(SavesToJSON):
                                   termination_weighting=termination_weighting)
         return self
 
-    def quantized(self, quantization_scheme="default", onset_weighting="default", termination_weighting="default"):
+    def quantized(self, quantization_scheme: QuantizationScheme = "default",
+                  onset_weighting: float = "default",
+                  termination_weighting: float = "default") -> 'PerformancePart':
         """
         Same as quantize, except that it returns a new copy, rather than changing this PerformancePart in place.
 
         :param quantization_scheme: the QuantizationScheme to use. If "default", uses the default time signature defined
             in the quantization_settings.
-        :param onset_weighting: how much to weight note onsets in the quantization.
-        :type onset_weighting: float
-        :param termination_weighting: how much to weight note terminations in the quantization.
-        :type termination_weighting: float
+        :param onset_weighting: how much to weight note onsets in the quantization. If "default", uses the default
+            value defined in the quantization_settings.
+        :param termination_weighting: how much to weight note terminations in the quantization. If "default", uses the
+            default value defined in the quantization_settings.
         :return: a quantized copy of this PerformancePart
         """
         if quantization_scheme == "default":
@@ -622,7 +623,7 @@ class PerformancePart(SavesToJSON):
                                   termination_weighting=termination_weighting)
         return copy
 
-    def is_quantized(self):
+    def is_quantized(self) -> bool:
         """
         Checks if this part has been quantized
 
@@ -639,7 +640,7 @@ class PerformancePart(SavesToJSON):
                    key=lambda quantization_record: len(quantization_record.quantized_measures))
 
     @property
-    def measure_lengths(self):
+    def measure_lengths(self) -> Sequence[float]:
         """
         If this PerformancePart has been quantized, gets the lengths of all the measures
 
@@ -649,7 +650,7 @@ class PerformancePart(SavesToJSON):
         # base it on the longest quantization record
         return self._get_longest_quantization_record().measure_lengths
 
-    def num_measures(self):
+    def num_measures(self) -> int:
         """
         If this PerformancePart has been quantized, gets the number of measures
 
@@ -660,7 +661,7 @@ class PerformancePart(SavesToJSON):
         return 0 if longest_quantization_record is None else \
             len(self._get_longest_quantization_record().quantized_measures)
 
-    def to_staff_group(self):
+    def to_staff_group(self) -> StaffGroup:
         """
         Converts this PerformancePart to a StaffGroup object.
         (Quantizes in a default way, if necessary, but it should be quantized already.)
@@ -674,7 +675,7 @@ class PerformancePart(SavesToJSON):
             return self.quantized(quantization_scheme).to_staff_group()
         return StaffGroup.from_quantized_performance_part(self)
 
-    def name_count(self):
+    def name_count(self) -> int:
         """
         When there are multiple instrument of the same name in an ensemble, keeps track of which one we mean
 
@@ -730,41 +731,37 @@ class Performance(SavesToJSON):
     Operates in continuous time, without regard to any particular way of notating it. (As opposed to a Score,
     which represents the notated music.)
 
+    :param parts: list of parts (PerformancePart objects) to start with (defaults to empty list)
+    :param tempo_envelope: a tempo_envelope to associate with this performance
     :ivar parts: list of parts (PerformancePart objects) in this Performance
     :ivar tempo_envelope: the tempo_envelope associated this performance and used for playback by default
     """
 
-    def __init__(self, parts=None, tempo_envelope=None):
-        """
-        :param parts: list of parts (PerformancePart objects) to start with (defaults to empty list)
-        :param tempo_envelope: a tempo_envelope to associate with this performance
-        """
+    def __init__(self, parts: Sequence[PerformancePart] = None, tempo_envelope: TempoEnvelope = None):
         self.parts = [] if parts is None else parts
         self.tempo_envelope = TempoEnvelope() if tempo_envelope is None else tempo_envelope
         assert isinstance(self.parts, list) and all(isinstance(x, PerformancePart) for x in self.parts)
 
-    def new_part(self, instrument=None):
+    def new_part(self, instrument: ScampInstrument = None) -> PerformancePart:
         """
         Construct and add a new PerformancePart to this Performance
 
         :param instrument: the instrument to use as a default for playing back the part
-        :type instrument: ScampInstrument
         :return: the newly constructed part
         """
         new_part = PerformancePart(instrument)
         self.parts.append(new_part)
         return new_part
 
-    def add_part(self, part: PerformancePart):
+    def add_part(self, part: PerformancePart) -> None:
         """
         Add the given PerformancePart to this performance
 
         :param part: a PerformancePart to add
-        :type part: PerformancePart
         """
         self.parts.append(part)
 
-    def get_part_by_index(self, index):
+    def get_part_by_index(self, index: int) -> PerformancePart:
         """
         Get the part with the given index
         (Parts are numbered starting with 0, in order that they are added/created.)
@@ -774,28 +771,26 @@ class Performance(SavesToJSON):
         """
         return self.parts[index]
 
-    def get_parts_by_name(self, name):
+    def get_parts_by_name(self, name: str) -> Sequence[PerformancePart]:
         """
         Get all parts with the given name
 
         :param name: the part name to search for
-        :type name: str
         :return: a list of parts with this name
         """
         return [x for x in self.parts if x.name == name]
 
-    def get_parts_by_instrument(self, instrument):
+    def get_parts_by_instrument(self, instrument: ScampInstrument) -> Sequence[PerformancePart]:
         """
         Get all parts with the given instrument
 
         :param instrument: the instrument to search for
-        :type instrument: ScampInstrument
         :return: a list of parts with this instrument
         """
         return [x for x in self.parts if x.instrument == instrument]
 
     @property
-    def end_beat(self):
+    def end_beat(self) -> float:
         """
         The end beat of this performance (i.e. the beat corresponding to the end of the last note)
 
@@ -803,7 +798,7 @@ class Performance(SavesToJSON):
         """
         return max(p.end_beat for p in self.parts)
 
-    def length(self):
+    def length(self) -> float:
         """
         Total length of this performance. (Identical to Performance.end_beat)
 
@@ -811,21 +806,17 @@ class Performance(SavesToJSON):
         """
         return self.end_beat
 
-    def play(self, start_beat=0, stop_beat=None, ensemble="auto", clock="auto", blocking=True, tempo_envelope="auto"):
+    def play(self, start_beat: float = 0, stop_beat: Optional[float] = None, ensemble: Ensemble = "auto",
+             clock: Clock = "auto", blocking: bool = True, tempo_envelope: TempoEnvelope = "auto") -> Clock:
         """
         Play back this performance (or a selection of it)
 
         :param start_beat: Place to start playing from
-        :type start_beat: float
         :param stop_beat: Place to stop playing at
-        :type stop_beat: float
         :param ensemble: The Ensemble whose instruments to use for playback. If "auto", checks to see if we are
             operating in a particular Session, and uses those instruments if so.
-        :type ensemble: Ensemble
         :param clock: clock to use for playback
-        :type clock: Clock
         :param blocking: if True, don't return until the part is done playing; if False, return immediately
-        :type blocking: bool
         :param tempo_envelope: the TempoEnvelope with which to play back this performance. The default value of "auto"
             uses  the tempo_envelope associated with the performance, and None uses a flat tempo of rate 60bpm
 
@@ -862,15 +853,13 @@ class Performance(SavesToJSON):
 
         return clock
 
-    def set_instruments_from_ensemble(self, ensemble, override=True):
+    def set_instruments_from_ensemble(self, ensemble: Ensemble, override: bool = True) -> 'Performance':
         """
         Set the playback instruments for each part in this Performance by their best match in the ensemble given.
         If override is False, only set the instrument for parts that don't already have one set.
 
         :param ensemble: the Ensemble in which to search for instruments
-        :type ensemble: Ensemble
         :param override: Whether or not to override any instruments already assigned to parts
-        :type override: bool
         :return: self
         """
         for part in self.parts:
@@ -878,16 +867,17 @@ class Performance(SavesToJSON):
                 part.set_instrument_from_ensemble(ensemble)
         return self
 
-    def quantize(self, quantization_scheme="default", onset_weighting="default", termination_weighting="default"):
+    def quantize(self, quantization_scheme: QuantizationScheme = "default", onset_weighting: float = "default",
+                 termination_weighting: float = "default") -> 'Performance':
         """
         Quantizes all parts according to the quantization_scheme
 
         :param quantization_scheme: the QuantizationScheme to use. If "default", uses the default time signature defined
             in the quantization_settings.
-        :param onset_weighting: how much to weight note onsets in the quantization.
-        :type onset_weighting: float
-        :param termination_weighting: how much to weight note terminations in the quantization.
-        :type termination_weighting: float
+        :param onset_weighting: how much to weight note onsets in the quantization. If "default", uses the default
+            value defined in the quantization_settings.
+        :param termination_weighting: how much to weight note terminations in the quantization. If "default", uses the
+            default value defined in the quantization_settings.
         :return: this Performance, having been quantized
         """
         if quantization_scheme == "default":
@@ -899,16 +889,17 @@ class Performance(SavesToJSON):
                           termination_weighting=termination_weighting)
         return self
 
-    def quantized(self, quantization_scheme="default", onset_weighting="default", termination_weighting="default"):
+    def quantized(self, quantization_scheme: QuantizationScheme = "default", onset_weighting: float = "default",
+                  termination_weighting: float = "default") -> 'Performance':
         """
         Same as quantize, except that it returns a new copy, rather than changing this Performance in place.
 
         :param quantization_scheme: the QuantizationScheme to use. If "default", uses the default time signature defined
             in the quantization_settings.
-        :param onset_weighting: how much to weight note onsets in the quantization.
-        :type onset_weighting: float
-        :param termination_weighting: how much to weight note terminations in the quantization.
-        :type termination_weighting: float
+        :param onset_weighting: how much to weight note onsets in the quantization. If "default", uses the default
+            value defined in the quantization_settings.
+        :param termination_weighting: how much to weight note terminations in the quantization. If "default", uses the
+            default value defined in the quantization_settings.
         :return: a quantized copy of this Performance
         """
         if quantization_scheme == "default":
@@ -918,7 +909,7 @@ class Performance(SavesToJSON):
                                            termination_weighting=termination_weighting)
                             for part in self.parts], tempo_envelope=self.tempo_envelope)
 
-    def is_quantized(self):
+    def is_quantized(self) -> bool:
         """
         Checks if this Performance has been quantized
 
@@ -926,7 +917,7 @@ class Performance(SavesToJSON):
         """
         return all(part.is_quantized() for part in self.parts)
 
-    def num_measures(self):
+    def num_measures(self) -> int:
         """
         If this Performance has been quantized, gets the number of measures
 
@@ -940,9 +931,12 @@ class Performance(SavesToJSON):
         """
         raise NotImplementedError()
 
-    def to_score(self, quantization_scheme: QuantizationScheme = None, time_signature=None, bar_line_locations=None,
-                 max_divisor=None, max_divisor_indigestibility=None, simplicity_preference=None, title="default",
-                 composer="default"):
+    def to_score(self, quantization_scheme: QuantizationScheme = None,
+                 time_signature: Optional[Union[str, Sequence]] = None,
+                 bar_line_locations: Optional[Sequence[float]] = None,
+                 max_divisor: Optional[int] = None, max_divisor_indigestibility: Optional[int] = None,
+                 simplicity_preference: Optional[float] = None, title: str = "default",
+                 composer: str = "default") -> Score:
         """
         Convert this Performance (list of note events in continuous time and pitch) to a Score object, which represents
         the music in traditional western notation. In the process, the music must be quantized, for which two different
