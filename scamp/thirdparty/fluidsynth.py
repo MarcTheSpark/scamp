@@ -22,6 +22,7 @@ from ctypes import *
 from ctypes.util import find_library
 import platform
 import os
+from ..settings import playback_settings
 
 # Python2-3 compatibility hack
 try:
@@ -30,29 +31,43 @@ except NameError:
     str = basestring
 
 
+def _try_to_load_local_fl_library():
+    out = None
+    try:
+        if platform.system() == "Darwin":
+            out = CDLL(os.path.join(os.path.dirname(__file__), "libfluidsynth.1.5.2.dylib"))
+        elif platform.system() == "Windows":
+            try:
+                out = CDLL(os.path.join(os.path.dirname(__file__), "libfluidsynth64.dll"))
+            except OSError:
+                out = CDLL(os.path.join(os.path.dirname(__file__), "libfluidsynth.dll"))
+    finally:
+        return out
+
+
+def _try_to_load_system_fl_library():
+    lib = find_library('fluidsynth') or \
+          find_library('libfluidsynth') or \
+          find_library('libfluidsynth-1')
+    if lib is not None:
+        return CDLL(lib)
+    else:
+        return None
+
+
 _fl = None  # this will contain the loaded library
 
-try:
-    # On Mac or Windows, try to load the library from inside the SCAMP package
-    if platform.system() == "Darwin":
-        _fl = CDLL(os.path.join(os.path.dirname(__file__), "libfluidsynth.1.5.2.dylib"))
-    elif platform.system() == "Windows":
-        try:
-            _fl = CDLL(os.path.join(os.path.dirname(__file__), "libfluidsynth64.dll"))
-        except OSError:
-            _fl = CDLL(os.path.join(os.path.dirname(__file__), "libfluidsynth.dll"))
-finally:
-    # if we are on linux, or if the copy within the package doesn't work...
+if playback_settings.try_system_fluidsynth_first:
+    _fl = _try_to_load_system_fl_library()
     if _fl is None:
-        # ...look for the library on the system
-        lib = find_library('fluidsynth') or \
-              find_library('libfluidsynth') or \
-              find_library('libfluidsynth-1')
+        _fl = _try_to_load_local_fl_library()
+else:
+    _fl = _try_to_load_local_fl_library()
+    if _fl is None:
+        _fl = _try_to_load_system_fl_library()
 
-        if lib is not None:
-            _fl = CDLL(lib)
-        else:
-            raise ImportError("Couldn't find the FluidSynth library.")
+if _fl is None:
+    raise ImportError("Couldn't find the FluidSynth library.")
 
 
 # Helper function for declaring function prototypes

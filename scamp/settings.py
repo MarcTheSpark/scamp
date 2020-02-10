@@ -113,7 +113,9 @@ class PlaybackSettings(ScampSettings):
             "tenuto": NotePlaybackAdjustment.scale_params(length=1.2),
             "accent": NotePlaybackAdjustment.scale_params(volume=1.2),
             "marcato": NotePlaybackAdjustment.scale_params(volume=1.5),
-        })
+        }),
+        # if True, always tries system copy of the fluidsynth libraries first before using the one in the scamp package
+        "try_system_fluidsynth_first": False,
     }
 
     _settings_name = "Playback settings"
@@ -125,7 +127,7 @@ class PlaybackSettings(ScampSettings):
         self.named_soundfonts = self.default_soundfont = self.default_audio_driver = \
             self.default_midi_output_device = self.default_max_soundfont_pitch_bend = \
             self.default_max_streaming_midi_pitch_bend = self.osc_message_addresses = \
-            self.adjustments = None
+            self.adjustments = self.try_system_fluidsynth_first = None
         super().__init__(settings_dict)
         assert isinstance(self.adjustments, PlaybackAdjustmentsDictionary)
 

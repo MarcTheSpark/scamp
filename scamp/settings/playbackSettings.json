@@ -49,5 +49,6 @@
         "change_volume": "change_volume",
         "end_note": "end_note",
         "start_note": "start_note"
-    }
+    },
+    "try_system_fluidsynth_first": true
 }
