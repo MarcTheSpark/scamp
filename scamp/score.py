@@ -386,10 +386,10 @@ stemless = {
         lilypond_code = format(abjad_object)
         if r"\glissando" in lilypond_code:
             for gliss_override in ScoreComponent.gliss_overrides:
-                abjad.attach(abjad.LilyPondLiteral(gliss_override), abjad_object, "opening")
+                abjad().attach(abjad().LilyPondLiteral(gliss_override), abjad_object, "opening")
 
         if r"\stemless" in lilypond_code:
-            abjad.attach(abjad.LilyPondLiteral(ScoreComponent.inner_stemless_def), abjad_object, "opening")
+            abjad().attach(abjad().LilyPondLiteral(ScoreComponent.inner_stemless_def), abjad_object, "opening")
 
         return abjad_object
 
@@ -400,9 +400,9 @@ stemless = {
 
         if r"\glissando" in lilypond_code:
             for gliss_override in ScoreComponent.gliss_overrides:
-                abjad.attach(abjad.LilyPondLiteral(gliss_override), abjad_object, "opening")
+                abjad().attach(abjad().LilyPondLiteral(gliss_override), abjad_object, "opening")
 
-        abjad_lilypond_file = abjad.LilyPondFile.new(
+        abjad_lilypond_file = abjad().LilyPondFile.new(
             music=abjad_object
         )
 
@@ -412,9 +412,9 @@ stemless = {
             abjad_lilypond_file.items.insert(-1, ScoreComponent.outer_stemless_def)
 
         if title is not None:
-            abjad_lilypond_file.header_block.title = abjad.Markup(title)
+            abjad_lilypond_file.header_block.title = abjad().Markup(title)
         if composer is not None:
-            abjad_lilypond_file.header_block.composer = abjad.Markup(composer)
+            abjad_lilypond_file.header_block.composer = abjad().Markup(composer)
 
         return abjad_lilypond_file
 
@@ -438,7 +438,7 @@ stemless = {
         # we use a lilypond file wrapper if we need to display title or composer info (i.e. for Scores)
         title = self.title if hasattr(self, "title") else None
         composer = self.composer if hasattr(self, "composer") else None
-        abjad.show(self.to_abjad_lilypond_file(title=title, composer=composer)
+        abjad().show(self.to_abjad_lilypond_file(title=title, composer=composer)
                    if title is not None or composer is not None else self.to_abjad())
 
 
@@ -608,7 +608,7 @@ class Score(ScoreComponent, ScoreContainer):
         return key_points, guide_marks
 
     def _to_abjad(self):
-        score = abjad.Score([part._to_abjad() for part in self.parts])
+        score = abjad().Score([part._to_abjad() for part in self.parts])
         return score
 
     def to_music_xml(self):
@@ -910,7 +910,7 @@ class StaffGroup(ScoreComponent, ScoreContainer):
                    name=name)
 
     def _to_abjad(self):
-        return abjad.StaffGroup([staff._to_abjad() for staff in self.staves])
+        return abjad().StaffGroup([staff._to_abjad() for staff in self.staves])
 
     def to_music_xml(self):
         return pymusicxml.PartGroup([staff.to_music_xml() for staff in self.staves])
@@ -922,21 +922,21 @@ def _join_same_source_abjad_note_group(same_source_group):
 
     gliss_present = False
     for note_pair in zip(same_source_group[:-1], same_source_group[1:]):
-        if isinstance(note_pair[0], abjad.Note) and note_pair[0].written_pitch == note_pair[1].written_pitch or \
-                isinstance(note_pair[0], abjad.Chord) and note_pair[0].written_pitches == note_pair[1].written_pitches:
-            abjad.tie(abjad.Selection(note_pair))
-            # abjad.attach(abjad.Tie(), abjad.Selection(note_pair))
+        if isinstance(note_pair[0], abjad().Note) and note_pair[0].written_pitch == note_pair[1].written_pitch or \
+                isinstance(note_pair[0], abjad().Chord) and note_pair[0].written_pitches == note_pair[1].written_pitches:
+            abjad().tie(abjad().Selection(note_pair))
+            # abjad().attach(abjad().Tie(), abjad().Selection(note_pair))
         else:
-            # abjad.glissando(abjad.Selection(note_pair))
-            abjad.attach(abjad.LilyPondLiteral("\glissando", "after"), note_pair[0])
+            # abjad().glissando(abjad().Selection(note_pair))
+            abjad().attach(abjad().LilyPondLiteral("\glissando", "after"), note_pair[0])
 
-            # abjad.attach(abjad.Glissando(), abjad.Selection(note_pair))
+            # abjad().attach(abjad().Glissando(), abjad().Selection(note_pair))
             gliss_present = True
 
     if gliss_present:
         # if any of the segments gliss, we might attach a slur
-        abjad.slur(abjad.Selection(same_source_group))
-        # abjad.attach(abjad.Slur(), abjad.Selection(same_source_group))
+        abjad().slur(abjad().Selection(same_source_group))
+        # abjad().attach(abjad().Slur(), abjad().Selection(same_source_group))
 
 
 def _join_same_source_xml_note_group(same_source_group):
@@ -1069,7 +1069,7 @@ class Staff(ScoreComponent, ScoreContainer):
         contents = [measure._to_abjad(source_id_dict) for measure in self.measures]
         for same_source_group in source_id_dict.values():
             _join_same_source_abjad_note_group(same_source_group)
-        return abjad.Staff(contents, name=self.name)
+        return abjad().Staff(contents, name=self.name)
 
     def to_music_xml(self):
         source_id_dict = {}
@@ -1128,7 +1128,7 @@ class Measure(ScoreComponent, ScoreContainer):
     def _to_abjad(self, source_id_dict=None):
         is_top_level_call = True if source_id_dict is None else False
         source_id_dict = {} if source_id_dict is None else source_id_dict
-        abjad_measure = abjad.Container()
+        abjad_measure = abjad().Container()
         for i, voice in enumerate(self.voices):
             if voice is None:
                 continue
@@ -1136,11 +1136,11 @@ class Measure(ScoreComponent, ScoreContainer):
 
             if i == 0 and self.show_time_signature:
                 # TODO: this seems to break in abjad when the measure starts with a tuplet, so for now, a klugey fix
-                # abjad.attach(self.time_signature.to_abjad(), abjad_voice[0])
-                abjad.attach(abjad.LilyPondLiteral(r"\time {}".format(self.time_signature.as_string()), "opening"),
+                # abjad().attach(self.time_signature.to_abjad(), abjad_voice[0])
+                abjad().attach(abjad().LilyPondLiteral(r"\time {}".format(self.time_signature.as_string()), "opening"),
                              abjad_voice)
             if len(self.voices) > 1:
-                abjad.attach(abjad.LilyPondLiteral(_voice_literals[i]), abjad_voice)
+                abjad().attach(abjad().LilyPondLiteral(_voice_literals[i]), abjad_voice)
             abjad_voice.name = _voice_names[i]
             abjad_measure.append(abjad_voice)
         abjad_measure.simultaneous = True
@@ -1500,7 +1500,7 @@ class Voice(ScoreComponent, ScoreContainer):
 
     def _to_abjad(self, source_id_dict=None):
         if len(self.contents) == 0:  # empty voice
-            return abjad.Voice([abjad.MultimeasureRest(
+            return abjad().Voice([abjad().MultimeasureRest(
                 (self.time_signature.numerator, self.time_signature.denominator)
             )])
         else:
@@ -1510,7 +1510,7 @@ class Voice(ScoreComponent, ScoreContainer):
             if is_top_level_call:
                 for same_source_group in source_id_dict.values():
                     _join_same_source_abjad_note_group(same_source_group)
-            return abjad.Voice(abjad_components)
+            return abjad().Voice(abjad_components)
 
     def to_music_xml(self, source_id_dict=None):
         if len(self.contents) == 0:
@@ -1623,7 +1623,7 @@ class Tuplet(ScoreComponent, ScoreContainer):
         if is_top_level_call:
             for same_source_group in source_id_dict.values():
                 _join_same_source_abjad_note_group(same_source_group)
-        return abjad.Tuplet(abjad.Multiplier(self.normal_divisions, self.tuplet_divisions), abjad_notes)
+        return abjad().Tuplet(abjad().Multiplier(self.normal_divisions, self.tuplet_divisions), abjad_notes)
 
     def to_music_xml(self, source_id_dict=None):
         is_top_level_call = True if source_id_dict is None else False
@@ -1760,9 +1760,9 @@ class NoteLike(ScoreComponent):
         grace_notes = []
 
         if self.is_rest():
-            abjad_object = abjad.Rest(duration)
+            abjad_object = abjad().Rest(duration)
         elif self.is_chord():
-            abjad_object = abjad.Chord()
+            abjad_object = abjad().Chord()
             abjad_object.written_duration = duration
 
             if self.does_glissando():
@@ -1777,7 +1777,7 @@ class NoteLike(ScoreComponent):
 
                 # add a grace chord for each important turn around point in the gliss
                 for t in grace_points:
-                    grace_chord = abjad.Chord()
+                    grace_chord = abjad().Chord()
                     grace_chord.written_duration = 1/16
                     grace_chord.note_heads = [self.properties.spelling_policy.resolve_abjad_pitch(x.value_at(t))
                                               for x in self.pitch]
@@ -1795,7 +1795,7 @@ class NoteLike(ScoreComponent):
 
         elif self.does_glissando():
             # This is a note doing a glissando
-            abjad_object = abjad.Note(self.properties.spelling_policy.resolve_abjad_pitch(self.pitch.start_level()),
+            abjad_object = abjad().Note(self.properties.spelling_policy.resolve_abjad_pitch(self.pitch.start_level()),
                                       duration)
             # Set the notehead
             self._set_abjad_note_head_styles(abjad_object)
@@ -1804,7 +1804,7 @@ class NoteLike(ScoreComponent):
             grace_points = self._get_grace_points()
 
             for t in grace_points:
-                grace = abjad.Note(self.properties.spelling_policy.resolve_abjad_pitch(self.pitch.value_at(t)), 1 / 16)
+                grace = abjad().Note(self.properties.spelling_policy.resolve_abjad_pitch(self.pitch.value_at(t)), 1 / 16)
                 # Set the notehead
                 self._set_abjad_note_head_styles(grace)
                 # but first check that we're not just repeating the last grace note pitch
@@ -1813,7 +1813,7 @@ class NoteLike(ScoreComponent):
                     last_pitch = grace.written_pitch
         else:
             # This is a simple note
-            abjad_object = abjad.Note(self.properties.spelling_policy.resolve_abjad_pitch(self.pitch), duration)
+            abjad_object = abjad().Note(self.properties.spelling_policy.resolve_abjad_pitch(self.pitch), duration)
             # Set the notehead
             self._set_abjad_note_head_styles(abjad_object)
 
@@ -1822,9 +1822,9 @@ class NoteLike(ScoreComponent):
             for note in grace_notes:
                 # this signifier, \stemless, is not standard lilypond, and is defined with
                 # an override at the start of the score
-                abjad.attach(abjad.LilyPondLiteral(r"\stemless"), note)
-            grace_container = abjad.AfterGraceContainer(grace_notes)
-            abjad.attach(grace_container, abjad_object)
+                abjad().attach(abjad().LilyPondLiteral(r"\stemless"), note)
+            grace_container = abjad().AfterGraceContainer(grace_notes)
+            abjad().attach(grace_container, abjad_object)
         else:
             grace_container = None
 
@@ -1854,22 +1854,22 @@ class NoteLike(ScoreComponent):
         return abjad_object
 
     def _set_abjad_note_head_styles(self, abjad_note_or_chord):
-        if isinstance(abjad_note_or_chord, abjad.Note):
+        if isinstance(abjad_note_or_chord, abjad().Note):
             note_head_style = self.properties.noteheads[0]
             if note_head_style != "normal":
                 lilypond_style = get_lilypond_notehead_name(note_head_style)
                 # the pipe separates out a bit of comment text, which is used when the
                 # desired notehead can't be displayed
-                abjad.tweak(abjad_note_or_chord.note_head).style = lilypond_style.split("|")[0]
+                abjad().tweak(abjad_note_or_chord.note_head).style = lilypond_style.split("|")[0]
                 if len(lilypond_style.split("|")) > 1:
-                    abjad.attach(abjad.LilyPondComment(lilypond_style.split("|")[1]), abjad_note_or_chord)
-        elif isinstance(abjad_note_or_chord, abjad.Chord):
+                    abjad().attach(abjad().LilyPondComment(lilypond_style.split("|")[1]), abjad_note_or_chord)
+        elif isinstance(abjad_note_or_chord, abjad().Chord):
             for chord_member, note_head_style in enumerate(self.properties.noteheads):
                 if note_head_style != "normal":
                     lilypond_style = get_lilypond_notehead_name(note_head_style)
-                    abjad.tweak(abjad_note_or_chord.note_heads[chord_member]).style = lilypond_style.split("|")[0]
+                    abjad().tweak(abjad_note_or_chord.note_heads[chord_member]).style = lilypond_style.split("|")[0]
                     if len(lilypond_style.split("|")) > 1:
-                        abjad.attach(abjad.LilyPondComment(lilypond_style.split("|")[1]), abjad_note_or_chord)
+                        abjad().attach(abjad().LilyPondComment(lilypond_style.split("|")[1]), abjad_note_or_chord)
         else:
             raise ValueError("Must be an abjad Note or Chord object")
 
@@ -1877,7 +1877,7 @@ class NoteLike(ScoreComponent):
         if grace_container is None:
             # just a single notehead, so attach all articulations
             for articulation in self.properties.articulations:
-                abjad.attach(abjad.Articulation(articulation), abjad_note_or_chord)
+                abjad().attach(abjad().Articulation(articulation), abjad_note_or_chord)
         else:
             # there's a gliss
             attack_notehead = abjad_note_or_chord if not self.properties.ends_tie() else None
@@ -1889,15 +1889,15 @@ class NoteLike(ScoreComponent):
             # only attach attack articulations to the main note
             if attack_notehead is not None:
                 for articulation in self.get_attack_articulations():
-                    abjad.attach(abjad.Articulation(articulation), abjad_note_or_chord)
+                    abjad().attach(abjad().Articulation(articulation), abjad_note_or_chord)
             # attach inner articulations to all but the last notehead in the grace container
             for articulation in self.get_inner_articulations():
                 for grace_note in inner_noteheads:
-                    abjad.attach(abjad.Articulation(articulation), grace_note)
+                    abjad().attach(abjad().Articulation(articulation), grace_note)
             # attach release articulations to the last notehead in the grace container
             if release_notehead is not None:
                 for articulation in self.get_release_articulations():
-                    abjad.attach(abjad.Articulation(articulation), grace_container[-1])
+                    abjad().attach(abjad().Articulation(articulation), grace_container[-1])
 
     def to_music_xml(self, source_id_dict=None):
         notations = [notations_to_xml_notations_element[x] for x in self.properties.notations

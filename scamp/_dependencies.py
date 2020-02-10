@@ -55,15 +55,23 @@ except ImportError:
     rtmidi = None
     logging.warning("python-rtmidi was not found; streaming midi input / output will not be available.")
 
-try:
-    import abjad
-    if abjad.__version__ < ABJAD_MINIMUM_VERSION:
-        logging.warning("abjad version {} found, but version must be at least {}. "
-                        "Lilypond output will not be available".format(abjad.__version__, ABJAD_MINIMUM_VERSION))
-        abjad = None
-except ImportError:
-    abjad = None
-    logging.warning("abjad was not found; lilypond output will not be available.")
+
+def abjad():
+    # we make this a function that returns the abjad module so that we don't have to load it unless we need it
+    # (since it's kinda slow to load)
+    try:
+        import abjad as abjad_library
+        if abjad_library.__version__ < ABJAD_MINIMUM_VERSION:
+            logging.warning(
+                "abjad version {} found, but version must be at least {}. "
+                "Lilypond output will not be available".format(abjad_library.__version__, ABJAD_MINIMUM_VERSION)
+            )
+            abjad_library = None
+    except ImportError:
+        abjad_library = None
+        logging.warning("abjad was not found; lilypond output will not be available.")
+    return abjad_library
+
 
 try:
     import pynput
