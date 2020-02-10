@@ -1,10 +1,17 @@
+"""
+Simple module with the a play() function that can be used to verify that SCAMP is installed successfully.
+"""
+
 from . import Session
 
 
-def play(show_lilypond=False, show_xml=False):
+def play(show_lilypond: bool = False, show_xml: bool = False) -> None:
     """
     Simple method for determining if scamp was installed correctly. Should play a sequence of pitches telescoping
-    towards middle C
+    towards middle C.
+
+    :param show_lilypond: shows a PDF LilyPond rendering of demo played (requires abjad package).
+    :param show_xml: opens up a MusicXML rendering of the music played
     """
     s = Session()
 

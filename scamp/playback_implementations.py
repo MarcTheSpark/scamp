@@ -1,6 +1,14 @@
+"""
+Module containing the abstract base class PlaybackImplementation, as well as several of its concrete subclasses:
+SoundfontPlaybackImplementation, MidiPlaybackImplementations, and OSCPlaybackImplementation. PlaybackImplementations
+do the actual work of playback, either by playing sounds or by sending messages to external synthesizers to play sounds.
+A ScampInstrument can have one or more PlaybackImplementations.
+"""
+
 from ._midi import SimpleRtMidiOut
-from .soundfont_host import *
+from ._soundfont_host import *
 from . import instruments as instruments_module
+
 from clockblocks import fork_unsynchronized
 import time
 from abc import ABC, abstractmethod
@@ -11,25 +19,37 @@ from typing import Tuple, Optional
 
 class PlaybackImplementation(ABC):
 
-    def __init__(self, host_instrument):
+    """
+    Abstract base class for playback implementations, which do the actual work of playback, either by playing sounds or
+    by sending messages to external synthesizers to play sounds.
+
+    :param host_instrument: The ScampInstrument that will use this playback implementation for playback. When this
+        PlaybackImplementation is constructed, it is automatically added to the list of PlaybackImplementations that
+        the host instrument uses.
+    """
+
+    def __init__(self, host_instrument: 'instruments_module.ScampInstrument'):
         # these get populated when the PlaybackImplementation is registered
-        self.host_instrument = host_instrument
-        # noinspection PyProtectedMember
-        self.note_info_dict = host_instrument._note_info_by_id
+        self._host_instrument = host_instrument
+        self._note_info_dict = host_instrument._note_info_by_id
         host_instrument.playback_implementations.append(self)
         # this is a fallback: if the instrument does not belong to an ensemble, it does not have
         # shared resources and so it will rely on its own privately held resources.
         self._resources = None
 
     """
-    Methods for storing and accessing shared resources for the ensemble. For instance, SoundfontPlaybackImplementation
-    uses this to store an instance of SoundfontHost. Only one instance of fluidsynth (and therefore SoundfontHost)
-    needs to be running for all instruments in the ensemble, so this is a way of pooling that resource.
+    Methods for storing and accessing shared resources for the ensemble. 
     """
 
     @property
-    def resource_dictionary(self):
-        if self.host_instrument.ensemble is None:
+    def resource_dictionary(self) -> dict:
+        """
+        Dictionary of shared resources for this type of playback implementation.
+        For instance, SoundfontPlaybackImplementation uses this to store an instance of SoundfontHost. Only one
+        instance of fluidsynth (and therefore SoundfontHost) needs to be running for all instruments in the ensemble,
+        so this is a way of pooling that resource.
+        """
+        if self._host_instrument.ensemble is None:
             # if this instrument is not part of an ensemble, it can't really have shared resources
             # instead, it creates a local resources dictionary and uses that
             if self._resources is None:
@@ -40,49 +60,102 @@ class PlaybackImplementation(ABC):
             # different playback implementations. Each playback implementation type has its own resource dictionary,
             # stored with its type as a key in the ensemble's shared resources dictionary. This way there can't be
             # name conflicts between different playback implementations
-            if type(self) not in self.host_instrument.ensemble.shared_resources:
-                self.host_instrument.ensemble.shared_resources[type(self)] = {}
-            return self.host_instrument.ensemble.shared_resources[type(self)]
+            if type(self) not in self._host_instrument.ensemble.shared_resources:
+                self._host_instrument.ensemble.shared_resources[type(self)] = {}
+            return self._host_instrument.ensemble.shared_resources[type(self)]
 
-    def has_shared_resource(self, key):
+    def has_shared_resource(self, key) -> bool:
+        """
+        Checks whether there is a shared resource for this type of playback implementation under the given key.
+
+        :param key: key name for this resource
+        """
         return key in self.resource_dictionary
 
     def get_shared_resource(self, key):
+        """
+        Gets the shared resource for this type of playback implementation under the given key.
+
+        :param key: key name for this resource
+        """
         return None if key not in self.resource_dictionary else self.resource_dictionary[key]
 
     def set_shared_resource(self, key, value):
+        """
+        Sets a shared resource for this type of playback implementation under the given key.
+
+        :param key: key name for this resource
+        :param value: value to set for that key
+        """
         self.resource_dictionary[key] = value
 
     """
-    Methods for storing and accessing shared resources for the ensemble. For instance, SoundfontPlaybackImplementation
-    uses this to store an instance of SoundfontHost. Only one instance of fluidsynth (and therefore SoundfontHost)
-    needs to be running for all instruments in the ensemble, so this is a way of pooling that resource.
+    The actual abstract methods to override in creating a new PlaybackImplementation
     """
 
     @abstractmethod
-    def start_note(self, note_id, pitch, volume, properties, other_parameter_values: dict = None):
+    def start_note(self, note_id: int, pitch: float, volume: float, properties: dict,
+                   other_parameter_values: dict = None) -> None:
+        """
+        Method that implements the start of a note
+
+        :param note_id: unique identifier for the note we are starting
+        :param pitch: floating-point MIDI pitch value
+        :param volume: floating-point volume value (from 0 to 1)
+        :param properties: a NotePropertiesDictionary
+        :param other_parameter_values: dictionary mapping parameter name to parameter value for parameters other than
+            pitch and volume. (This information was extracted from the properties dictionary.)
+        """
         pass
 
     @abstractmethod
-    def end_note(self, note_id):
+    def end_note(self, note_id: int) -> None:
+        """
+        Method that implements the end of a note
+
+        :param note_id: unique identifier of the note to end
+        """
         pass
 
     @abstractmethod
-    def change_note_pitch(self, note_id, new_pitch):
+    def change_note_pitch(self, note_id: int, new_pitch: float) -> None:
+        """
+        Method that implements the change of a note's pitch
+
+        :param note_id: unique identifier of the note whose pitch to change
+        :param new_pitch: new (floating-point) MIDI pitch value
+        """
         pass
 
     @abstractmethod
-    def change_note_volume(self, note_id, new_volume):
+    def change_note_volume(self, note_id: int, new_volume: float) -> None:
+        """
+        Method that implements the change of a note's volume
+
+        :param note_id: unique identifier of the note whose volume to change
+        :param new_volume: new floating point volume value from 0 to 1
+        """
         pass
 
     @abstractmethod
-    def change_note_parameter(self, note_id, parameter_name, new_value):
+    def change_note_parameter(self, note_id: int, parameter_name: str, new_value: float) -> None:
+        """
+        Method that implements the change of a parameter other than pitch or volume
+
+        :param note_id: unique identifier of the note to effect
+        :param parameter_name: name of the parameter to change
+        :param new_value: new floating-point value of that parameter
+        """
         pass
 
     @abstractmethod
-    def set_max_pitch_bend(self, semitones):
-        # We include this because some playback implementations, namely ones that use the midi protocol, need a
-        # way of changing the max pitch bend.
+    def set_max_pitch_bend(self, semitones: int) -> None:
+        """
+        Method that sets the max pitch bend for MIDI-based playback implementations
+        This is only relevant when playback is happening via the MIDI protocol.
+
+        :param semitones: unique identifier of the note to effect
+        """
         pass
 
     @abstractmethod
@@ -93,13 +166,26 @@ class PlaybackImplementation(ABC):
     def _from_json(self, json_object, host_instrument):
         # PlaybackImplementations implement a version of from_json that requires us to pass the host instrument
         # this avoids the circularity of the host instrument containing references to the playback implementations
-        # and the playback implementations containing a reference to the host_instrument
+        # and the playback implementations containing a reference to the host instrument
         pass
 
 
 class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
 
-    def __init__(self, host_instrument, num_channels=8):
+    """
+    This is the abstract base class for playback implementations that use the MIDI protocol.
+    It handles all of the channel management nonsense so that that pitch bends don't conflict with
+    one another, and that kind of thing, exposing the more basic note_on/note_off abstract methods
+    to be overridden.
+
+    :param host_instrument: The ScampInstrument that will use this playback implementation for playback. When this
+        PlaybackImplementation is constructed, it is automatically added to the list of PlaybackImplementations that
+        the host instrument uses.
+    :param num_channels: how many MIDI channels to use for this instrument. Where channel-wide messages (such as
+        pitch-bend messages) are involved, it is essential to have several channels at our disposal.
+    """
+
+    def __init__(self, host_instrument: 'instruments_module.ScampInstrument', num_channels: int = 8):
         super().__init__(host_instrument)
         self.num_channels = num_channels
         self.ringing_notes = []
@@ -107,35 +193,72 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
     # -------------------------- Abstract methods to be implemented by subclasses--------------
 
     @abstractmethod
-    def note_on(self, chan, pitch, velocity_from_0_to_1):
+    def note_on(self, chan: int, pitch: int, velocity_from_0_to_1: float) -> None:
+        """
+        Sends a note_on MIDI message
+
+        :param chan: channel to send message on
+        :param pitch: integer MIDI pitch value
+        :param velocity_from_0_to_1: velocity to send (NB: scaled from 0 to 1)
+        """
         pass
 
     @abstractmethod
-    def note_off(self, chan, pitch):
+    def note_off(self, chan: int, pitch: int) -> None:
+        """
+        Sends a note_off MIDI message
+
+        :param chan: channel to send message on
+        :param pitch: integer MIDI pitch value
+        """
         pass
 
     @abstractmethod
-    def pitch_bend(self, chan, bend_in_semitones):
+    def pitch_bend(self, chan: int, bend_in_semitones: float) -> None:
+        """
+        Sends a MIDI pitch bend message
+
+        :param chan: channel to send message on
+        :param bend_in_semitones: the pitch bend amount (in semitones!)
+        """
         pass
 
     @abstractmethod
-    def set_max_pitch_bend(self, max_bend_in_semitones):
+    def set_max_pitch_bend(self, max_bend_in_semitones: int) -> None:
+        """
+        Sets the max pitch bend for this MIDI device
+
+        :param max_bend_in_semitones: value to set as maximum pitch bend
+        """
         pass
 
     @abstractmethod
-    def expression(self, chan, expression_from_0_to_1):
+    def expression(self, chan, expression_from_0_to_1) -> None:
+        """
+        Sends a midi expression message
+
+        :param chan: channel to send message on
+        :param expression_from_0_to_1: expression to send (NB: scaled from 0 to 1)
+        :return:
+        """
         pass
 
     @abstractmethod
-    def cc(self, chan, cc_number, value_from_0_to_1):
-        pass
+    def cc(self, chan: int, cc_number: int, value_from_0_to_1: float) -> None:
+        """
+        Sends an arbitrary midi CC message
+
+        :param chan: channel to send the message on
+        :param cc_number: number representing the type of the control change message
+        :param value_from_0_to_1: value to send (NB: scaled from 0 to 1)
+        """
 
     # -------------------------------- Main Playback Methods --------------------------------
 
     def start_note(self, note_id, pitch, volume, properties, other_parameter_values: dict = None):
         other_parameter_cc_codes = [int(key) for key in other_parameter_values.keys()
                                     if key.isdigit() and 0 <= int(key) < 128]
-        this_note_info = self.note_info_dict[note_id]
+        this_note_info = self._note_info_dict[note_id]
         this_note_fixed = "fixed" in this_note_info["flags"]
         int_pitch = int(round(pitch))
 
@@ -144,7 +267,7 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
         oldest_note_id = None
 
         # go through all currently active notes
-        for other_note_id, other_note_info in self.note_info_dict.items():
+        for other_note_id, other_note_info in self._note_info_dict.items():
             # check that this other note has been handled by this playback implementation (for instance, a silent
             # note will be skipped, since it was never passed to the playback implementations). Also check that it
             # hasn't been prematurely ended.
@@ -219,7 +342,7 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
             # otherwise, we'll have to kill an old note to find a free channel
             # get the info we stored on this note, related to this specific playback implementation
             # (see end of start_note method for explanation)
-            oldest_note_info = self.note_info_dict[oldest_note_id][self]
+            oldest_note_info = self._note_info_dict[oldest_note_id][self]
             self.note_off(oldest_note_info["channel"], oldest_note_info["midi_note"])
             # reset the pitch bend on that channel
             self.pitch_bend(oldest_note_info["channel"], 0)
@@ -254,7 +377,7 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
         }
 
     def end_note(self, note_id):
-        this_note_info = self.note_info_dict[note_id]
+        this_note_info = self._note_info_dict[note_id]
         assert self in this_note_info, "Note was never started by the SoundfontPlaybackImplementer; this is bad."
         this_note_implementation_info = this_note_info[self]
         if not this_note_implementation_info["prematurely_ended"]:
@@ -274,9 +397,9 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
                     # this note is done ringing, so remove it from the ringing notes list
                     self.ringing_notes.remove(ringing_note_info)
 
-                    with self.host_instrument._note_info_lock:
+                    with self._host_instrument._note_info_lock:
                         # if there's another active note on this channel, don't reset the pitch and expression
-                        for other_note_id, other_note_info in self.note_info_dict.items():
+                        for other_note_id, other_note_info in self._note_info_dict.items():
                             if self in other_note_info and other_note_info[self]["channel"] == ringing_note_info[0]:
                                 return
 
@@ -291,11 +414,11 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
             fork_unsynchronized(delete_after_pause)
 
     def change_note_pitch(self, note_id, new_pitch):
-        if note_id not in self.note_info_dict:
+        if note_id not in self._note_info_dict:
             # theoretically could happen if the end_note call happens right before this is called in the
             # asynchronous animation function. We don't want to cause a KeyError, so this avoids that possibility
             return
-        this_note_info = self.note_info_dict[note_id]
+        this_note_info = self._note_info_dict[note_id]
         assert self in this_note_info, "Note was never started by the SoundfontPlaybackImplementer; this is bad."
         this_note_implementation_info = this_note_info[self]
         if not this_note_implementation_info["prematurely_ended"]:
@@ -303,20 +426,18 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
                             new_pitch - this_note_implementation_info["midi_note"])
 
     def change_note_volume(self, note_id, new_volume):
-        if note_id not in self.note_info_dict:
+        if note_id not in self._note_info_dict:
             # theoretically could happen if the end_note call happens right before this is called in the
             # asynchronous animation function. We don't want to cause a KeyError, so this avoids that possibility
             return
-        this_note_info = self.note_info_dict[note_id]
+        this_note_info = self._note_info_dict[note_id]
         assert self in this_note_info, "Note was never started by the SoundfontPlaybackImplementer; this is bad."
         this_note_implementation_info = this_note_info[self]
         if not this_note_implementation_info["prematurely_ended"]:
             self.expression(this_note_implementation_info["channel"], new_volume / this_note_info["max_volume"])
 
     def change_note_parameter(self, note_id, parameter_name, new_value):
-        # parameter changes are not implemented for MidiPlaybackImplementations
-        # perhaps they could be for some other uses, maybe program changes?
-        if note_id not in self.note_info_dict:
+        if note_id not in self._note_info_dict:
             # theoretically could happen if the end_note call happens right before this is called in the
             # asynchronous animation function. We don't want to cause a KeyError, so this avoids that possibility
             return
@@ -327,7 +448,7 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
             cc_number = None
 
         if cc_number is not None:
-            this_note_info = self.note_info_dict[note_id]
+            this_note_info = self._note_info_dict[note_id]
             assert self in this_note_info, "Note was never started by the SoundfontPlaybackImplementer; this is bad."
             this_note_implementation_info = this_note_info[self]
             if not this_note_implementation_info["prematurely_ended"]:
@@ -336,9 +457,27 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
 
 class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
 
+    """
+    Playback implementation that does Soundfont playback, via the MIDI protocol.
+
+    :param host_instrument: The ScampInstrument that will use this playback implementation for playback. When this
+        PlaybackImplementation is constructed, it is automatically added to the list of PlaybackImplementations that
+        the host instrument uses.
+    :param bank_and_preset: The bank and preset within the given soundfont to use for playback
+    :param soundfont: String representing the soundfont to use for playback. Defaults to the one defined in
+        playback_settings.default_soundfont
+    :param num_channels: How many MIDI channels to use for this instrument. Where channel-wide messages (such as
+        pitch-bend messages) are involved, it is essential to have several channels at our disposal.
+    :param audio_driver: name of the audio_driver to use. Defaults to the one defined in
+        playback_settings.default_audio_driver
+    :param max_pitch_bend: max pitch bend allowed on this instrument. Defaults to the one defined in
+        playback_settings.default_max_soundfont_pitch_bend.
+    """
+
     def __init__(self, host_instrument: 'instruments_module.ScampInstrument', bank_and_preset: Tuple[int, int] = (0, 0),
                  soundfont: str = "default", num_channels: int = 8, audio_driver: str = "default",
                  max_pitch_bend: int = "default"):
+
         super().__init__(host_instrument, num_channels)
 
         # we hold onto these arguments for the purposes of json serialization
@@ -364,23 +503,23 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
 
     # -------------------------------- Main Playback Methods --------------------------------
 
-    def note_on(self, chan, pitch, velocity_from_0_to_1):
+    def note_on(self, chan: int, pitch: int, velocity_from_0_to_1: float):
         self.soundfont_instrument.note_on(chan, pitch, velocity_from_0_to_1)
 
-    def note_off(self, chan, pitch):
+    def note_off(self, chan: int, pitch: int):
         self.soundfont_instrument.note_off(chan, pitch)
 
-    def pitch_bend(self, chan, bend_in_semitones):
+    def pitch_bend(self, chan: int, bend_in_semitones: float):
         self.soundfont_instrument.pitch_bend(chan, bend_in_semitones)
 
-    def set_max_pitch_bend(self, semitones):
+    def set_max_pitch_bend(self, semitones: int):
         self.soundfont_instrument.set_max_pitch_bend(semitones)
         self.max_pitch_bend = semitones
 
-    def expression(self, chan, expression_from_0_to_1):
+    def expression(self, chan: int, expression_from_0_to_1: float):
         self.soundfont_instrument.expression(chan, expression_from_0_to_1)
 
-    def cc(self, chan, cc_number, value_from_0_to_1):
+    def cc(self, chan: int, cc_number: int, value_from_0_to_1: float):
         self.soundfont_instrument.cc(chan, cc_number, value_from_0_to_1)
 
     def _to_json(self):
@@ -401,6 +540,20 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
 
 
 class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
+    """
+    Playback implementation that sends an outgoing MIDI stream to an external synthesizer / program
+
+    :param host_instrument: The ScampInstrument that will use this playback implementation for playback. When this
+        PlaybackImplementation is constructed, it is automatically added to the list of PlaybackImplementations that
+        the host instrument uses.
+    :param midi_output_device: name or port number number of the midi output device to use. Defaults to
+        playback_settings.default_midi_output_device
+    :param num_channels: How many MIDI channels to use for this instrument. Where channel-wide messages (such as
+        pitch-bend messages) are involved, it is essential to have several channels at our disposal.
+    :param midi_output_name: name to use when sending messages
+    :param max_pitch_bend: max pitch bend allowed on this instrument. Defaults to the one defined in
+        playback_settings.default_max_streaming_midi_pitch_bend.
+    """
 
     def __init__(self, host_instrument: 'instruments_module.ScampInstrument', midi_output_device: str = "default",
                  num_channels=8, midi_output_name: Optional[str] = None, max_pitch_bend: int ="default"):
@@ -433,27 +586,27 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
         self.set_max_pitch_bend(playback_settings.default_max_streaming_midi_pitch_bend
                                 if max_pitch_bend == "default" else max_pitch_bend)
 
-    def get_rt_simple_out_and_channel(self, chan):
+    def _get_rt_simple_out_and_channel(self, chan):
         assert chan < self.num_channels
         adjusted_chan = chan % 16
         rt_simple_out = self.rt_simple_outs[(chan - adjusted_chan) // 16]
         return rt_simple_out, adjusted_chan
 
-    def note_on(self, chan, pitch, velocity_from_0_to_1):
+    def note_on(self, chan: int, pitch: int, velocity_from_0_to_1: float):
         # unless it's the standard value of two semitones, reinforce the max pitch bend at the start of every note,
         # since we may start recording partway through
         if self.max_pitch_bend != 2:
             self.set_max_pitch_bend(self.max_pitch_bend)
-        rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
+        rt_simple_out, chan = self._get_rt_simple_out_and_channel(chan)
         velocity = max(0, min(127, int(velocity_from_0_to_1 * 127)))
         rt_simple_out.note_on(chan, pitch, velocity)
 
-    def note_off(self, chan, pitch):
-        rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
+    def note_off(self, chan: int, pitch: int):
+        rt_simple_out, chan = self._get_rt_simple_out_and_channel(chan)
         rt_simple_out.note_off(chan, pitch)
 
-    def pitch_bend(self, chan, bend_in_semitones):
-        rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
+    def pitch_bend(self, chan: int, bend_in_semitones: float):
+        rt_simple_out, chan = self._get_rt_simple_out_and_channel(chan)
         directional_bend_value = int(bend_in_semitones / self.max_pitch_bend * 8192)
 
         if directional_bend_value > 8192 or directional_bend_value < -8192:
@@ -467,17 +620,13 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
         rt_simple_out.pitch_bend(chan, directional_bend_value + 8192)
 
     def set_max_pitch_bend(self, max_bend_in_semitones: int):
-        """
-        Sets the maximum pitch bend to the given number of semitones up and down for all tracks associated
-        with this instrument. Note that this will often be ignored by midi receivers.
-        """
         if max_bend_in_semitones != int(max_bend_in_semitones):
             logging.warning("Max pitch bend must be an integer number of semitones. "
                             "The value of {} is being rounded up.".format(max_bend_in_semitones))
             max_bend_in_semitones = int(max_bend_in_semitones) + 1
 
         for chan in range(self.num_channels):
-            rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
+            rt_simple_out, chan = self._get_rt_simple_out_and_channel(chan)
             rt_simple_out.cc(chan, 101, 0)
             rt_simple_out.cc(chan, 100, 0)
             rt_simple_out.cc(chan, 6, max_bend_in_semitones)
@@ -485,13 +634,13 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
 
         self.max_pitch_bend = max_bend_in_semitones
 
-    def expression(self, chan, expression_from_0_to_1):
-        rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
+    def expression(self, chan: int, expression_from_0_to_1: float):
+        rt_simple_out, chan = self._get_rt_simple_out_and_channel(chan)
         expression_val = max(0, min(127, int(expression_from_0_to_1 * 127)))
         rt_simple_out.expression(chan, expression_val)
 
-    def cc(self, chan, cc_number, value_from_0_to_1):
-        rt_simple_out, chan = self.get_rt_simple_out_and_channel(chan)
+    def cc(self, chan: int, cc_number: int, value_from_0_to_1: float):
+        rt_simple_out, chan = self._get_rt_simple_out_and_channel(chan)
         cc_value = max(0, min(127, int(value_from_0_to_1 * 127)))
         rt_simple_out.cc(chan, cc_number, cc_value)
 
@@ -512,6 +661,18 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
 
 
 class OSCPlaybackImplementation(PlaybackImplementation):
+    """
+    Playback implementation that sends outgoing OSC messages to an external synthesizer / program
+
+    :param host_instrument: The ScampInstrument that will use this playback implementation for playback. When this
+        PlaybackImplementation is constructed, it is automatically added to the list of PlaybackImplementations that
+        the host instrument uses.
+    :param port: OSC port to use for playback
+    :param ip_address: ip_address to send OSC messages to
+    :param message_prefix: prefix used in the address of all messages sent. Defaults to the name of the instrument
+    :param osc_message_addresses: dictionary mapping the kind of the message to the address for that message. Defaults
+         to playback_settings.osc_message_addresses
+    """
 
     def __init__(self, host_instrument: 'instruments_module.ScampInstrument', port: int, ip_address: str = "127.0.0.1",
                  message_prefix: Optional[str] = None, osc_message_addresses: dict = "default"):
@@ -525,7 +686,7 @@ class OSCPlaybackImplementation(PlaybackImplementation):
         # the first part of the osc message; used to distinguish between instruments
         # by default uses the name of the instrument with spaces removed
         self.message_prefix = message_prefix if message_prefix is not None \
-            else (self.host_instrument.name.replace(" ", "") if self.host_instrument.name is not None else "unnamed")
+            else (self._host_instrument.name.replace(" ", "") if self._host_instrument.name is not None else "unnamed")
 
         self.osc_message_addresses = playback_settings.osc_message_addresses
         if osc_message_addresses != "default":
@@ -544,31 +705,35 @@ class OSCPlaybackImplementation(PlaybackImplementation):
 
         atexit.register(clean_up)
 
-    def start_note(self, note_id, pitch, volume, properties, other_parameter_values: dict = None):
+    def start_note(self, note_id: int, pitch: float, volume: float, properties: dict,
+                   other_parameter_values: dict = None) -> None:
         self.client.send_message("/{}/{}".format(self.message_prefix, self.osc_message_addresses["start_note"]),
                                  [note_id, pitch, volume])
         self._currently_playing.append(note_id)
         for param, value in other_parameter_values.items():
             self.change_note_parameter(note_id, param, value)
 
-    def end_note(self, note_id):
+    def end_note(self, note_id: int) -> None:
         self.client.send_message("/{}/{}".format(self.message_prefix, self.osc_message_addresses["end_note"]), [note_id])
         if note_id in self._currently_playing:
             self._currently_playing.remove(note_id)
 
-    def change_note_pitch(self, note_id, new_pitch):
+    def change_note_pitch(self, note_id: int, new_pitch: float) -> None:
         self.client.send_message("/{}/{}".format(self.message_prefix, self.osc_message_addresses["change_pitch"]),
                                  [note_id, new_pitch])
 
-    def change_note_volume(self, note_id, new_volume):
+    def change_note_volume(self, note_id: int, new_volume: float) -> None:
         self.client.send_message("/{}/{}".format(self.message_prefix, self.osc_message_addresses["change_volume"]),
                                  [note_id, new_volume])
 
-    def change_note_parameter(self, note_id, parameter_name, new_value):
+    def change_note_parameter(self, note_id: int, parameter_name: str, new_value: float) -> None:
         self.client.send_message("/{}/{}/{}".format(
             self.message_prefix, self.osc_message_addresses["change_parameter"], parameter_name), [note_id, new_value])
 
-    def set_max_pitch_bend(self, semitones):
+    def set_max_pitch_bend(self, semitones: int) -> None:
+        """
+        This method does nothing in the case of an OSC-based implementation
+        """
         pass
 
     def _to_json(self):

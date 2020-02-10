@@ -19,7 +19,7 @@ import logging
 from copy import deepcopy
 import itertools
 import textwrap
-from typing import Union, Sequence, Tuple, Optional, Iterator
+from typing import Union, Sequence, Tuple, Iterator
 
 
 @total_ordering
@@ -89,7 +89,7 @@ class PerformanceNote(SavesToJSON):
         else:
             return self.pitch.average_level() if isinstance(self.pitch, Envelope) else self.pitch
 
-    def play(self, instrument: ScampInstrument, clock: Optional[Clock] = None, blocking: bool = True) -> None:
+    def play(self, instrument: ScampInstrument, clock: Clock = None, blocking: bool = True) -> None:
         """
         Play this note with the given instrument on the given clock
 
@@ -365,9 +365,8 @@ class PerformancePart(SavesToJSON):
     :ivar voice_quantization_records: dictionary mapping voice names to QuantizationRecords, if this is quantized
     """
 
-    def __init__(self, instrument: ScampInstrument = None, name: str = None,
-                 voices: Optional[Union[dict, Sequence]] = None,
-                 instrument_id: Tuple[str, int] = None, voice_quantization_records: Optional[dict] = None):
+    def __init__(self, instrument: ScampInstrument = None, name: str = None, voices: Union[dict, Sequence] = None,
+                 instrument_id: Tuple[str, int] = None, voice_quantization_records: dict = None):
         self.instrument = instrument  # A ScampInstrument instance
         # the name of the part can be specified directly, or if not derives from the instrument it's attached to
         # if the part is not attached to an instrument, it starts with a name of None
@@ -481,8 +480,8 @@ class PerformancePart(SavesToJSON):
         return max(max(n.start_beat + n.length_sum() for n in voice) if len(voice) > 0 else 0
                    for voice in self.voices.values())
 
-    def get_note_iterator(self, start_beat: float = 0, stop_beat: Optional[float] = None,
-                          selected_voices: Optional[Sequence[str]] = None) -> Iterator[PerformanceNote]:
+    def get_note_iterator(self, start_beat: float = 0, stop_beat: float = None,
+                          selected_voices: Sequence[str] = None) -> Iterator[PerformanceNote]:
         """
         Returns an iterator returning all the notes from start_beat to stop_beat in the selected voices
 
@@ -504,10 +503,9 @@ class PerformancePart(SavesToJSON):
 
         return iterator()
 
-    def play(self, start_beat: float = 0, stop_beat: Optional[float] = None,
-             instrument: Optional[ScampInstrument] = None, clock: Optional[Clock] = None,
-             blocking: bool = True, tempo_envelope: Optional[TempoEnvelope] = None,
-             selected_voices: Optional[Sequence[str]] = None) -> Clock:
+    def play(self, start_beat: float = 0, stop_beat: float = None, instrument: ScampInstrument = None,
+             clock: Clock = None, blocking: bool = True, tempo_envelope: TempoEnvelope = None,
+             selected_voices: Sequence[str] = None) -> Clock:
         """
         Play this PerformancePart (or a selection of it)
 
@@ -806,7 +804,7 @@ class Performance(SavesToJSON):
         """
         return self.end_beat
 
-    def play(self, start_beat: float = 0, stop_beat: Optional[float] = None, ensemble: Ensemble = "auto",
+    def play(self, start_beat: float = 0, stop_beat: float = None, ensemble: Ensemble = "auto",
              clock: Clock = "auto", blocking: bool = True, tempo_envelope: TempoEnvelope = "auto") -> Clock:
         """
         Play back this performance (or a selection of it)
@@ -931,11 +929,9 @@ class Performance(SavesToJSON):
         """
         raise NotImplementedError()
 
-    def to_score(self, quantization_scheme: QuantizationScheme = None,
-                 time_signature: Optional[Union[str, Sequence]] = None,
-                 bar_line_locations: Optional[Sequence[float]] = None,
-                 max_divisor: Optional[int] = None, max_divisor_indigestibility: Optional[int] = None,
-                 simplicity_preference: Optional[float] = None, title: str = "default",
+    def to_score(self, quantization_scheme: QuantizationScheme = None, time_signature: Union[str, Sequence] = None,
+                 bar_line_locations: Sequence[float] = None, max_divisor: int = None,
+                 max_divisor_indigestibility: int = None, simplicity_preference: float = None, title: str = "default",
                  composer: str = "default") -> Score:
         """
         Convert this Performance (list of note events in continuous time and pitch) to a Score object, which represents

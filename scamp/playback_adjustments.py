@@ -1,5 +1,11 @@
+"""
+Module containing classes for defining adjustments to the playback of note parameters, as well as the
+PlaybackAdjustmentsDictionary, which defines how particular notations should be played back.
+"""
+
 from .utilities import SavesToJSON
 from ._engraving_translations import *
+from typing import Union
 
 
 def _split_string_at_outer_spaces(s):
@@ -37,20 +43,18 @@ class ParamPlaybackAdjustment(SavesToJSON):
     Represents a multiple/add playback adjustment to a single parameter.
     (The multiply happens first, then the add.
 
+    :param multiply: how much to multiply by
+    :param add: how much to add
     :ivar multiply: how much to multiply by
     :ivar add: how much to add
     """
 
-    def __init__(self, multiply=1, add=0):
-        """
-        :param multiply: how much to multiply by
-        :param add: how much to add
-        """
+    def __init__(self, multiply: float = 1, add: float = 0):
         self.multiply = multiply
         self.add = add
 
     @classmethod
-    def from_string(cls, string: str):
+    def from_string(cls, string: str) -> 'ParamPlaybackAdjustment':
         """
         Construct a ParamPlaybackAdjustment from an appropriately formatted string.
 
@@ -84,7 +88,7 @@ class ParamPlaybackAdjustment(SavesToJSON):
             raise ValueError("Bad parameter adjustment expression.")
 
     @classmethod
-    def set_to(cls, value):
+    def set_to(cls, value) -> 'ParamPlaybackAdjustment':
         """
         Class method for an adjustment that resets the value of the parameter, ignoring its original value
 
@@ -93,7 +97,7 @@ class ParamPlaybackAdjustment(SavesToJSON):
         return cls(0, value)
 
     @classmethod
-    def scale(cls, value):
+    def scale(cls, value) -> 'ParamPlaybackAdjustment':
         """
         Class method for a simple scaling adjustment.
 
@@ -102,7 +106,7 @@ class ParamPlaybackAdjustment(SavesToJSON):
         return cls(value)
 
     @classmethod
-    def add(cls, value):
+    def add(cls, value) -> 'ParamPlaybackAdjustment':
         """
         Class method for a simple additive adjustment.
 
@@ -138,32 +142,23 @@ class NotePlaybackAdjustment(SavesToJSON):
     """
     Represents an adjustment to the pitch, volume and/or length of the playback of a single note
 
+    :param pitch_adjustment: The desired adjustment for the note's pitch. (None indicates no adjustment)
+    :param volume_adjustment: The desired adjustment for the note's volume. (None indicates no adjustment)
+    :param length_adjustment: The desired adjustment for the note's length. (None indicates no adjustment)
     :ivar pitch_adjustment: The desired adjustment for the note's pitch. (None indicates no adjustment)
-    :type pitch_adjustment: ParamPlaybackAdjustment
     :ivar volume_adjustment: The desired adjustment for the note's volume. (None indicates no adjustment)
-    :type volume_adjustment: ParamPlaybackAdjustment
     :ivar length_adjustment: The desired adjustment for the note's length. (None indicates no adjustment)
-    :type length_adjustment: ParamPlaybackAdjustment
     """
 
-    def __init__(self, pitch_adjustment=None, volume_adjustment=None, length_adjustment=None):
-        """
-        :param pitch_adjustment: The desired adjustment for the note's pitch. (None indicates no adjustment)
-        :type pitch_adjustment: ParamPlaybackAdjustment
-        :param volume_adjustment: The desired adjustment for the note's volume. (None indicates no adjustment)
-        :type volume_adjustment: ParamPlaybackAdjustment
-        :param length_adjustment: The desired adjustment for the note's length. (None indicates no adjustment)
-        :type length_adjustment: ParamPlaybackAdjustment
-        """
-        assert pitch_adjustment is None or isinstance(pitch_adjustment, ParamPlaybackAdjustment)
-        assert volume_adjustment is None or isinstance(volume_adjustment, ParamPlaybackAdjustment)
-        assert length_adjustment is None or isinstance(length_adjustment, ParamPlaybackAdjustment)
-        self.pitch_adjustment = pitch_adjustment
-        self.volume_adjustment = volume_adjustment
-        self.length_adjustment = length_adjustment
+    def __init__(self, pitch_adjustment: ParamPlaybackAdjustment = None,
+                 volume_adjustment: ParamPlaybackAdjustment = None,
+                 length_adjustment: ParamPlaybackAdjustment = None):
+        self.pitch_adjustment: ParamPlaybackAdjustment = pitch_adjustment
+        self.volume_adjustment: ParamPlaybackAdjustment = volume_adjustment
+        self.length_adjustment: ParamPlaybackAdjustment = length_adjustment
 
     @classmethod
-    def from_string(cls, string: str):
+    def from_string(cls, string: str) -> 'NotePlaybackAdjustment':
         """
         Construct a NotePlaybackAdjustment from a string using a particular grammar.
 
@@ -209,7 +204,7 @@ class NotePlaybackAdjustment(SavesToJSON):
         return string,
 
     @classmethod
-    def scale_params(cls, pitch=1, volume=1, length=1):
+    def scale_params(cls, pitch=1, volume=1, length=1) -> 'NotePlaybackAdjustment':
         """
         Constructs a NotePlaybackAdjustment that scales the parameters
 
@@ -223,7 +218,7 @@ class NotePlaybackAdjustment(SavesToJSON):
                    ParamPlaybackAdjustment.scale(length) if length != 1 else None)
 
     @classmethod
-    def add_to_params(cls, pitch=None, volume=None, length=None):
+    def add_to_params(cls, pitch=None, volume=None, length=None) -> 'NotePlaybackAdjustment':
         """
         Constructs a NotePlaybackAdjustment that adds to the parameters
 
@@ -237,7 +232,7 @@ class NotePlaybackAdjustment(SavesToJSON):
                    ParamPlaybackAdjustment.add(length) if length is not None else None)
 
     @classmethod
-    def set_params(cls, pitch=None, volume=None, length=None):
+    def set_params(cls, pitch=None, volume=None, length=None) -> 'NotePlaybackAdjustment':
         """
         Constructs a NotePlaybackAdjustment that directly resets the parameters
 
@@ -293,6 +288,12 @@ class PlaybackAdjustmentsDictionary(dict, SavesToJSON):
     The instance of this at playback_settings.adjustments is consulted during playback. Essentially, this is
     just a dictionary with some validation and a couple of convenience methods to set and get adjustments for
     different properties.
+
+    :param articulations: dictionary mapping articulation names to playback adjustments. For example, to have
+        staccato notes be played at half length: `{"staccato": NotePlaybackAdjustment.scale_params(length=0.5)}`
+    :param noteheads: dictionary mapping notehead names to playback adjustments. For example, to have harmonic
+        noteheads be played up an octave: `{"harmonic": NotePlaybackAdjustment.add_to_params(pitch=12)}`
+    :param notations: dictionary mapping notation names to playback adjustments.
     """
 
     all_articulations = list(articulation_to_xml_element_name.keys())
@@ -302,19 +303,7 @@ class PlaybackAdjustmentsDictionary(dict, SavesToJSON):
                           if not notehead_name.startswith("filled")])
     all_notations = list(notations_to_xml_notations_element.keys())
 
-    def __init__(self, articulations=None, noteheads=None, notations=None):
-        """
-        Dictionary containing playback adjustments for different articulations, noteheads, and other notations.
-        The instance of this at playback_settings.adjustments is consulted during playback. Essentially, this is
-        just a dictionary with some validation and a couple of convenience methods to set and get adjustments for
-        different properties.
-
-        :param articulations: dictionary mapping articulation names to playback adjustments. For example, to have
-            staccato notes be played at half length: `{"staccato": NotePlaybackAdjustment.scale_params(length=0.5)}`
-        :param noteheads: dictionary mapping notehead names to playback adjustments. For example, to have harmonic
-            noteheads be played up an octave: `{"harmonic": NotePlaybackAdjustment.add_to_params(pitch=12)}`
-        :param notations: dictionary mapping notation names to playback adjustments.
-        """
+    def __init__(self, articulations: dict = None, noteheads: dict = None, notations: dict = None):
         # make sure there is an entry for every notehead, articulation, and notation
         if articulations is None:
             articulations = {x: None for x in PlaybackAdjustmentsDictionary.all_articulations}
@@ -335,34 +324,33 @@ class PlaybackAdjustmentsDictionary(dict, SavesToJSON):
         super().__init__(articulations=articulations, noteheads=noteheads, notations=notations)
 
     @property
-    def articulations(self):
+    def articulations(self) -> dict:
         """
         Dictionary mapping articulation names to corresponding playback adjustments
         """
         return self["articulations"]
 
     @property
-    def noteheads(self):
+    def noteheads(self) -> dict:
         """
         Dictionary mapping notehead names to corresponding playback adjustments
         """
         return self["noteheads"]
 
     @property
-    def notations(self):
+    def notations(self) -> dict:
         """
         Dictionary mapping notation names to corresponding playback adjustments
         """
         return self["notations"]
 
-    def set(self, notation_detail, adjustment):
+    def set(self, notation_detail: str, adjustment: Union[str, NotePlaybackAdjustment]) -> None:
         """
         Set the given notation detail to have the given adjustment.
         Based on the name of the notation detail, it is automatically determined whether or not we are talking about
         an articulation, a notehead, or another kind of notation.
 
         :param notation_detail: name of the notation detail, e.g. "staccato" or "harmonic"
-        :type notation_detail: str
         :param adjustment: the adjustment to make for that notation. Either a NotePlaybackAdjustment or a string to
             be parsed to a NotePlaybackAdjustment using NotePlaybackAdjustment.from_string
         """
@@ -379,14 +367,13 @@ class PlaybackAdjustmentsDictionary(dict, SavesToJSON):
         else:
             raise ValueError("Playback property not understood.")
 
-    def get(self, notation_detail):
+    def get(self, notation_detail: str) -> NotePlaybackAdjustment:
         """
         Get the adjustment for the given notation detail.
         Based on the name of the notation detail, it is automatically determined whether or not we are talking about
         an articulation, a notehead, or another kind of notation.
 
         :param notation_detail: name of the notation detail, e.g. "staccato" or "harmonic"
-        :type notation_detail: str
         :return: the NotePlaybackAdjustment for that detail
         """
         if "notehead" in notation_detail:

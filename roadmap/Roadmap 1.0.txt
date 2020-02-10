@@ -26,6 +26,7 @@ Engraving:
     - Engraving Trills, mordents and other symbol notations like that (perhaps, for now, affect playback by adding a
     square wave for a trill, similar thing with mordent).
     - Two eighth note rests in a triplet shouldn't combine
+    - Key signatures?
 
 Assorted:
     - make to and from JSON use a custom encoder and decoder. This requires overriding object_hook in the decoder, and

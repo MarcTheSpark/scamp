@@ -1,5 +1,6 @@
 import functools
 from .utilities import SavesToJSON
+
 _c_standard_spellings = ((0, 0), (0, 1), (1, 0), (2, -1), (2, 0), (3, 0),
                          (3, 1), (4, 0), (5, -1), (5, 0), (6, -1), (6, 0))
 _c_phrygian_spellings = ((0, 0), (1, -1), (1, 0), (2, -1), (2, 0), (3, 0),
