@@ -2,6 +2,8 @@
 
 .. currentmodule:: {{ fullname }}
 
+.. automodule:: {{ fullname }}
+
 {% if classes %}
 .. rubric:: Classes
 
@@ -23,8 +25,3 @@
     {% endfor %}
 
 {% endif %}
-
-{% for function in functions %}
-.. autofunction:: {{ function }}
-    :noindex:
-{% endfor %}

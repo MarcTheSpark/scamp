@@ -790,7 +790,8 @@ class Performance(SavesToJSON):
     @property
     def end_beat(self) -> float:
         """
-        The end beat of this performance (i.e. the beat corresponding to the end of the last note)
+        The end beat of this performance.
+        (i.e. the beat corresponding to the end of the last note)
 
         :return: float representing the beat at which all notes are done playing
         """

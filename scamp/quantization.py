@@ -1,3 +1,8 @@
+"""
+Module containing classes and functions related to the quantization of performances. (This includes the TimeSignature
+class, which also has bearing on musical notation.)
+"""
+
 from fractions import Fraction
 from .utilities import indigestibility, is_multiple, is_x_pow_of_y, round_to_multiple, sum_nested_list, prime_factor, \
     SavesToJSON, memoize
@@ -10,15 +15,470 @@ from numbers import Number
 from typing import Sequence
 import textwrap
 
+
+##################################################################################################################
+#                                             TimeSignature Class
+##################################################################################################################
+
+
+class TimeSignature(SavesToJSON):
+    """
+    Class representing a time signature
+
+    :param numerator: self-explanatory
+    :param denominator: self-explanatory
+    :param beat_lengths: This is a hint as to how the time signature is divided up into beats. By default,
+        it is None, meaning that a sensible default will be constructed.
+    """
+
+    def __init__(self, numerator, denominator, beat_lengths=None):
+
+        self.numerator = numerator
+        # For now, and the foreseeable future, I don't want to deal with time signatures like 4/7
+        if not is_x_pow_of_y(denominator, 2):
+            raise ValueError("TimeSignature denominator must be a power of two.")
+        self.denominator = denominator
+        self.beat_lengths = beat_lengths if beat_lengths is not None else self._calculate_default_beat_lengths()
+
+    def _calculate_default_beat_lengths(self):
+        if not hasattr(self.numerator, '__len__'):
+            # not an additive meter
+            if self.denominator <= 4 or is_multiple(self.numerator, 3):
+                # if the denominator is 4 or less, we'll use the denominator as the beat
+                # and if not, but the numerator is a multiple of 3, then we've got a compound meter
+                if self.denominator > 4:
+                    beat_length = 4.0 / self.denominator * 3
+                else:
+                    beat_length = 4.0 / self.denominator
+                num_beats = int(round(self.measure_length() / beat_length))
+                beat_lengths = [beat_length] * num_beats
+            else:
+                # if we're here then the denominator is >= 8 and the numerator is not a multiple of 3
+                # so we'll do a bunch of duple beats followed by a triple beat if the numerator is odd
+                duple_beat_length = 4.0 / self.denominator * 2
+                triple_beat_length = 4.0 / self.denominator * 3
+
+                if self.numerator % 2 == 0:
+                    beat_lengths = [duple_beat_length] * (self.numerator // 2)
+                else:
+                    beat_lengths = [duple_beat_length] * (self.numerator // 2 - 1) + [triple_beat_length]
+        else:
+            # additive meter
+            if self.denominator <= 4:
+                # denominator is quarter note or slower, so treat each denominator value as a beat, ignoring groupings
+                beat_lengths = [4.0 / self.denominator] * sum(self.numerator)
+            else:
+                # denominator is eighth or faster, so treat each grouping as a beat
+                beat_lengths = [4.0 / self.denominator * x for x in self.numerator]
+        return beat_lengths
+
+    @classmethod
+    def from_measure_length(cls, measure_length: Number):
+        fraction_length = Fraction(measure_length)
+        numerator, denominator = fraction_length.numerator, fraction_length.denominator * 4
+        return cls(numerator, denominator)
+
+    @classmethod
+    def from_string(cls, time_signature_string):
+        assert isinstance(time_signature_string, str) and len(time_signature_string.split("/")) == 2
+        numerator_string, denominator_string = time_signature_string.split("/")
+        numerator = tuple(int(x) for x in numerator_string.split("+")) \
+            if "+" in numerator_string else int(numerator_string)
+        denominator = int(denominator_string)
+        return cls(numerator, denominator)
+
+    def as_string(self):
+        if hasattr(self.numerator, "__len__"):
+            return "{}/{}".format("+".join(str(x) for x in self.numerator), self.denominator)
+        else:
+            return "{}/{}".format(self.numerator, self.denominator)
+
+    def as_tuple(self):
+        return self.numerator, self.denominator
+
+    def measure_length(self):
+        if hasattr(self.numerator, "__len__"):
+            return 4 * sum(self.numerator) / self.denominator
+        else:
+            return 4 * self.numerator / self.denominator
+
+    def _to_json(self):
+        return self.numerator, self.denominator
+
+    @classmethod
+    def _from_json(cls, json_object):
+        return cls(*json_object)
+
+    def to_abjad(self):
+        return abjad().TimeSignature((self.numerator, self.denominator))
+
+    def __eq__(self, other):
+        return self.numerator == other.numerator and self.denominator == other.denominator
+
+    def __repr__(self):
+        return "TimeSignature({}, {})".format(self.numerator, self.denominator)
+
+
+##################################################################################################################
+#                                             Quantization Schemes
+##################################################################################################################
+
+
+class BeatQuantizationScheme:
+
+    def __init__(self, length, divisors, simplicity_preference="default"):
+        """
+        A scheme for making a decision about which divisor to use to quantize a beat
+
+        :param length: In quarter-notes
+        :param divisors: A list of allowed divisors or a list of tuples of (divisor, undesirability). If just
+            divisors are given, the undesirability for each will be calculated based on its indigestibility.
+        :param simplicity_preference: ranges 0 - whatever. A simplicity_preference of 0 means all divisions are
+            treated equally; a 7 is as good as a 4. A simplicity_preference of 1 means that the error for a given
+            divisor is weighted by that divisor's indigestibility, and a simplicity_preference of 2 means the error
+            is weighted by the indigestibility squared, etc.
+        """
+        # load default if not specified
+        if simplicity_preference == "default":
+            simplicity_preference = quantization_settings.simplicity_preference
+
+        # actual length of the beat
+        self.length = float(length)
+        self.length_as_fraction = Fraction(length).limit_denominator()
+        assert is_x_pow_of_y(self.length_as_fraction.denominator, 2), \
+            "Beat length must be some multiple of a power of 2 division of the bar."
+
+        # now we populate a self.quantization_divisions with tuples consisting of the allowed divisions and
+        # their undesirabilities. Undesirability is a factor by which the error in a given quantization option
+        # is multiplied; the lowest possible undesirability is 1
+        assert hasattr(divisors, "__len__") and len(divisors) > 0
+        if isinstance(divisors[0], tuple):
+            # already (divisor, undesirability) tuples
+            self.quantization_divisions = divisors
+        else:
+            # we've just been given the divisors, and have to figure out the undesirabilities
+            if len(divisors) == 1:
+                # there's only one way we're allowed to divide the beat, so just give it undesirability 1, whatever
+                self.quantization_divisions = list(zip(divisors, [1.0]))
+            else:
+                div_indigestibilities = BeatQuantizationScheme.get_divisor_indigestibilities(length, divisors)
+                self.quantization_divisions = list(zip(
+                    divisors,
+                    BeatQuantizationScheme.get_divisor_undesirabilities(div_indigestibilities, simplicity_preference)
+                ))
+
+    @classmethod
+    def from_max_divisor(cls, length, max_divisor, simplicity_preference="default"):
+        """
+        Takes a max divisor argument instead of a list of allowed divisors.
+        """
+        return cls(length, range(2, max_divisor + 1), simplicity_preference)
+
+    @classmethod
+    def from_max_divisor_indigestibility(cls, length, max_divisor, max_divisor_indigestibility,
+                                         simplicity_preference="default"):
+        """
+        Takes a max_divisor and max_divisor_indigestibility to get a determine the list of divisors.
+        """
+        if simplicity_preference == "default":
+            simplicity_preference = quantization_settings.simplicity_preference
+
+        # look at all possible divisors and the indigestibilities
+        all_divisors = range(2, max_divisor + 1)
+        all_indigestibilities = BeatQuantizationScheme.get_divisor_indigestibilities(length, all_divisors)
+
+        # keep only those that fall below the max_divisor_indigestibility
+        quantization_divisions = []
+        div_indigestibilities = []
+        for div, div_indigestibility in zip(all_divisors, all_indigestibilities):
+            if div_indigestibility <= max_divisor_indigestibility:
+                quantization_divisions.append(div)
+                div_indigestibilities.append(div_indigestibility)
+
+        return cls(length, list(zip(
+            quantization_divisions,
+            BeatQuantizationScheme.get_divisor_undesirabilities(div_indigestibilities, simplicity_preference)
+        )))
+
+    @staticmethod
+    def get_divisor_indigestibilities(length, divisors):
+        # What we care about is how well the given division works within the most natural division of the
+        # length so first notate the length as a fraction; its numerator is its most natural division
+        # Example: if length = 1.5, then length_fraction = 3/2
+        # so for a divisor of 6, the relative division is 6/3, which Fraction automatically reduces to 2/1
+        # on the other hand, a divisor of 2 has relative division 2/3, which is irreducible
+        # thus the div_indigestibility for divisor 6 in this case is indigestibility(2) = 1
+        # and the div_indigestibility for divisor 2 is indigestibility(2) + indigestibility(3) = 3.6667
+        # this is appropriate for a beat of length 1.5 (compound meter)
+        length_fraction = Fraction(length).limit_denominator()
+        out = []
+        for div in divisors:
+            relative_division = Fraction(div, length_fraction.numerator)
+            out.append(indigestibility(relative_division.numerator) + indigestibility(relative_division.denominator))
+        return out
+
+    @staticmethod
+    def get_divisor_undesirabilities(divisor_indigestibilities, simplicity_preference):
+        return [div ** simplicity_preference for div in divisor_indigestibilities]
+
+    def __str__(self):
+        return "BeatQuantizationScheme({}, {})".format(
+            self.length, [x[0] for x in sorted(self.quantization_divisions, key=lambda x: x[1])]
+        )
+
+    def __repr__(self):
+        return "BeatQuantizationScheme(length={}, quantization_divisions={})".format(
+            self.length, sorted(self.quantization_divisions)
+        )
+
+
+class MeasureQuantizationScheme:
+
+    def __init__(self, beat_schemes, time_signature, beat_groupings="auto"):
+        if isinstance(time_signature, str):
+            time_signature = TimeSignature.from_string(time_signature)
+        self.time_signature = time_signature
+        self.length = time_signature.measure_length()
+        # this better be true
+        assert sum([beat_scheme.length for beat_scheme in beat_schemes]) == self.length
+        self.beat_schemes = beat_schemes
+        if beat_groupings == "auto":
+            self.beat_groupings = self.generate_default_beat_groupings()
+        else:
+            if sum_nested_list(beat_groupings) != len(beat_schemes):
+                raise ValueError("Wrong number of beats in beat groupings.")
+            self.beat_groupings = MetricStructure(*beat_groupings)
+
+    @classmethod
+    def from_time_signature(cls, time_signature, max_divisor="default", max_divisor_indigestibility="default",
+                            simplicity_preference="default"):
+        # load default settings if not specified (the default simplicity_preference gets loaded
+        # later in the constructor of BeatQuantizationScheme if nothing is specified here)
+        if max_divisor == "default":
+            max_divisor = quantization_settings.max_divisor
+        if max_divisor_indigestibility == "default":
+            max_divisor_indigestibility = quantization_settings.max_divisor_indigestibility
+
+        # allow for different formulations of the time signature argument
+        if isinstance(time_signature, str):
+            time_signature = TimeSignature.from_string(time_signature)
+        elif isinstance(time_signature, tuple):
+            time_signature = TimeSignature(*time_signature)
+        elif isinstance(time_signature, Number):
+            time_signature = TimeSignature.from_measure_length(time_signature)
+
+        assert isinstance(time_signature, TimeSignature)
+
+        # now we convert the beat lengths to BeatQuantizationSchemes and construct our object
+        if max_divisor_indigestibility is None:
+            # no max_divisor_indigestibility, so just use the max divisor
+            beat_schemes = [
+                BeatQuantizationScheme.from_max_divisor(beat_length, max_divisor, simplicity_preference)
+                for beat_length in time_signature.beat_lengths
+            ]
+        else:
+            # using a max_divisor_indigestibility
+            beat_schemes = [
+                BeatQuantizationScheme.from_max_divisor_indigestibility(beat_length, max_divisor,
+                                                                max_divisor_indigestibility, simplicity_preference)
+                for beat_length in time_signature.beat_lengths
+            ]
+        return cls(beat_schemes, time_signature)
+
+    def generate_default_beat_groupings(self):
+        # break it into groups of beats of the same length
+        last_beat_length = self.beat_schemes[0].length
+        groups = []
+        current_group_length = 1
+        for beat_scheme in self.beat_schemes[1:]:
+            if beat_scheme.length == last_beat_length:
+                current_group_length += 1
+            else:
+                groups.append(current_group_length)
+                current_group_length = 1
+                last_beat_length = beat_scheme.length
+        groups.append(current_group_length)
+
+        # for each group make a metric layer out of the prime-factored length, breaking up large primes
+        # (also, it's possible for a group to be one beat long, in which case it has empty prime factors. In this
+        # case, we just need to use a MetricStructure(1)
+        return MetricStructure(*(
+            MetricStructure.from_string("*".join(str(x) for x in sorted(prime_factor(group))), True)
+            if group != 1 else MetricStructure(1)
+            for group in groups
+        ))
+
+    @memoize
+    def get_beat_hierarchies(self, subdivision_length):
+        if not is_x_pow_of_y(subdivision_length, 2):
+            raise ValueError("Bad subdivision length.")
+        beat_metric_layers = [
+            MeasureQuantizationScheme._get_beat_metric_layer(beat_scheme.length, subdivision_length)
+            for beat_scheme in self.beat_schemes
+        ]
+        return MeasureQuantizationScheme._inscribe_beats(self.beat_groupings, beat_metric_layers).get_beat_depths()
+
+    @staticmethod
+    def _get_beat_metric_layer(beat_length, subdivision_length):
+        if not is_multiple(beat_length, subdivision_length):
+            raise ValueError("Subdivision length does not neatly subdivide beat.")
+        beat_divisor = int(round(beat_length / subdivision_length))
+
+        # first, get the divisor prime factors
+        divisor_factors = sorted(prime_factor(beat_divisor))
+
+        # then get the natural divisors of the beat length from big to small
+        natural_factors = sorted(prime_factor(Fraction(beat_length).limit_denominator().numerator), reverse=True)
+
+        # now for each natural factor
+        for natural_factor in natural_factors:
+            # if it's a factor of the divisor
+            if natural_factor in divisor_factors:
+                # then pop it and move it to the front
+                divisor_factors.pop(divisor_factors.index(natural_factor))
+                divisor_factors.insert(0, natural_factor)
+                # (Note that we sorted the natural factors from big to small so that the small ones get
+                # pushed to the front last and end up at the very beginning of the queue)
+
+        return MetricStructure.from_string("*".join(str(x) for x in divisor_factors), True)
+
+    @staticmethod
+    def _inscribe_beats(beat_structure: MetricStructure, beat_metric_layers):
+        """
+        Takes a MetricStructure representing the beat structure, and a list of MetricLayers representing the interior
+        structure of each beat in order, and returns the MetricStructure that combines these two, inscribing the beat
+        structures into the outer MetricStructure that represents the beat organization.
+
+        :param beat_structure: MetricStructure representing the beat structure; each leaf is a beat
+        :param beat_metric_layers: list of MetricLayers representing how each beat is subdivided
+        :return: full structure of the measure as a MetricStructure
+        """
+        if len(beat_metric_layers) != beat_structure.num_pulses():
+            raise ValueError("Wrong number of beat metric layers to inscribe.")
+        new_groups = []
+        for group in beat_structure.groups:
+            if isinstance(group, int):
+                new_groups.append(MetricStructure(*beat_metric_layers[:group]))
+                beat_metric_layers = beat_metric_layers[group:]
+            elif isinstance(group, MetricStructure):
+                pulses_in_group = group.num_pulses()
+                new_groups.append(inscribe_beats(group, beat_metric_layers[:pulses_in_group]))
+                beat_metric_layers = beat_metric_layers[pulses_in_group:]
+            else:
+                raise ValueError("Bad group.")
+        return MetricStructure(*new_groups)
+
+    def __str__(self):
+        return "MeasureQuantizationScheme({})".format(self.time_signature.as_string())
+
+    def __repr__(self):
+        return "MeasureQuantizationScheme({}, {})".format(self.beat_schemes, self.time_signature)
+
+
+class QuantizationScheme:
+
+    def __init__(self, measure_schemes, loop=False):
+        assert all(isinstance(x, MeasureQuantizationScheme) for x in measure_schemes)
+        self.measure_schemes = measure_schemes
+        self.loop = loop
+
+    @classmethod
+    def from_attributes(cls, time_signature=None, bar_line_locations=None, max_divisor=None,
+                        max_divisor_indigestibility=None, simplicity_preference=None):
+        if bar_line_locations is not None:
+            if time_signature is not None:
+                raise AttributeError("Either time_signature or bar_line_locations may be defined, but not both.")
+            else:
+                # since time_signature can be a list of bar lengths, we just convert bar_line_locations to lengths
+                time_signature = [bar_line_locations[0]] + [bar_line_locations[i+1] - bar_line_locations[i]
+                                                            for i in range(len(bar_line_locations) - 1)]
+        elif time_signature is None:
+            # if both bar_line_locations and time_signature are none, the time signature should be the settings default
+            time_signature = quantization_settings.default_time_signature
+
+        max_divisor = max_divisor if max_divisor is not None else "default"
+        max_divisor_indigestibility = max_divisor_indigestibility \
+            if max_divisor_indigestibility is not None else "default"
+        simplicity_preference = simplicity_preference if simplicity_preference is not None else "default"
+
+        if isinstance(time_signature, Sequence) and not isinstance(time_signature, str):
+            time_signature = list(time_signature)
+            # make it easy to loop a series of time signatures by adding the string "loop" at the end
+            loop = False
+            if isinstance(time_signature[-1], str) and time_signature[-1].lower() == "loop":
+                time_signature.pop()
+                loop = True
+            quantization_scheme = QuantizationScheme.from_time_signature_list(
+                time_signature, max_divisor=max_divisor, max_divisor_indigestibility=max_divisor_indigestibility,
+                simplicity_preference=simplicity_preference, loop=loop)
+        else:
+            quantization_scheme = QuantizationScheme.from_time_signature(
+                time_signature, max_divisor=max_divisor, max_divisor_indigestibility=max_divisor_indigestibility,
+                simplicity_preference=simplicity_preference)
+        return quantization_scheme
+
+    @classmethod
+    def from_time_signature(cls, time_signature, max_divisor="default",
+                            max_divisor_indigestibility="default", simplicity_preference="default"):
+        return cls.from_time_signature_list(
+            [time_signature], max_divisor=max_divisor, max_divisor_indigestibility=max_divisor_indigestibility,
+            simplicity_preference=simplicity_preference
+        )
+
+    @classmethod
+    def from_time_signature_list(cls, time_signatures_list, loop=False, max_divisor="default",
+                                 max_divisor_indigestibility="default", simplicity_preference="default"):
+        measure_schemes = []
+        for time_signature in time_signatures_list:
+            measure_schemes.append(
+                MeasureQuantizationScheme.from_time_signature(time_signature, max_divisor=max_divisor,
+                                                              max_divisor_indigestibility=max_divisor_indigestibility,
+                                                              simplicity_preference=simplicity_preference)
+            )
+        return cls(measure_schemes, loop=loop)
+
+    def measure_scheme_iterator(self):
+        # iterates and returns tuples of (measure_scheme, start_beat)
+        t = 0
+        while self.loop or t == 0:
+            # if loop is True, then we repeatedly loop through the measure schemes array,
+            # never reaching the second while loop
+            for measure_scheme in self.measure_schemes:
+                yield measure_scheme, t
+                t += measure_scheme.length
+        while True:
+            # if loop is False, then we repeat the last measure scheme
+            yield self.measure_schemes[-1], t
+            t += self.measure_schemes[-1].length
+
+    def beat_scheme_iterator(self):
+        # iterates and returns tuples of (beat_scheme, start_beat)
+        for measure_scheme, t in self.measure_scheme_iterator():
+            for beat_scheme in measure_scheme.beat_schemes:
+                yield beat_scheme, t
+                t += beat_scheme.length
+
+
+##################################################################################################################
+#                                             Quantization Records
+##################################################################################################################
+
+
 QuantizedBeat = namedtuple("QuantizedBeat", "start_beat start_beat_in_measure length divisor")
 
 QuantizedMeasure = namedtuple("QuantizedMeasure", "start_beat measure_length beats time_signature beat_depths")
 
 
 class QuantizationRecord(SavesToJSON):
+    """
+    Record of how a :class:`scamp.performance.PerformancePart` was quantized.
 
-    def __init__(self, quantized_measures):
-        assert all(isinstance(x, QuantizedMeasure) for x in quantized_measures)
+    :param quantized_measures: list of quantized measures
+    :ivar quantized_measures: list of quantized measures
+    :type quantized_measures: Sequence[QuantizedMeasure]
+    """
+
+    def __init__(self, quantized_measures: Sequence[QuantizedMeasure]):
         self.quantized_measures = quantized_measures
 
     def _to_json(self):
@@ -48,12 +508,18 @@ class QuantizationRecord(SavesToJSON):
         return cls(quantized_measures)
 
     @property
-    def measure_lengths(self):
-        return [quantized_measure.measure_length for quantized_measure in self.quantized_measures]
+    def measure_lengths(self) -> Sequence[float]:
+        """
+        Tuple of all measure lengths
+        """
+        return tuple(quantized_measure.measure_length for quantized_measure in self.quantized_measures)
 
     @property
-    def time_signatures(self):
-        return [quantized_measure.time_signature for quantized_measure in self.quantized_measures]
+    def time_signatures(self) -> Sequence[TimeSignature]:
+        """
+        Tuple of the TimeSignature object for each measure
+        """
+        return tuple(quantized_measure.time_signature for quantized_measure in self.quantized_measures)
 
     def __repr__(self):
         return "QuantizationRecord([\n{}\n])".format(
@@ -61,7 +527,7 @@ class QuantizationRecord(SavesToJSON):
         )
 
 
-def quantize_performance_part(part, quantization_scheme, onset_weighting="default", termination_weighting="default",
+def quantize_performance_part(part: 'PerformancePart', quantization_scheme, onset_weighting="default", termination_weighting="default",
                               inner_split_weighting="default"):
     """
     Quantizes a performance part (in place) and sets its voice_quantization_records
@@ -365,434 +831,3 @@ def _construct_quantization_record(beat_divisors, end_beat, quantization_scheme)
 
         if len(beat_divisors) == 0 or t >= end_beat:
             return QuantizationRecord(quantized_measures)
-
-
-class BeatQuantizationScheme:
-
-    def __init__(self, length, divisors, simplicity_preference="default"):
-        """
-        A scheme for making a decision about which divisor to use to quantize a beat
-
-        :param length: In quarter-notes
-        :param divisors: A list of allowed divisors or a list of tuples of (divisor, undesirability). If just
-            divisors are given, the undesirability for each will be calculated based on its indigestibility.
-        :param simplicity_preference: ranges 0 - whatever. A simplicity_preference of 0 means all divisions are
-            treated equally; a 7 is as good as a 4. A simplicity_preference of 1 means that the error for a given
-            divisor is weighted by that divisor's indigestibility, and a simplicity_preference of 2 means the error
-            is weighted by the indigestibility squared, etc.
-        """
-        # load default if not specified
-        if simplicity_preference == "default":
-            simplicity_preference = quantization_settings.simplicity_preference
-
-        # actual length of the beat
-        self.length = float(length)
-        self.length_as_fraction = Fraction(length).limit_denominator()
-        assert is_x_pow_of_y(self.length_as_fraction.denominator, 2), \
-            "Beat length must be some multiple of a power of 2 division of the bar."
-
-        # now we populate a self.quantization_divisions with tuples consisting of the allowed divisions and
-        # their undesirabilities. Undesirability is a factor by which the error in a given quantization option
-        # is multiplied; the lowest possible undesirability is 1
-        assert hasattr(divisors, "__len__") and len(divisors) > 0
-        if isinstance(divisors[0], tuple):
-            # already (divisor, undesirability) tuples
-            self.quantization_divisions = divisors
-        else:
-            # we've just been given the divisors, and have to figure out the undesirabilities
-            if len(divisors) == 1:
-                # there's only one way we're allowed to divide the beat, so just give it undesirability 1, whatever
-                self.quantization_divisions = list(zip(divisors, [1.0]))
-            else:
-                div_indigestibilities = BeatQuantizationScheme.get_divisor_indigestibilities(length, divisors)
-                self.quantization_divisions = list(zip(
-                    divisors,
-                    BeatQuantizationScheme.get_divisor_undesirabilities(div_indigestibilities, simplicity_preference)
-                ))
-
-    @classmethod
-    def from_max_divisor(cls, length, max_divisor, simplicity_preference="default"):
-        """
-        Takes a max divisor argument instead of a list of allowed divisors.
-        """
-        return cls(length, range(2, max_divisor + 1), simplicity_preference)
-
-    @classmethod
-    def from_max_divisor_indigestibility(cls, length, max_divisor, max_divisor_indigestibility,
-                                         simplicity_preference="default"):
-        """
-        Takes a max_divisor and max_divisor_indigestibility to get a determine the list of divisors.
-        """
-        if simplicity_preference == "default":
-            simplicity_preference = quantization_settings.simplicity_preference
-
-        # look at all possible divisors and the indigestibilities
-        all_divisors = range(2, max_divisor + 1)
-        all_indigestibilities = BeatQuantizationScheme.get_divisor_indigestibilities(length, all_divisors)
-
-        # keep only those that fall below the max_divisor_indigestibility
-        quantization_divisions = []
-        div_indigestibilities = []
-        for div, div_indigestibility in zip(all_divisors, all_indigestibilities):
-            if div_indigestibility <= max_divisor_indigestibility:
-                quantization_divisions.append(div)
-                div_indigestibilities.append(div_indigestibility)
-
-        return cls(length, list(zip(
-            quantization_divisions,
-            BeatQuantizationScheme.get_divisor_undesirabilities(div_indigestibilities, simplicity_preference)
-        )))
-
-    @staticmethod
-    def get_divisor_indigestibilities(length, divisors):
-        # What we care about is how well the given division works within the most natural division of the
-        # length so first notate the length as a fraction; its numerator is its most natural division
-        # Example: if length = 1.5, then length_fraction = 3/2
-        # so for a divisor of 6, the relative division is 6/3, which Fraction automatically reduces to 2/1
-        # on the other hand, a divisor of 2 has relative division 2/3, which is irreducible
-        # thus the div_indigestibility for divisor 6 in this case is indigestibility(2) = 1
-        # and the div_indigestibility for divisor 2 is indigestibility(2) + indigestibility(3) = 3.6667
-        # this is appropriate for a beat of length 1.5 (compound meter)
-        length_fraction = Fraction(length).limit_denominator()
-        out = []
-        for div in divisors:
-            relative_division = Fraction(div, length_fraction.numerator)
-            out.append(indigestibility(relative_division.numerator) + indigestibility(relative_division.denominator))
-        return out
-
-    @staticmethod
-    def get_divisor_undesirabilities(divisor_indigestibilities, simplicity_preference):
-        return [div ** simplicity_preference for div in divisor_indigestibilities]
-
-    def __str__(self):
-        return "BeatQuantizationScheme({}, {})".format(
-            self.length, [x[0] for x in sorted(self.quantization_divisions, key=lambda x: x[1])]
-        )
-
-    def __repr__(self):
-        return "BeatQuantizationScheme(length={}, quantization_divisions={})".format(
-            self.length, sorted(self.quantization_divisions)
-        )
-
-
-class TimeSignature(SavesToJSON):
-
-    def __init__(self, numerator, denominator, beat_lengths=None):
-        """
-        Class representing a time signature
-
-        :param numerator: self-explanatory
-        :param denominator: self-explanatory
-        :param beat_lengths: This is a hint as to how the time signature is divided up into beats. By default,
-            it is None, meaning that a sensible default will be constructed.
-        """
-        self.numerator = numerator
-        # For now, and the foreseeable future, I don't want to deal with time signatures like 4/7
-        assert is_x_pow_of_y(denominator, 2)
-        self.denominator = denominator
-        self.beat_lengths = beat_lengths if beat_lengths is not None else self._calculate_default_beat_lengths()
-
-    def _calculate_default_beat_lengths(self):
-        if not hasattr(self.numerator, '__len__'):
-            # not an additive meter
-            if self.denominator <= 4 or is_multiple(self.numerator, 3):
-                # if the denominator is 4 or less, we'll use the denominator as the beat
-                # and if not, but the numerator is a multiple of 3, then we've got a compound meter
-                if self.denominator > 4:
-                    beat_length = 4.0 / self.denominator * 3
-                else:
-                    beat_length = 4.0 / self.denominator
-                num_beats = int(round(self.measure_length() / beat_length))
-                beat_lengths = [beat_length] * num_beats
-            else:
-                # if we're here then the denominator is >= 8 and the numerator is not a multiple of 3
-                # so we'll do a bunch of duple beats followed by a triple beat if the numerator is odd
-                duple_beat_length = 4.0 / self.denominator * 2
-                triple_beat_length = 4.0 / self.denominator * 3
-
-                if self.numerator % 2 == 0:
-                    beat_lengths = [duple_beat_length] * (self.numerator // 2)
-                else:
-                    beat_lengths = [duple_beat_length] * (self.numerator // 2 - 1) + [triple_beat_length]
-        else:
-            # additive meter
-            if self.denominator <= 4:
-                # denominator is quarter note or slower, so treat each denominator value as a beat, ignoring groupings
-                beat_lengths = [4.0 / self.denominator] * sum(self.numerator)
-            else:
-                # denominator is eighth or faster, so treat each grouping as a beat
-                beat_lengths = [4.0 / self.denominator * x for x in self.numerator]
-        return beat_lengths
-
-    @classmethod
-    def from_measure_length(cls, measure_length: Number):
-        fraction_length = Fraction(measure_length)
-        numerator, denominator = fraction_length.numerator, fraction_length.denominator * 4
-        return cls(numerator, denominator)
-
-    @classmethod
-    def from_string(cls, time_signature_string):
-        assert isinstance(time_signature_string, str) and len(time_signature_string.split("/")) == 2
-        numerator_string, denominator_string = time_signature_string.split("/")
-        numerator = tuple(int(x) for x in numerator_string.split("+")) \
-            if "+" in numerator_string else int(numerator_string)
-        denominator = int(denominator_string)
-        return cls(numerator, denominator)
-
-    def as_string(self):
-        if hasattr(self.numerator, "__len__"):
-            return "{}/{}".format("+".join(str(x) for x in self.numerator), self.denominator)
-        else:
-            return "{}/{}".format(self.numerator, self.denominator)
-
-    def as_tuple(self):
-        return self.numerator, self.denominator
-
-    def measure_length(self):
-        if hasattr(self.numerator, "__len__"):
-            return 4 * sum(self.numerator) / self.denominator
-        else:
-            return 4 * self.numerator / self.denominator
-
-    def _to_json(self):
-        return self.numerator, self.denominator
-
-    @classmethod
-    def _from_json(cls, json_object):
-        return cls(*json_object)
-
-    def to_abjad(self):
-        return abjad.TimeSignature((self.numerator, self.denominator))
-
-    def __eq__(self, other):
-        return self.numerator == other.numerator and self.denominator == other.denominator
-
-    def __repr__(self):
-        return "TimeSignature({}, {})".format(self.numerator, self.denominator)
-
-
-class MeasureQuantizationScheme:
-
-    def __init__(self, beat_schemes, time_signature, beat_groupings="auto"):
-        if isinstance(time_signature, str):
-            time_signature = TimeSignature.from_string(time_signature)
-        self.time_signature = time_signature
-        self.length = time_signature.measure_length()
-        # this better be true
-        assert sum([beat_scheme.length for beat_scheme in beat_schemes]) == self.length
-        self.beat_schemes = beat_schemes
-        if beat_groupings == "auto":
-            self.beat_groupings = self.generate_default_beat_groupings()
-        else:
-            if sum_nested_list(beat_groupings) != len(beat_schemes):
-                raise ValueError("Wrong number of beats in beat groupings.")
-            self.beat_groupings = MetricStructure(*beat_groupings)
-
-    @classmethod
-    def from_time_signature(cls, time_signature, max_divisor="default", max_divisor_indigestibility="default",
-                            simplicity_preference="default"):
-        # load default settings if not specified (the default simplicity_preference gets loaded
-        # later in the constructor of BeatQuantizationScheme if nothing is specified here)
-        if max_divisor == "default":
-            max_divisor = quantization_settings.max_divisor
-        if max_divisor_indigestibility == "default":
-            max_divisor_indigestibility = quantization_settings.max_divisor_indigestibility
-
-        # allow for different formulations of the time signature argument
-        if isinstance(time_signature, str):
-            time_signature = TimeSignature.from_string(time_signature)
-        elif isinstance(time_signature, tuple):
-            time_signature = TimeSignature(*time_signature)
-        elif isinstance(time_signature, Number):
-            time_signature = TimeSignature.from_measure_length(time_signature)
-
-        assert isinstance(time_signature, TimeSignature)
-
-        # now we convert the beat lengths to BeatQuantizationSchemes and construct our object
-        if max_divisor_indigestibility is None:
-            # no max_divisor_indigestibility, so just use the max divisor
-            beat_schemes = [
-                BeatQuantizationScheme.from_max_divisor(beat_length, max_divisor, simplicity_preference)
-                for beat_length in time_signature.beat_lengths
-            ]
-        else:
-            # using a max_divisor_indigestibility
-            beat_schemes = [
-                BeatQuantizationScheme.from_max_divisor_indigestibility(beat_length, max_divisor,
-                                                                max_divisor_indigestibility, simplicity_preference)
-                for beat_length in time_signature.beat_lengths
-            ]
-        return cls(beat_schemes, time_signature)
-
-    def generate_default_beat_groupings(self):
-        # break it into groups of beats of the same length
-        last_beat_length = self.beat_schemes[0].length
-        groups = []
-        current_group_length = 1
-        for beat_scheme in self.beat_schemes[1:]:
-            if beat_scheme.length == last_beat_length:
-                current_group_length += 1
-            else:
-                groups.append(current_group_length)
-                current_group_length = 1
-                last_beat_length = beat_scheme.length
-        groups.append(current_group_length)
-
-        # for each group make a metric layer out of the prime-factored length, breaking up large primes
-        # (also, it's possible for a group to be one beat long, in which case it has empty prime factors. In this
-        # case, we just need to use a MetricStructure(1)
-        return MetricStructure(*(
-            MetricStructure.from_string("*".join(str(x) for x in sorted(prime_factor(group))), True)
-            if group != 1 else MetricStructure(1)
-            for group in groups
-        ))
-
-    @memoize
-    def get_beat_hierarchies(self, subdivision_length):
-        if not is_x_pow_of_y(subdivision_length, 2):
-            raise ValueError("Bad subdivision length.")
-        beat_metric_layers = [
-            MeasureQuantizationScheme._get_beat_metric_layer(beat_scheme.length, subdivision_length)
-            for beat_scheme in self.beat_schemes
-        ]
-        return MeasureQuantizationScheme._inscribe_beats(self.beat_groupings, beat_metric_layers).get_beat_depths()
-
-    @staticmethod
-    def _get_beat_metric_layer(beat_length, subdivision_length):
-        if not is_multiple(beat_length, subdivision_length):
-            raise ValueError("Subdivision length does not neatly subdivide beat.")
-        beat_divisor = int(round(beat_length / subdivision_length))
-
-        # first, get the divisor prime factors
-        divisor_factors = sorted(prime_factor(beat_divisor))
-
-        # then get the natural divisors of the beat length from big to small
-        natural_factors = sorted(prime_factor(Fraction(beat_length).limit_denominator().numerator), reverse=True)
-
-        # now for each natural factor
-        for natural_factor in natural_factors:
-            # if it's a factor of the divisor
-            if natural_factor in divisor_factors:
-                # then pop it and move it to the front
-                divisor_factors.pop(divisor_factors.index(natural_factor))
-                divisor_factors.insert(0, natural_factor)
-                # (Note that we sorted the natural factors from big to small so that the small ones get
-                # pushed to the front last and end up at the very beginning of the queue)
-
-        return MetricStructure.from_string("*".join(str(x) for x in divisor_factors), True)
-
-    @staticmethod
-    def _inscribe_beats(beat_structure: MetricStructure, beat_metric_layers):
-        """
-        Takes a MetricStructure representing the beat structure, and a list of MetricLayers representing the interior
-        structure of each beat in order, and returns the MetricStructure that combines these two, inscribing the beat
-        structures into the outer MetricStructure that represents the beat organization.
-
-        :param beat_structure: MetricStructure representing the beat structure; each leaf is a beat
-        :param beat_metric_layers: list of MetricLayers representing how each beat is subdivided
-        :return: full structure of the measure as a MetricStructure
-        """
-        if len(beat_metric_layers) != beat_structure.num_pulses():
-            raise ValueError("Wrong number of beat metric layers to inscribe.")
-        new_groups = []
-        for group in beat_structure.groups:
-            if isinstance(group, int):
-                new_groups.append(MetricStructure(*beat_metric_layers[:group]))
-                beat_metric_layers = beat_metric_layers[group:]
-            elif isinstance(group, MetricStructure):
-                pulses_in_group = group.num_pulses()
-                new_groups.append(inscribe_beats(group, beat_metric_layers[:pulses_in_group]))
-                beat_metric_layers = beat_metric_layers[pulses_in_group:]
-            else:
-                raise ValueError("Bad group.")
-        return MetricStructure(*new_groups)
-
-    def __str__(self):
-        return "MeasureQuantizationScheme({})".format(self.time_signature.as_string())
-
-    def __repr__(self):
-        return "MeasureQuantizationScheme({}, {})".format(self.beat_schemes, self.time_signature)
-
-
-class QuantizationScheme:
-
-    def __init__(self, measure_schemes, loop=False):
-        assert all(isinstance(x, MeasureQuantizationScheme) for x in measure_schemes)
-        self.measure_schemes = measure_schemes
-        self.loop = loop
-
-    @classmethod
-    def from_attributes(cls, time_signature=None, bar_line_locations=None, max_divisor=None,
-                        max_divisor_indigestibility=None, simplicity_preference=None):
-        if bar_line_locations is not None:
-            if time_signature is not None:
-                raise AttributeError("Either time_signature or bar_line_locations may be defined, but not both.")
-            else:
-                # since time_signature can be a list of bar lengths, we just convert bar_line_locations to lengths
-                time_signature = [bar_line_locations[0]] + [bar_line_locations[i+1] - bar_line_locations[i]
-                                                            for i in range(len(bar_line_locations) - 1)]
-        elif time_signature is None:
-            # if both bar_line_locations and time_signature are none, the time signature should be the settings default
-            time_signature = quantization_settings.default_time_signature
-
-        max_divisor = max_divisor if max_divisor is not None else "default"
-        max_divisor_indigestibility = max_divisor_indigestibility \
-            if max_divisor_indigestibility is not None else "default"
-        simplicity_preference = simplicity_preference if simplicity_preference is not None else "default"
-
-        if isinstance(time_signature, Sequence) and not isinstance(time_signature, str):
-            time_signature = list(time_signature)
-            # make it easy to loop a series of time signatures by adding the string "loop" at the end
-            loop = False
-            if isinstance(time_signature[-1], str) and time_signature[-1].lower() == "loop":
-                time_signature.pop()
-                loop = True
-            quantization_scheme = QuantizationScheme.from_time_signature_list(
-                time_signature, max_divisor=max_divisor, max_divisor_indigestibility=max_divisor_indigestibility,
-                simplicity_preference=simplicity_preference, loop=loop)
-        else:
-            quantization_scheme = QuantizationScheme.from_time_signature(
-                time_signature, max_divisor=max_divisor, max_divisor_indigestibility=max_divisor_indigestibility,
-                simplicity_preference=simplicity_preference)
-        return quantization_scheme
-
-    @classmethod
-    def from_time_signature(cls, time_signature, max_divisor="default",
-                            max_divisor_indigestibility="default", simplicity_preference="default"):
-        return cls.from_time_signature_list(
-            [time_signature], max_divisor=max_divisor, max_divisor_indigestibility=max_divisor_indigestibility,
-            simplicity_preference=simplicity_preference
-        )
-
-    @classmethod
-    def from_time_signature_list(cls, time_signatures_list, loop=False, max_divisor="default",
-                                 max_divisor_indigestibility="default", simplicity_preference="default"):
-        measure_schemes = []
-        for time_signature in time_signatures_list:
-            measure_schemes.append(
-                MeasureQuantizationScheme.from_time_signature(time_signature, max_divisor=max_divisor,
-                                                              max_divisor_indigestibility=max_divisor_indigestibility,
-                                                              simplicity_preference=simplicity_preference)
-            )
-        return cls(measure_schemes, loop=loop)
-
-    def measure_scheme_iterator(self):
-        # iterates and returns tuples of (measure_scheme, start_beat)
-        t = 0
-        while self.loop or t == 0:
-            # if loop is True, then we repeatedly loop through the measure schemes array,
-            # never reaching the second while loop
-            for measure_scheme in self.measure_schemes:
-                yield measure_scheme, t
-                t += measure_scheme.length
-        while True:
-            # if loop is False, then we repeat the last measure scheme
-            yield self.measure_schemes[-1], t
-            t += self.measure_schemes[-1].length
-
-    def beat_scheme_iterator(self):
-        # iterates and returns tuples of (beat_scheme, start_beat)
-        for measure_scheme, t in self.measure_scheme_iterator():
-            for beat_scheme in measure_scheme.beat_schemes:
-                yield beat_scheme, t
-                t += beat_scheme.length

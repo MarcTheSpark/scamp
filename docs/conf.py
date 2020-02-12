@@ -166,11 +166,7 @@ html_logo = "_static/ScampLogo.svg"
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'scampdoc'
 autodoc_default_options = {
-    'members': True,
     'show-inheritance': True,
-    'inherited-members': True,
-    'undoc-members': True,
-    'exclude-members': '__init__'
 }
 
 # -- Options for LaTeX output ------------------------------------------------
