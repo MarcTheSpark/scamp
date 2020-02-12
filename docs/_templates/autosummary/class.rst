@@ -7,15 +7,28 @@
    :inherited-members:
    :undoc-members:
 
+
    {% block methods %}
-
    {% if methods %}
-   .. rubric:: Methods
 
+   {% if methods | reject('equalto', '__init__') | difference(inherited_members) %}
+   .. rubric:: Methods
    .. autosummary::
-   {% for item in methods %}
+   {% endif %}
+
+   {% for item in methods | reject('equalto', '__init__') | difference(inherited_members) %}
       ~{{ name }}.{{ item }}
    {%- endfor %}
+
+   {% if methods | reject('equalto', '__init__') | intersect(inherited_members) %}
+   .. rubric:: Inherited Methods
+   .. autosummary::
+   {% endif %}
+
+   {% for item in methods | reject('equalto', '__init__') | intersect(inherited_members) %}
+      ~{{ name }}.{{ item }}
+   {%- endfor %}
+
    {% endif %}
    {% endblock %}
 

@@ -18,6 +18,19 @@
 
 import sphinx_rtd_theme
 
+import jinja2
+
+
+def intersect(a, b):
+    return set(a).intersection(b)
+
+
+def difference(a, b):
+    return set(a).difference(b)
+
+
+jinja2.filters.FILTERS['intersect'] = intersect
+jinja2.filters.FILTERS['difference'] = difference
 
 ##################################################################################################################
 #                                      Hack to fix bug w/ bogus ivar symlinks
@@ -244,8 +257,9 @@ epub_exclude_files = ['search.html']
 # -- Extension configuration -------------------------------------------------
 
 autodoc_member_order = 'bysource'
-autoclass_content = 'both'
+autoclass_content = 'class'
 autosummary_generate = True
+autosummary_generate_overwrite = False  # Doesn't seem to work?
 
 # -- Options for todo extension ----------------------------------------------
 
