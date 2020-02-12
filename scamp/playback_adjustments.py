@@ -296,11 +296,14 @@ class PlaybackAdjustmentsDictionary(dict, SavesToJSON):
     :param notations: dictionary mapping notation names to playback adjustments.
     """
 
+    #: list of all recognized articulations
     all_articulations = list(articulation_to_xml_element_name.keys())
+    #: list of all recognized noteheads
     all_noteheads = list(notehead_name_to_xml_type.keys())
     all_noteheads.extend(["filled " + notehead_name for notehead_name in all_noteheads])
     all_noteheads.extend(["open " + notehead_name for notehead_name in all_noteheads
                           if not notehead_name.startswith("filled")])
+    #: list of all recognized notations
     all_notations = list(notations_to_xml_notations_element.keys())
 
     def __init__(self, articulations: dict = None, noteheads: dict = None, notations: dict = None):
