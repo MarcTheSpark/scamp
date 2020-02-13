@@ -1,12 +1,19 @@
+"""
+Module containing classes that deal with music notation. These classes represent the music hierarchically; in order from
+largest to smallest: Score, StaffGroup, Staff, Voice, Measure, Voice, Tuplet, and NoteLike. One important role of the
+classes in this module is to provide export functionality to both MusicXML and LilyPond.
+"""
+
 from .settings import quantization_settings, engraving_settings
 from expenvelope import Envelope
-from .quantization import QuantizationRecord, QuantizationScheme, TimeSignature
+from .quantization import QuantizationRecord, QuantizationScheme, QuantizedMeasure, TimeSignature
 from . import performance as performance_module  # to distinguish it from variables named performance
 from .utilities import prime_factor, floor_x_to_pow_of_y, is_x_pow_of_y, ceil_to_multiple, floor_to_multiple
-from ._engraving_translations import get_xml_notehead, get_lilypond_notehead_name, articulation_to_xml_element_name, \
-    notations_to_xml_notations_element
+from ._engraving_translations import length_to_note_type, get_xml_notehead, get_lilypond_notehead_name, \
+    articulation_to_xml_element_name, notations_to_xml_notations_element
 from ._note_properties import NotePropertiesDictionary
 import pymusicxml
+from pymusicxml.music_xml_objects import _XMLNote
 from ._dependencies import abjad
 import math
 from fractions import Fraction
@@ -16,33 +23,28 @@ import textwrap
 from collections import namedtuple
 from abc import ABC, abstractmethod
 import logging
-
 from ._metric_structure import MetricStructure
+from typing import Sequence, Type, Union, Tuple, Optional
+from clockblocks import TempoEnvelope
 
 
-# ---------------------------------------------- Duration Utilities --------------------------------------------
-
-length_to_note_type = {
-    8.0: "breve",
-    4.0: "whole",
-    2.0: "half",
-    1.0: "quarter",
-    0.5: "eighth",
-    0.25: "16th",
-    1.0/8: "32nd",
-    1.0/16: "64th",
-    1.0/32: "128th"
-}
+##################################################################################################################
+#                                             Assorted Utilities
+##################################################################################################################
 
 
-def get_basic_length_and_num_dots(length):
+def _is_undotted_length(length):
+    return length in length_to_note_type
+
+
+def _get_basic_length_and_num_dots(length):
     length = Fraction(length).limit_denominator()
-    if length in length_to_note_type:
+    if _is_undotted_length(length):
         return length, 0
     else:
         dots_multiplier = 1.5
         dots = 1
-        while length / dots_multiplier not in length_to_note_type:
+        while not _is_undotted_length(length / dots_multiplier):
             dots += 1
             dots_multiplier = (2.0 ** (dots + 1) - 1) / 2.0 ** dots
             if dots > engraving_settings.max_dots_allowed:
@@ -50,19 +52,15 @@ def get_basic_length_and_num_dots(length):
         return length / dots_multiplier, dots
 
 
-def is_single_note_length(length):
+def _is_single_note_length(length):
     try:
-        get_basic_length_and_num_dots(length)
+        _get_basic_length_and_num_dots(length)
         return True
     except ValueError:
         return False
 
 
-def is_undotted_length(length):
-    return length in length_to_note_type
-
-
-def length_to_undotted_constituents(length):
+def _length_to_undotted_constituents(length):
     # fix any floating point inaccuracies
     length = Fraction(length).limit_denominator()
     length_parts = []
@@ -143,7 +141,7 @@ def _get_beat_division_grids(beat_hierarchy):
 
 
 # should maybe memoize?
-def is_single_note_viable_grouping(length_in_subdivisions, max_dots=1):
+def _is_single_note_viable_grouping(length_in_subdivisions, max_dots=1):
     """
     This tests if a note that is length_in_subdivisions subdivisions long can be represented by a single note.
     For instance, suppose the subdivision is a 16th note: if length_in_subdivisions is 7, we're asking whether we
@@ -190,12 +188,12 @@ def _get_best_recombination_given_beat_hierarchy(note_division_points, beat_hier
     # translate time-points on the isochronous grid to durations in isochronous units after the start of the note
     component_lengths = [division - last_division
                          for last_division, division in zip(note_division_points[:-1], note_division_points[1:])]
-    assert all(is_single_note_viable_grouping(x, max_dots=engraving_settings.max_dots_allowed)
+    assert all(_is_single_note_viable_grouping(x, max_dots=engraving_settings.max_dots_allowed)
                for x in component_lengths), "Somehow we got an division of a note into un-notatable components"
     # get every possible combination of these components that keeps each component representable as a single note
     recombination_options_lengths = [
         option for option in _get_recombination_options(*component_lengths)
-        if all(is_single_note_viable_grouping(component, max_dots=engraving_settings.max_dots_allowed)
+        if all(_is_single_note_viable_grouping(component, max_dots=engraving_settings.max_dots_allowed)
                for component in option)
     ]
     # now, finally, we make ourselves a list options for division-point lists, each of which represents a recombination
@@ -247,12 +245,318 @@ def _get_recombination_options(*component_lengths):
                tuple((component_lengths[0], ) + x for x in _get_recombination_options(*component_lengths[1:]))
 
 
-# ---------------------------------------------- Score Classes --------------------------------------------
+def _join_same_source_abjad_note_group(same_source_group):
+    # look pairwise to see if we need to tie or gliss
+    # sometimes a note will gliss, then sit at a static pitch
+
+    gliss_present = False
+    for note_pair in zip(same_source_group[:-1], same_source_group[1:]):
+        if isinstance(note_pair[0], abjad().Note) and note_pair[0].written_pitch == note_pair[1].written_pitch or \
+                isinstance(note_pair[0], abjad().Chord) and note_pair[0].written_pitches == note_pair[1].written_pitches:
+            abjad().tie(abjad().Selection(note_pair))
+            # abjad().attach(abjad().Tie(), abjad().Selection(note_pair))
+        else:
+            # abjad().glissando(abjad().Selection(note_pair))
+            abjad().attach(abjad().LilyPondLiteral("\glissando", "after"), note_pair[0])
+
+            # abjad().attach(abjad().Glissando(), abjad().Selection(note_pair))
+            gliss_present = True
+
+    if gliss_present:
+        # if any of the segments gliss, we might attach a slur
+        abjad().slur(abjad().Selection(same_source_group))
+        # abjad().attach(abjad().Slur(), abjad().Selection(same_source_group))
+
+
+def _join_same_source_xml_note_group(same_source_group):
+    available_gliss_numbers = list(range(1, 7))
+    # since each gliss needs to be associated with an unambiguous number, here we keep track of which
+    # glisses we've started and which numbers are still free / have been freed up by a gliss that ended
+    glisses_started_notes = []
+    glisses_started_numbers = []
+    gliss_present = False
+    for i, this_note_or_chord in enumerate(same_source_group):
+        if isinstance(this_note_or_chord, pymusicxml.Note):
+            if i < len(same_source_group) - 1:
+                # not the last note of the group, so it starts a tie or gliss
+                next_note_or_chord = same_source_group[i + 1]
+                if this_note_or_chord.pitch == next_note_or_chord.pitch:
+                    # it's a tie
+                    this_note_or_chord.starts_tie = True
+                else:
+                    # it's a gliss
+                    this_note_or_chord.starts_tie = False
+                    if len(available_gliss_numbers) > 0:
+                        this_gliss_number = available_gliss_numbers.pop(0)
+                        this_note_or_chord.notations.append(pymusicxml.StartGliss(this_gliss_number))
+                        glisses_started_notes.append(this_note_or_chord)
+                        glisses_started_numbers.append(this_gliss_number)
+                    else:
+                        logging.warning("Ran out of available numbers to assign glisses in XML output. "
+                                        "Some glisses will be omitted")
+                    gliss_present = True
+            if i > 0:
+                # not the first note of the group, so it ends a tie or gliss
+                last_note_or_chord = same_source_group[i - 1]
+                if this_note_or_chord.pitch == last_note_or_chord.pitch:
+                    # it's a tie
+                    this_note_or_chord.ends_tie = True
+                else:
+                    # it's a gliss
+                    this_note_or_chord.ends_tie = False
+                    which_start_gliss = glisses_started_notes.index(last_note_or_chord)
+                    # if which_start_gliss is -1, it means we couldn't find the start gliss
+                    # this is because we ran out of gliss numbers in starting the gliss
+                    if which_start_gliss >= 0:
+                        glisses_started_notes.pop(which_start_gliss)
+                        gliss_number = glisses_started_numbers.pop(which_start_gliss)
+                        this_note_or_chord.notations.append(pymusicxml.StopGliss(gliss_number))
+                        available_gliss_numbers.append(gliss_number)
+                        available_gliss_numbers.sort()
+                    gliss_present = True
+        elif isinstance(this_note_or_chord, pymusicxml.Chord):
+            next_note_or_chord = same_source_group[i + 1] if i < len(same_source_group) - 1 else None
+            last_note_or_chord = same_source_group[i - 1] if i > 0 else None
+
+            for j, note in enumerate(this_note_or_chord.notes):
+                if next_note_or_chord is not None:
+                    # find the corresponding note in the next chord
+                    next_note = next_note_or_chord.notes[j]
+                    if note.pitch == next_note.pitch:
+                        # this note starts a tie to the corresponding note in the next chord
+                        note.starts_tie = True
+                    else:
+                        # this note starts a gliss to the corresponding note in the next chord
+                        note.starts_tie = False
+                        if len(available_gliss_numbers) > 0:
+                            this_gliss_number = available_gliss_numbers.pop(0)
+                            note.notations.append(pymusicxml.StartGliss(this_gliss_number))
+                            glisses_started_notes.append(note)
+                            glisses_started_numbers.append(this_gliss_number)
+                        else:
+                            logging.warning("Ran out of available numbers to assign glisses in XML output. "
+                                            "Some glisses will be omitted.")
+                        gliss_present = True
+                if last_note_or_chord is not None:
+                    # find the corresponding note in the last chord
+                    last_note = last_note_or_chord.notes[j]
+                    if note.pitch == last_note.pitch:
+                        # this note ends a tie from the corresponding note in the last chord
+                        note.stops_tie = True
+                    else:
+                        # this note ends a gliss from the corresponding note in the last chord
+                        note.stops_tie = False
+                        # find the gliss that was started by the corresponding note in the previous chord
+                        try:
+                            which_start_gliss = glisses_started_notes.index(last_note)
+                            glisses_started_notes.pop(which_start_gliss)
+                            gliss_number = glisses_started_numbers.pop(which_start_gliss)
+                            note.notations.append(pymusicxml.StopGliss(gliss_number))
+                            # return this gliss number to the pool of available numbers
+                            available_gliss_numbers.append(gliss_number)
+                            available_gliss_numbers.sort()
+                        except ValueError:
+                            # if this is false, the start of the gliss couldn't be found, which suggests that we ran
+                            # out of available numbers to assign to the glisses. So we skip the StopGliss notation
+                            pass
+                        gliss_present = True
+
+    if gliss_present:
+        # add slur notation to the very first note and last note
+        same_source_group[0].notations.append(pymusicxml.StartSlur())
+        same_source_group[-1].notations.append(pymusicxml.StopSlur())
+
+
+##################################################################################################################
+#                                             Abstract Classes
+##################################################################################################################
+
+
+class ScoreComponent(ABC):
+
+    """
+    Abstract class from which all of the user-facing classes in this module inherit. Provides a consistent interface
+    for wrapping any object up as a Score and converting to LilyPond and MusicXML output.
+    """
+
+    #: LilyPond code to define stemless notes when we're rendering a full score (goes outside the lilypond context)
+    _outer_stemless_def = """
+% Definition to improve score readability
+stemless = {
+    \once \override Beam.stencil = ##f
+    \once \override Flag.stencil = ##f
+    \once \override Stem.stencil = ##f
+}"""
+
+    #: LilyPond code to define stemless notes when we're rendering only part of a score (goes inside lilypond context)
+    _inner_stemless_def = r"""% Definition to improve score readability
+    #(define stemless 
+        (define-music-function (parser location)
+            ()
+            #{
+                \once \override Beam.stencil = ##f
+                \once \override Flag.stencil = ##f
+                \once \override Stem.stencil = ##f
+            #})
+        )
+    """
+
+    #: LilyPond code to customize glissando appearance
+    _gliss_overrides = [
+        r"% Make the glisses a little thicker, make sure they have at least a little length, and allow line breaks",
+        r"\override Score.Glissando.minimum-length = #4",
+        r"\override Score.Glissando.springs-and-rods = #ly:spanner::set-spacing-rods",
+        r"\override Score.Glissando.thickness = #2",
+        r"\override Score.Glissando #'breakable = ##t",
+        "\n"
+    ]
+
+    @abstractmethod
+    def _to_abjad(self) -> 'abjad().Component':
+        """
+        Convert this to the abjad version of the component.
+        The reason this is a protected member is that the user-facing "to_abjad" takes the output of this function
+        and adds some necessary LilyPond overrides and definitions.
+        """
+        pass
+
+    @abstractmethod
+    def to_music_xml(self) -> pymusicxml.MusicXMLComponent:
+        """
+        Convert this score component to its corresponding pymusicxml component
+        """
+        pass
+
+    def export_music_xml(self, file_path: str, pretty_print: bool = True) -> None:
+        """
+        Convert and wrap as a MusicXML score, and save to the given path.
+
+        :param file_path: file path to save to
+        :param pretty_print: whether or not to take the extra space and format the file with indentations, etc.
+        """
+        self.to_music_xml().export_to_file(file_path, pretty_print=pretty_print)
+
+    def print_music_xml(self, pretty_print: bool = True) -> None:
+        """
+        Convert and wrap as a MusicXML score, and print the resulting XML.
+
+        :param pretty_print: whether or not to take the extra space and format the file with indentations, etc.
+        """
+        print(self.to_music_xml().to_xml(pretty_print=pretty_print))
+
+    def show_xml(self) -> None:
+        """
+        Convert and wrap as a MusicXML score, and open it up in notation software.
+        (The software to use is defined in engraving_settings.show_music_xml_command_line.)
+        """
+        try:
+            self.to_music_xml().view_in_software(engraving_settings.show_music_xml_command_line)
+        except OSError:
+            raise Exception("Command \"{}\" for showing musicXML failed. Either install the relevant program, or \n"
+                            "change the value of \"show_music_xml_command_line\" in the engraving_settings to use "
+                            "your program of choice.".format(engraving_settings.show_music_xml_command_line))
+
+    def to_abjad(self) -> 'abjad().Component':
+        """
+        Convert this score component to its corresponding abjad component
+        """
+        assert abjad() is not None, "Abjad is required for this operation."
+        abjad_object = self._to_abjad()
+        lilypond_code = format(abjad_object)
+        if r"\glissando" in lilypond_code:
+            for gliss_override in ScoreComponent._gliss_overrides:
+                abjad().attach(abjad().LilyPondLiteral(gliss_override), abjad_object, "opening")
+
+        if r"\stemless" in lilypond_code:
+            abjad().attach(abjad().LilyPondLiteral(ScoreComponent._inner_stemless_def), abjad_object, "opening")
+
+        return abjad_object
+
+    def to_abjad_lilypond_file(self) -> 'abjad().LilyPondFile':
+        """
+        Convert and wrap as a abjad.LilyPondFile object
+        """
+        assert abjad() is not None, "Abjad is required for this operation."
+
+        title = self.title if hasattr(self, "title") else None
+        composer = self.composer if hasattr(self, "composer") else None
+        abjad_object = self._to_abjad()
+        lilypond_code = format(abjad_object)
+
+        if r"\glissando" in lilypond_code:
+            for gliss_override in ScoreComponent._gliss_overrides:
+                abjad().attach(abjad().LilyPondLiteral(gliss_override), abjad_object, "opening")
+
+        abjad_lilypond_file = abjad().LilyPondFile.new(
+            music=abjad_object
+        )
+
+        # if we're actually producing the lilypond file itself, then we put the simpler
+        # definition of stemless outside of the main score object.
+        if r"\stemless" in lilypond_code:
+            abjad_lilypond_file.items.insert(-1, ScoreComponent._outer_stemless_def)
+
+        if title is not None:
+            abjad_lilypond_file.header_block.title = abjad().Markup(title)
+        if composer is not None:
+            abjad_lilypond_file.header_block.composer = abjad().Markup(composer)
+
+        return abjad_lilypond_file
+
+    def export_lilypond(self, file_path) -> None:
+        """
+        Convert and wrap as a LilyPond (.ly) file, and save to the given path.
+
+        :param file_path: file path to save to
+        """
+        with open(file_path, "w") as output_file:
+            output_file.write(format(self.to_abjad_lilypond_file()))
+
+    def to_lilypond(self, wrap_as_file=False) -> str:
+        """
+        Convert to LilyPond code.
+
+        :param wrap_as_file: if True, wraps this object up as a full LilyPond file, ready for compilation. If False,
+            we just get the code for the component itself.
+        :return: a string containing the LilyPond code
+        """
+        assert abjad() is not None, "Abjad is required for this operation."
+        return format(self.to_abjad_lilypond_file() if wrap_as_file else self.to_abjad())
+
+    def print_lilypond(self, wrap_as_file=False) -> None:
+        """
+        Convert and print LilyPond code.
+
+        :param wrap_as_file: if True, wraps this object up as a full LilyPond file, ready for compilation. If False,
+            we just get the code for the component itself.
+        """
+        print(self.to_lilypond(wrap_as_file=wrap_as_file))
+
+    def show(self) -> None:
+        """
+        Using the abjad.show command, generates and opens a PDF of the music represented by this component
+        """
+        assert abjad() is not None, "Abjad is required for this operation."
+        abjad().show(self.to_abjad_lilypond_file())
 
 
 class ScoreContainer(ABC):
+    """
+    Abstract class representing a ScoreComponent that contains other components.
+    (e.g. A Measure contains Voices)
 
-    def __init__(self, contents, contents_argument_name, allowable_child_types, extra_field_names=()):
+    :param contents: the ScoreComponents contained within this container
+    :param contents_argument_name: name of the property that fetches the contents. E.g. a score should have "parts",
+        and a Staff should have "measures". The class should define that property and point it to self._contents.
+        This is basically just used in __repr__ so that we don't have to implement it separately for each subclass.
+    :param allowable_child_types: Type or list of types that should be allowed as child components. For instance, a
+        Score can have Staff and StaffGroup children; a Measure can only have Voices.
+    :param extra_field_names: again this is basically just used in __repr__ so that we don't have to implement it
+        separately for each subclass.
+    """
+
+    def __init__(self, contents: Sequence[ScoreComponent], contents_argument_name: str,
+                 allowable_child_types: Union[Type, Tuple[Type, ...]], extra_field_names=()):
         self._contents = contents if contents is not None else []
         self._contents_argument_name = contents_argument_name
         self._extra_field_names = extra_field_names
@@ -278,26 +582,44 @@ class ScoreContainer(ABC):
         assert isinstance(item, self._allowable_child_types), "Incompatible child type"
         self._contents[i] = item
 
-    def append(self, item):
+    def append(self, item: ScoreComponent) -> None:
+        """
+        Add a child ScoreComponent of the appropriate type
+        """
         assert isinstance(item, self._allowable_child_types), "Incompatible child type"
         self._contents.append(item)
 
-    def extend(self, items):
+    def extend(self, items) -> None:
+        """
+        Add several child ScoreComponents of the appropriate type
+        """
         assert hasattr(items, "__len__")
         assert all(isinstance(item, self._allowable_child_types) for item in items), "Incompatible child type"
         self._contents.extend(items)
 
-    def index(self, item):
+    def index(self, item) -> int:
+        """
+        Get the index of the given child ScoreComponent
+        """
         return self._contents.index(item)
 
-    def insert(self, index, item):
+    def insert(self, index, item) -> None:
+        """
+        Insert a child ScoreComponent at the given index.
+        """
         assert isinstance(item, self._allowable_child_types), "Incompatible child type"
         return self._contents.insert(index, item)
 
-    def pop(self, i=-1):
+    def pop(self, i=-1) -> ScoreComponent:
+        """
+        Pop and return the child ScoreComponent at the given index.
+        """
         return self._contents.pop(i)
 
-    def remove(self, item):
+    def remove(self, item) -> None:
+        """
+        Remove the given child ScoreComponent.
+        """
         return self._contents.remove(item)
 
     def __repr__(self):
@@ -315,154 +637,45 @@ class ScoreContainer(ABC):
         )
 
 
-class ScoreComponent(ABC):
-
-    # used when we're rendering a full score: this can go outside the lilypond context
-    outer_stemless_def = """
-% Definition to improve score readability
-stemless = {
-    \once \override Beam.stencil = ##f
-    \once \override Flag.stencil = ##f
-    \once \override Stem.stencil = ##f
-}"""
-
-    # used when we're rendering something smaller than a score: this version can go inside scores / measures / etc.
-    inner_stemless_def = r"""% Definition to improve score readability
-    #(define stemless 
-        (define-music-function (parser location)
-            ()
-            #{
-                \once \override Beam.stencil = ##f
-                \once \override Flag.stencil = ##f
-                \once \override Stem.stencil = ##f
-            #})
-        )
-    """
-
-    gliss_overrides = [
-        r"% Make the glisses a little thicker, make sure they have at least a little length, and allow line breaks",
-        r"\override Score.Glissando.minimum-length = #4",
-        r"\override Score.Glissando.springs-and-rods = #ly:spanner::set-spacing-rods",
-        r"\override Score.Glissando.thickness = #2",
-        r"\override Score.Glissando #'breakable = ##t",
-        "\n"
-    ]
-
-    @abstractmethod
-    def _to_abjad(self):
-        """
-        Convert this to an abjad representation
-
-        :return: the abjad translation of this score component, possibly missing needed definitions and overrides
-        """
-        pass
-
-    @abstractmethod
-    def to_music_xml(self):
-        pass
-
-    def export_music_xml(self, file_path, pretty_print=True):
-        self.to_music_xml().export_to_file(file_path, pretty_print=pretty_print)
-
-    def print_music_xml(self, pretty_print=True):
-        print(self.to_music_xml().to_xml(pretty_print=pretty_print))
-
-    def show_xml(self):
-        try:
-            self.to_music_xml().view_in_software(engraving_settings.show_music_xml_command_line)
-        except OSError:
-            raise Exception("Command \"{}\" for showing musicXML failed. Either install the relevant program, or \n"
-                            "change the value of \"show_music_xml_command_line\" in the engraving_settings to use "
-                            "your program of choice.".format(engraving_settings.show_music_xml_command_line))
-
-    def to_abjad(self):
-        """
-        This wrapper around the _to_abjad implementation details makes sure we incorporate the appropriate definitions
-
-        :return: the abjad translation of this score component, ready to show
-        """
-        assert abjad is not None, "Abjad is required for this operation."
-        abjad_object = self._to_abjad()
-        lilypond_code = format(abjad_object)
-        if r"\glissando" in lilypond_code:
-            for gliss_override in ScoreComponent.gliss_overrides:
-                abjad().attach(abjad().LilyPondLiteral(gliss_override), abjad_object, "opening")
-
-        if r"\stemless" in lilypond_code:
-            abjad().attach(abjad().LilyPondLiteral(ScoreComponent.inner_stemless_def), abjad_object, "opening")
-
-        return abjad_object
-
-    def to_abjad_lilypond_file(self, title=None, composer=None):
-        assert abjad is not None, "Abjad is required for this operation."
-        abjad_object = self._to_abjad()
-        lilypond_code = format(abjad_object)
-
-        if r"\glissando" in lilypond_code:
-            for gliss_override in ScoreComponent.gliss_overrides:
-                abjad().attach(abjad().LilyPondLiteral(gliss_override), abjad_object, "opening")
-
-        abjad_lilypond_file = abjad().LilyPondFile.new(
-            music=abjad_object
-        )
-
-        # if we're actually producing the lilypond file itself, then we put the simpler
-        # definition of stemless outside of the main score object.
-        if r"\stemless" in lilypond_code:
-            abjad_lilypond_file.items.insert(-1, ScoreComponent.outer_stemless_def)
-
-        if title is not None:
-            abjad_lilypond_file.header_block.title = abjad().Markup(title)
-        if composer is not None:
-            abjad_lilypond_file.header_block.composer = abjad().Markup(composer)
-
-        return abjad_lilypond_file
-
-    def export_lilypond(self, file_path):
-        title = self.title if hasattr(self, "title") else None
-        composer = self.composer if hasattr(self, "composer") else None
-        with open(file_path, "w") as output_file:
-            output_file.write(format(self.to_abjad_lilypond_file(title, composer)))
-
-    def to_lilypond(self, wrap_as_file=False):
-        title = self.title if hasattr(self, "title") else None
-        composer = self.composer if hasattr(self, "composer") else None
-        assert abjad is not None, "Abjad is required for this operation."
-        return format(self.to_abjad_lilypond_file(title, composer) if wrap_as_file else self.to_abjad())
-
-    def print_lilypond(self, wrap_as_file=False):
-        print(self.to_lilypond(wrap_as_file=wrap_as_file))
-
-    def show(self):
-        assert abjad is not None, "Abjad is required for this operation."
-        # we use a lilypond file wrapper if we need to display title or composer info (i.e. for Scores)
-        title = self.title if hasattr(self, "title") else None
-        composer = self.composer if hasattr(self, "composer") else None
-        abjad().show(self.to_abjad_lilypond_file(title=title, composer=composer)
-                   if title is not None or composer is not None else self.to_abjad())
+##################################################################################################################
+#                                             User-Facing Classes
+##################################################################################################################
 
 
 class Score(ScoreComponent, ScoreContainer):
 
-    def __init__(self, parts=None, title=None, composer=None):
-        """
-        Representation of a score in traditional western notation, to be exported as LilyPond or MusicXML.
+    """
+    Representation of a score in traditional western notation.
+    Exportable as either LilyPond or MusicXML.
 
-        :param parts: A list of either parts represented by StaffGroup or Staff objects
-        :param title: title to be used
-        :param composer: composer to be used
-        """
+    :param parts: A list of parts represented by either StaffGroup or Staff objects
+    :param title: title to be used
+    :param composer: composer to be used
+    :param tempo_envelope: a TempoEnvelope function describing how the tempo changes over time
+    :ivar title: title to be used in the score
+    :ivar composer: composer to be written on the score
+    :ivar tempo_envelope: a TempoEnvelope function describing how the tempo changes over time
+    """
+
+    def __init__(self, parts: Sequence[Union['Staff', 'StaffGroup']] = None, title: str = None,
+                 composer: str = None, tempo_envelope: TempoEnvelope = None):
         ScoreContainer.__init__(self, parts, "parts", (StaffGroup, Staff), ("title", "composer"))
         self.title = title
         self.composer = composer
-        self.tempo_envelope = None
+        self.tempo_envelope = tempo_envelope
 
     @property
-    def parts(self):
+    def parts(self) -> Sequence[Union['StaffGroup', 'Staff']]:
+        """
+        List of parts (StaffGroup or Staff objects).
+        """
         return self._contents
 
     @property
-    def staves(self):
+    def staves(self) -> Sequence['Staff']:
+        """
+        List of all staves in this score, expanding out those inside of StaffGroups.
+        """
         # returns all the staves of all the parts in the score
         out = []
         for part in self.parts:
@@ -474,9 +687,11 @@ class Score(ScoreComponent, ScoreContainer):
         return out
 
     @classmethod
-    def from_performance(cls, performance, quantization_scheme=None, time_signature=None, bar_line_locations=None,
-                         max_divisor=None, max_divisor_indigestibility=None, simplicity_preference=None,
-                         title="default", composer="default"):
+    def from_performance(cls, performance: 'performance_module.Performance',
+                         quantization_scheme: QuantizationScheme = None, time_signature: Union[str, Sequence] = None,
+                         bar_line_locations: Sequence[float] = None, max_divisor: int = None,
+                         max_divisor_indigestibility: int = None, simplicity_preference: float = None,
+                         title: str = "default", composer: str = "default") -> 'Score':
         """
         Builds a new Score from a Performance (list of note events in continuous time and pitch). In the process,
         the music must be quantized, for which two different options are available: one can either pass a
@@ -533,8 +748,17 @@ class Score(ScoreComponent, ScoreContainer):
         )
 
     @classmethod
-    def from_quantized_performance(cls, performance, title="default", composer="default"):
-        assert performance.is_quantized(), "Performance was not quantized."
+    def from_quantized_performance(cls, performance: 'performance_module.Performance',
+                                   title: str = "default", composer: str = "default") -> 'Score':
+        """
+        Constructs a new Score from an already quantized Performance.
+        
+        :param performance: the quantized Performance to convert into a new score
+        :param title: title to give the score
+        :param composer: composer to put on the score
+        """
+        if not performance.is_quantized():
+            raise ValueError("Performance was not quantized.")
         contents = []
         for part in performance.parts:
             if engraving_settings.ignore_empty_parts and part.num_measures() == 0:
@@ -548,14 +772,17 @@ class Score(ScoreComponent, ScoreContainer):
         out = cls(
             contents,
             title=engraving_settings.get_default_title() if title == "default" else title,
-            composer=engraving_settings.get_default_composer() if composer == "default" else composer
+            composer=engraving_settings.get_default_composer() if composer == "default" else composer,
+            tempo_envelope=performance.tempo_envelope
         )
-        out.tempo_envelope = performance.tempo_envelope
         if engraving_settings.pad_incomplete_parts:
-            out.pad_incomplete_parts()
+            out._pad_incomplete_parts()
         return out
 
-    def pad_incomplete_parts(self):
+    def _pad_incomplete_parts(self):
+        """
+        Adds measures to parts that end early so that they last the full length of the piece.
+        """
         staves = self.staves
         longest_staff = max(staves, key=lambda staff: len(staff.measures))
         longest_staff_length = len(longest_staff.measures)
@@ -611,7 +838,7 @@ class Score(ScoreComponent, ScoreContainer):
         score = abjad().Score([part._to_abjad() for part in self.parts])
         return score
 
-    def to_music_xml(self):
+    def to_music_xml(self) -> pymusicxml.Score:
         xml_score = pymusicxml.Score([part.to_music_xml() for part in self. parts], self.title, self.composer)
 
         key_points, guide_marks = self._get_tempo_key_points_and_guide_marks()
@@ -666,12 +893,22 @@ _NamedVoiceFragment = namedtuple("_NamedVoiceFragment", "average_pitch start_mea
 
 class StaffGroup(ScoreComponent, ScoreContainer):
 
-    def __init__(self, staves, name=None):
+    """
+    Representation of a StaffGroup (used for the multiple staves of a single instrument)
+
+    :param staves: a list of Staff objects in this group
+    :param name: the name of the staff group on the score
+    """
+
+    def __init__(self, staves: Sequence['Staff'], name: str = None):
         ScoreContainer.__init__(self, staves, "staves", Staff)
-        self.name = name
+        self._name = name
 
     @property
-    def name(self):
+    def name(self) -> str:
+        """
+        Name of the staff group on the score.
+        """
         return self._name
 
     @name.setter
@@ -682,10 +919,19 @@ class StaffGroup(ScoreComponent, ScoreContainer):
 
     @property
     def staves(self):
+        """
+        List of staves in this score.
+        """
         return self._contents
 
     @classmethod
-    def from_quantized_performance_part(cls, quantized_performance_part):
+    def from_quantized_performance_part(cls, quantized_performance_part: 'performance_module.PerformancePart') \
+            -> 'StaffGroup':
+        """
+        Constructs a new StaffGroup from an already quantized PerformancePart.
+
+        :param quantized_performance_part: an already quantized PerformancePart
+        """
         assert quantized_performance_part.is_quantized()
 
         fragments = StaffGroup._separate_voices_into_fragments(quantized_performance_part)
@@ -694,7 +940,7 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         if quantized_performance_part.name_count() > 0:
             staff_group_name += " [{}]".format(quantized_performance_part.name_count() + 1)
 
-        return StaffGroup.from_measure_voice_grid(
+        return StaffGroup._from_measure_voice_grid(
             measure_voice_grid, quantized_performance_part._get_longest_quantization_record(),
             name=staff_group_name
         )
@@ -859,7 +1105,7 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         return measure_grid
 
     @classmethod
-    def from_measure_voice_grid(cls, measure_bins, quantization_record, name=None):
+    def _from_measure_voice_grid(cls, measure_bins, quantization_record: QuantizationRecord, name: str = None):
         """
         Creates a StaffGroup with Staves that accommodate engraving_settings.max_voices_per_part voices each
 
@@ -906,151 +1152,50 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         if all(len(x) == 0 for x in staves):
             # empty staff group; none of its staves have any contents
             return cls([Staff([])])
-        return cls([Staff.from_measure_bins_of_voice_lists(x, quantization_record.time_signatures) for x in staves],
+        return cls([Staff._from_measure_bins_of_voice_lists(x, quantization_record.time_signatures) for x in staves],
                    name=name)
 
     def _to_abjad(self):
         return abjad().StaffGroup([staff._to_abjad() for staff in self.staves])
 
-    def to_music_xml(self):
+    def to_music_xml(self) -> pymusicxml.PartGroup:
         return pymusicxml.PartGroup([staff.to_music_xml() for staff in self.staves])
-
-
-def _join_same_source_abjad_note_group(same_source_group):
-    # look pairwise to see if we need to tie or gliss
-    # sometimes a note will gliss, then sit at a static pitch
-
-    gliss_present = False
-    for note_pair in zip(same_source_group[:-1], same_source_group[1:]):
-        if isinstance(note_pair[0], abjad().Note) and note_pair[0].written_pitch == note_pair[1].written_pitch or \
-                isinstance(note_pair[0], abjad().Chord) and note_pair[0].written_pitches == note_pair[1].written_pitches:
-            abjad().tie(abjad().Selection(note_pair))
-            # abjad().attach(abjad().Tie(), abjad().Selection(note_pair))
-        else:
-            # abjad().glissando(abjad().Selection(note_pair))
-            abjad().attach(abjad().LilyPondLiteral("\glissando", "after"), note_pair[0])
-
-            # abjad().attach(abjad().Glissando(), abjad().Selection(note_pair))
-            gliss_present = True
-
-    if gliss_present:
-        # if any of the segments gliss, we might attach a slur
-        abjad().slur(abjad().Selection(same_source_group))
-        # abjad().attach(abjad().Slur(), abjad().Selection(same_source_group))
-
-
-def _join_same_source_xml_note_group(same_source_group):
-    available_gliss_numbers = list(range(1, 7))
-    # since each gliss needs to be associated with an unambiguous number, here we keep track of which
-    # glisses we've started and which numbers are still free / have been freed up by a gliss that ended
-    glisses_started_notes = []
-    glisses_started_numbers = []
-    gliss_present = False
-    for i, this_note_or_chord in enumerate(same_source_group):
-        if isinstance(this_note_or_chord, pymusicxml.Note):
-            if i < len(same_source_group) - 1:
-                # not the last note of the group, so it starts a tie or gliss
-                next_note_or_chord = same_source_group[i + 1]
-                if this_note_or_chord.pitch == next_note_or_chord.pitch:
-                    # it's a tie
-                    this_note_or_chord.starts_tie = True
-                else:
-                    # it's a gliss
-                    this_note_or_chord.starts_tie = False
-                    if len(available_gliss_numbers) > 0:
-                        this_gliss_number = available_gliss_numbers.pop(0)
-                        this_note_or_chord.notations.append(pymusicxml.StartGliss(this_gliss_number))
-                        glisses_started_notes.append(this_note_or_chord)
-                        glisses_started_numbers.append(this_gliss_number)
-                    else:
-                        logging.warning("Ran out of available numbers to assign glisses in XML output. "
-                                        "Some glisses will be omitted")
-                    gliss_present = True
-            if i > 0:
-                # not the first note of the group, so it ends a tie or gliss
-                last_note_or_chord = same_source_group[i - 1]
-                if this_note_or_chord.pitch == last_note_or_chord.pitch:
-                    # it's a tie
-                    this_note_or_chord.ends_tie = True
-                else:
-                    # it's a gliss
-                    this_note_or_chord.ends_tie = False
-                    which_start_gliss = glisses_started_notes.index(last_note_or_chord)
-                    # if which_start_gliss is -1, it means we couldn't find the start gliss
-                    # this is because we ran out of gliss numbers in starting the gliss
-                    if which_start_gliss >= 0:
-                        glisses_started_notes.pop(which_start_gliss)
-                        gliss_number = glisses_started_numbers.pop(which_start_gliss)
-                        this_note_or_chord.notations.append(pymusicxml.StopGliss(gliss_number))
-                        available_gliss_numbers.append(gliss_number)
-                        available_gliss_numbers.sort()
-                    gliss_present = True
-        elif isinstance(this_note_or_chord, pymusicxml.Chord):
-            next_note_or_chord = same_source_group[i + 1] if i < len(same_source_group) - 1 else None
-            last_note_or_chord = same_source_group[i - 1] if i > 0 else None
-
-            for j, note in enumerate(this_note_or_chord.notes):
-                if next_note_or_chord is not None:
-                    # find the corresponding note in the next chord
-                    next_note = next_note_or_chord.notes[j]
-                    if note.pitch == next_note.pitch:
-                        # this note starts a tie to the corresponding note in the next chord
-                        note.starts_tie = True
-                    else:
-                        # this note starts a gliss to the corresponding note in the next chord
-                        note.starts_tie = False
-                        if len(available_gliss_numbers) > 0:
-                            this_gliss_number = available_gliss_numbers.pop(0)
-                            note.notations.append(pymusicxml.StartGliss(this_gliss_number))
-                            glisses_started_notes.append(note)
-                            glisses_started_numbers.append(this_gliss_number)
-                        else:
-                            logging.warning("Ran out of available numbers to assign glisses in XML output. "
-                                            "Some glisses will be omitted.")
-                        gliss_present = True
-                if last_note_or_chord is not None:
-                    # find the corresponding note in the last chord
-                    last_note = last_note_or_chord.notes[j]
-                    if note.pitch == last_note.pitch:
-                        # this note ends a tie from the corresponding note in the last chord
-                        note.stops_tie = True
-                    else:
-                        # this note ends a gliss from the corresponding note in the last chord
-                        note.stops_tie = False
-                        # find the gliss that was started by the corresponding note in the previous chord
-                        try:
-                            which_start_gliss = glisses_started_notes.index(last_note)
-                            glisses_started_notes.pop(which_start_gliss)
-                            gliss_number = glisses_started_numbers.pop(which_start_gliss)
-                            note.notations.append(pymusicxml.StopGliss(gliss_number))
-                            # return this gliss number to the pool of available numbers
-                            available_gliss_numbers.append(gliss_number)
-                            available_gliss_numbers.sort()
-                        except ValueError:
-                            # if this is false, the start of the gliss couldn't be found, which suggests that we ran
-                            # out of available numbers to assign to the glisses. So we skip the StopGliss notation
-                            pass
-                        gliss_present = True
-
-    if gliss_present:
-        # add slur notation to the very first note and last note
-        same_source_group[0].notations.append(pymusicxml.StartSlur())
-        same_source_group[-1].notations.append(pymusicxml.StopSlur())
 
 
 class Staff(ScoreComponent, ScoreContainer):
 
-    def __init__(self, measures, name=None):
+    """
+    Representation of a single staff of a western-notated score
+
+    :param measures: Chronological list of Measure objects contained in this staff
+    :param name: Name of this staff in the score
+    """
+
+    def __init__(self, measures: Sequence['Measure'], name: str = None):
         ScoreContainer.__init__(self, measures, "measures", Measure)
         self.name = name
 
     @property
-    def measures(self):
+    def measures(self) -> Sequence['Measure']:
+        """Chronological list of Measure objects contained in this staff"""
         return self._contents
 
     @classmethod
-    def from_measure_bins_of_voice_lists(cls, measure_bins, time_signatures):
-        # Expects a list of measure bins formatted as outputted by StaffGroup.from_measure_bins_of_voice_lists
+    def _from_measure_bins_of_voice_lists(cls, measure_bins, time_signatures: Sequence[TimeSignature]) -> 'Staff':
+        """
+        Constructs a Staff from a specially formatted list of measures
+
+        :param measure_bins: Expects a list of measure bins each of which is either:
+
+            (1) None, indicating an empty measure
+            (2) a list of voices, each of which is either:
+                - a list of PerformanceNotes or
+                - None, in the case of an empty voice
+
+            This format is constructed inside of StaffGroup._from_measure_voice_grid
+        :param time_signatures: list of TimeSignature objects for each measure
+        """
+        # Expects a list of measure bins formatted as outputted by StaffGroup._from_measure_bins_of_voice_lists
         #   (1) None, indicating an empty measure
         #   (2) a list of voices, each of which is either:
         #       - a list of PerformanceNotes or
@@ -1071,7 +1216,7 @@ class Staff(ScoreComponent, ScoreContainer):
             _join_same_source_abjad_note_group(same_source_group)
         return abjad().Staff(contents, name=self.name)
 
-    def to_music_xml(self):
+    def to_music_xml(self) -> pymusicxml.Part:
         source_id_dict = {}
         measures = [measure.to_music_xml(source_id_dict) for measure in self.measures]
         for same_source_group in source_id_dict.values():
@@ -1084,29 +1229,57 @@ _voice_literals = [r'\voiceOne', r'\voiceTwo', r'\voiceThree', r'\voiceFour']
 
 
 class Measure(ScoreComponent, ScoreContainer):
+    """
+    Representation of a single measure within in a Staff
 
-    def __init__(self, voices, time_signature, show_time_signature=True):
+    :param voices: list of voices in this measure, in numbered order
+    :param time_signature: the time signature for this measure
+    :param show_time_signature: whether or not to show the time signature. By default, when scamp is turning a
+        quantized Performance into a Score, this will be set to true when the time signature changes and False
+        otherwise.
+    :ivar time_signature: the time signature for this measure
+    :ivar show_time_signature: Whether or not to display the time signature
+    """
+
+    def __init__(self, voices: Sequence['Voice'], time_signature: TimeSignature, show_time_signature: bool = True):
+
         ScoreContainer.__init__(self, voices, "voices", (Voice, type(None)), ("time_signature", "show_time_signature"))
         self.time_signature = time_signature
         self.show_time_signature = show_time_signature
 
     @property
-    def voices(self):
+    def voices(self) -> Sequence['Voice']:
+        """List of Voices within this measure, in numbered order"""
         return self._contents
 
     @property
-    def length(self):
+    def length(self) -> float:
+        """Length of this measure in quarter notes"""
         return self.time_signature.measure_length()
 
     @classmethod
-    def empty_measure(cls, time_signature, show_time_signature=True):
+    def empty_measure(cls, time_signature: TimeSignature, show_time_signature: bool = True) -> 'Measure':
+        """
+        Constructs an empty measure (one voice with a bar rest)
+
+        :param time_signature: the time signature for this measure
+        :param show_time_signature: Whether or not to display the time signature
+        """
         return cls([Voice.empty_voice(time_signature)], time_signature, show_time_signature=show_time_signature)
 
     @classmethod
-    def from_list_of_performance_voices(cls, voices_list, time_signature, show_time_signature=True):
-        # voices_list consists of elements each of which is either:
-        #   - a (list of PerformanceNotes, measure quantization record) tuple for an active voice
-        #   - None, for an empty voice
+    def from_list_of_performance_voices(cls, voices_list, time_signature: TimeSignature,
+                                        show_time_signature: bool = True) -> 'Measure':
+        """
+        Constructs a Measure for a specially formatted list of voices
+
+        :param voices_list: list consisting of elements each of which is either:
+            - a (list of PerformanceNotes, measure quantization record) tuple for an active voice
+            - None, for an empty voice
+        :param time_signature: the time signature for this measure
+        :param show_time_signature: Whether or not to display the time signature
+        """
+        # voices_list
         if all(voice_content is None for voice_content in voices_list):
             # if all the voices are empty, just make an empty measure
             return cls.empty_measure(time_signature, show_time_signature=show_time_signature)
@@ -1151,7 +1324,7 @@ class Measure(ScoreComponent, ScoreContainer):
 
         return abjad_measure
 
-    def to_music_xml(self, source_id_dict=None):
+    def to_music_xml(self, source_id_dict=None) -> pymusicxml.Measure:
         is_top_level_call = True if source_id_dict is None else False
         source_id_dict = {} if source_id_dict is None else source_id_dict
 
@@ -1168,26 +1341,43 @@ class Measure(ScoreComponent, ScoreContainer):
 
 class Voice(ScoreComponent, ScoreContainer):
 
-    def __init__(self, contents, time_signature: TimeSignature):
+    """
+    Representation of a single voice within a single measure of a single staff of music.
+
+    :param contents: list of Tuplet or NoteLike objects in this voice
+    :param time_signature: the time signature of the measure to which this voice belongs
+    :ivar time_signature: the time signature of the measure to which this voice belongs
+    """
+
+    def __init__(self, contents: Sequence[Union['Tuplet', 'NoteLike']], time_signature: TimeSignature):
+
         ScoreContainer.__init__(self, contents, "contents", (Tuplet, NoteLike), ("time_signature", ))
         self.time_signature = time_signature
 
     @property
-    def contents(self):
+    def contents(self) -> Sequence[Union['Tuplet', 'NoteLike']]:
+        """list of Tuplet or NoteLike objects in this voice"""
         return self._contents
 
     @classmethod
-    def empty_voice(cls, time_signature):
+    def empty_voice(cls, time_signature: TimeSignature) -> 'Voice':
+        """
+        Constructs an empty voice containing simply a bar rest.
+
+        :param time_signature: the time signature of the measure to which this voice belongs
+        """
         return cls(None, time_signature)
 
     @classmethod
-    def from_performance_voice(cls, notes, measure_quantization):
+    def from_performance_voice(cls, notes: Sequence['performance_module.PerformanceNote'],
+                               measure_quantization: QuantizedMeasure) -> 'Voice':
         """
-        This is where a lot of the magic of converting performed notes to written symbols occurs.
+        Constructs a Voice object from a list of PerformanceNotes
+
+        (This is where a lot of the magic of converting performed notes to written symbols occurs.)
 
         :param notes: the list of PerformanceNotes played in this measure
         :param measure_quantization: the quantization used for this measure for this voice
-        :return: a Voice object containing all the notation
         """
         length = measure_quantization.measure_length
 
@@ -1261,10 +1451,10 @@ class Voice(ScoreComponent, ScoreContainer):
             assert len(beat_notes) == 1
             pitch, length, properties = beat_notes[0].pitch, beat_notes[0].length, beat_notes[0].properties
 
-            if is_single_note_length(length):
+            if _is_single_note_length(length):
                 return [NoteLike(pitch, length, properties)]
             else:
-                constituent_lengths = length_to_undotted_constituents(length)
+                constituent_lengths = _length_to_undotted_constituents(length)
                 return [NoteLike(pitch, l, properties) for l in constituent_lengths]
 
         # otherwise, if the divisor requires a tuplet, we construct it
@@ -1355,8 +1545,8 @@ class Voice(ScoreComponent, ScoreContainer):
                     # if the division point is past where we are and not beyond the end of the note
                     # and if we can get there in a single note
                     if current_division < division_point <= end_division \
-                            and is_single_note_viable_grouping(division_point - current_division,
-                                                               engraving_settings.max_dots_allowed):
+                            and _is_single_note_viable_grouping(division_point - current_division,
+                                                                engraving_settings.max_dots_allowed):
                         division_points.append(division_point)
                         current_division = division_point
                         if division_point != end_division:
@@ -1367,7 +1557,7 @@ class Voice(ScoreComponent, ScoreContainer):
                 break
 
         if current_division < end_division:
-            for x in length_to_undotted_constituents(end_division - current_division):
+            for x in _length_to_undotted_constituents(end_division - current_division):
                 division_points.append(int(round(x)) + division_points[-1])
 
         division_points, score = _get_best_recombination_given_beat_hierarchy(
@@ -1512,7 +1702,7 @@ class Voice(ScoreComponent, ScoreContainer):
                     _join_same_source_abjad_note_group(same_source_group)
             return abjad().Voice(abjad_components)
 
-    def to_music_xml(self, source_id_dict=None):
+    def to_music_xml(self, source_id_dict=None) -> Sequence[Union[pymusicxml.BeamedGroup, _XMLNote]]:
         if len(self.contents) == 0:
             return [pymusicxml.BarRest(self.time_signature.numerator / self.time_signature.denominator * 4)]
         else:
@@ -1551,33 +1741,30 @@ class Voice(ScoreComponent, ScoreContainer):
 
 
 class Tuplet(ScoreComponent, ScoreContainer):
+    """
+    Representation of a Tuplet object within a single voice of music.
+    Reads as: tuplet_divisions in the space of normal_divisions of division_length
+    e.g. 7, 4, and 0.25 would mean '7 in the space of 4 sixteenth notes'
 
-    def __init__(self, tuplet_divisions, normal_divisions, division_length, contents=None):
-        """
-        Creates a tuplet representing tuplet_divisions in the space of normal_divisions of division_length
-        e.g. 7, 4, and 0.25 would mean '7 in the space of 4 sixteenth notes'
-        """
+    :param tuplet_divisions: The new number that the tuplet is divided into
+    :param normal_divisions: the normal number of divisions of division_length that would fill the time
+    :param division_length: length in quarter notes of the tuplet note type
+    :param contents: List of NoteLike objects (notes and rests) contained in this tuplet
+    :ivar tuplet_divisions: The new number that the tuplet is divided into
+    :ivar normal_divisions: the normal number of divisions of division_length that would fill the time
+    :ivar division_length: length in quarter notes of the tuplet note type
+    """
+
+    def __init__(self, tuplet_divisions: int, normal_divisions: int, division_length: float,
+                 contents: Sequence['NoteLike'] = None):
         ScoreContainer.__init__(self, contents, "contents", NoteLike,
                                 ("tuplet_divisions", "normal_divisions", "division_length"))
         self.tuplet_divisions = tuplet_divisions
         self.normal_divisions = normal_divisions
         self.division_length = division_length
 
-    @property
-    def contents(self):
-        return self._contents
-
-    def dilation_factor(self):
-        return self.tuplet_divisions / self.normal_divisions
-
-    def length(self):
-        return self.normal_divisions * self.division_length
-
-    def length_within_tuplet(self):
-        return self.tuplet_divisions * self.division_length
-
     @classmethod
-    def from_length_and_divisor(cls, length, divisor):
+    def from_length_and_divisor(cls, length: float, divisor: int) -> Optional['Tuplet']:
         """
         Constructs and returns the appropriate tuplet from the length and the divisor. Returns None if no tuplet needed.
 
@@ -1616,6 +1803,26 @@ class Tuplet(ScoreComponent, ScoreContainer):
             # otherwise, construct a tuplet from our answer
             return cls(divisor, normal_divisions, 4.0 / normal_type)
 
+    @property
+    def contents(self) -> Sequence['NoteLike']:
+        """List of NoteLike objects (notes and rests) contained in this tuplet"""
+        return self._contents
+
+    def dilation_factor(self) -> float:
+        """
+        Factor by which the amount of "room" in the tuplet is expanded. E.g. in a tripet, this factor is 3/2, since
+        you can fit 3/2 as much stuff in there.
+        """
+        return self.tuplet_divisions / self.normal_divisions
+
+    def length(self) -> float:
+        """The actual length, in quarter notes, of the tuplet from the outside."""
+        return self.normal_divisions * self.division_length
+
+    def length_within_tuplet(self) -> float:
+        """The length, in quarter notes, of the tuplet from the inside."""
+        return self.tuplet_divisions * self.division_length
+
     def _to_abjad(self, source_id_dict=None):
         is_top_level_call = True if source_id_dict is None else False
         source_id_dict = {} if source_id_dict is None else source_id_dict
@@ -1625,7 +1832,7 @@ class Tuplet(ScoreComponent, ScoreContainer):
                 _join_same_source_abjad_note_group(same_source_group)
         return abjad().Tuplet(abjad().Multiplier(self.normal_divisions, self.tuplet_divisions), abjad_notes)
 
-    def to_music_xml(self, source_id_dict=None):
+    def to_music_xml(self, source_id_dict=None) -> pymusicxml.Tuplet:
         is_top_level_call = True if source_id_dict is None else False
         source_id_dict = {} if source_id_dict is None else source_id_dict
         xml_note_segments = [note_segment for note_like in self.contents
@@ -1637,53 +1844,63 @@ class Tuplet(ScoreComponent, ScoreContainer):
 
 
 class NoteLike(ScoreComponent):
+    """
+    Represents a note, chord, or rest that can be notated without ties
 
-    def __init__(self, pitch, written_length, properties):
-        """
-        Represents note, chord, or rest that can be notated without ties
+    :param pitch: float if single pitch, Envelope if a glissando, tuple if a chord, None if a rest
+    :param written_length: the notated length of the note, disregarding any tuplets it is part of
+    :param properties: a properties dictionary, same as found in a PerformanceNote
+    :ivar pitch: float if single pitch, Envelope if a glissando, tuple if a chord, None if a rest
+    :ivar written_length: the notated length of the note, disregarding any tuplets it is part of
+    :ivar properties: a properties dictionary, same as found in a PerformanceNote
+    """
 
-        :param pitch: tuple if a pitch, None if a rest
-        """
+    def __init__(self, pitch: Union[Envelope, float, Tuple, None], written_length: float,
+                 properties: NotePropertiesDictionary):
+
         self.pitch = pitch
         self.written_length = Fraction(written_length).limit_denominator()
         self.properties = properties if isinstance(properties, NotePropertiesDictionary) \
             else NotePropertiesDictionary.from_unknown_format(properties)
 
-    def is_rest(self):
+    def is_rest(self) -> bool:
+        """Returns whether or not this is a rest."""
         return self.pitch is None
 
-    def is_chord(self):
+    def is_chord(self) -> bool:
+        """Returns whether or not this is a chord."""
         return isinstance(self.pitch, tuple)
 
     def does_glissando(self):
+        """Returns whether or not this does a glissando."""
         return self.is_chord() and isinstance(self.pitch[0], Envelope) or isinstance(self.pitch, Envelope)
 
-    def get_attack_articulations(self):
+    def _get_attack_articulations(self):
         # articulations to be placed on the main note
         return [a for a in self.properties.articulations if a not in engraving_settings.articulation_split_protocols
                 or engraving_settings.articulation_split_protocols[a] in ("first", "both", "all")]
 
-    def get_release_articulations(self):
+    def _get_release_articulations(self):
         # articulations to be placed on the last note of the gliss
         return [a for a in self.properties.articulations if a not in engraving_settings.articulation_split_protocols
                 or engraving_settings.articulation_split_protocols[a] in ("last", "both", "all")]
 
-    def get_inner_articulations(self):
+    def _get_inner_articulations(self):
         # articulations to be placed on the inner notes of a gliss
         return [a for a in self.properties.articulations if a not in engraving_settings.articulation_split_protocols
                 or engraving_settings.articulation_split_protocols[a] == "all"]
 
-    def merge_with(self, other_notelike):
+    def merge_with(self, other: 'NoteLike') -> 'NoteLike':
         """
-        Merges other_notelike into this note, adding its length and combining its articulations
+        Merges other into this note, adding its length and combining its articulations
 
-        :param other_notelike: another NoteLike
-        :return: self
+        :param other: another NoteLike
+        :return: self, having been merged with other
         """
-        if self.is_rest() and other_notelike.is_rest() or other_notelike.source_id() == self.source_id() is not None:
-            self.properties.articulations.extend(other_notelike.properties.articulations)
-            self.written_length += other_notelike.written_length
-            self.properties["_starts_tie"] = other_notelike.properties.starts_tie()
+        if self.is_rest() and other.is_rest() or other.source_id() == self.source_id() is not None:
+            self.properties.articulations.extend(other.properties.articulations)
+            self.written_length += other.written_length
+            self.properties["_starts_tie"] = other.properties.starts_tie()
         else:
             raise ValueError("Notes are not compatible for merger.")
 
@@ -1888,18 +2105,18 @@ class NoteLike(ScoreComponent):
 
             # only attach attack articulations to the main note
             if attack_notehead is not None:
-                for articulation in self.get_attack_articulations():
+                for articulation in self._get_attack_articulations():
                     abjad().attach(abjad().Articulation(articulation), abjad_note_or_chord)
             # attach inner articulations to all but the last notehead in the grace container
-            for articulation in self.get_inner_articulations():
+            for articulation in self._get_inner_articulations():
                 for grace_note in inner_noteheads:
                     abjad().attach(abjad().Articulation(articulation), grace_note)
             # attach release articulations to the last notehead in the grace container
             if release_notehead is not None:
-                for articulation in self.get_release_articulations():
+                for articulation in self._get_release_articulations():
                     abjad().attach(abjad().Articulation(articulation), grace_container[-1])
 
-    def to_music_xml(self, source_id_dict=None):
+    def to_music_xml(self, source_id_dict=None) -> Sequence[_XMLNote]:
         notations = [notations_to_xml_notations_element[x] for x in self.properties.notations
                      if x in notations_to_xml_notations_element]
 
@@ -2006,15 +2223,15 @@ class NoteLike(ScoreComponent):
 
             # only attach attack articulations to the main note
             if attack_notehead is not None:
-                for articulation in self.get_attack_articulations():
+                for articulation in self._get_attack_articulations():
                     NoteLike._attach_articulation_to_xml_note_or_chord(articulation, attack_notehead)
             # attach inner articulations to inner grace notes
-            for articulation in self.get_inner_articulations():
+            for articulation in self._get_inner_articulations():
                 for inner_grace_note in inner_noteheads:
                     NoteLike._attach_articulation_to_xml_note_or_chord(articulation, inner_grace_note)
             # attach release articulations to the last grace note
             if release_notehead is not None:
-                for articulation in self.get_release_articulations():
+                for articulation in self._get_release_articulations():
                     NoteLike._attach_articulation_to_xml_note_or_chord(articulation, release_notehead)
         else:
             # just a single notehead, so attach all articulations
@@ -2031,7 +2248,13 @@ class NoteLike(ScoreComponent):
         else:
             return None
 
-    def source_id(self):
+    def source_id(self) -> Optional[int]:
+        """
+        ID representing the original PerformanceNote that this came from.
+        Since PerformanceNotes are split up into tied segments, we need to keep track of which ones
+        belonged together so that we can rejoin them with ties, glissandi, etc.
+        (This is done via _join_same_source_abjad_note_group or _join_same_source_xml_note_group)
+        """
         if "_source_id" in self.properties:
             return self.properties["_source_id"]
         else:

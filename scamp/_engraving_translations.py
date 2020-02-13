@@ -1,6 +1,23 @@
+"""
+Module containing dictionaries and functions for translating between different systems of music engraving.
+"""
+
 from xml.etree import ElementTree
 import pymusicxml
 import logging
+
+
+length_to_note_type = {
+    8.0: "breve",
+    4.0: "whole",
+    2.0: "half",
+    1.0: "quarter",
+    0.5: "eighth",
+    0.25: "16th",
+    1.0/8: "32nd",
+    1.0/16: "64th",
+    1.0/32: "128th"
+}
 
 
 notehead_name_to_lilypond_type = {

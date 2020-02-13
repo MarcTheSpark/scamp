@@ -136,7 +136,7 @@ class TimeSignature(SavesToJSON):
     def _from_json(cls, json_object):
         return cls(*json_object)
 
-    def to_abjad(self) -> abjad().TimeSignature:
+    def to_abjad(self) -> 'abjad().TimeSignature':
         """
         Returns the abjad version of this time signature
         """
@@ -583,7 +583,7 @@ class QuantizationScheme:
         for measure_scheme, t in self.measure_scheme_iterator():
             for beat_scheme in measure_scheme.beat_schemes:
                 yield beat_scheme, t
-                t += beat_scheme.lengtmh
+                t += beat_scheme.length
 
 
 ##################################################################################################################

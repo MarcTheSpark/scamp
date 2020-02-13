@@ -6,7 +6,8 @@
 Welcome to scamp's documentation!
 =================================
 
-Hey there! Check out the :class:`scamp.session.Session` and :class:`clockblocks.tempo_envelope.TempoEnvelope` classes
+Below, you will find the complete API Documentation for SCAMP. Narrative documentation is on the way; for now, you can
+check out the list of "tutorial" examples found at https://github.com/MarcTheSpark/scamp/tree/master/examples/Tutorial.
 
 API Reference
 =============
