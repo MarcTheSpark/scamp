@@ -23,5 +23,14 @@
     {% for function in functions %}
     {{ function }}
     {% endfor %}
+{% endif %}
 
+{% set attributes = members | pick_attributes_manually(fullname) %}
+{% if attributes %}
+.. rubric:: Attributes
+
+.. autosummary::
+{% for item in attributes %}
+  ~{{ fullname }}.{{ item }}
+{%- endfor %}
 {% endif %}

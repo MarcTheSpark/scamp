@@ -18,19 +18,41 @@
 
 import sphinx_rtd_theme
 
+##################################################################################################################
+#                            Hack to add intersect and difference filters in templates
+##################################################################################################################
+
 import jinja2
 
 
 def intersect(a, b):
-    return set(a).intersection(b)
+    return [x for x in a if x in b]
 
 
 def difference(a, b):
-    return set(a).difference(b)
+    return [x for x in a if x not in b]
 
 
 jinja2.filters.FILTERS['intersect'] = intersect
 jinja2.filters.FILTERS['difference'] = difference
+
+##################################################################################################################
+#                                   Hack to allow certain named module attributes
+##################################################################################################################
+
+_attributes_to_allow = {
+    'scamp.settings': {"playback_settings", "quantization_settings", "engraving_settings"}
+}
+
+
+def pick_attributes_manually(a, module_name):
+    if module_name in _attributes_to_allow:
+        return [x for x in a if x in _attributes_to_allow[module_name]]
+    else:
+        return []
+
+
+jinja2.filters.FILTERS['pick_attributes_manually'] = pick_attributes_manually
 
 ##################################################################################################################
 #                                      Hack to fix bug w/ bogus ivar symlinks
