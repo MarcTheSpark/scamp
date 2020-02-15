@@ -12,12 +12,13 @@ import json
 import copy
 from abc import ABC, abstractmethod
 import functools
+from typing import Iterator, Type, Callable, List, Sequence, Tuple, Union, TypeVar
 
 
 # ------------------------------------------- General Utilities ---------------------------------------------
 
 
-def iterate_all_subclasses(type_name: type):
+def iterate_all_subclasses(type_name: Type) -> Iterator[Type]:
     """
     Iterates all generations of subclasses of a type
     """
@@ -27,7 +28,7 @@ def iterate_all_subclasses(type_name: type):
             yield x
 
 
-def resolve_relative_path(file_name, from_root_process=False):
+def resolve_relative_path(file_name: str, from_root_process: bool = False) -> str:
     """
     Resolves the relative path file_name into an absolute path.
     If this script is running from an executable made by PyInstaller, the returned path is considered
@@ -37,9 +38,7 @@ def resolve_relative_path(file_name, from_root_process=False):
     Optionally, if the 'from_root_process' flag is on, we resolve relative to this root module
 
     :param file_name: a relative path to be resolved
-    :type file_name: str
     :param from_root_process: whether or not to resolve based on the location of the root module
-    :type from_root_process: bool
     :return: absolute
     """
     if getattr(sys, 'frozen', False):
@@ -54,18 +53,14 @@ def resolve_relative_path(file_name, from_root_process=False):
     return os.path.join(application_path, file_name)
 
 
-def save_object(obj, filename):
-    with open(filename, 'wb') as output:
-        pickle.dump(copy.deepcopy(obj), output, pickle.HIGHEST_PROTOCOL)
-
-
-def load_object(filename):
-    with open(filename, 'rb') as input_:
-        out = pickle.load(input_)
-    return out
-
-
 class SavesToJSON(ABC):
+
+    """
+    Abstract base class for SCAMP objects that save to and load from JSON files.
+    Subclasses are expected to implement _to_json, which constructs a JSON-serializable object from the class data
+    (usually a dictionary), and _from_json, which constructs an instance of the class from the data loaded from the
+    JSON file (again, usually a dictionary).
+    """
 
     @abstractmethod
     def _to_json(self):
@@ -76,7 +71,7 @@ class SavesToJSON(ABC):
     def _from_json(cls, json_object):
         pass
 
-    def save_to_json(self, file_path):
+    def save_to_json(self, file_path: str) -> None:
         """
         Save this object to a JSON file using the given path.
 
@@ -86,7 +81,7 @@ class SavesToJSON(ABC):
             json.dump(self._to_json(), file, sort_keys=True, indent=4)
 
     @classmethod
-    def load_from_json(cls, file_path):
+    def load_from_json(cls, file_path: str):
         """
         Load this object from a JSON file with the given path.
 
@@ -96,7 +91,13 @@ class SavesToJSON(ABC):
             return cls._from_json(json.load(file))
 
 
-def memoize(obj):
+def memoize(obj: Callable) -> Callable:
+    """
+    Decorator used for memoization (see https://en.wikipedia.org/wiki/Memoization)
+
+    :param obj: the function to be wrapped in a memoizer
+    :return: the wrapped, memoized function
+    """
     cache = obj.cache = {}
 
     @functools.wraps(obj)
@@ -111,7 +112,10 @@ def memoize(obj):
 # -------------------------------------------- Numerical Utilities -----------------------------------------------
 
 
-def is_x_pow_of_y(x, y):
+def is_x_pow_of_y(x, y) -> bool:
+    """
+    Checks if x is an integer (including negative) power of y
+    """
     a = math.log(x, y)
     if a == int(a):
         return True
@@ -120,38 +124,61 @@ def is_x_pow_of_y(x, y):
 
 
 def floor_x_to_pow_of_y(x, y):
+    """
+    Returns the integer power of y that is closest below x.
+    """
     a = math.log(x, y)
     return y ** math.floor(a)
 
 
 def ceil_x_to_pow_of_y(x, y):
+    """
+    Returns the integer power of y that is closest above x.
+    """
     a = math.log(x, y)
     return y ** math.ceil(a)
 
 
 def round_x_to_pow_of_y(x, y):
+    """
+    Returns the integer power of y that is closest to x (above or below).
+    """
     a = math.log(x, y)
     return y ** (int(round(a)) if isinstance(y, int) else round(a))
 
 
 def floor_to_multiple(x, factor):
+    """
+    Returns the multiple of factor that is closest below x.
+    """
     return math.floor(x / factor) * factor
 
 
 def ceil_to_multiple(x, factor):
+    """
+    Returns the multiple of factor that is closest above x.
+    """
     return math.ceil(x / factor) * factor
 
 
 def round_to_multiple(x, factor):
+    """
+    Returns the multiple of factor that is closest to x (above or below).
+    """
     return round(x / factor) * factor
 
 
-def is_multiple(x, y):
+def is_multiple(x, y) -> bool:
+    """
+    Checks if x is a multiple of y.
+    """
     return round_to_multiple(x, y) == x
 
 
-def prime_factor(n):
-    assert isinstance(n, int)
+def prime_factor(n: int) -> List[int]:
+    """
+    Returns a list of the prime factors of n.
+    """
     i = 2
     primes = []
     while i * i <= n:
@@ -168,9 +195,9 @@ def prime_factor(n):
 # ---------------------------------------------- List Utilities --------------------------------------------------
 
 
-def make_flat_list(l, indivisible=None):
+def make_flat_list(l: Sequence, indivisible: Union[Type, Tuple[Type]] = None) -> List:
     """
-    Flattens a list, including ones containing multiple levels of nesting. Certain types can be excluded from expansion
+    Flattens a list, including ones containing multiple levels of nesting. Certain types can be excluded from expansion.
 
     :param l: a list or similar iterable
     :param indivisible: a type or tuple of types that should not be expanded out. E.g. a custom named tuple
@@ -192,9 +219,9 @@ def make_flat_list(l, indivisible=None):
     return new_list
 
 
-def rotate(l, n):
+def rotate(l: List, n: int) -> List:
     """
-    rotates a list such that it starts at the nth index and loops back to end at the (n-1)st
+    Rotates a list such that it starts at the nth index and loops back to end at the (n-1)st
 
     :param l: the input list
     :param n: the new start index
@@ -203,7 +230,14 @@ def rotate(l, n):
     return l[n:] + l[:n]
 
 
-def sum_nested_list(l):
+def sum_nested_list(l: List):
+    """
+    Sums up all of the values within a nested list.
+    For instance :code:`sum_nested_list([6, [4, 2], [[-7]]])` will return 5
+
+    :param l: the input list
+    :return: sum of the l's nested values
+    """
     if not hasattr(l, "__len__"):
         return l
     else:
@@ -213,7 +247,14 @@ def sum_nested_list(l):
 # ---------------------------------------------- String Utilities --------------------------------------------------
 
 
-def get_average_square_correlation(test_string: str, template_string: str):
+def get_average_square_correlation(test_string: str, template_string: str) -> float:
+    """
+    A test of the similarity of two strings via a (squared) cross-correlation of their characters.
+    (Scaled down to compensate for the influence of string lengths.)
+
+    :param test_string: string we are testing
+    :param template_string: template string we are testing against
+    """
     square_correlation_sum = 0
     test_length, template_length = len(test_string), len(template_string)
     for offset in range(-test_length + 1, template_length):
@@ -228,11 +269,18 @@ def get_average_square_correlation(test_string: str, template_string: str):
 # All of these are needed for the indispensability stuff below
 
 
-def is_prime(a):
+def is_prime(a: int) -> bool:
+    """
+    Checks if a is a prime number.
+    """
     return not (a < 2 or any(a % x == 0 for x in range(2, int(a ** 0.5) + 1)))
 
 
-def indigestibility(n):
+def indigestibility(n: int) -> float:
+    """
+    Returns the indigestibility of a number per the theories of Clarence Barlow.
+    (See "On Musiquantics", http://clarlow.org/wp-content/uploads/2016/10/On-MusiquanticsA4.pdf)
+    """
     assert isinstance(n, int) and n > 0
     if is_prime(n):
         return 2 * float((n-1)**2) / n
@@ -353,5 +401,18 @@ def _standardize_strata(rhythmic_strata):
     return strata
 
 
-def get_standard_indispensability_array(rhythmic_strata, normalize=False):
+int_or_float = TypeVar("int_or_float", int, float)
+
+
+def get_standard_indispensability_array(rhythmic_strata: Sequence, normalize: bool = False) -> List[int_or_float]:
+    """
+    Returns a list of the indispensabilities of different pulses in a meter defined by the rhythmic_strata.
+    (See Barlow's "On Musiquantics", http://clarlow.org/wp-content/uploads/2016/10/On-MusiquanticsA4.pdf)
+
+    :param rhythmic_strata: a tuple representing the rhythmic groupings from large scale to small scale. For instance,
+        the sixteenth-note pulses in a measure of 9/8 would be represented by (3, 3, 2), since there are three beats of
+        three eighth notes, each of which has two sixteenth notes.
+    :param normalize: if True, scale all indispensabilities to the range 0 to 1
+    :return: a list of integer indispensabilities, or float if normalize is set to true
+    """
     return _get_indispensability_array(_standardize_strata(rhythmic_strata), normalize)

@@ -1,22 +1,32 @@
+"""
+Module containing the main settings classes: :class:`PlaybackSettings`, :class:`QuantizationSettings`, and
+:class:`EngravingSettings`, as well as :class:`TempoSettings` and :class:`GlissandiSettings`, which are part of
+:class:`EngravingSettings`. A module-level instance for each (:code:`playback_settings`, :code:`quantization_settings`,
+and :code:`engraving_settings`) is loaded from JSON configuration files within within the settings directory of the
+scamp package. These instances are part of the global scamp namespace, and contain scamp's default configuration.
+"""
 from types import SimpleNamespace
 from .utilities import resolve_relative_path, SavesToJSON
 from .playback_adjustments import PlaybackAdjustmentsDictionary, NotePlaybackAdjustment
-from .spelling import SpellingPolicy
+from . import spelling
 import logging
 import json
 import platform
 import shutil
 import subprocess
+from typing import Optional
 
 
-class ScampSettings(SimpleNamespace, SavesToJSON):
+class _ScampSettings(SimpleNamespace, SavesToJSON):
+
+    """Base class for scamp settings classes."""
 
     factory_defaults = {}
     _settings_name = "Settings"
     _json_path = None
     _is_root_setting = False
 
-    def __init__(self, settings_dict=None):
+    def __init__(self, settings_dict: dict = None):
         if settings_dict is None:
             settings_arguments = self.factory_defaults
         else:
@@ -26,7 +36,7 @@ class ScampSettings(SimpleNamespace, SavesToJSON):
                     # there is both an explicitly given setting and a factory default
                     if isinstance(self.factory_defaults[key], SavesToJSON):
                         # if the factory default is a custom scamp class that serializes to or from json (including
-                        # another ScampSettings derivative), then we use that class's "from_json" method to load it
+                        # another _ScampSettings derivative), then we use that class's "from_json" method to load it
                         settings_arguments[key] = type(self.factory_defaults[key])._from_json(settings_dict[key])
                     else:
                         # otherwise it should just be a simple json-friendly piece of data
@@ -43,16 +53,31 @@ class ScampSettings(SimpleNamespace, SavesToJSON):
                 settings_arguments[key] = self._validate_attribute(key, settings_arguments[key])
         super().__init__(**settings_arguments)
 
-    def restore_factory_defaults(self):
+    def restore_factory_defaults(self, persist=False) -> None:
+        """
+        Restores settings back to their "factory defaults" (the defaults when SCAMP was installed).
+        Unless the `persist` argument is set, this is temporary to the running of the current script.
+
+        :param persist: if True, rewrites the JSON file from which defaults are loaded, meaning that this reset will
+            persist to the running of scripts in the future.
+        """
         for key in self._factory_defaults:
             vars(self)[key] = self._factory_defaults[key]
-        return self
+        if persist:
+            self.make_persistent()
 
-    def make_persistent(self):
+    def make_persistent(self) -> None:
+        """
+        Rewrites the JSON file from which settings are loaded, meaning that this reset will persist to the running of
+        scripts in the future.
+        """
         self.save_to_json(resolve_relative_path(self._json_path))
 
     @classmethod
     def factory_default(cls):
+        """
+        Returns a factory default version of this settings object.
+        """
         return cls({})
 
     def _to_json(self):
@@ -64,6 +89,11 @@ class ScampSettings(SimpleNamespace, SavesToJSON):
 
     @classmethod
     def load(cls):
+        """
+        Loads and instance of this settings object from its corresponding JSON file. If no such file exists, or it is
+        corrupted in some way, then this creates a fresh JSON file there. This doesn't work with settings that are
+        nested within other settings (like GlissandiSettings), since they do not have corresponding JSON files,
+        """
         assert cls._is_root_setting, "Cannot load a non-root setting automatically."
         try:
             return cls.load_from_json(resolve_relative_path(cls._json_path))
@@ -89,8 +119,34 @@ class ScampSettings(SimpleNamespace, SavesToJSON):
             super().__setattr__(key, self._validate_attribute(key, value))
 
 
-class PlaybackSettings(ScampSettings):
+class PlaybackSettings(_ScampSettings):
 
+    """
+    Namespace containing the settings relevant to playback implementation and adjustments.
+
+    :param settings_dict: dictionary from which to set all settings attributes
+    :ivar named_soundfonts: Dictionary mapping names of frequently-used soundfonts to their file paths
+    :ivar default_soundfont: Soundfont (by name or path) to default to in playback
+    :ivar default_audio_driver: Name of the audio driver use for soundfont playback by default. If "auto", we test to
+        see what audio driver will work, and replace this value with that driver.
+    :ivar default_midi_output_device: Name or number of the midi output device to default to
+    :ivar default_max_soundfont_pitch_bend: When playing back with soundfonts, instruments will be immediately set
+        to use this value for the maximum pitch bend. (Makes sense to set this to a large value for maximum flexibility)
+    :ivar default_max_streaming_midi_pitch_bend: When playing back with a midi stream to an external
+        synthesizer/program, instruments will be immediately set to use this value for the maximum pitch bend. (Makes
+        sense probably to leave this at the MIDI default of 2 semitones, in case the receiving device doesn't listen
+        to messages that reset the pitch bend range.)
+    :ivar osc_message_addresses: Dictionary mapping the different kinds of playback messages to the OSC messages
+        prefixes we will use for them. For instance, if you want start note messages to use "note_on", set the
+        osc_message_addresses["start_note"] = "note_on", and all OSC messages starting a note will come out as
+        [instrument name]/note_on/
+    :ivar adjustments: a :class:`scamp.playback_adjustments.PlaybackAdjustmentsDictionary` defining how playback should
+        be altered in response to different articulations/notations/etc.
+    :ivar try_system_fluidsynth_first: if True, always tries system copy of the fluidsynth libraries first before using
+        the one embedded in the scamp package.
+    """
+
+    #: Default playback settings (from when SCAMP was installed)
     factory_defaults = {
         "named_soundfonts": {
             "general_midi": "Merlin.sf2",
@@ -114,7 +170,6 @@ class PlaybackSettings(ScampSettings):
             "accent": NotePlaybackAdjustment.scale_params(volume=1.2),
             "marcato": NotePlaybackAdjustment.scale_params(volume=1.5),
         }),
-        # if True, always tries system copy of the fluidsynth libraries first before using the one in the scamp package
         "try_system_fluidsynth_first": False,
     }
 
@@ -122,7 +177,7 @@ class PlaybackSettings(ScampSettings):
     _json_path = "settings/playbackSettings.json"
     _is_root_setting = True
 
-    def __init__(self, settings_dict=None):
+    def __init__(self, settings_dict: dict = None):
         # This is here to help with auto-completion so that the IDE knows what attributes are available
         self.named_soundfonts = self.default_soundfont = self.default_audio_driver = \
             self.default_midi_output_device = self.default_max_soundfont_pitch_bend = \
@@ -131,7 +186,7 @@ class PlaybackSettings(ScampSettings):
         super().__init__(settings_dict)
         assert isinstance(self.adjustments, PlaybackAdjustmentsDictionary)
 
-    def register_named_soundfont(self, name: str, soundfont_path: str):
+    def register_named_soundfont(self, name: str, soundfont_path: str) -> None:
         """
         Adds a named soundfont, so that it can be easily referred to in constructing a Session
 
@@ -141,7 +196,7 @@ class PlaybackSettings(ScampSettings):
         """
         self.named_soundfonts[name] = soundfont_path
 
-    def unregister_named_soundfont(self, name: str):
+    def unregister_named_soundfont(self, name: str) -> None:
         """
         Same as above, but removes a named soundfont
 
@@ -152,13 +207,37 @@ class PlaybackSettings(ScampSettings):
             return
         del self.named_soundfonts[name]
 
-    def list_named_soundfonts(self):
+    def list_named_soundfonts(self) -> None:
+        """
+        Prints out a list of all of the named soundfonts and the paths of the soundfont files to which they point.
+        """
         for a, b in self.named_soundfonts.items():
             print("{}: {}".format(a, b))
 
 
-class QuantizationSettings(ScampSettings):
+class QuantizationSettings(_ScampSettings):
+    """
+    Namespace containing the settings relevant to the quantization of Performances in preparation for Score creation.
 
+    :param settings_dict: dictionary from which to set all settings attributes
+    :ivar onset_weighting: float representing how much note start times are weighted compared with note end times and
+        tie split points in determining how beats are divided. (All that matters is the relative size of the values.)
+    :ivar termination_weighting:  float representing how much note end times are weighted compared with note start times
+        and tie split points in determining how beats are divided. (All that matters is the relative size of the
+        values.)
+    :ivar inner_split_weighting: float representing how much tie split points are weighted compared with note end times
+        and note start times in determining how beats are divided. (All that matters is the relative size of the
+        values.)
+    :ivar max_divisor: int representing the default maximum divisor allowed for a beat
+    :ivar max_divisor_indigestibility: float representing the default cap on the indigestibility of beat divisors. (See
+        :class:`scamp.quantization.BeatQuantizationScheme`)
+    :ivar simplicity_preference: float representing the default degree of preference for simple beat divisors. (See
+        :class:`scamp.quantization.BeatQuantizationScheme`)
+    :ivar default_time_signature: string (e.g. "4/4") representing the default time signature to use when one is not
+        specified.
+    """
+
+    #: Default quantization settings (from when SCAMP was installed)
     factory_defaults = {
         "onset_weighting": 1.0,
         "termination_weighting": 0.5,
@@ -173,29 +252,41 @@ class QuantizationSettings(ScampSettings):
     _json_path = "settings/quantizationSettings.json"
     _is_root_setting = True
 
-    def __init__(self, settings_dict=None):
+    def __init__(self, settings_dict: dict = None):
         # This is here to help with auto-completion so that the IDE knows what attributes are available
         self.onset_weighting = self.termination_weighting = self.inner_split_weighting = self.max_divisor = \
             self.max_divisor_indigestibility = self.simplicity_preference = self.default_time_signature = None
         super().__init__(settings_dict)
 
 
-class GlissandiSettings(ScampSettings):
+class GlissandiSettings(_ScampSettings):
+    """
+    Namespace containing the settings relevant to the engraving of glissandi.
 
+    :param settings_dict: dictionary from which to set all settings attributes
+    :ivar control_point_policy: Can be either "grace", "split", or "none":
+
+        * if "grace", the rhythm is expressed as simply as possible and they are engraved as headless grace notes
+        * if "split", the note is split rhythmically at the control points
+        * if "none", control points are ignored
+
+    :ivar consider_non_extrema_control_points: if true, we consider all gliss control points in the engraving process.
+        If false, we only consider local extrema (i.e. points where the gliss changes direction).
+    :ivar include_end_grace_note: if true, the final pitch reached is expressed as a gliss up to a headless grace note.
+    :ivar inner_grace_relevance_threshold: this threshold helps determine which gliss control points are worth
+        expressing in notation. The further a control point is from its neighbors, and the further it deviates from
+        the linearly interpolated pitch at that point, the higher its relevance score. The relevance score must be
+        above this threshold to show up.
+    :ivar max_inner_graces_music_xml: integer (probably 1) capping the number of inner grace notes between notes of a
+        glissando that we put in when outputting music xml. (Most programs can't even handle 1 appropriately, but
+        there's nothing inherently unclear about including more in the XML.)
+    """
+
+    #: Default glissandi-related settings (from when SCAMP was installed)
     factory_defaults = {
-        # control_point_policy can be either "grace", "split", or "none"
-        # - if "grace", the rhythm is expressed as simply as possible and they are engraved as headless grace notes
-        # - if "split", the note is split rhythmically at the control points
-        # - if "none", control points are ignored
         "control_point_policy": "split",
-        # if true, we consider all control points in the engraving process.
-        # If false, we only consider local extrema.
         "consider_non_extrema_control_points": True,
-        # if true, the final pitch reached is expressed as a gliss up to a headless grace note
         "include_end_grace_note": True,
-        # this threshold helps determine which gliss control points are worth expressing in notation
-        # the further a control point is from its neighbors, and the further it deviates from
-        # the linearly interpolated pitch at that point, the higher its relevance score.
         "inner_grace_relevance_threshold": 1.5,
         "max_inner_graces_music_xml": 1
     }
@@ -204,7 +295,7 @@ class GlissandiSettings(ScampSettings):
     _json_path = "settings/engravingSettings.json"
     _is_root_setting = False
 
-    def __init__(self, settings_dict=None):
+    def __init__(self, settings_dict: dict = None):
         # This is here to help with auto-completion so that the IDE knows what attributes are available
         self.control_point_policy = self.consider_non_extrema_control_points = self.include_end_grace_note = \
             self.inner_grace_relevance_threshold = self.max_inner_graces_music_xml = None
@@ -223,13 +314,24 @@ class GlissandiSettings(ScampSettings):
         return value
 
 
-class TempoSettings(ScampSettings):
+class TempoSettings(_ScampSettings):
+    """
+    Namespace containing the settings relevant to the engraving of tempo changes.
+
+    :param settings_dict: dictionary from which to set all settings attributes
+    :ivar guide_mark_resolution: grid that the guide marks are snapped to, in beats. Actual appearance of a guide mark
+        depends on `guide_mark_sensitivity`.
+    :ivar guide_mark_sensitivity: guide_mark_sensitivity represents how much a tempo has to change proportionally to
+        put a guide mark. For instance, if it's 0.1 and the last notated tempo was 60, we'll put a guide mark when the
+        tempo reaches 60 +/- 0.1 * 60 = 54 or 66.
+    :ivar include_guide_marks: Whether or not to include tempo guide marks, i.e. marks showing the tempo at points
+        in between explicit tempo targets.
+    :ivar parenthesize_guide_marks: Whether or not to place tempo guide marks in parentheses.
+    """
+
+    #: Default tempo-related settings (from when SCAMP was installed)
     factory_defaults = {
-        # grid that the guide marks are snapped to, in beats. Actual appearance of a guide mark depends on sensitivity.
         "guide_mark_resolution": 0.125,
-        # guide_mark_sensitivity represents how much a tempo has to change proportionally to put a guide mark
-        # so for instance, if it's 0.1 and the last notated tempo was 60, we'll put a guide mark when the
-        # tempo reaches 60 +/- 0.1 * 60 = 54 or 66
         "guide_mark_sensitivity": 0.08,
         "include_guide_marks": True,
         "parenthesize_guide_marks": True
@@ -239,34 +341,67 @@ class TempoSettings(ScampSettings):
     _json_path = "settings/engravingSettings.json"
     _is_root_setting = False
 
-    def __init__(self, settings_dict=None):
-        self.guide_mark_resolution = self.guide_mark_resolution = self.include_guide_marks = \
+    def __init__(self, settings_dict: dict = None):
+        self.guide_mark_resolution = self.guide_mark_sensitivity = self.include_guide_marks = \
             self.parenthesize_guide_marks = None
         super().__init__(settings_dict)
 
 
-class EngravingSettings(ScampSettings):
+class EngravingSettings(_ScampSettings):
+    """
+    Namespace containing the settings relevant to the engraving of scores.
 
+    :param settings_dict: dictionary from which to set all settings attributes
+    :ivar allow_duple_tuplets_in_compound_time: There are two ways to express a division of a beat in compound time in
+        two: with a duple tuplet or with dotted notes. For instance, half of a beat in 3/8 can be represented as a
+        dotted-eighth or an eighth inside of a 2:3 tuplet. If this is set to True, we allow the latter option.
+    :ivar max_voices_per_part: integer specifying how many voices we allow in a single staff before creating extra
+        staves to accommodate them.
+    :ivar max_dots_allowed: integer specifying how many dots we allow a note to have before it's just too many dots.
+    :ivar beat_hierarchy_spacing: Should be >= 1. Larger numbers treat the various nested levels of beat subdivision as
+        further apart, leading to a greater tendency to show the beat structure rather than combine tie notes into
+        fewer pieces.
+    :ivar num_divisions_penalty: Ranges from 0 to 1, where 0 treats having multiple tied notes to represent a single
+        note event as just as good as having fewer notes, while numbers closer to 1 increasingly favor using fewer
+        notes in a tied group.
+    :ivar rest_beat_hierarchy_spacing: Same as beat_hierarchy_spacing, but for rests. (We generally want rests to be
+        more likely to split.)
+    :ivar rest_num_divisions_penalty: Same as num_divisions_penalty, but for rests. (We generally want rests to be less
+        inclined to recombine.)
+    :ivar articulation_split_protocols: Dictionary mapping articulation names to either "first", "last", "both" or
+        "all". When a note has been given a particular articulation during playback, but needs to be engraved as a group
+        of tied notes, the question arises: which of those tied pieces should get the articulation? For instance, an
+        accent probably wants to be on the first note, since it's an attack, and a staccato dot probably should be on
+        the last note, since it's about release. The value "both" will place the articulation on both the first and last
+        note, and "all" will place the articulation on every note of the tied group.
+    :ivar default_titles: Title or list of titles from which to choose for a score that has been created without
+        specifying a title.
+    :ivar default_composers: Name or list of name from which to choose for a score that has been created without
+        specifying a composer.
+    :ivar default_spelling_policy: the SpellingPolicy to use by default in determining accidentals.
+    :ivar ignore_empty_parts: if True, don't bother to include parts in a score if there's nothing in them.
+    :ivar glissandi: instance of :class:`GlissandiSettings` specifying how glissandi should be engraved.
+    :ivar tempo: instance of :class:`TempoSettings` specifying how tempo changes should be engraved.
+    :ivar pad_incomplete_parts: If true, add measures to parts that don't have enough music in them so that they are
+        go the full length of the score.
+    :ivar show_music_xml_command_line: Terminal command to run when opening up MusicXML scores. It is easiest to set
+        this by calling set_music_xml_application. The value "auto" tries to find an appropriate application
+        automatically.
+    :ivar show_microtonal_annotations: if True, annotates microtonal pitches with the exact floating-point MIDI pitch
+        value that they are intended to represent. (This is useful, since normally the best a notation program can
+        do is quarter tones.
+    """
+
+    #: Default engraving settings (from when SCAMP was installed)
     factory_defaults = {
         "allow_duple_tuplets_in_compound_time": True,
         "max_voices_per_part": 4,
         "max_dots_allowed": 3,
-        # Should be >= 1. Larger numbers treat the various nested levels of beat subdivision as further apart, leading
-        # to a greater tendency to show the beat structure rather than combine tie notes into fewer pieces
         "beat_hierarchy_spacing": 2.4,
-        # Ranges from 0 to 1, where 0 treats having multiple tied notes to represent a single note event as just as good
-        # as having fewer notes, while numbers closer to 1 increasingly favor using fewer notes in a tied group
         "num_divisions_penalty": 0.6,
-        # same, but for rests. We want rests to be more likely to split
         "rest_beat_hierarchy_spacing": 20,
-        # ... and less inclined to recombine
         "rest_num_divisions_penalty": 0.2,
         "articulation_split_protocols": {
-            # can be "first", "last", "both", or "all"
-            # first means the articulation only appears at the beginning of a tied group
-            # last means it only appears at the end
-            # both means it appears at the beginning and the end
-            # and all means that it even appears on inner tied notes
             "staccato": "last",
             "staccatissimo": "last",
             "marcato": "first",
@@ -278,7 +413,7 @@ class EngravingSettings(ScampSettings):
                            "Goodbye Yellow Brick Code", "Hit the Code, Jack"],
         "default_composers": ["HTMLvis", "Rustin Beiber", "Javan Morrison", "Sia++",
                               "The Rubytles", "CSStiny's Child", "Perl Jam", "PHPrince", ],
-        "default_spelling_policy": SpellingPolicy.from_string("C"),
+        "default_spelling_policy": spelling.SpellingPolicy.from_string("C"),
         "ignore_empty_parts": True,
         "glissandi": GlissandiSettings(),
         "tempo": TempoSettings(),
@@ -291,12 +426,13 @@ class EngravingSettings(ScampSettings):
     _json_path = "settings/engravingSettings.json"
     _is_root_setting = True
 
-    def __init__(self, settings_dict=None):
+    def __init__(self, settings_dict: dict = None):
         # This is here to help with auto-completion so that the IDE knows what attributes are available
         self.max_voices_per_part = self.max_dots_allowed = self.beat_hierarchy_spacing = self.num_divisions_penalty = \
             self.rest_beat_hierarchy_spacing = self.rest_num_divisions_penalty = self.articulation_split_protocols = \
             self.default_titles = self.default_composers = self.default_spelling_policy = self.ignore_empty_parts = \
-            self.pad_incomplete_parts = self.show_music_xml_command_line = self.show_microtonal_annotations = None
+            self.pad_incomplete_parts = self.show_music_xml_command_line = self.show_microtonal_annotations = \
+            self.allow_duple_tuplets_in_compound_time = None
         self.glissandi: GlissandiSettings = None
         self.tempo: TempoSettings = None
         super().__init__(settings_dict)
@@ -312,12 +448,12 @@ class EngravingSettings(ScampSettings):
             for cmd in [x.lower() for x in app_names_to_try] + app_names_to_try:
                 if shutil.which(cmd) is not None:
                     print("Found application {}. This has been made the default, but it can be altered by running "
-                          "engraving_settings.set_show_music_xml_application(NAME_OF_APPLICATION)".format(cmd))
-                    self.set_show_music_xml_application(cmd)
+                          "engraving_settings.set_music_xml_application(NAME_OF_APPLICATION)".format(cmd))
+                    self.set_music_xml_application(cmd)
                     return
             # if we can't find the appropriate application, set it to a generic open command
             print("Could not find an appropriate application; falling back to generic open command.")
-            self.set_show_music_xml_application()
+            self.set_music_xml_application()
         elif platform_system == "windows":
             program_list = subprocess.check_output(["cmd", "/c", "wmic", "product", "get", "name"]).decode().\
                 replace(" ", "").split("\r\r\n")
@@ -325,26 +461,31 @@ class EngravingSettings(ScampSettings):
                 for installed_program in program_list:
                     if app_name.lower() in installed_program.lower():
                         print("Found application {}. This has been made the default, but it can be altered by running "
-                              "engraving_settings.set_show_music_xml_application(NAME_OF_APPLICATION)".
+                              "engraving_settings.set_music_xml_application(NAME_OF_APPLICATION)".
                               format(installed_program))
-                        self.set_show_music_xml_application(installed_program)
+                        self.set_music_xml_application(installed_program)
                         return
             print("Could not find an appropriate application; falling back to generic open command.")
-            self.set_show_music_xml_application()
+            self.set_music_xml_application()
         elif platform_system == "darwin":
             for app_name in app_names_to_try:
                 if subprocess.call(["open", "-Ra", app_name]) == 0:
                     print("Found application {}. This has been made the default, but it can be altered by running "
-                          "engraving_settings.set_show_music_xml_application(NAME_OF_APPLICATION)".format(app_name))
-                    self.set_show_music_xml_application(app_name)
+                          "engraving_settings.set_music_xml_application(NAME_OF_APPLICATION)".format(app_name))
+                    self.set_music_xml_application(app_name)
                     return
             # if we can't find the appropriate application, set it to a generic open command
             print("Could not find an appropriate application; falling back to generic open command.")
-            self.set_show_music_xml_application()
+            self.set_music_xml_application()
         else:
             logging.warning("Unrecognized platform {}".format(platform_system))
 
-    def set_show_music_xml_application(self, application_name=None):
+    def set_music_xml_application(self, application_name: str = None) -> None:
+        """
+        Sets the application to use when opening generated MusicXML scores
+
+        :param application_name: name of the application to use. If None, defaults to a generic file open command.
+        """
         platform_system = platform.system().lower()
         if platform_system == "linux":
             # generic open command on linux is "xdg-open"
@@ -360,7 +501,8 @@ class EngravingSettings(ScampSettings):
         else:
             logging.warning("Cannot run \"show_xml\" on unrecognized platform {}".format(platform_system))
 
-    def get_default_title(self):
+    def get_default_title(self) -> Optional[str]:
+        """Grabs one of the default score titles."""
         if isinstance(self.default_titles, list):
             import random
             return random.choice(self.default_titles)
@@ -369,7 +511,8 @@ class EngravingSettings(ScampSettings):
         else:
             return None
 
-    def get_default_composer(self):
+    def get_default_composer(self) -> Optional[str]:
+        """Grabs one of the default composer names."""
         if isinstance(self.default_composers, list):
             import random
             return random.choice(self.default_composers)
@@ -393,12 +536,22 @@ class EngravingSettings(ScampSettings):
         return value
 
 
-playback_settings = PlaybackSettings.load()
-quantization_settings = QuantizationSettings.load()
-engraving_settings = EngravingSettings.load()
+#: Instance of PlaybackSettings containing the actual playback defaults that are consulted
+playback_settings: PlaybackSettings = PlaybackSettings.load()
+#: Instance of QuantizationSettings containing the actual quantization defaults that are consulted
+quantization_settings: QuantizationSettings = QuantizationSettings.load()
+#: Instance of EngravingSettings containing the actual engraving defaults that are consulted
+engraving_settings: EngravingSettings = EngravingSettings.load()
 
 
-def restore_all_factory_defaults(persist=False):
+def restore_all_factory_defaults(persist: bool = False) -> None:
+    """
+    Restores all settings back to their "factory defaults" (the defaults when SCAMP was installed).
+    Unless the `persist` argument is set, this is temporary to the running of the current script.
+
+    :param persist: if True, rewrites the JSON files from which defaults are loaded, meaning that this reset will
+        persist to the running of scripts in the future.
+    """
     playback_settings.restore_factory_defaults()
     if persist:
         playback_settings.make_persistent()

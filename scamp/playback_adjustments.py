@@ -1,6 +1,6 @@
 """
 Module containing classes for defining adjustments to the playback of note parameters, as well as the
-PlaybackAdjustmentsDictionary, which defines how particular notations should be played back.
+:class:`PlaybackAdjustmentsDictionary`, which defines how particular notations should be played back.
 """
 
 from .utilities import SavesToJSON
@@ -349,13 +349,13 @@ class PlaybackAdjustmentsDictionary(dict, SavesToJSON):
 
     def set(self, notation_detail: str, adjustment: Union[str, NotePlaybackAdjustment]) -> None:
         """
-        Set the given notation detail to have the given adjustment.
+        Set the given notation detail to have the given :class:`NotePlaybackAdjustment`.
         Based on the name of the notation detail, it is automatically determined whether or not we are talking about
         an articulation, a notehead, or another kind of notation.
 
         :param notation_detail: name of the notation detail, e.g. "staccato" or "harmonic"
-        :param adjustment: the adjustment to make for that notation. Either a NotePlaybackAdjustment or a string to
-            be parsed to a NotePlaybackAdjustment using NotePlaybackAdjustment.from_string
+        :param adjustment: the adjustment to make for that notation. Either a :class:`NotePlaybackAdjustment` or a
+            string to be parsed to a :class:`NotePlaybackAdjustment` using :code:`NotePlaybackAdjustment.from_string`
         """
         if isinstance(adjustment, str):
             adjustment = NotePlaybackAdjustment.from_string(adjustment)
@@ -372,12 +372,12 @@ class PlaybackAdjustmentsDictionary(dict, SavesToJSON):
 
     def get(self, notation_detail: str) -> NotePlaybackAdjustment:
         """
-        Get the adjustment for the given notation detail.
+        Get the :class:`NotePlaybackAdjustment` for the given notation detail.
         Based on the name of the notation detail, it is automatically determined whether or not we are talking about
         an articulation, a notehead, or another kind of notation.
 
         :param notation_detail: name of the notation detail, e.g. "staccato" or "harmonic"
-        :return: the NotePlaybackAdjustment for that detail
+        :return: the :class:`NotePlaybackAdjustment` for that detail
         """
         if "notehead" in notation_detail:
             notation_detail = notation_detail.replace("notehead", "").replace(" ", "").lower()

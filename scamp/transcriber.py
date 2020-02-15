@@ -1,25 +1,30 @@
+"""Module containing the :class:`Transcriber` class which records the playback of a group of
+:class:`scamp.instruments.ScampInstrument` objects to create a :class:`scamp.performance.Performance`"""
+
 from .performance import Performance
 from expenvelope import *
 from clockblocks import Clock, TempoEnvelope
 from .instruments import ScampInstrument
+from typing import Union, Sequence
 
 
 class Transcriber:
+    """
+    Class responsible for transcribing notes played by instruments into a :class:`scamp.performance.Performance`.
+    It is possible to run multiple transcriptions simultaneously, for instance starting at different times,
+    recording different instruments, or recording relative to different clocks.
+    """
 
     def __init__(self):
-        """
-        Class responsible for transcribing notes played by instruments into a Performance.
-        """
         self._transcriptions_in_progress = []
 
-    def start_transcribing(self, instrument_or_instruments, clock, units="beats"):
+    def start_transcribing(self, instrument_or_instruments: Union[ScampInstrument, Sequence[ScampInstrument]],
+                           clock: Clock, units: str = "beats") -> Performance:
         """
         Starts transcribing new performance on the given clock, consisting of the given instrument
 
         :param instrument_or_instruments: the instruments we notate in this Performance
-        :type instrument_or_instruments: ScampInstrument or list of ScampInstruments
         :param clock: which clock all timings are relative to, or "absolute" to mean time on the master clock
-        :type clock: Clock
         :param units: one of ["beats", "time"]. Do we use the beats of the clock or the time?
         :return: the Performance that this transcription writes to, which will be updated as notes are played and acts
             as a handle when calling stop_transcribing.
@@ -44,7 +49,7 @@ class Transcriber:
 
         return performance
 
-    def register_note(self, instrument, note_info):
+    def register_note(self, instrument: ScampInstrument, note_info: dict) -> None:
         """
         Called when an instrument wants to register that it finished a note, records note in all transcriptions
 
@@ -159,14 +164,14 @@ class Transcriber:
         assert units in ("beats", "time")
         return time_stamp.beat_in_clock(clock) if units == "beats" else time_stamp.time_in_clock(clock)
 
-    def stop_transcribing(self, which_performance=None, tempo_envelope_tolerance=0.001):
+    def stop_transcribing(self, which_performance=None, tempo_envelope_tolerance=0.001) -> Performance:
         """
-        Stops transcribing the oldest started performance (or the given performance), and returns it.
+        Stops transcribing a Performance and returns it. Defaults to the oldest started performance, unless
+        otherwise specified.
 
         :param which_performance: which performance to stop transcribing; defaults to oldest started
         :param tempo_envelope_tolerance: error tolerance when extracting the absolute tempo envelope for the Performance
         :return: the created Performance
-        :rtype: Performance
         """
         transcription = None
         if which_performance is None:

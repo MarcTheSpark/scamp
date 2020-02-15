@@ -1,7 +1,8 @@
 """
 Module containing classes that deal with music notation. These classes represent the music hierarchically; in order from
-largest to smallest: Score, StaffGroup, Staff, Voice, Measure, Voice, Tuplet, and NoteLike. One important role of the
-classes in this module is to provide export functionality to both MusicXML and LilyPond.
+largest to smallest: :class:`Score`, :class:`StaffGroup`, :class:`Staff`, :class:`Voice`, :class:`Measure`,
+:class:`Voice`, :class:`Tuplet`, and :class:`NoteLike`. One important role of the classes in this module is to
+provide export functionality to both MusicXML and LilyPond.
 """
 
 from .settings import quantization_settings, engraving_settings

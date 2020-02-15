@@ -1,7 +1,8 @@
 """
-Module containing the PerformanceNote, PerformancePart, and Performance classes, which represent transcriptions of
-notes played by ScampInstruments. These classes contain continuous time, pitch, volume, and other parameter data,
-which can then be quantized and converted into the notation-based classes in the score module.
+Module containing the :class:`PerformanceNote`, :class:`PerformancePart`, and :class:`Performance` classes, which
+represent transcriptions of notes played by a group of :class:`scamp.instruments.ScampInstrument` objects. These classes
+contain continuous time, pitch, volume, and other parameter data, which can then be quantized and converted into the
+notation-based classes in the score module.
 """
 
 import bisect
@@ -25,7 +26,7 @@ from typing import Union, Sequence, Tuple, Iterator
 @total_ordering
 class PerformanceNote(SavesToJSON):
     """
-    Represents a single note played by a ScampInstrument.
+    Represents a single note played by a :class:`scamp.instruments.ScampInstrument`.
 
     :param start_beat: the start beat of the note
     :param length: the length of the note in beats (either a float or a tuple of floats representing tied segments)
@@ -166,7 +167,7 @@ class PerformanceNote(SavesToJSON):
 
         :param split_beat: where to split (relative to the performance start time, not the note start time)
         :return: tuple of (first half note, second half note) if split beat is within the note.
-        Otherwise just return the unchanged note in a length-1 tuple.
+            Otherwise just return the unchanged note in a length-1 tuple.
         """
         if not self.start_beat + 1e-10 < split_beat < self.end_beat - 1e-10:
             # if we're asked to split at a beat that is outside the note, it has no effect
@@ -348,7 +349,7 @@ class PerformanceNote(SavesToJSON):
 class PerformancePart(SavesToJSON):
 
     """
-    Transcription of the notes played by a single ScampInstrument.
+    Transcription of the notes played by a single :class:`scamp.instruments.ScampInstrument`.
     Can be saved to and loaded from a json file and played back on a clock.
 
     :param instrument: the ScampInstrument associated with this part; used for playback
@@ -725,13 +726,13 @@ class PerformancePart(SavesToJSON):
 class Performance(SavesToJSON):
 
     """
-    Representation of note playback events, usually a transcription of the notes played by an Ensemble.
-    Operates in continuous time, without regard to any particular way of notating it. (As opposed to a Score,
-    which represents the notated music.)
+    Representation of note playback events, usually a transcription of the notes played by an
+    :class:`scamp.instruments.Ensemble`. Operates in continuous time, without regard to any particular way of notating
+    it. (As opposed to a :class:`scamp.score.Score`, which represents the notated music.)
 
-    :param parts: list of parts (PerformancePart objects) to start with (defaults to empty list)
+    :param parts: list of parts (:class:`PerformancePart` objects) to start with (defaults to empty list)
     :param tempo_envelope: a tempo_envelope to associate with this performance
-    :ivar parts: list of parts (PerformancePart objects) in this Performance
+    :ivar parts: list of parts (:class:`PerformancePart` objects) in this Performance
     :ivar tempo_envelope: the tempo_envelope associated this performance and used for playback by default
     """
 

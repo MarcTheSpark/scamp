@@ -1,5 +1,7 @@
 """
-SCAMP: A Suite for Computer-Assisted Music in Python
+SCAMP: A Suite for Computer-Assisted Music in Python. SCAMP is an computer-assisted composition framework in Python
+designed to act as a hub, flexibly connecting the composer-programmer to a wide variety of resources for playback and
+notation.
 """
 
 __author__ = 'mpevans'

@@ -1,6 +1,6 @@
 """
-Module containing classes and functions related to the quantization of performances. (This includes the TimeSignature
-class, which also has bearing on musical notation.)
+Module containing classes and functions related to the quantization of performances. (This includes the
+:class:`TimeSignature` class, which also has bearing on musical notation.)
 """
 
 from fractions import Fraction

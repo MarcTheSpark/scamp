@@ -1,3 +1,8 @@
+"""
+Module containing the :class:`Session` class, which is the central hub through which nearly all of SCAMP's
+functionality flows.
+"""
+
 from .transcriber import Transcriber
 from ._midi import *
 from .instruments import Ensemble, ScampInstrument
@@ -5,28 +10,29 @@ from clockblocks import Clock, current_clock
 from .utilities import SavesToJSON
 from ._dependencies import pynput, pythonosc
 from threading import Thread, current_thread
+from typing import Union, Tuple, Iterator, Callable, Sequence
+from .performance import Performance
 
 
 class Session(Clock, Ensemble, Transcriber, SavesToJSON):
+    """
+    A Session combines the functionality of a master Clock, an Ensemble, and a Transcriber.
+    Since it's a master Clock, it manages global tempo; since it's an Ensemble, you use it to create and keep
+    track of instruments, and since it's a Transcriber, it allows you to transcribe and generate notation from what
+    the instruments are playing. You can also use a Session to set up interactive callbacks for MIDI, OSC, mouse
+    events, and keyboard events.
 
-    def __init__(self, tempo=60, default_soundfont="default", default_audio_driver="default",
-                 default_midi_output_device="default"):
-        """
-        A Session combines the functionality of a master clock, an ensemble, and a transcriber.
+    :param tempo: the initial tempo of the master clock
+    :param default_soundfont: the default soundfont used by instruments in this session. (Can be overridden at
+        instrument creation.)
+    :param default_audio_driver: the default driver used by (soundfont) instruments to output audio. (Can be
+        overridden at instrument creation.)
+    :param default_midi_output_device: the default midi_output_device (by name or port number) for outgoing midi
+        streams. (Again, can be overridden at instrument creation.)
+    """
 
-        :param tempo: the initial tempo of the master clock
-        :type tempo: float
-        :param default_soundfont: the default soundfont used by instruments in this session. (Can be overridden at
-            instrument creation.)
-        :type default_soundfont: string
-        :param default_audio_driver: the default driver used by (soundfont) instruments to output audio. (Can be
-            overridden at instrument creation.)
-        :type default_audio_driver: string
-        :param default_midi_output_device: the default midi_output_device for outgoing midi streams. (Again, can be
-            overridden at instrument creation.)
-        :type default_midi_output_device: string or int
-        """
-
+    def __init__(self, tempo: float = 60, default_soundfont: str = "default", default_audio_driver: str = "default",
+                 default_midi_output_device: Union[str, int] = "default"):
         Clock.__init__(self, name="MASTER", initial_tempo=tempo)
         Ensemble.__init__(self, default_soundfont=default_soundfont, default_audio_driver=default_audio_driver,
                           default_midi_output_device=default_midi_output_device)
@@ -37,10 +43,10 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         self._default_spelling_policy = None
         self._listeners = {"midi": {}, "osc": {}}
 
-    def run_as_server(self):
+    def run_as_server(self) -> 'Session':
         """
         Runs this session on a parallel thread so that it can act as a server. This is the approach that should be taken
-        if running scamp from an interactive terminal session. Simply type "s = Session().run_as_server()"
+        if running scamp from an interactive terminal session. Simply type :code:`s = Session().run_as_server()`
 
         :return: self
         """
@@ -57,20 +63,20 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
     # ----------------------------------- Listeners ----------------------------------
 
     @staticmethod
-    def get_available_midi_input_devices():
+    def get_available_midi_input_devices() -> Iterator[Tuple[int, str]]:
         """
         Returns a list of available ports and devices for midi input.
         """
         return get_available_midi_input_devices()
 
     @staticmethod
-    def print_available_midi_input_devices():
+    def print_available_midi_input_devices() -> None:
         """
         Prints a list of available ports and devices for midi input.
         """
         return print_available_midi_input_devices()
 
-    def register_midi_listener(self, port_number_or_device_name, callback_function):
+    def register_midi_listener(self, port_number_or_device_name: Union[int, str], callback_function: Callable) -> None:
         """
         Register a callback_function to respond to incoming midi events from port_number_or_device_name
 
@@ -91,7 +97,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
             self.remove_midi_listener(port_number)
         self._listeners["midi"][port_number] = start_midi_listener(port_number, callback_function, clock=self)
 
-    def remove_midi_listener(self, port_number_or_device_name):
+    def remove_midi_listener(self, port_number_or_device_name: Union[int, str]) -> None:
         """
         Removes the midi listener with the given port_number_or_device_name
 
@@ -105,7 +111,8 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         self._listeners["midi"][port_number].close_port()
         del self._listeners["midi"][port_number]
 
-    def register_osc_listener(self, port, osc_address_pattern, callback_function, ip_address="127.0.0.1"):
+    def register_osc_listener(self, port: int, osc_address_pattern: str, callback_function: Callable,
+                              ip_address: str = "127.0.0.1") -> None:
         """
         Register a callback function for OSC messages on a given address/port with given pattern
 
@@ -135,7 +142,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
 
         self._listeners["osc"][(ip_address, port)]["dispatcher"].map(osc_address_pattern, callback_wrapper)
 
-    def remove_osc_listener(self, port, ip_address="127.0.0.1"):
+    def remove_osc_listener(self, port: int, ip_address: str = "127.0.0.1") -> None:
         """
         Remove OSC listener on the given port and IP address
 
@@ -146,7 +153,8 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
             self._listeners["osc"][(ip_address, port)]["server"].shutdown()
             del self._listeners["osc"][(ip_address, port)]
 
-    def register_keyboard_listener(self, on_press=None, on_release=None, suppress=False, **kwargs):
+    def register_keyboard_listener(self, on_press: Callable = None, on_release: Callable = None,
+                                   suppress: bool = False, **kwargs) -> None:
         """
         Register a callback_function to respond to incoming keyboard events
 
@@ -196,9 +204,9 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         listener.start()
         self._listeners["keyboard"] = listener
 
-    def remove_keyboard_listener(self):
+    def remove_keyboard_listener(self) -> None:
         """
-        Remove a previously added keyboard listener
+        Remove a previously added keyboard listener.
         """
         if "keyboard" in self._listeners:
             self._listeners["keyboard"].stop()
@@ -219,8 +227,9 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
             number = key_or_key_code.vk
         return name, number
 
-    def register_mouse_listener(self, on_move=None, on_press=None, on_release=None, on_scroll=None,
-                                suppress=False, relative_coordinates=False, **kwargs):
+    def register_mouse_listener(self, on_move: Callable = None, on_press: Callable = None, on_release: Callable = None,
+                                on_scroll: Callable = None, suppress: bool = False, relative_coordinates: bool = False,
+                                **kwargs) -> None:
         """
         Register a callback_function to respond to incoming mouse events
 
@@ -294,7 +303,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         listener.start()
         self._listeners["mouse"] = listener
 
-    def remove_mouse_listener(self):
+    def remove_mouse_listener(self) -> None:
         """
         Remove a previously added mouse listener
         """
@@ -304,17 +313,15 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
 
     # --------------------------------- Transcription Stuff -------------------------------
 
-    def start_transcribing(self, instrument_or_instruments=None, clock=None, units="beats"):
+    def start_transcribing(self, instrument_or_instruments: Union[ScampInstrument, Sequence[ScampInstrument]] = None,
+                           clock: Clock = None, units: str = "beats") -> Performance:
         """
         Starts transcribing everything played in this Session's (or by the given instruments) to a Performance.
         Defaults to using this Session as the clock.
 
         :param instrument_or_instruments: which instruments to transcribe. Defaults to all session instruments
-        :type instrument_or_instruments: ScampInstrument or list of ScampInstruments
         :param clock: which clock to record on, i.e. what are all the timings notated relative to
-        :type clock: Clock
         :param units: one of ["beats", "time"]. Do we use the beats of the clock or the time?
-        :type units: str
 
         :return: the Performance we will be transcribing to
         """

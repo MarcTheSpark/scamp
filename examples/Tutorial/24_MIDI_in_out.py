@@ -9,9 +9,9 @@ from scamp import *
 
 s = Session()
 
-s.print_available_midi_ports_and_devices()
+s.print_available_midi_output_devices()
 
-piano = s.new_midi_part("piano", midi_output_device=1, num_channels=15)
+piano = s.new_midi_part("piano", midi_output_device=0, num_channels=15)
 
 # dictionary mapping keys that are down to the NoteHandles used to manipulate them.
 notes_started = {}

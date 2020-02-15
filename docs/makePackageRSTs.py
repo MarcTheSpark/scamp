@@ -11,7 +11,7 @@ template = """{package_name} package
    :show-inheritance:
 
 
-Modules:
+.. rubric:: Modules:
 
 .. autosummary::
    :template: autosummary/module.rst
@@ -28,8 +28,8 @@ for package_name in packages:
 
     module_names = ""
     for module in pkgutil.iter_modules(package.__path__):
-
-        if not module.name.startswith("_"):
+        # skip protected modules and subpackages (for now, the only sub-package is "thirdparty")
+        if not module.name.startswith("_") and not module.ispkg:
             module_names += "   {}.{}\n".format(package_name, module.name)
 
     with open(package_name + ".rst", "w") as file:

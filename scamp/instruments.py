@@ -1,8 +1,9 @@
 """
-Module containing user-facing playback classes: Ensemble, ScampInstrument, and NoteHandle/ChordHandle
+Module containing user-facing playback classes: :class:`Ensemble`, :class:`ScampInstrument`, and :class:`NoteHandle`/
+:class:`ChordHandle`
 
-The underlying implementation of playback is done by PlaybackImplementation and all of its subclasses,
-which are found in playback_implementations.py.
+The underlying implementation of playback is done by :class:`scamp.playback_implementations.PlaybackImplementation` and
+all of its subclasses, which are found in playback_implementations.py.
 """
 
 import itertools
@@ -24,8 +25,8 @@ from expenvelope import Envelope
 class Ensemble(SavesToJSON):
 
     """
-    Host for multiple ScampInstruments, keeping shared resources, and shared default settings.
-    A Session is, among other things, an Ensemble.
+    Host for multiple :class:`ScampInstrument` objects, keeping shared resources, and shared default settings.
+    A :class:`scamp.session.Session` is, among other things, an Ensemble.
 
     :param default_audio_driver: value to initialize default_audio_driver instance variable to
     :param default_soundfont: value to initialize default_soundfont instance variable to
@@ -579,12 +580,12 @@ class ScampInstrument(SavesToJSON):
         :param pitches: a list of pitches (not Envelopes)
         :param volume: see start_note
         :param properties: see start_note. In general, properties are cloned to all members of the chord. However,
-        noteheads can be separately defined using this syntax: "noteheads: diamond / normal / cross"
+            noteheads can be separately defined using this syntax: "noteheads: diamond / normal / cross"
         :param clock: see start_note
         :param max_volume: see start_note
         :param flags: see start_note
         :return: a ChordHandle, which is used to manipulate the chord thereafter. Pitch change calls on the ChordHandle
-        are based on the first note of the chord; all other notes are shifted in parallel
+            are based on the first note of the chord; all other notes are shifted in parallel
         """
         assert hasattr(pitches, "__len__")
 

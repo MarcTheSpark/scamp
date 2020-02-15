@@ -1,5 +1,16 @@
+"""
+Module containing the :class:`SpellingPolicy` class, which describes how pitches should be spelled.
+"""
+
 import functools
 from .utilities import SavesToJSON
+from typing import Sequence, Tuple
+
+
+##################################################################################################################
+#                                           Spelling-Related Constants
+##################################################################################################################
+
 
 _c_standard_spellings = ((0, 0), (0, 1), (1, 0), (2, -1), (2, 0), (3, 0),
                          (3, 1), (4, 0), (5, -1), (5, 0), (6, -1), (6, 0))
@@ -18,39 +29,63 @@ _sharp_order = (3, 0, 4, 1, 5, 2, 6)  # order in which sharps are added to a key
 _flat_order = tuple(reversed(_sharp_order))
 
 
+##################################################################################################################
+#                                             SpellingPolicy Class
+##################################################################################################################
+
+
 class SpellingPolicy(SavesToJSON):
 
-    def __init__(self, step_alteration_pairs=_c_standard_spellings):
-        """
-        Object that translates pitches or pitch classes to the actual spelling used in a score
-        Note that functools.lru_cache results in the same classmethod calls returning identical objects
-        This is valuable because if we play a bunch of notes with properties="spelling: D major", then each time
-        that string is converted to a SpellingPolicy class, it gets to reuse the same instance.
-        :param step_alteration_pairs: a container of 12 (step, alteration) tuples shoeing how to spell each pitch class
-        """
+    """
+    Object that translates pitches or pitch classes to the actual spelling used in a score
+
+    :param step_alteration_pairs: a list of 12 (step, alteration) tuples showing how to spell each pitch class.
+        The step corresponds to the letter-name of the note, and the alteration to its accidental. So (3, -1)
+        represents an E-flat.
+    :ivar step_alteration_pairs: list of 12 (step, alteration) tuples showing how to spell each pitch class.
+    """
+
+    def __init__(self, step_alteration_pairs: Sequence[Tuple[int, int]] = _c_standard_spellings):
+
         self.step_alteration_pairs = step_alteration_pairs
+
+    """
+    Note that functools.lru_cache results in the same classmethod calls returning identical objects
+    This is valuable because if we play a bunch of notes with properties="spelling: D major", then each time
+    that string is converted to a SpellingPolicy class, it gets to reuse the same instance.
+    """
 
     @classmethod
     @functools.lru_cache()
-    def all_sharps(cls, including_white_keys=False):
+    def all_sharps(cls, including_white_keys: bool = False) -> 'SpellingPolicy':
+        """
+        Constructs a sharps-only SpellingPolicy
+
+        :param including_white_keys: if True, even white keys like D will be spelled as C-double-sharp
+        """
         return cls(_sharp_spellings_even_white_keys if including_white_keys else _sharp_spellings)
 
     @classmethod
     @functools.lru_cache()
-    def all_flats(cls, including_white_keys=False):
+    def all_flats(cls, including_white_keys: bool = False) -> 'SpellingPolicy':
+        """
+        Constructs a flats-only SpellingPolicy
+
+        :param including_white_keys: if True, even white keys like D will be spelled as E-double-flat
+        """
         return cls(_flat_spellings_even_white_keys if including_white_keys else _flat_spellings)
 
     @classmethod
     @functools.lru_cache()
-    def from_circle_of_fifths_position(cls, num_sharps_or_flats, avoid_double_accidentals=False,
-                                       template=_c_standard_spellings):
+    def from_circle_of_fifths_position(cls, num_sharps_or_flats: int, avoid_double_accidentals: bool = False,
+                                       template: Sequence[Tuple[int, int]] = _c_standard_spellings) -> 'SpellingPolicy':
         """
-        Generates a spelling policy by transposing a template around the circles of fifths
+        Constructs a spelling policy by transposing a template around the circles of fifths
+
         :param num_sharps_or_flats: how many steps sharp or flat to transpose around the circle of fifths. For instance,
-        if set to 4, our tonic is E, and if set to -3, our tonic is Eb
+            if set to 4, our tonic is E, and if set to -3, our tonic is Eb
         :param avoid_double_accidentals: if true, replaces double sharps and flats with simpler spelling
         :param template: by default, uses sharp-2, flat-3, sharp-4, flat-6, and flat-7
-        :return: a SpellingPolicy based on the above
         """
         if num_sharps_or_flats == 0:
             return cls(template)
@@ -77,17 +112,18 @@ class SpellingPolicy(SavesToJSON):
 
     @classmethod
     @functools.lru_cache()
-    def from_string(cls, string_initializer: str):
+    def from_string(cls, string_initializer: str) -> 'SpellingPolicy':
         """
-        Creates an instance of SpellingPolicy from several possible input string formats
+        Constructs a SpellingPolicy from several possible input string formats
+
         :param string_initializer: one of the following:
-            - "flat"/"b" or "sharp"/"#", indicating that any note, even a white key, is to be expressed with the
-            specified accidental. Most useful for spelling known individual notes
-            - "flats"/"sharps" indicating that black keys will be spelled with the specified accidental, but white
-            keys will remain unaltered. Turns out "flats" is equivalent to "Bb" and "sharps" is equivalent to "A"
             - a key center (case insensitive), such as "C#" or "f" or "Gb"
             - a key center followed by a mode, such as "g minor" or "Bb locrian". Most modes to not alter the
             way spelling is done, but certain modes like phrygian and locrian do.
+            - "flat"/"b" or "sharp"/"#", indicating that any note, even a white key, is to be expressed with the
+            specified accidental. Most useful for spelling known individual notes
+            - "flats"/"sharps" indicating that black keys will be spelled with the specified accidental, but white
+            keys will remain unaltered. (Turns out "flats" is equivalent to "Bb" and "sharps" is equivalent to "A".)
         """
         if string_initializer in ("flat", "b"):
             return SpellingPolicy.all_flats(including_white_keys=True)
@@ -126,7 +162,13 @@ class SpellingPolicy(SavesToJSON):
                 num_sharps_or_flats += 7
             return SpellingPolicy.from_circle_of_fifths_position(num_sharps_or_flats, template=template)
 
-    def resolve_name_octave_and_alteration(self, midi_num):
+    def resolve_name_octave_and_alteration(self, midi_num: int) -> Tuple[str, int, int]:
+        """
+        For a given pitch, determine its name, octave and alteration under this SpellingPolicy.
+
+        :param midi_num: a MIDI pitch value
+        :return: a tuple of (name, octave, alteration)
+        """
         rounded_midi_num = int(round(midi_num))
         octave = int(rounded_midi_num / 12) - 1
         pitch_class = rounded_midi_num % 12
@@ -144,14 +186,24 @@ class SpellingPolicy(SavesToJSON):
             alteration += round(2 * (midi_num - rounded_midi_num)) / 2
         return name, octave, alteration
 
-    def resolve_abjad_pitch(self, midi_num):
-        name, octave, alteration = self.resolve_name_octave_and_alteration(midi_num)
+    def resolve_abjad_pitch(self, midi_num: int) -> 'abjad.NamedPitch':
+        """
+        Convert a given MIDI pitch to an abjad NamedPitch according to this SpellingPolicy
+
+        :param midi_num: a MIDI pitch value
+        """
         from scamp._dependencies import abjad
+        name, octave, alteration = self.resolve_name_octave_and_alteration(midi_num)
         return abjad().NamedPitch(name, accidental=alteration, octave=octave)
 
-    def resolve_music_xml_pitch(self, midi_num):
-        name, octave, alteration = self.resolve_name_octave_and_alteration(midi_num)
+    def resolve_music_xml_pitch(self, midi_num: int) -> 'pymusicxml.Pitch':
+        """
+        Convert a given MIDI pitch to an abjad pymusicxml Pitch object according to this SpellingPolicy
+
+        :param midi_num: a MIDI pitch value
+        """
         from . import pymusicxml
+        name, octave, alteration = self.resolve_name_octave_and_alteration(midi_num)
         return pymusicxml.Pitch(name.upper(), octave, alteration)
 
     def _to_json(self):
