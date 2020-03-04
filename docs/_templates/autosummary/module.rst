@@ -34,3 +34,12 @@
   ~{{ fullname }}.{{ item }}
 {%- endfor %}
 {% endif %}
+
+{% if exceptions %}
+.. rubric:: Exceptions
+
+.. autosummary::
+{% for item in exceptions %}
+  ~{{ fullname }}.{{ item }}
+{%- endfor %}
+{% endif %}
