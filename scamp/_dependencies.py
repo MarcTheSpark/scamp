@@ -5,13 +5,22 @@ ABJAD_MINIMUM_VERSION = "3.0.0"
 
 
 try:
-    # first choice: import using an installed version of pyfluidsynth
-    import fluidsynth
+    if playback_settings.try_system_fluidsynth_first:
+        # first choice: import using an installed version of pyfluidsynth
+        import fluidsynth
+    else:
+        # first choice: use the use the local, tweaked copy of pyfluidsynth (which will also try to
+        # load up a local copy of the fluidsynth dll on Windows or dylib on MacOS)
+        from .thirdparty import fluidsynth
 except (ImportError, AttributeError):
-    # if this fails, use the local, tweaked copy that catches a possible attribute error
-    # and loads up the local copy of the windows .dll if one can't be found on the system
-    from .thirdparty import fluidsynth
-except ImportError:
+    if playback_settings.try_system_fluidsynth_first:
+        # second choice: use the use the local, tweaked copy of pyfluidsynth (which will also try to
+        # load up a local copy of the fluidsynth dll on Windows or dylib on MacOS)
+        from .thirdparty import fluidsynth
+    else:
+        # second choice: import using an installed version of pyfluidsynth
+        import fluidsynth
+except (ImportError, AttributeError):
     # if we're here, it's probably because fluidsynth wasn't installed
     fluidsynth = None
     logging.warning("Fluidsynth could not be loaded; synth output will not be available.")
