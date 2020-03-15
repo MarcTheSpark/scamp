@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="scamp",
-    version="0.5.2",
+    version="0.5.3",
     author="Marc Evanstein",
     author_email="marc@marcevanstein.com",
     description="An algorithmic composition framework that manages the flow of musical time, plays back notes via "
@@ -18,8 +18,7 @@ setuptools.setup(
         "Documentation": "http://scampdocs.marcevanstein.com",
     },
     packages=setuptools.find_packages(),
-    install_requires=['pymusicxml >= 0.1.0', 'expenvelope >= 0.3.0', 'clockblocks >= 0.3.0',
-                      'pyfluidsynth', 'sf2utils', 'python-osc'],
+    install_requires=['pymusicxml >= 0.1.0', 'expenvelope >= 0.3.0', 'clockblocks >= 0.3.0', 'sf2utils', 'python-osc'],
     extras_require={
         'lilypond': 'abjad==3.1',
         'midistream': 'python-rtmidi',

@@ -2052,7 +2052,7 @@ class NoteLike(ScoreComponent):
             # components. However, if it's a glissando and there's stemless grace notes involved, we're going to
             # have to give it a _source_id so that it can share it with its grace notes
             if grace_container is not None and "_source_id" not in self.properties:
-                self.properties["_source_id"] = PerformanceNote.next_id()
+                self.properties["_source_id"] = performance_module.PerformanceNote.next_id()
 
             if "_source_id" in self.properties:
                 # here we take the new note that we're creating and add it to the bin in source_id_dict that
@@ -2192,7 +2192,7 @@ class NoteLike(ScoreComponent):
             # components. However, if it's a glissando and there's stemless grace notes involved, we're going to
             # have to give it a _source_id so that it can share it with its grace notes
             if "_source_id" not in self.properties:
-                self.properties["_source_id"] = PerformanceNote.next_id()
+                self.properties["_source_id"] = performance_module.PerformanceNote.next_id()
 
             # here we take the new note that we're creating and add it to the bin in source_id_dict that
             # contains all the notes of the same source, so that they can be joined by glissandi

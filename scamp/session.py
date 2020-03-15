@@ -32,8 +32,8 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
     """
 
     def __init__(self, tempo: float = 60, default_soundfont: str = "default", default_audio_driver: str = "default",
-                 default_midi_output_device: Union[str, int] = "default"):
-        Clock.__init__(self, name="MASTER", initial_tempo=tempo)
+                 default_midi_output_device: Union[str, int] = "default", max_threads=200):
+        Clock.__init__(self, name="MASTER", initial_tempo=tempo, pool_size=max_threads)
         Ensemble.__init__(self, default_soundfont=default_soundfont, default_audio_driver=default_audio_driver,
                           default_midi_output_device=default_midi_output_device)
         Transcriber.__init__(self)
