@@ -14,12 +14,14 @@ from .spelling import SpellingPolicy
 from ._note_properties import NotePropertiesDictionary
 from .playback_implementations import *
 from scamp.utilities import iterate_all_subclasses
-from clockblocks import *
+from clockblocks import current_clock, Clock, ClockKilledException, TimeStamp, wait
+from expenvelope import EnvelopeSegment
 import logging
 import time
 from threading import Lock
 from typing import Union, Sequence
 from expenvelope import Envelope
+from copy import deepcopy
 
 
 class Ensemble(SavesToJSON):
