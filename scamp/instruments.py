@@ -96,7 +96,8 @@ class Ensemble(SavesToJSON):
         return preset
 
     def new_part(self, name: str = None, preset="auto", soundfont: str = "default", num_channels: int = 8,
-                 audio_driver: str = "default", max_pitch_bend: int = "default") -> 'ScampInstrument':
+                 audio_driver: str = "default", max_pitch_bend: int = "default",
+                 note_on_and_off_only: bool = False) -> 'ScampInstrument':
         """
         Creates and returns a new ScampInstrument for this Ensemble that uses a SoundfontPlaybackImplementation. Unless
         otherwise specified, the default soundfont for this Ensemble/Session will be used, and we will search for the
@@ -110,6 +111,11 @@ class Ensemble(SavesToJSON):
             microtonal playback, since pitch bends are applied per channel.
         :param audio_driver: which audio driver to use for this instrument (defaults to ensemble default)
         :param max_pitch_bend: max pitch bend to use for this instrument
+        :param note_on_and_off_only: This enforces a rule of no dynamic pitch bends, expression (volume) changes, or
+            other cc messages. Valuable when using :code:`start_note` instead of :code:`play_note` in music that
+            doesn't do any dynamic pitch/volume/parameter changes. Without this flag, notes will all be placed on
+            separate MIDI channels, since they could potentially change pitch or volume; with this flags, we know they
+            won't, so they can share the same MIDI channels, only using an extra one due to microtonality.
         :return: the newly created ScampInstrument
         """
         # Resolve soundfont and audio driver to ensemble defaults if necessary (these may well be the string
@@ -126,13 +132,14 @@ class Ensemble(SavesToJSON):
         name = "Track " + str(len(self.instruments) + 1) if name is None else name
 
         instrument = self.new_silent_part(name)
-        instrument.add_soundfont_playback(preset, soundfont, num_channels, audio_driver, max_pitch_bend)
+        instrument.add_soundfont_playback(preset, soundfont, num_channels, audio_driver, max_pitch_bend,
+                                          note_on_and_off_only)
 
         return instrument
 
     def new_midi_part(self, name: str = None, midi_output_device: Union[int, str] = "default",
-                      num_channels: int = 8, midi_output_name: str = None,
-                      max_pitch_bend: int = "default") -> 'ScampInstrument':
+                      num_channels: int = 8, midi_output_name: str = None, max_pitch_bend: int = "default",
+                      note_on_and_off_only: bool = False) -> 'ScampInstrument':
         """
         Creates and returns a new ScampInstrument for this Ensemble that uses a MIDIStreamPlaybackImplementation.
         This means that when notes are played by this instrument, midi messages are sent out to the given device.
@@ -144,6 +151,11 @@ class Ensemble(SavesToJSON):
             microtonal playback, since pitch bends are applied per channel.
         :param midi_output_name: name of this part
         :param max_pitch_bend: max pitch bend to use for this instrument
+        :param note_on_and_off_only: This enforces a rule of no dynamic pitch bends, expression (volume) changes, or
+            other cc messages. Valuable when using :code:`start_note` instead of :code:`play_note` in music that
+            doesn't do any dynamic pitch/volume/parameter changes. Without this flag, notes will all be placed on
+            separate MIDI channels, since they could potentially change pitch or volume; with this flags, we know they
+            won't, so they can share the same MIDI channels, only using an extra one due to microtonality.
         :return: the newly created ScampInstrument
         """
         midi_output_device = self.default_midi_output_device if midi_output_device == "default" else midi_output_device
@@ -151,7 +163,8 @@ class Ensemble(SavesToJSON):
         name = "Track " + str(len(self.instruments) + 1) if name is None else name
 
         instrument = self.new_silent_part(name)
-        instrument.add_streaming_midi_playback(midi_output_device, num_channels, midi_output_name, max_pitch_bend)
+        instrument.add_streaming_midi_playback(midi_output_device, num_channels, midi_output_name, max_pitch_bend,
+                                               note_on_and_off_only)
 
         return instrument
 
@@ -764,7 +777,7 @@ class ScampInstrument(SavesToJSON):
                               transition_curve_shape_or_shapes: Union[float, Sequence] = 0,
                               clock: Clock = None) -> None:
         """
-        Change the pitch of an already started note; can also take a sequence of targets and times
+        Change the pitch of an already started note; can also take a sequence of targets and times.
 
         :param note_id: which note to affect (an id or a NoteHandle)
         :param target_value_or_values: target value (or list of values) for the parameter
@@ -869,10 +882,10 @@ class ScampInstrument(SavesToJSON):
     """
 
     def add_soundfont_playback(self, preset: Union[str, int, Sequence] = "auto", soundfont: str = "default",
-                               num_channels: int = 8, audio_driver: str = "default",
-                               max_pitch_bend: int = "default") -> 'ScampInstrument':
+                               num_channels: int = 8, audio_driver: str = "default",  max_pitch_bend: int = "default",
+                               note_on_and_off_only: bool = False) -> 'ScampInstrument':
         """
-        Add a soundfont playback implementation for this instrument
+        Add a soundfont playback implementation for this instrument.
 
         :param preset: either a preset number, a tuple of (bank, preset), a string giving a name to search for in the
             soundfont, or the string "auto", in which case the name of this instrument is used to search for a preset.
@@ -883,6 +896,11 @@ class ScampInstrument(SavesToJSON):
         :param num_channels: how many channels to allocate for managing pitch bends, etc.
         :param audio_driver: which driver to use
         :param max_pitch_bend: max pitch bend to allow
+        :param note_on_and_off_only: This enforces a rule of no dynamic pitch bends, expression (volume) changes, or
+            other cc messages. Valuable when using :code:`start_note` instead of :code:`play_note` in music that
+            doesn't do any dynamic pitch/volume/parameter changes. Without this flag, notes will all be placed on
+            separate MIDI channels, since they could potentially change pitch or volume; with this flags, we know they
+            won't, so they can share the same MIDI channels, only using an extra one due to microtonality.
         :return: self
         """
         soundfont = self.ensemble.default_soundfont \
@@ -892,13 +910,13 @@ class ScampInstrument(SavesToJSON):
             preset = Ensemble._resolve_preset_from_name(self.name if preset == "auto" else preset, soundfont)
         elif isinstance(preset, int):
             preset = (0, preset)
-        SoundfontPlaybackImplementation(self, preset, soundfont, num_channels,
-                                        audio_driver=audio_driver, max_pitch_bend=max_pitch_bend)
+        SoundfontPlaybackImplementation(self, preset, soundfont, num_channels, audio_driver,
+                                        max_pitch_bend, note_on_and_off_only)
         return self
 
     def remove_soundfont_playback(self) -> 'ScampInstrument':
         """
-        Remove the most recent SoundfontPlaybackImplementation from this instrument
+        Remove the most recent SoundfontPlaybackImplementation from this instrument.
 
         :return: self
         """
@@ -909,22 +927,29 @@ class ScampInstrument(SavesToJSON):
         return self
 
     def add_streaming_midi_playback(self, midi_output_device: Union[int, str] = "default", num_channels: int = 8,
-                                    midi_output_name: str = None, max_pitch_bend: int = "default") -> 'ScampInstrument':
+                                    midi_output_name: str = None, max_pitch_bend: int = "default",
+                                    note_on_and_off_only: bool = False) -> 'ScampInstrument':
         """
-        Add a streaming MIDI playback implementation for this instrument
+        Add a streaming MIDI playback implementation for this instrument.
 
         :param midi_output_device: name or number of the device to use
         :param num_channels: how many channels to allocate for managing pitch bends, etc.
         :param midi_output_name: name given to the output stream
         :param max_pitch_bend: max pitch bend to allow
+        :param note_on_and_off_only: This enforces a rule of no dynamic pitch bends, expression (volume) changes, or
+            other cc messages. Valuable when using :code:`start_note` instead of :code:`play_note` in music that
+            doesn't do any dynamic pitch/volume/parameter changes. Without this flag, notes will all be placed on
+            separate MIDI channels, since they could potentially change pitch or volume; with this flags, we know they
+            won't, so they can share the same MIDI channels, only using an extra one due to microtonality.
         :return: self
         """
-        MIDIStreamPlaybackImplementation(self, midi_output_device, num_channels, midi_output_name, max_pitch_bend)
+        MIDIStreamPlaybackImplementation(self, midi_output_device, num_channels, midi_output_name,
+                                         max_pitch_bend, note_on_and_off_only)
         return self
 
     def remove_streaming_midi_playback(self) -> 'ScampInstrument':
         """
-        Remove the most recent MIDIStreamPlaybackImplementation from this instrument
+        Remove the most recent MIDIStreamPlaybackImplementation from this instrument.
 
         :return self
         """
@@ -937,7 +962,7 @@ class ScampInstrument(SavesToJSON):
     def add_osc_playback(self, port: int, ip_address: str = "127.0.0.1", message_prefix: str = None,
                          osc_message_addresses: dict = "default"):
         """
-        Add an OSCPlaybackImplementation for this instrument
+        Add an OSCPlaybackImplementation for this instrument.
 
         :param port: port to use
         :param ip_address: ip address to use
@@ -952,7 +977,7 @@ class ScampInstrument(SavesToJSON):
 
     def remove_osc_playback(self) -> 'ScampInstrument':
         """
-        Remove the most recent OSCPlaybackImplementation from this instrument
+        Remove the most recent OSCPlaybackImplementation from this instrument.
 
         :return self
         """
