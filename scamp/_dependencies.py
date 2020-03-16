@@ -1,7 +1,9 @@
 from .settings import playback_settings
 import logging
+import os
+import platform
 
-ABJAD_MINIMUM_VERSION = "3.0.0"
+ABJAD_MINIMUM_VERSION = "3.1"
 
 
 try:
@@ -63,6 +65,24 @@ try:
 except ImportError:
     rtmidi = None
     logging.warning("python-rtmidi was not found; streaming midi input / output will not be available.")
+
+
+# On Mac and Windows, try to add LilyPond to PATH, if it is installed, so that abjad can just work.
+# This is hardly fool-proof, but should work if the user just installed LilyPond in the standard way
+if platform.system() == "Darwin":
+    if "/usr/local/bin" not in os.environ["PATH"]:
+        os.environ["PATH"] += ":/usr/local/bin"
+    if os.path.exists("/Applications/LilyPond.app/Contents/Resources/bin"):
+        os.environ["PATH"] += ":/Applications/LilyPond.app/Contents/Resources/bin"
+elif platform.system() == "Windows":
+    if os.path.exists(r"C:\Program Files (x86)\LilyPond\usr\bin"):
+        if not os.environ["PATH"].endswith(";"):
+            os.environ["PATH"] += ";"
+        os.environ["PATH"] += r"C:\Program Files (x86)\LilyPond\usr\bin;"
+    elif os.path.exists(r"C:\Program Files\LilyPond\usr\bin"):
+        if not os.environ["PATH"].endswith(";"):
+            os.environ["PATH"] += ";"
+        os.environ["PATH"] += r"C:\Program Files\LilyPond\usr\bin;";
 
 
 def abjad():
