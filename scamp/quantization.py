@@ -436,7 +436,8 @@ class MeasureQuantizationScheme:
                 beat_metric_layers = beat_metric_layers[group:]
             elif isinstance(group, MetricStructure):
                 pulses_in_group = group.num_pulses()
-                new_groups.append(inscribe_beats(group, beat_metric_layers[:pulses_in_group]))
+                new_groups.append(
+                    MeasureQuantizationScheme._inscribe_beats(group, beat_metric_layers[:pulses_in_group]))
                 beat_metric_layers = beat_metric_layers[pulses_in_group:]
             else:
                 raise ValueError("Bad group.")
