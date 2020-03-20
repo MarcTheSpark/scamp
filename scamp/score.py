@@ -711,6 +711,12 @@ class Score(ScoreComponent, ScoreContainer):
                 out.append(part)
         return out
 
+    def length(self) -> float:
+        """
+        Length of this score in beats. (i.e. end beat of the last measure in any of the parts)
+        """
+        return max(staff.length() for staff in self.staves)
+
     @classmethod
     def from_performance(cls, performance: 'performance_module.Performance',
                          quantization_scheme: QuantizationScheme = None, time_signature: Union[str, Sequence] = None,
@@ -826,11 +832,20 @@ class Score(ScoreComponent, ScoreContainer):
         """
         # the tempo needs to be expressly stated at the beginning, at any change of tempo direction,
         # at the start of any stable plateau (i.e. saddle point) and at the end of the tempo envelope if not redundant
-        key_points = [0] + self.tempo_envelope.local_extrema(include_saddle_points=True)
+        key_points = [0.0] + self.tempo_envelope.local_extrema(include_saddle_points=True)
 
-        # if the last segment speeds up, we need to notate its end tempo
+        # if the last segment changes tempo, we need to notate its end tempo
         if self.tempo_envelope.value_at(key_points[-1]) != self.tempo_envelope.end_level():
             key_points.append(self.tempo_envelope.end_time())
+
+        # toss out all key points that are beyond the length of the score
+        score_length = self.length()
+        key_points = [x for x in key_points if x <= score_length]
+        # if the score ends in the middle of an accel or rit, add a key point there
+        if score_length not in key_points:
+            last_key_point_before_end = max(x for x in key_points if x < score_length)
+            if self.tempo_envelope.value_at(last_key_point_before_end) != self.tempo_envelope.value_at(score_length):
+                key_points.insert(key_points.index(last_key_point_before_end) + 1, score_length)
 
         guide_marks = []
         if engraving_settings.tempo.include_guide_marks:
@@ -1245,6 +1260,12 @@ class Staff(ScoreComponent, ScoreContainer):
         """Chronological list of Measure objects contained in this staff"""
         return self._contents
 
+    def length(self) -> float:
+        """
+        Length of this Staff in beats. (i.e. end beat of its last measure)
+        """
+        return sum(m.length for m in self.measures[:-1]) + self.measures[-1].non_empty_length()
+
     @classmethod
     def _from_measure_bins_of_voice_lists(cls, measure_bins, time_signatures: Sequence[TimeSignature],
                                           name: str = None) -> 'Staff':
@@ -1328,6 +1349,13 @@ class Measure(ScoreComponent, ScoreContainer):
     def length(self) -> float:
         """Length of this measure in quarter notes"""
         return self.time_signature.measure_length()
+
+    def non_empty_length(self) -> float:
+        """
+        Length of the part of this measure that has something in it. (i.e. the length not counting trailing rests that
+        aren't part of a tuplet)
+        """
+        return max(v.non_empty_length() for v in self.voices)
 
     @classmethod
     def empty_measure(cls, time_signature: TimeSignature, show_time_signature: bool = True) -> 'Measure':
@@ -1467,6 +1495,19 @@ class Voice(ScoreComponent, ScoreContainer):
                 for note in note_or_tuplet.contents:
                     if include_rests or not note.is_rest():
                         yield note
+
+    def non_empty_length(self) -> float:
+        """
+        Length of the part of this voice that has something in it. (i.e. the length not counting trailing rests that
+        aren't part of a tuplet)
+        """
+        non_empty_length = self.time_signature.measure_length()
+        for note_or_tuplet in reversed(self.contents):
+            if isinstance(note_or_tuplet, NoteLike) and note_or_tuplet.is_rest():
+                non_empty_length -= note_or_tuplet.written_length
+            else:
+                break
+        return non_empty_length
 
     @classmethod
     def empty_voice(cls, time_signature: TimeSignature) -> 'Voice':

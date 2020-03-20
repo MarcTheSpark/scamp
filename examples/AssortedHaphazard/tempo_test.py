@@ -20,4 +20,4 @@ while session.beat() < 30:
 
 performance = session.stop_transcribing()
 
-performance.to_score("5/8").show_xml()
+performance.to_score(time_signature="5/8").show_xml()
