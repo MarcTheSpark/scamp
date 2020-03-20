@@ -244,20 +244,44 @@ class BeatQuantizationScheme:
         )))
 
     @staticmethod
-    def _get_divisor_indigestibilities(length, divisors):
-        # What we care about is how well the given division works within the most natural division of the
-        # length so first notate the length as a fraction; its numerator is its most natural division
-        # Example: if length = 1.5, then length_fraction = 3/2
-        # so for a divisor of 6, the relative division is 6/3, which Fraction automatically reduces to 2/1
-        # on the other hand, a divisor of 2 has relative division 2/3, which is irreducible
-        # thus the div_indigestibility for divisor 6 in this case is indigestibility(2) = 1
-        # and the div_indigestibility for divisor 2 is indigestibility(2) + indigestibility(3) = 3.6667
-        # this is appropriate for a beat of length 1.5 (compound meter)
+    def _get_divisor_indigestibilities(length: float, divisors: Sequence[int]) -> Sequence[float]:
+        """
+        Returns the indigestibilities for a given set of divisors of a given length, taking into account how those
+        lengths would most naturally divide.
+
+        If we write a length as a fraction in simplest terms, its numerator is its most natural division. For instance,
+        a beat of length 1.5 would be written as a fraction as 3/2, and 3 is the most natural divisor. To get the
+        indigestibility we consider the indigestibility that results when we divide a given divisor by that numerator
+        and pull out any common factors.
+
+        Example: if length = 1.5, then length_fraction = 3/2. So for a divisor of 6, the relative division is 6/3,
+        which Fraction automatically reduces to 2/1. On the other hand, a divisor of 2 has relative division 2/3,
+        which is irreducible thus the div_indigestibility for divisor 6 in this case is indigestibility(2) = 1
+        and the div_indigestibility for divisor 2 is indigestibility(2) + indigestibility(3) = 3.6667. This is
+        appropriate for a beat of length 1.5 (compound meter).
+
+        Note that there's a little issue here with the divisor of 3, since 3/3 = 1, which has indigestibility 0
+        Ultimately this would lead to that divisor being chosen no matter what, which is not good. To avoid this
+        eventuality, when the length fraction numerator is not 1, we add one to all of the divisor indigestibilities
+        to avoid zeroing things out.
+
+        :param length: length of the beat we are looking to divide
+        :param divisors: list of divisors we are considering for this beat
+        :return: list of relative indigestibilities corresponding to each divisor
+        """
+
         length_fraction = Fraction(length).limit_denominator()
         out = []
         for div in divisors:
             relative_division = Fraction(div, length_fraction.numerator)
-            out.append(indigestibility(relative_division.numerator) + indigestibility(relative_division.denominator))
+            divisor_indigestibility = indigestibility(relative_division.numerator) + \
+                                      indigestibility(relative_division.denominator)
+
+            # ensures not zeroing out of indigestibility as described in the docstring
+            if length_fraction.numerator > 1:
+                divisor_indigestibility += 1
+
+            out.append(divisor_indigestibility)
         return out
 
     @staticmethod
