@@ -1,20 +1,25 @@
-.. scamp documentation master file, created by
-   sphinx-quickstart on Sat Jan 18 10:58:27 2020.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+SCAMP (Suite for Computer-Assisted Music in Python) |release|
+=============================================================
 
-Welcome to scamp's documentation!
-=================================
+`Source Code <https://github.com/MarcTheSpark/scamp>`_ |
+`PyPI <https://pypi.org/project/scamp>`_ |
+`Paper <http://marcevanstein.com/Writings/Evanstein_MAT_Thesis_SCAMP.pdf>`_
 
-Below, you will find the complete API Documentation for SCAMP. Narrative documentation is on the way; for now, you can
-check out the list of "tutorial" examples found at https://github.com/MarcTheSpark/scamp/tree/master/examples/Tutorial.
+SCAMP is an computer-assisted composition framework in Python designed to act as a hub, flexibly connecting the composer-programmer to a variety of resources for playback and notation. SCAMP provides functionality to manage the flow of musical time, play back notes via SoundFonts or MIDI or OSC messages to an external synthesizer, and quantizes and exports the result to music notation in the form of MusicXML or LilyPond. This framework is the distillation of years of practice composing algorithmic and computer-assisted music in Python and aims to address pervasive technical challenges while imposing as little as possible on the aesthetic choices of the user.
 
-API Reference
-=============
+Below, you will find instructions for getting SCAMP up and running on your computer, as well as complete API Documentation. Narrative documentation is on the way; for now, you can check out the list of "tutorial" examples found at https://github.com/MarcTheSpark/scamp/tree/master/examples/Tutorial.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Packages:
+   :caption: Set Up and Installation:
+
+   narrative/easy_setup
+
+   narrative/experienced_setup
+
+.. toctree::
+   :maxdepth: 2
+   :caption: API Reference:
 
    scamp
 
