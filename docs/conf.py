@@ -16,7 +16,9 @@
 # import sys
 # sys.path.insert(0, '/home/marc/Nextcloud/Programming/PycharmProjects/scamp/scamp')
 
+import scamp
 import sphinx_rtd_theme
+import datetime
 
 ##################################################################################################################
 #                            Hack to add intersect and difference filters in templates
@@ -105,14 +107,14 @@ TypedField.make_field = patched_make_field
 
 # -- Project information -----------------------------------------------------
 
-project = 'scamp'
-copyright = '2020, Marc Evanstein'
-author = 'Marc Evanstein'
+project = "scamp"
+author = scamp.__author__
+copyright = '{}, {}'.format(datetime.datetime.now().year, author)
 
 # The short X.Y version
-version = ''
+version = scamp.__version__
 # The full version, including alpha/beta/rc tags
-release = ''
+release = scamp.__version__
 
 
 # -- General configuration ---------------------------------------------------

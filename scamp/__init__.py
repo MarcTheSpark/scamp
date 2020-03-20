@@ -4,8 +4,6 @@ designed to act as a hub, flexibly connecting the composer-programmer to a wide 
 notation.
 """
 
-__author__ = 'mpevans'
-
 from clockblocks import Clock, TempoEnvelope, MetricPhaseTarget, wait, fork_unsynchronized, fork, current_clock
 from expenvelope import Envelope, EnvelopeSegment
 from .session import Session
@@ -19,6 +17,8 @@ from .settings import *
 from ._midi import get_available_midi_input_devices, get_available_midi_output_devices, \
     print_available_midi_input_devices, print_available_midi_output_devices, get_port_number_of_midi_device
 from .playback_adjustments import NotePlaybackAdjustment, ParamPlaybackAdjustment, PlaybackAdjustmentsDictionary
+from ._package_info import version as __version__
+from ._package_info import author as __author__
 
 assert isinstance(playback_settings, PlaybackSettings)
 assert isinstance(quantization_settings, QuantizationSettings)
