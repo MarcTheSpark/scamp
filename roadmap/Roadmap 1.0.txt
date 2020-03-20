@@ -16,8 +16,6 @@ Engraving:
     - End of accel or rit not engraving when still going at end of score; fix this!
     - Engraving Microtonal adjustments in both abjad and MusicXML. Might want to make a special lilypond command for
     microtonal annotations? Don't engrave after first part of tied note unless glissando.
-    - Engraving of correct clef for a part as a whole. Maybe by using instrument defaults based on name and then falling
-    back to the average pitch.
     - Engraving tremolo in abjad. Other notations?
     - Engraving text in abjad.
     - Arbitrary text annotations passed through the properties dictionary. Should there by a CombinedPropertyChange

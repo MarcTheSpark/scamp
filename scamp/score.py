@@ -25,7 +25,7 @@ from collections import namedtuple
 from abc import ABC, abstractmethod
 import logging
 from ._metric_structure import MetricStructure
-from typing import Sequence, Type, Union, Tuple, Optional
+from typing import Sequence, Type, Union, Tuple, Optional, Iterator
 from clockblocks import TempoEnvelope
 
 
@@ -367,6 +367,30 @@ def _join_same_source_xml_note_group(same_source_group):
         same_source_group[0].notations.append(pymusicxml.StartSlur())
         same_source_group[-1].notations.append(pymusicxml.StopSlur())
 
+
+def _get_clef_from_average_pitch_and_instrument_name(average_pitch: float, instrument_name: str) -> str:
+    instrument_name = instrument_name.lower().strip()
+    # find the choices appropriate for this instrument
+    clef_choices = engraving_settings.clefs_by_instrument[instrument_name] \
+        if instrument_name in engraving_settings.clefs_by_instrument \
+        else engraving_settings.clefs_by_instrument["DEFAULT"]
+
+    # find the clef whose pitch center is closest to the average pitch
+    closest_clef = None
+    closest_distance = float("inf")
+    for clef_choice in clef_choices:
+        if isinstance(clef_choice, (tuple, list)):
+            # clef_choice can either be a tuple of (clef name, clef pitch center)
+            clef, clef_pitch_center = clef_choice
+        else:
+            # ...or just the clef name, in which case look up the default pitch center
+            clef, clef_pitch_center = clef_choice, engraving_settings.clef_pitch_centers[clef_choice]
+        dist = abs(clef_pitch_center - average_pitch)
+        if dist < closest_distance:
+            closest_clef = clef
+            closest_distance = dist
+
+    return closest_clef
 
 ##################################################################################################################
 #                                             Abstract Classes
@@ -904,6 +928,7 @@ class StaffGroup(ScoreComponent, ScoreContainer):
     def __init__(self, staves: Sequence['Staff'], name: str = None):
         ScoreContainer.__init__(self, staves, "staves", Staff)
         self._name = name
+        self._set_clefs()
 
     @property
     def name(self) -> str:
@@ -1153,8 +1178,47 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         if all(len(x) == 0 for x in staves):
             # empty staff group; none of its staves have any contents
             return cls([Staff([])])
-        return cls([Staff._from_measure_bins_of_voice_lists(x, quantization_record.time_signatures) for x in staves],
-                   name=name)
+
+        return cls(
+            [
+                Staff._from_measure_bins_of_voice_lists(
+                    staff, quantization_record.time_signatures,
+                    name=name + " ({})".format(str(i + 1)) if len(staves) > 1 else name
+                )
+                for i, staff in enumerate(staves)
+            ], name=name
+        )
+
+    def _set_clefs(self):
+        if engraving_settings.clef_selection_policy == "part-wise":
+            average_pitch = 0
+            num_notes = 0
+            for staff in self.staves:
+                for measure in staff.measures:
+                    for voice in measure:
+                        for note in voice.iterate_notes(include_rests=False):
+                            average_pitch += note.average_pitch()
+            if num_notes > 0:
+                average_pitch /= num_notes
+                clef_choice = _get_clef_from_average_pitch_and_instrument_name(average_pitch, self.name)
+                for staff in self.staves:
+                    staff.measures[0].clef = clef_choice
+        else:
+            assert engraving_settings.clef_selection_policy == "measure-wise"
+            for staff in self.staves:
+                last_clef_used = None
+                for i, measure in enumerate(staff.measures):
+                    this_measure_clef = measure.get_appropriate_clef(self.name)
+                    if this_measure_clef is not None:
+                        # there are some pitches in this measure from which to choose a clef
+                        if last_clef_used is None:
+                            # if we haven't yet encountered a measure with any pitches in it, set the clef for
+                            # the first measure to the this clef, which is the best clef once we start getting pitches
+                            last_clef_used = staff.measures[0].clef = this_measure_clef
+                        elif this_measure_clef != last_clef_used:
+                            # otherwise we simply check if this clef is new information. If it's different from the
+                            # clef in the last measure, then we set this measure to explicitly change it
+                            last_clef_used = measure.clef = this_measure_clef
 
     def _to_abjad(self):
         return abjad().StaffGroup([staff._to_abjad() for staff in self.staves])
@@ -1182,7 +1246,8 @@ class Staff(ScoreComponent, ScoreContainer):
         return self._contents
 
     @classmethod
-    def _from_measure_bins_of_voice_lists(cls, measure_bins, time_signatures: Sequence[TimeSignature]) -> 'Staff':
+    def _from_measure_bins_of_voice_lists(cls, measure_bins, time_signatures: Sequence[TimeSignature],
+                                          name: str = None) -> 'Staff':
         """
         Constructs a Staff from a specially formatted list of measures
 
@@ -1206,7 +1271,7 @@ class Staff(ScoreComponent, ScoreContainer):
         return cls([Measure.from_list_of_performance_voices(measure_content, time_signature, show_time_signature)
                     if measure_content is not None else Measure.empty_measure(time_signature, show_time_signature)
                     for measure_content, time_signature, show_time_signature in zip(measure_bins, time_signatures,
-                                                                                    time_signature_changes)])
+                                                                                    time_signature_changes)], name=name)
 
     def _to_abjad(self):
         # from the point of view of the source_id_dict (which helps us connect tied notes), the staff is
@@ -1238,15 +1303,21 @@ class Measure(ScoreComponent, ScoreContainer):
     :param show_time_signature: whether or not to show the time signature. By default, when scamp is turning a
         quantized Performance into a Score, this will be set to true when the time signature changes and False
         otherwise.
+    :param clef: Which clef to use for the measure. If none, clef is left unspecified.
     :ivar time_signature: the time signature for this measure
     :ivar show_time_signature: Whether or not to display the time signature
+    :ivar clef: Which clef to use for the measure. If none, clef is left unspecified.
     """
 
-    def __init__(self, voices: Sequence['Voice'], time_signature: TimeSignature, show_time_signature: bool = True):
+    def __init__(self, voices: Sequence['Voice'], time_signature: TimeSignature, show_time_signature: bool = True,
+                 clef: Optional[str] = None):
 
         ScoreContainer.__init__(self, voices, "voices", (Voice, type(None)), ("time_signature", "show_time_signature"))
         self.time_signature = time_signature
         self.show_time_signature = show_time_signature
+        if clef is not None and clef not in engraving_settings.clef_pitch_centers:
+            raise ValueError("Clef \"{}\" was not understood.".format(clef))
+        self.clef = clef
 
     @property
     def voices(self) -> Sequence['Voice']:
@@ -1299,10 +1370,28 @@ class Measure(ScoreComponent, ScoreContainer):
                     voices.append(Voice.from_performance_voice(*voice_content))
             return cls(voices, time_signature, show_time_signature=show_time_signature)
 
+    def get_appropriate_clef(self, instrument_name: str):
+        # find the average pitch of this measure
+        average_pitch = 0
+        num_notes = 0
+        for voice in self.voices:
+            for note in voice.iterate_notes(include_rests=False):
+                average_pitch += note.average_pitch()
+                num_notes += 1
+
+        if num_notes == 0:
+            # return none if there's no pitches to speak of
+            return None
+
+        average_pitch /= num_notes
+
+        return _get_clef_from_average_pitch_and_instrument_name(average_pitch, instrument_name)
+
     def _to_abjad(self, source_id_dict=None):
         is_top_level_call = True if source_id_dict is None else False
         source_id_dict = {} if source_id_dict is None else source_id_dict
         abjad_measure = abjad().Container()
+
         for i, voice in enumerate(self.voices):
             if voice is None:
                 continue
@@ -1323,6 +1412,10 @@ class Measure(ScoreComponent, ScoreContainer):
             for same_source_group in source_id_dict.values():
                 _join_same_source_abjad_note_group(same_source_group)
 
+        if self.clef is not None:
+            # attach the clef to the first note of the first voice
+            abjad().attach(abjad().Clef(self.clef), abjad().select(abjad_measure).leaf(0))
+
         return abjad_measure
 
     def to_music_xml(self, source_id_dict=None) -> pymusicxml.Measure:
@@ -1337,7 +1430,7 @@ class Measure(ScoreComponent, ScoreContainer):
             for same_source_group in source_id_dict.values():
                 _join_same_source_xml_note_group(same_source_group)
 
-        return pymusicxml.Measure(xml_voices, time_signature=time_signature)
+        return pymusicxml.Measure(xml_voices, time_signature=time_signature, clef=self.clef)
 
 
 class Voice(ScoreComponent, ScoreContainer):
@@ -1359,6 +1452,21 @@ class Voice(ScoreComponent, ScoreContainer):
     def contents(self) -> Sequence[Union['Tuplet', 'NoteLike']]:
         """list of Tuplet or NoteLike objects in this voice"""
         return self._contents
+
+    def iterate_notes(self, include_rests: bool = False) -> Iterator['NoteLike']:
+        """
+        Iterate through the notes (and possibly rests) within this Voice
+
+        :param include_rests: Whether or not to include rests
+        """
+        for note_or_tuplet in self.contents:
+            if isinstance(note_or_tuplet, NoteLike):
+                if include_rests or not note_or_tuplet.is_rest():
+                    yield note_or_tuplet
+            else:
+                for note in note_or_tuplet.contents:
+                    if include_rests or not note.is_rest():
+                        yield note
 
     @classmethod
     def empty_voice(cls, time_signature: TimeSignature) -> 'Voice':
@@ -1875,6 +1983,18 @@ class NoteLike(ScoreComponent):
     def does_glissando(self):
         """Returns whether or not this does a glissando."""
         return self.is_chord() and isinstance(self.pitch[0], Envelope) or isinstance(self.pitch, Envelope)
+
+    def average_pitch(self) -> float:
+        """
+        Averages the pitch of this note, accounting for if it's a glissando or a chord
+
+        :return: the averaged pitch as a float
+        """
+        if self.is_chord():
+            # it's a chord, so take the average of its members
+            return sum(x.average_level() if isinstance(x, Envelope) else x for x in self.pitch) / len(self.pitch)
+        else:
+            return self.pitch.average_level() if isinstance(self.pitch, Envelope) else self.pitch
 
     def _get_attack_articulations(self):
         # articulations to be placed on the main note

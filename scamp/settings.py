@@ -374,6 +374,14 @@ class EngravingSettings(_ScampSettings):
         accent probably wants to be on the first note, since it's an attack, and a staccato dot probably should be on
         the last note, since it's about release. The value "both" will place the articulation on both the first and last
         note, and "all" will place the articulation on every note of the tied group.
+    :ivar clefs_by_instrument: Dictionary mapping instrument names to a list of clefs used by those instruments. Instead
+        of simply the clef name, a tuple of (clef name, redefined_pitch_center) can be given. This overrides the pitch
+        center given in clef_pitch_centers for that clef on that instrument, since clef choice can be idiosyncratic to
+        the given instrument. The "DEFAULT" entry is used for instruments not explicitly specified.
+    :ivar clef_pitch_centers: Pitch center used when deciding on clef choice. Default is to use the pitch of the center
+        line. The clef chosen will be the one whose pitch center is closest to the average pitch.
+    :ivar clef_selection_policy: Either "measure-wise", in which case clef can be changed measure by measure if needed,
+        or "part-wise", in which case a single clef choice is used for the entire part..
     :ivar default_titles: Title or list of titles from which to choose for a score that has been created without
         specifying a title.
     :ivar default_composers: Name or list of name from which to choose for a score that has been created without
@@ -408,6 +416,34 @@ class EngravingSettings(_ScampSettings):
             "tenuto": "both",
             "accent": "first"
         },
+        "clefs_by_instrument": {
+            "piano": ["treble", "bass"],
+            "flute": ["treble"],
+            "oboe": ["treble"],
+            "clarinet": ["treble"],
+            "bassoon": [("bass", 59), ("tenor", 66), ("treble", 74)],
+            "horn": ["treble"],
+            "trumpet": ["treble"],
+            "trombone": ["bass", "tenor", "treble"],
+            "tuba": ["bass"],
+            "guitar": ["treble"],
+            "timpani": ["bass"],
+            "violin": ["treble"],
+            "viola": ["alto", ("treble", 75)],
+            "cello": [("bass", 59), ("tenor", 66), ("treble", 74)],
+            "bass": ["bass", "treble"],
+            "DEFAULT": ["treble", "bass"]
+        },
+        "clef_pitch_centers": {
+            "bass": 50,
+            "tenor": 57,
+            "alto": 60,
+            "treble": 71,
+            "soprano": 67,
+            "mezzo-soprano": 64,
+            "baritone": 53,
+        },
+        "clef_selection_policy": "measure-wise",
         "default_titles": ["On the Code Again", "The Long and Winding Code", "Code To Joy",
                            "Take Me Home, Country Codes", "Thunder Code", "Code to Nowhere",
                            "Goodbye Yellow Brick Code", "Hit the Code, Jack"],
@@ -432,7 +468,8 @@ class EngravingSettings(_ScampSettings):
             self.rest_beat_hierarchy_spacing = self.rest_num_divisions_penalty = self.articulation_split_protocols = \
             self.default_titles = self.default_composers = self.default_spelling_policy = self.ignore_empty_parts = \
             self.pad_incomplete_parts = self.show_music_xml_command_line = self.show_microtonal_annotations = \
-            self.allow_duple_tuplets_in_compound_time = None
+            self.allow_duple_tuplets_in_compound_time = self.clefs_by_instrument = self.clef_pitch_centers = \
+            self.clef_selection_policy = None
         self.glissandi: GlissandiSettings = None
         self.tempo: TempoSettings = None
         super().__init__(settings_dict)
@@ -533,6 +570,10 @@ class EngravingSettings(_ScampSettings):
         elif key == "default_titles" and not isinstance(value, (list, str, type(None))):
             logging.warning("Default titles not understood: must be a list, string, or None. Falling back to defaults.")
             return EngravingSettings.factory_defaults["default_titles"]
+        elif key == "clef_selection_policy" and value not in ["measure-wise", "part-wise"]:
+            logging.warning("Clef selection policy must be either \"measure-wise\" or \"part-wise\"."
+                            "Falling back to defaults.")
+            return EngravingSettings.factory_defaults["clef_selection_policy"]
         return value
 
 

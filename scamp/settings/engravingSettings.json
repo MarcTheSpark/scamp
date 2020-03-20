@@ -8,6 +8,97 @@
         "tenuto": "both"
     },
     "beat_hierarchy_spacing": 2.4,
+    "clef_pitch_centers": {
+        "alto": 60,
+        "baritone": 53,
+        "bass": 50,
+        "mezzo-soprano": 64,
+        "soprano": 67,
+        "tenor": 57,
+        "treble": 71
+    },
+    "clef_selection_policy": "measure-wise",
+    "clefs_by_instrument": {
+        "DEFAULT": [
+            "treble",
+            "bass"
+        ],
+        "bass": [
+            "bass",
+            "treble"
+        ],
+        "bassoon": [
+            [
+                "bass",
+                59
+            ],
+            [
+                "tenor",
+                66
+            ],
+            [
+                "treble",
+                74
+            ]
+        ],
+        "cello": [
+            [
+                "bass",
+                59
+            ],
+            [
+                "tenor",
+                66
+            ],
+            [
+                "treble",
+                74
+            ]
+        ],
+        "clarinet": [
+            "treble"
+        ],
+        "flute": [
+            "treble"
+        ],
+        "guitar": [
+            "treble"
+        ],
+        "horn": [
+            "treble"
+        ],
+        "oboe": [
+            "treble"
+        ],
+        "piano": [
+            "treble",
+            "bass"
+        ],
+        "timpani": [
+            "bass"
+        ],
+        "trombone": [
+            "bass",
+            "tenor",
+            "treble"
+        ],
+        "trumpet": [
+            "treble"
+        ],
+        "tuba": [
+            "bass"
+        ],
+        "viola": [
+            "alto",
+            [
+                "treble",
+                75
+            ]
+        ],
+        "violin": [
+            "treble"
+        ]
+    },
     "default_composers": [
         "HTMLvis",
         "Rustin Beiber",
