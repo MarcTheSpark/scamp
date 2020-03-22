@@ -875,44 +875,212 @@ class Score(ScoreComponent, ScoreContainer):
         return key_points, guide_marks
 
     def _to_abjad(self):
-        score = abjad().Score([part._to_abjad() for part in self.parts])
-        return score
+        abjad_score = abjad().Score([part._to_abjad() for part in self.parts])
+
+        # go through and add all of the tempo marks to the xml score
+        key_points, guide_marks = self._get_tempo_key_points_and_guide_marks()
+
+        measure_start = 0  # running counter of the beat at the start of the measure
+        rit_or_accel_spanner_start = None  # for storing the starting leaf of a rit or accel spanner
+
+        # go through each measure and add the tempo annotations
+        for abjad_measure, score_measure in zip(abjad_score[0], self.staves[0].measures):
+            # if there's no more key points or guide marks, we're done
+            if len(key_points) + len(guide_marks) == 0:
+                break
+
+            # filter down to the key points and guide marks in this measure
+            key_point_and_guide_mark_displacements = [
+                x - measure_start for x in key_points + [x[0] for x in guide_marks]
+                if 0 <= x - measure_start < score_measure.length
+            ]
+
+            tempo_voice, mark_beats_to_skip_objects = Score._make_skip_voice_and_dict_from_mark_displacements(
+                score_measure, key_point_and_guide_mark_displacements, measure_start
+            )
+            if len(key_point_and_guide_mark_displacements) == 0:
+                # there's no tempo stuff to deal with in this measure, but if we're in the middle of a spanner,
+                # then we need to keep the tempo voice going
+                if rit_or_accel_spanner_start is not None:
+                    abjad_measure.append(tempo_voice)
+                measure_start += score_measure.length
+                continue
+
+            abjad_measure.append(tempo_voice)
+
+            # figure out which kind of note to use as the metronome mark beat in this measure, e.g. dotted quarter in
+            # compound meter. Basically if all the beats are the same length, and it's a viable note length, we use
+            # that; otherwise we just use quarters
+            measure_beat_lengths = score_measure.time_signature.beat_lengths
+            metronome_mark_beat_length = \
+                measure_beat_lengths[0] if all(x == measure_beat_lengths[0] for x in measure_beat_lengths) \
+                                           and _is_single_note_length(measure_beat_lengths[0]) else 1.0
+
+            # loop through the key points until there are none left or there are none left in this measure
+            while len(key_points) > 0 and key_points[0] - measure_start < score_measure.length:
+                key_point = key_points.pop(0)
+                this_point_skip_object = mark_beats_to_skip_objects[key_point]
+
+                # if we had started an accel or rit spanner, end it here
+                if rit_or_accel_spanner_start is not None:
+                    start_text_span, span_start_skip_object = rit_or_accel_spanner_start
+                    abjad().text_spanner([span_start_skip_object, this_point_skip_object],
+                                         start_text_span=start_text_span)
+
+                    tempo_spanner_override = r"""\once \override TextSpanner.bound-details.left-broken.text = "(rit.)"
+\once \override TextSpanner.bound-details.right.attach-dir = #-2"""
+
+                    abjad().attach(abjad().LilyPondLiteral(tempo_spanner_override, "opening"), span_start_skip_object)
+
+                    rit_or_accel_spanner_start = None
+
+                # figure out the tempo we're at, and the tempo we're going to next
+                key_point_tempo = self.tempo_envelope.tempo_at(key_point)
+                next_key_point_tempo = self.tempo_envelope.tempo_at(key_points[0]) if len(key_points) > 0 else None
+                # figure out whether accel or rit to the next key point, or if none is needed
+                change_indicator = None if next_key_point_tempo is None or next_key_point_tempo == key_point_tempo \
+                    else "accel." if next_key_point_tempo > key_point_tempo else "rit."
+
+                # add the metronome mark, adjusting the tempo based on the metronome_mark_beat_length
+                # (note: for some reason abjad insists on either integer tempos or some nonsense involving custom
+                # tempo markups in order to allow floats)
+                abjad().attach(
+                    abjad().MetronomeMark(
+                        abjad().Duration(0.25 * metronome_mark_beat_length),
+                        round(key_point_tempo / metronome_mark_beat_length)
+                    ),
+                    this_point_skip_object
+                )
+
+                # start the accel or rit spanner if needed
+                if change_indicator is not None:
+                    markup = abjad().Markup(change_indicator)
+                    # to construct it later, we need to the StartTextSpan object and the skip object where it starts
+                    rit_or_accel_spanner_start = abjad().StartTextSpan(left_text=markup), \
+                                                 this_point_skip_object
+
+            # loop through the guide marks until there are none left or there are none left in this measure
+            while len(guide_marks) > 0 and guide_marks[0][0] - measure_start < score_measure.length:
+                guide_mark_location, guide_mark_tempo = guide_marks.pop(0)
+                this_point_skip_object = mark_beats_to_skip_objects[guide_mark_location]
+                guide_mark_override = r"""\once \override Score.MetronomeMark.font-size = #-5"""
+                abjad().attach(
+                    abjad().MetronomeMark(
+                        abjad().Duration(0.25 * metronome_mark_beat_length),
+                        round(guide_mark_tempo / metronome_mark_beat_length),
+                        textual_indication=" "  # this results in parentheses, though the space is unfortunate
+                    ),
+                    this_point_skip_object
+                )
+                abjad().attach(abjad().LilyPondLiteral(guide_mark_override, "opening"), this_point_skip_object)
+
+            measure_start += score_measure.length
+
+        return abjad_score
+
+    @staticmethod
+    def _make_skip_voice_and_dict_from_mark_displacements(score_measure, displacements, measure_start):
+        """
+        Returns a measure of tempo voice filled with skip objects, and a dictionary pointing the time points of the
+        various tempo marks to their associated skip objects.
+        """
+        if len(displacements) == 0:
+            skip_length = 1 / Fraction(score_measure.length / 4).denominator
+            return abjad().Voice(
+                [abjad().Skip(0.25 * skip_length)
+                 for _ in range(int(round(score_measure.length / skip_length)))], name="TempoVoice"
+            ), None
+
+        # length of the skips in quarter notes
+        min_skip = 1 / Fraction(score_measure.length).denominator
+        while max(x % min_skip for x in displacements) > 0.05:
+            min_skip /= 2
+
+        skips = [abjad().Skip(0.25 * min_skip) for _ in range(int(round(score_measure.length / min_skip)))]
+
+        # maps the beat of any of the key points and guide marks we will run into to the skip object
+        # that most nearly approximates its position
+        mark_beats_to_skip_objects = {x + measure_start: skips[int(x / min_skip)] for x in displacements}
+
+        def combine_skips_as_possible(chunk, combination_size):
+            # chunk is a list of skip objects of the same size, and combination size is the size we want to try to
+            # merge them together into (in whole notes, using the abjad duration standard)
+            if len(chunk) == 1:
+                return chunk
+            out = []
+            skips_per_sub_chunk = int(round(combination_size / (0.25 * min_skip)))
+            for sub_chunk in (chunk[i: i + skips_per_sub_chunk] for i in range(0, len(chunk), skips_per_sub_chunk)):
+                if not any(x in mark_beats_to_skip_objects.values() for x in sub_chunk[1:]):
+                    # we can combine the skips so long as none except the first are locations where tempo marks occur
+                    combined_skip = abjad().Skip(combination_size)
+                    # if a tempo mark occurs at the first skip in the chunk, we can still combine it, but we have to be
+                    # careful to remap the mark_beats_to_skip_objects dictionary to point to the new combined skip
+                    for x in mark_beats_to_skip_objects:
+                        if mark_beats_to_skip_objects[x] == sub_chunk[0]:
+                            mark_beats_to_skip_objects[x] = combined_skip
+                    out.append(combined_skip)
+                else:
+                    out.extend(combine_skips_as_possible(sub_chunk, combination_size / 2))
+            return out
+
+        # 1 / Fraction(score_measure.length / 4).denominator gives the length (in whole notes, following the abjad
+        # duration standard) of the largest un-dotted note that divides the measure. This starts by trying to chunk
+        # the skips into those, then tries smaller and smaller chunks as needed
+        skips = combine_skips_as_possible(skips, 1 / Fraction(score_measure.length / 4).denominator)
+
+        # add a tempo voice filled with skip objects to attach tempo markings to
+        tempo_voice = abjad().Voice(skips, name="TempoVoice")
+
+        return tempo_voice, mark_beats_to_skip_objects
 
     def to_music_xml(self) -> pymusicxml.Score:
         xml_score = pymusicxml.Score([part.to_music_xml() for part in self. parts], self.title, self.composer)
 
+        # go through and add all of the tempo marks to the xml score
         key_points, guide_marks = self._get_tempo_key_points_and_guide_marks()
 
-        measure_start = 0
+        measure_start = 0  # running counter of the beat at the start of the measure
         # go through each measure and add the tempo annotations
         for xml_measure, score_measure in zip(xml_score.parts[0].measures, self.staves[0].measures):
+            # if there's no more key points or guide marks, we're done
             if len(key_points) + len(guide_marks) == 0:
                 break
+            # list of annotations we're adding to this measure
             this_measure_annotations = []
 
+            # figure out which kind of note to use as the metronome mark beat in this measure, e.g. dotted quarter in
+            # compound meter. Basically if all the beats are the same length, and it's a viable note length, we use
+            # that; otherwise we just use quarters
             measure_beat_lengths = score_measure.time_signature.beat_lengths
-            metronome_mark_beat_length = measure_beat_lengths[0] \
-                if all(x == measure_beat_lengths[0] for x in measure_beat_lengths) else 1.0
+            metronome_mark_beat_length = \
+                measure_beat_lengths[0] if all(x == measure_beat_lengths[0] for x in measure_beat_lengths) \
+                                           and _is_single_note_length(measure_beat_lengths[0]) else 1.0
 
+            # loop through the key points until there are none left or there are none left in this measure
             while len(key_points) > 0 and key_points[0] - measure_start < score_measure.length:
                 key_point = key_points.pop(0)
                 key_point_tempo = self.tempo_envelope.tempo_at(key_point)
                 next_key_point_tempo = self.tempo_envelope.tempo_at(key_points[0]) if len(key_points) > 0 else None
+                # figure out whether accel or rit to the next key point, or if none is needed
                 change_indicator = None if next_key_point_tempo is None or next_key_point_tempo == key_point_tempo \
                     else "accel." if next_key_point_tempo > key_point_tempo else "rit."
 
+                # add the metronome mark, adjusting the tempo based on the metronome_mark_beat_length
                 this_measure_annotations.append(
                     (pymusicxml.MetronomeMark(metronome_mark_beat_length,
                                               round(key_point_tempo / metronome_mark_beat_length, 1)),
                      key_point - measure_start)
                 )
 
+                # add the accel or rit if needed
                 if change_indicator is not None:
                     this_measure_annotations.append((pymusicxml.TextAnnotation(change_indicator, italic=True),
                                                      key_point - measure_start))
 
+            # loop through the guide marks until there are none left or there are none left in this measure
             while len(guide_marks) > 0 and guide_marks[0][0] - measure_start < score_measure.length:
                 guide_mark_location, guide_mark_tempo = guide_marks.pop(0)
+                # add the guide mark
                 this_measure_annotations.append(
                     (pymusicxml.MetronomeMark(metronome_mark_beat_length,
                                               round(guide_mark_tempo / metronome_mark_beat_length, 1),
@@ -920,6 +1088,7 @@ class Score(ScoreComponent, ScoreContainer):
                      guide_mark_location - measure_start)
                 )
 
+            # sort and add all the annotations to the pymusicxml.Measure object
             this_measure_annotations.sort(key=lambda x: x[1])
             xml_measure.directions_with_displacements = this_measure_annotations
             measure_start += score_measure.length
@@ -1429,7 +1598,7 @@ class Measure(ScoreComponent, ScoreContainer):
                 # TODO: this seems to break in abjad when the measure starts with a tuplet, so for now, a klugey fix
                 # abjad().attach(self.time_signature.to_abjad(), abjad_voice[0])
                 abjad().attach(abjad().LilyPondLiteral(r"\time {}".format(self.time_signature.as_string()), "opening"),
-                             abjad_voice)
+                               abjad_voice)
             if len(self.voices) > 1:
                 abjad().attach(abjad().LilyPondLiteral(_voice_literals[i]), abjad_voice)
             abjad_voice.name = _voice_names[i]
