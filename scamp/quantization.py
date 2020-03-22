@@ -63,7 +63,10 @@ class TimeSignature(SavesToJSON):
                 duple_beat_length = 4.0 / self.denominator * 2
                 triple_beat_length = 4.0 / self.denominator * 3
 
-                if self.numerator % 2 == 0:
+                if self.numerator == 1:
+                    # covers the weird cases of 1/8 or 1/16 and such
+                    beat_lengths = [4.0 / self.denominator]
+                elif self.numerator % 2 == 0:
                     beat_lengths = [duple_beat_length] * (self.numerator // 2)
                 else:
                     beat_lengths = [duple_beat_length] * (self.numerator // 2 - 1) + [triple_beat_length]
