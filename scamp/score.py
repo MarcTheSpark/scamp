@@ -163,7 +163,7 @@ def _get_best_recombination_given_beat_hierarchy(note_division_points, beat_hier
     """
     Takes a list of points on an isochronous grid representing the start and end times of the components of a note,
         along with a list of the beat hierarchies for that grid. Returns a merged list of component start and end
-        times, in which important division point are preserved and less important ones are removed.
+        times, in which important division points are preserved and less important ones are removed.
 
     :param note_division_points: list of the points on the isochronous grid representing note component starts and ends
     :param beat_hierarchy_list: the result of _get_beat_division_hierarchy; a list of values for each beat in an
@@ -186,17 +186,51 @@ def _get_best_recombination_given_beat_hierarchy(note_division_points, beat_hier
 
     adjusted_hierarchies = [beat_hierarchy_spacing ** x for x in beat_hierarchy_list]
 
+    # if we have long notes made up of a ton of parts, we would run into number crunching hell trying all the
+    # possible recombinations. So instead, we break the note division points list into subgroups no longer than 5
+    # and then get the best recombination for each subgroup, and stick them all together.
+    subgroups = _break_up_large_division_points_list(note_division_points, beat_hierarchy_list, 5)
+
+    best_option = ()
+    best_score = 0
+
+    for subgroup in subgroups:
+        best_subgroup_option, best_subgroup_score = _get_best_subgroup_recombination_option(
+            subgroup, adjusted_hierarchies, num_divisions_penalty)
+        best_option += best_subgroup_option
+        best_score += best_subgroup_score
+
+    return best_option, best_score
+
+
+def _break_up_large_division_points_list(division_points, hierarchies, max_subgroup_length=8):
+    if len(division_points) > max_subgroup_length:
+        # break at the division point with the lowest (i.e. most important) hierarchy value
+        i = division_points.index(max(*division_points[1:-1], key=lambda x: -hierarchies[x]))
+        return _break_up_large_division_points_list(division_points[:i], hierarchies, max_subgroup_length) + \
+               _break_up_large_division_points_list(division_points[i:], hierarchies, max_subgroup_length)
+    else:
+        return division_points,
+
+
+def _get_best_subgroup_recombination_option(note_division_points, adjusted_hierarchies, num_divisions_penalty):
+    # if there's only one division point in this subgroup, then there's no way of recombining it!
+    if len(note_division_points) == 1:
+        return note_division_points, 0
+
     # translate time-points on the isochronous grid to durations in isochronous units after the start of the note
     component_lengths = [division - last_division
                          for last_division, division in zip(note_division_points[:-1], note_division_points[1:])]
     assert all(_is_single_note_viable_grouping(x, max_dots=engraving_settings.max_dots_allowed)
                for x in component_lengths), "Somehow we got an division of a note into un-notatable components"
+
     # get every possible combination of these components that keeps each component representable as a single note
     recombination_options_lengths = [
         option for option in _get_recombination_options(*component_lengths)
         if all(_is_single_note_viable_grouping(component, max_dots=engraving_settings.max_dots_allowed)
                for component in option)
     ]
+
     # now, finally, we make ourselves a list options for division-point lists, each of which represents a recombination
     # option. These are now time-points (rather than durations), so we can check them against the beat_hierarchy_list
     # to see which one finds the best balance between expressing the metric structure and doing so with few components
@@ -208,7 +242,7 @@ def _get_best_recombination_given_beat_hierarchy(note_division_points, beat_hier
 
     best_score = float("inf")
     best_option = None
-    num_beats = len(beat_hierarchy_list)
+    num_beats = len(adjusted_hierarchies)
     for option in recombination_options:
         # adjusted_hierarchies[x] represents the badness of a given division point, since we want to divide on
         # important beats, and important beats have low values in the beat_hierarchy_list
@@ -923,12 +957,12 @@ class Score(ScoreComponent, ScoreContainer):
 
                 # if we had started an accel or rit spanner, end it here
                 if rit_or_accel_spanner_start is not None:
-                    start_text_span, span_start_skip_object = rit_or_accel_spanner_start
+                    start_text_span, span_start_skip_object, markup_text = rit_or_accel_spanner_start
                     abjad().text_spanner([span_start_skip_object, this_point_skip_object],
                                          start_text_span=start_text_span)
 
-                    tempo_spanner_override = r"""\once \override TextSpanner.bound-details.left-broken.text = "(rit.)"
-\once \override TextSpanner.bound-details.right.attach-dir = #-2"""
+                    tempo_spanner_override = r"""\once \override TextSpanner.bound-details.left-broken.text = "({})"
+\once \override TextSpanner.bound-details.right.attach-dir = #-2""".format(markup_text)
 
                     abjad().attach(abjad().LilyPondLiteral(tempo_spanner_override, "opening"), span_start_skip_object)
 
@@ -957,7 +991,7 @@ class Score(ScoreComponent, ScoreContainer):
                     markup = abjad().Markup(change_indicator)
                     # to construct it later, we need to the StartTextSpan object and the skip object where it starts
                     rit_or_accel_spanner_start = abjad().StartTextSpan(left_text=markup), \
-                                                 this_point_skip_object
+                                                 this_point_skip_object, change_indicator
 
             # loop through the guide marks until there are none left or there are none left in this measure
             while len(guide_marks) > 0 and guide_marks[0][0] - measure_start < score_measure.length:
@@ -1572,6 +1606,8 @@ class Measure(ScoreComponent, ScoreContainer):
         average_pitch = 0
         num_notes = 0
         for voice in self.voices:
+            if voice is None:
+                continue
             for note in voice.iterate_notes(include_rests=False):
                 average_pitch += note.average_pitch()
                 num_notes += 1
@@ -2009,9 +2045,14 @@ class Voice(ScoreComponent, ScoreContainer):
 
     def _to_abjad(self, source_id_dict=None):
         if len(self.contents) == 0:  # empty voice
-            return abjad().Voice([abjad().MultimeasureRest(
-                (self.time_signature.numerator, self.time_signature.denominator)
-            )])
+            try:
+                return abjad().Voice([abjad().MultimeasureRest(
+                    (self.time_signature.numerator, self.time_signature.denominator)
+                )])
+            except abjad().exceptions.AssignabilityError:
+                return abjad().Voice("R1 * {}/{}".format(self.time_signature.numerator,
+                                                         self.time_signature.denominator))
+
         else:
             is_top_level_call = True if source_id_dict is None else False
             source_id_dict = {} if source_id_dict is None else source_id_dict

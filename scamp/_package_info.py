@@ -1,6 +1,6 @@
 name = "scamp"
 
-version = "0.5.6"
+version = "0.5.7"
 
 author = "Marc Evanstein"
 
