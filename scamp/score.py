@@ -216,7 +216,7 @@ def _break_up_large_division_points_list(division_points, hierarchies, max_subgr
 def _get_best_subgroup_recombination_option(note_division_points, adjusted_hierarchies, num_divisions_penalty):
     # if there's only one division point in this subgroup, then there's no way of recombining it!
     if len(note_division_points) == 1:
-        return note_division_points, 0
+        return tuple(note_division_points), 0
 
     # translate time-points on the isochronous grid to durations in isochronous units after the start of the note
     component_lengths = [division - last_division

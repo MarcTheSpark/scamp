@@ -109,6 +109,7 @@ cp readme.txt build
 mkdir build/SCAMP
 cp Setup.command build/SCAMP
 cp .UpdateExamples.sh build/SCAMP
+cp .UpdateSCAMP.sh build/SCAMP
 cp .RemoveQuarantine.sh build/SCAMP
 # move the Thonny app into it
 mv build/Thonny.app build/SCAMP/Thonny.app
