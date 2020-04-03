@@ -20,7 +20,7 @@ import logging
 from copy import deepcopy
 import itertools
 import textwrap
-from typing import Union, Sequence, Tuple, Iterator
+from typing import Union, Sequence, Tuple, Iterator, Callable
 
 
 @total_ordering
@@ -303,6 +303,12 @@ class PerformanceNote(SavesToJSON):
         else:
             return self.start_beat == other
 
+    def duplicate(self) -> 'PerformanceNote':
+        """
+        Returns a copy of this PerformanceNote
+        """
+        return self._from_json(self._to_json())
+
     def _to_json(self):
         if isinstance(self.pitch, (tuple, list)):
             # if this is a chord
@@ -506,7 +512,8 @@ class PerformancePart(SavesToJSON):
 
     def play(self, start_beat: float = 0, stop_beat: float = None, instrument: ScampInstrument = None,
              clock: Clock = None, blocking: bool = True, tempo_envelope: TempoEnvelope = None,
-             selected_voices: Sequence[str] = None) -> Clock:
+             selected_voices: Sequence[str] = None,
+             note_filter: Callable[[PerformanceNote], PerformanceNote] = None) -> Clock:
         """
         Play this PerformancePart (or a selection of it)
 
@@ -517,6 +524,9 @@ class PerformancePart(SavesToJSON):
         :param blocking: if True, don't return until the part is done playing; if False, return immediately
         :param tempo_envelope: (optional) a tempo envelope to use for playback
         :param selected_voices: which voices to play back (defaults to all if None)
+        :param note_filter: a function that takes the PerformanceNote about to be played and returns a modified
+            PerformanceNote to play. NB: this will modify the original note unless the input to the function is
+            duplicated and left unaltered!
         :return: the Clock on which playback takes place
         """
         instrument = self.instrument if instrument is None else instrument
@@ -542,7 +552,10 @@ class PerformancePart(SavesToJSON):
 
             while True:
                 assert isinstance(current_note, PerformanceNote)
-                current_note.play(instrument, clock=child_clock, blocking=False)
+                if note_filter is not None:
+                    note_filter(current_note).play(instrument, clock=child_clock, blocking=False)
+                else:
+                    current_note.play(instrument, clock=child_clock, blocking=False)
 
                 try:
                     next_note = next(note_iterator)
@@ -682,18 +695,11 @@ class PerformancePart(SavesToJSON):
         """
         return self._instrument_id[1]
 
-    def __repr__(self):
-        voice_strings = [
-            "{}: [\n{}\n]".format("'" + voice_name + "'" if isinstance(voice_name, str) else voice_name,
-                                  textwrap.indent(",\n".join(str(x) for x in self.voices[voice_name]), "   "))
-            for voice_name in self.voices
-        ]
-        return "PerformancePart(name=\'{}\', instrument_id={}, voices={}{}".format(
-            self.name, self._instrument_id,
-            "{{\n{}\n}}".format(textwrap.indent(",\n".join(voice_strings), "   ")),
-            ", quantization_record={})".format(self.voice_quantization_records)
-            if self.voice_quantization_records is not None else ")"
-        )
+    def duplicate(self) -> 'PerformancePart':
+        """
+        Returns a copy of this PerformancePart
+        """
+        return self._from_json(self._to_json())
 
     def _to_json(self):
         return {
@@ -721,6 +727,19 @@ class PerformancePart(SavesToJSON):
         } if json_dict["voice_quantization_records"] is not None else None
 
         return performance_part
+
+    def __repr__(self):
+        voice_strings = [
+            "{}: [\n{}\n]".format("'" + voice_name + "'" if isinstance(voice_name, str) else voice_name,
+                                  textwrap.indent(",\n".join(str(x) for x in self.voices[voice_name]), "   "))
+            for voice_name in self.voices
+        ]
+        return "PerformancePart(name=\'{}\', instrument_id={}, voices={}{}".format(
+            self.name, self._instrument_id,
+            "{{\n{}\n}}".format(textwrap.indent(",\n".join(voice_strings), "   ")),
+            ", quantization_record={})".format(self.voice_quantization_records)
+            if self.voice_quantization_records is not None else ")"
+        )
 
 
 class Performance(SavesToJSON):
@@ -806,10 +825,106 @@ class Performance(SavesToJSON):
         """
         return self.end_beat
 
-    def play(self, start_beat: float = 0, stop_beat: float = None, ensemble: Ensemble = "auto",
-             clock: Clock = "auto", blocking: bool = True, tempo_envelope: TempoEnvelope = "auto") -> Clock:
+    def get_note_iterator(self, start_beat: float = 0, stop_beat: float = None,
+                          selected_voices: Sequence[str] = None) -> Iterator[PerformanceNote]:
         """
-        Play back this performance (or a selection of it)
+        Returns an iterator returning all the notes from start_beat to stop_beat in the selected voices, in all parts.
+        In order of start time, jumping from part to part as needed.
+
+        :param start_beat: beat to start on
+        :param stop_beat: beat to stop on (None keeps going until the end of the part)
+        :param selected_voices: which voices to take notes from (defaults to all if None)
+        :return: an iterator
+        """
+        part_note_iterators = [p.get_note_iterator(start_beat, stop_beat, selected_voices) for p in self.parts]
+
+        next_notes = []
+        for part_note_iterator in part_note_iterators:
+            try:
+                next_notes.append(next(part_note_iterator))
+            except StopIteration:
+                next_notes.append(None)
+
+        while not all(x is None for x in next_notes):
+            note_to_pop = min(range(len(next_notes)),
+                              key=lambda i: next_notes[i].start_beat if next_notes[i] is not None else float("inf"))
+            yield(next_notes[note_to_pop])
+            try:
+                next_notes[note_to_pop] = next(part_note_iterators[note_to_pop])
+            except StopIteration:
+                next_notes[note_to_pop] = None
+
+    def apply_note_filter(self, filter_function: Callable[['PerformanceNote'], None],
+                          start_beat: float = 0, stop_beat: float = None,
+                          selected_voices: Sequence[str] = None) -> 'Performance':
+        """
+        Applies a filter function to every note in this Performance. This can be used to apply a transformation to
+        the entire Performance on a note-by-note basis.
+
+        :param filter_function: function taking a PerformanceNote object and modifying it in place
+        :param start_beat: beat to start on
+        :param stop_beat: beat to stop on (None keeps going until the end of the part)
+        :param selected_voices: which voices to take notes from (defaults to all if None)
+        :return: self, for chaining purposes
+        """
+        for note in self.get_note_iterator(start_beat, stop_beat, selected_voices):
+            filter_function(note)
+        return self
+
+    def apply_pitch_filter(self, filter_function: Callable[[Union[Envelope, float]], Union[Envelope, float]],
+                           start_beat: float = 0, stop_beat: float = None,
+                           selected_voices: Sequence[str] = None) -> 'Performance':
+        """
+        Applies a filter function to transform the pitch of every note in this Performance.
+
+        :param filter_function: function taking a pitch (can be envelope, float, or even a chord tuple) and returning
+            another pitch-like object. If the performance hasn't been quantized and you're not using any glissandi,
+            though, you can assume the pitch is a float.
+        :param start_beat: beat to start on
+        :param stop_beat: beat to stop on (None keeps going until the end of the part)
+        :param selected_voices: which voices to take notes from (defaults to all if None)
+        :return: self, for chaining purposes
+        """
+        def _note_filter(performance_note):
+            performance_note.pitch = filter_function(performance_note.pitch)
+
+        self.apply_note_filter(_note_filter, start_beat, stop_beat, selected_voices)
+        return self
+
+    def transpose(self, interval: float) -> 'Performance':
+        """
+        Transposes all notes in this Performance up or down by the desired interval. For greater flexibility, use the
+        :code:`apply_pitch_filter` and :code:`apply_note_filter` methods.
+
+        :param interval: the interval by which to transpose this Performance
+        :return: self, for chaining purposes
+        """
+        return self.apply_pitch_filter(lambda p: p + interval)
+
+    def apply_volume_filter(self, filter_function: Callable[[Union[Envelope, float]], Union[Envelope, float]],
+                            start_beat: float = 0, stop_beat: float = None,
+                            selected_voices: Sequence[str] = None) -> 'Performance':
+        """
+        Applies a filter function to transform the volume of every note in this Performance.
+
+        :param filter_function: function taking a volume (can be envelope or float) and returning
+            another volume-like object. If you haven't used any envelopes, though, you can assume the pitch is a float.
+        :param start_beat: beat to start on
+        :param stop_beat: beat to stop on (None keeps going until the end of the part)
+        :param selected_voices: which voices to take notes from (defaults to all if None)
+        :return: self, for chaining purposes
+        """
+        def _note_filter(performance_note):
+            performance_note.volume = filter_function(performance_note.volume)
+
+        self.apply_note_filter(_note_filter, start_beat, stop_beat, selected_voices)
+        return self
+
+    def play(self, start_beat: float = 0, stop_beat: float = None, ensemble: Ensemble = "auto",
+             clock: Clock = "auto", blocking: bool = True, tempo_envelope: TempoEnvelope = "auto",
+             note_filter: Callable[[PerformanceNote], PerformanceNote] = None) -> Clock:
+        """
+        Play back this Performance (or a selection of it)
 
         :param start_beat: Place to start playing from
         :param stop_beat: Place to stop playing at
@@ -819,6 +934,9 @@ class Performance(SavesToJSON):
         :param blocking: if True, don't return until the part is done playing; if False, return immediately
         :param tempo_envelope: the TempoEnvelope with which to play back this performance. The default value of "auto"
             uses  the tempo_envelope associated with the performance, and None uses a flat tempo of rate 60bpm
+        :param note_filter: a function that takes the PerformanceNote about to be played and returns a modified
+            PerformanceNote to play. NB: this will modify the original note unless the input to the function is
+            duplicated and left unaltered!
 
         :return: the clock on which this performance is playing back
         """
@@ -827,6 +945,7 @@ class Performance(SavesToJSON):
         if ensemble == "auto":
             # using the given clock (or the current clock on this thread as a fallback)...
             c = clock if isinstance(clock, Clock) else current_clock()
+
             # ... see if that clock is an Ensemble (and therefore probably a Session)
             if c is not None and isinstance(c.master, Ensemble):
                 # and if so, use that as to set the instruments
@@ -845,13 +964,17 @@ class Performance(SavesToJSON):
         if stop_beat is None:
             stop_beat = max(p.end_beat for p in self.parts)
 
-        for p in self.parts:
-            p.play(start_beat, stop_beat, clock=clock, blocking=False, tempo_envelope=tempo_envelope)
+        def _performance_playback(performance_playback_clock):
+            for p in self.parts:
+                p.play(start_beat, stop_beat, clock=performance_playback_clock, blocking=False,
+                       tempo_envelope=tempo_envelope, note_filter=note_filter)
+            performance_playback_clock.wait_for_children_to_finish()
 
         if blocking:
-            clock.wait_for_children_to_finish()
-
-        return clock
+            _performance_playback(clock)
+            return clock
+        else:
+            return clock.fork(_performance_playback)
 
     def set_instruments_from_ensemble(self, ensemble: Ensemble, override: bool = True) -> 'Performance':
         """
@@ -972,6 +1095,12 @@ class Performance(SavesToJSON):
             max_divisor=max_divisor, max_divisor_indigestibility=max_divisor_indigestibility,
             simplicity_preference=simplicity_preference, title=title, composer=composer
         )
+
+    def duplicate(self) -> 'Performance':
+        """
+        Returns a copy of this Performance
+        """
+        return self._from_json(self._to_json())
 
     def _to_json(self):
         return {"parts": [part._to_json() for part in self.parts], "tempo_envelope": self.tempo_envelope._to_json()}
