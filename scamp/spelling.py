@@ -4,7 +4,7 @@ Module containing the :class:`SpellingPolicy` class, which describes how pitches
 
 import functools
 from .utilities import SavesToJSON
-from typing import Sequence, Tuple
+from typing import Sequence, Tuple, Union
 
 
 ##################################################################################################################
@@ -162,6 +162,23 @@ class SpellingPolicy(SavesToJSON):
                 num_sharps_or_flats += 7
             return SpellingPolicy.from_circle_of_fifths_position(num_sharps_or_flats, template=template)
 
+    @classmethod
+    def interpret(cls, obj: Union['SpellingPolicy', str, tuple]) -> 'SpellingPolicy':
+        """
+        Interpret an object of unknown type as a SpellingPolicy
+
+        :param obj: an object to interpret as a SpellingPolicy; accepts SpellingPolicy, string, or tuple of alterations
+        :return: a SpellingPolicy
+        """
+        if isinstance(obj, SpellingPolicy):
+            return obj
+        elif isinstance(obj, str):
+            return cls.from_string(obj)
+        elif isinstance(obj, tuple):
+            return cls(tuple(tuple(x) for x in obj))
+        else:
+            raise ValueError("Spelling policy not understood.")
+
     def resolve_name_octave_and_alteration(self, midi_num: int) -> Tuple[str, int, int]:
         """
         For a given pitch, determine its name, octave and alteration under this SpellingPolicy.
@@ -217,10 +234,7 @@ class SpellingPolicy(SavesToJSON):
 
     @classmethod
     def _from_json(cls, json_object):
-        if isinstance(json_object, str):
-            return cls.from_string(json_object)
-        else:
-            return cls(tuple(tuple(x) for x in json_object))
+        return cls.interpret(json_object)
 
     def __repr__(self):
         return "SpellingPolicy({})".format(self.step_alteration_pairs)

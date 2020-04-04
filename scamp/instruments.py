@@ -33,6 +33,12 @@ class Ensemble(SavesToJSON):
     :param default_audio_driver: value to initialize default_audio_driver instance variable to
     :param default_soundfont: value to initialize default_soundfont instance variable to
     :param default_midi_output_device: value to initialize default_midi_output_device instance variable to
+    :param default_spelling_policy: a :class:`scamp.spelling.SpellingPolicy` (or a string or tuple interpretable as
+        such) to use for all instruments in this ensemble, overriding scamp defaults.
+    :param instruments: list of instruments to populate this ensemble with. NOTE: generally it is not a good idea
+        to initialize an Ensemble with this argument, but better to use the new_part methods after the fact. This is
+        because instrument playback implementations look to share ensemble resources when they are created, and this
+        is not possible if they are not already part of an ensemble.
 
     :ivar default_audio_driver: the audio driver instruments in this ensemble will default to. If "default", then
         this defers to the scamp global playback_settings default.
@@ -45,15 +51,18 @@ class Ensemble(SavesToJSON):
     """
 
     def __init__(self, default_soundfont: str = "default", default_audio_driver: str = "default",
-                 default_midi_output_device: str = "default"):
+                 default_midi_output_device: str = "default",
+                 default_spelling_policy: Union[SpellingPolicy, str, tuple] = None,
+                 instruments: Sequence['ScampInstrument'] = None):
 
         self.default_soundfont = default_soundfont
         self.default_audio_driver = default_audio_driver
         self.default_midi_output_device = default_midi_output_device
 
-        self._default_spelling_policy = None
+        self._default_spelling_policy = SpellingPolicy.interpret(default_spelling_policy) \
+            if default_spelling_policy is not None else None
 
-        self.instruments = []
+        self.instruments = list(instruments) if instruments is not None else []
         self.shared_resources = {}
 
     def add_instrument(self, instrument: 'ScampInstrument') -> 'ScampInstrument':
@@ -239,29 +248,23 @@ class Ensemble(SavesToJSON):
         return self._default_spelling_policy
 
     @default_spelling_policy.setter
-    def default_spelling_policy(self, value: Union[SpellingPolicy, str]):
-        if value is None or isinstance(value, SpellingPolicy):
-            self._default_spelling_policy = value
-        elif isinstance(value, str):
-            self._default_spelling_policy = SpellingPolicy.from_string(value)
-        else:
-            raise ValueError("Spelling policy not understood.")
+    def default_spelling_policy(self, value: Union[SpellingPolicy, str, tuple]):
+        self._default_spelling_policy = SpellingPolicy.interpret(value) if value is not None else None
 
     def _to_json(self):
         return {
             "default_soundfont": self.default_soundfont,
             "default_audio_driver": self.default_audio_driver,
             "default_midi_output_device": self.default_midi_output_device,
-            "default_spelling_policy": self.default_spelling_policy,
+            "default_spelling_policy": self.default_spelling_policy._to_json() \
+                if self.default_spelling_policy is not None else None,
             "instruments": [instrument._to_json() for instrument in self.instruments]
         }
 
     @classmethod
     def _from_json(cls, json_dict):
         json_instruments = json_dict.pop("instruments")
-        default_spelling_policy = json_dict.pop("default_spelling_policy")
         ensemble = cls(**json_dict)
-        ensemble.default_spelling_policy = default_spelling_policy
         ensemble.instruments = [ScampInstrument._from_json(json_instrument, ensemble)
                                 for json_instrument in json_instruments]
         return ensemble

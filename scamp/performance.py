@@ -950,6 +950,8 @@ class Performance(SavesToJSON):
             if c is not None and isinstance(c.master, Ensemble):
                 # and if so, use that as to set the instruments
                 ensemble = c.master
+        elif isinstance(ensemble, Sequence):
+            ensemble = Ensemble(instruments=ensemble)
 
         if ensemble is not None:
             self.set_instruments_from_ensemble(ensemble, override=False)
