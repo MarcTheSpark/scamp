@@ -186,11 +186,16 @@ The *scamp_extensions* package is the place for models of music-theoretical conc
 additional conveniences for interacting with various types of input and output, and in general anything that builds 
 upon SCAMP but is outside of the scope of the main framework.
 
-The easiest way to install *scamp_extensions* is by running the command:
+The easiest way to install `scamp_extensions` is by running the command:
 
 ```
-pip3 install git+https://github.com/MarcTheSpark/scamp_extensions
+pip3 install --user scamp_extensions
 ```
 
-This will install the latest version from the repository.
+To install the most up-to-date version (assuming you have git installed), you can instead run:
 
+```
+pip3 install --user git+https://github.com/MarcTheSpark/scamp_extensions
+```
+
+This will install the latest version from this repository.
