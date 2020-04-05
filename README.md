@@ -11,23 +11,26 @@ of the user.
 ## Features
 
 - Flexible and extensible playback: Although SCAMP comes with a basic general MIDI soundfont, 
-any .sf2 soundfont can be used, and multiple soundfonts can be used simultaneously. Beyond 
-that, the OSCScampInstrument class allows playback to be done by controlling an external 
-synth over OSC. For even broader flexibility, custom instruments can inherit from the 
-ScampInstrument class and redefine how notes are played.
-- Note-based, but in a broad sense: Although SCAMP conceives of music in terms of notes, 
-the ability to use anything as a soundfont and to control synths over OSC lends a great deal 
-of variety to what a note represents.
+any .sf2 soundfont can be used, and playback can also include MIDI or OSC messages to external 
+programs or synthesizers, which effectively offers limitless sonic possibilities.
+
+- Note-based, but in a broad sense: Although SCAMP conceives of music in terms of notes, notes in
+SCAMP are extremely flexible sound-objects that can include the continuous evolution of arbitrary 
+playback parameters.
+
 - Effortless microtonality: to play the G above middle C 30 cents sharp, the user has only 
 to use the MIDI pitch 67.3. Behind the scenes, SCAMP manages all of the MIDI pitchbend 
 messages, placing notes on separate channels where necessary so that these pitch bends do 
 not conflict.
+
 - Effortless playback of glissandi and dynamic envelopes. Both pitch and volume can follow 
 arbitrary curves defined using the [_expenvelope_](https://github.com/MarcTheSpark/expenvelope) package.
+
 - Flexible and precise polyphonic tempo control using [_clockblocks_](https://github.com/MarcTheSpark/clockblocks). 
 In SCAMP, different layers of music moving at different tempi can be interweaved with one 
 another while remaining coordinated. Smooth accelerandi and ritardandi are possible, and the 
 resulting music can be quantized according to the tempo of any layer.
+
 - Sensible and flexible quantization. The user has a fine degree of control over how rhythms 
 are quantized and over the degree of complexity in the resulting notation.
 
@@ -40,7 +43,8 @@ themselves (perhaps unconsciously) pushed in the direction of a particular harmo
 While this may be a worthwhile trade-off in many cases, it is not the goal of SCAMP. Here, 
 the goal is to provide general purpose tools, to remove the drudgery of implementing practical 
 functionality that is needed again and again. Beyond this scope, users are encouraged to write 
-and share their own extensions to suit their own compositional inclinations.
+and share their own extensions to suit their own compositional inclinations. (Several such 
+extensions are available in the [_scamp_extensions_](https://github.com/MarcTheSpark/scamp_extensions) package.)
 
 Other key values underlying this framework are:
 
@@ -70,9 +74,9 @@ running:
 Properly configuring your computer involves:
 
 1) Installing Python 3.6 or greater
-2) Installing FluidSynth
+2) (Linux only) Installing FluidSynth
 3) (Optional) Installing [_python-rtmidi_](https://spotlightkid.github.io/python-rtmidi/)
-4) (Optional) Installing [_abjad_](https://github.com/Abjad/abjad)
+4) (Optional) Installing [_abjad_](https://github.com/Abjad/abjad) and [LilyPond](https://lilypond.org/)
 
 Each of these steps is described in greater detail below. After configuring the computer and 
 running `pip3 install --user scamp`, you should be able to test the installation by:
@@ -129,62 +133,20 @@ From there on, you can proceed to use the commands `pip3.6` and `python3.6` in p
 and `python3` to install SCAMP, manage dependencies, and invoke the correct version of Python. 
 (Don't do anything with the earlier version of Python; it's used by the operating system.)
 
-### 2) Installing Fluidsynth
+### 2) (Linux only) Installing FluidSynth
 
-___Mac___
+SCAMP requires FluidSynth for soundfont playback, but on both Mac and Windows &mdash; due to
+the lack of a default package manager &mdash; it became clear that the path of least resistance was to 
+include the compiled FluidSynth library within the SCAMP package. For this reason, you don't need to
+take the step of installing FluidSynth to use SCAMP on Mac or Windows.
 
-Fluidsynth is best installed through a package manager like [Homebrew](https://brew.sh). If you 
-don't already have Homebrew, you can follow the instructions on the website, or simply open a 
-terminal and type:
-
-`/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"`
-
-...and then return. You will then be prompted to hit return again, and then to enter your password. Mysterious words will appear on the screen. It may take some time. Chill out. Have some tea.
-
-Once it stops, run the following commands:
-
-```
-brew update
-brew upgrade
-```
-
-If it doesn't throw an error, you now have a package manager! Now run:
-
-`brew install fluidsynth`
-
-More strange and occult text will appear before you. When it's done simply type:
-
-`fluidsynth`
-
-Hopefully, something along the lines of this will appear:
-
-```
-FluidSynth version 1.1.9
-Copyright (C) 2000-2018 Peter Hanappe and others.
-Distributed under the LGPL license.
-SoundFont(R) is a registered trademark of E-mu Systems, Inc.
-
-Type 'help' for help topics.
-
-> 
-```
-
-Type "quit", hit return, and let out a deep breath. You are now the proud owner of a fluidsynthesizer.
-
-___Windows___
-
-Unfortunately, it seems that the suggested way of acquiring fluidsynth on Windows is to compile 
-it from source. Since this is rather a lot to ask of some users, SCAMP contains a working copy 
-of the windows fluidsynth library to fall back on if no installation is present.
-
-___Linux___
-
-On Linux distros, since you already have a package manager, this is easy. For instance, on 
-apt-based distros like Debian, Ubuntu or Trisquel, you can simply run:
+Since Linux distros have package managers, it makes more sense to have users take the extra
+step to install FluidSynth that way. On apt-based distros like Debian, Ubuntu or Trisquel, 
+it's as simple as running:
 
 `sudo apt install fluidsynth`
 
-Yay, Linux!
+You are now the proud owner of a FluidSynthesizer!
 
 ### 3) (Optional) Installing python-rtmidi
 
@@ -202,9 +164,9 @@ package, for instance with the command:
 For any other _python-rtmidi_ installation woes, take a look at the installation instructions 
 [here](https://spotlightkid.github.io/python-rtmidi/installation.html).
 
-### 4) (Optional) Installing abjad
+### 4) (Optional) Installing abjad and LilyPond
 
-For lilypond output, you will need the [_abjad_](http://abjad.mbrsi.org/installation.html) library. To do so, 
+For LilyPond output, you will need the [_abjad_](http://abjad.mbrsi.org/installation.html) library. To do so, 
 run the following:
 
 ```
@@ -214,6 +176,9 @@ pip3 install abjad==3.1
 Note the '==' in the command, which specifies the exact version of abjad to install. This is the version that SCAMP 
 has been built to be compatible with. You are free to use a newer version, but it is possible there will be unexpected
 errors due to changes in the abjad API.
+
+After installing _abjad_, you will also need to [download and install LilyPond](https://lilypond.org/), since it
+is a dependency of abjad.
 
 ### 5) (Optional) Installing scamp_extensions
 

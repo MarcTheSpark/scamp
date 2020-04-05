@@ -19,4 +19,4 @@ This video provides a step-by-step walk-through of the installation process:
 
 .. raw:: html
 
-  <iframe class="youtube" frameborder=0 allowfullscreen="" src="https://www.invidio.us/embed/PRM-FxBtAfo?rel=0&showinfo=0&autoplay=1"></iframe>
+  <iframe class="youtube" frameborder=0 allowfullscreen="" src="https://www.invidio.us/embed/PRM-FxBtAfo?rel=0&showinfo=0&autoplay=1&listen=0"></iframe>
