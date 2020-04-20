@@ -1504,7 +1504,9 @@ class Staff(ScoreComponent, ScoreContainer):
         contents = [measure._to_abjad(source_id_dict) for measure in self.measures]
         for same_source_group in source_id_dict.values():
             _join_same_source_abjad_note_group(same_source_group)
-        return abjad().Staff(contents, name=self.name)
+        abjad_staff = abjad().Staff(contents, name=self.name)
+        abjad().setting(abjad_staff).instrument_name = abjad().Scheme(self.name, force_quotes=True)
+        return abjad_staff
 
     def to_music_xml(self) -> pymusicxml.Part:
         source_id_dict = {}
