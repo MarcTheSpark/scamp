@@ -270,7 +270,7 @@ class Ensemble(SavesToJSON):
         return ensemble
 
     def __repr__(self):
-        return "Ensemble.from_json({})".format(self._to_json())
+        return "Ensemble._from_json({})".format(self._to_json())
 
 
 class ScampInstrument(SavesToJSON):
@@ -1061,7 +1061,7 @@ class ScampInstrument(SavesToJSON):
         return instrument
 
     def __repr__(self):
-        return "ScampInstrument.from_json({})".format(self._to_json())
+        return "ScampInstrument._from_json({})".format(self._to_json())
 
 
 class NoteHandle:

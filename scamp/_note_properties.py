@@ -357,7 +357,7 @@ class NotePropertiesDictionary(dict, SavesToJSON):
         # converted to their json-friendly dictionary representations, This converts them back to envelopes
         for key, value in json_object.items():
             if key.startswith("param_") or key.endswith("_param") and isinstance(value, dict):
-                json_object[key] = Envelope.from_json(value)
+                json_object[key] = Envelope._from_json(value)
 
         return cls(**json_object)
 

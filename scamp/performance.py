@@ -330,14 +330,14 @@ class PerformanceNote(SavesToJSON):
     def _from_json(cls, json_object):
         if isinstance(json_object["pitch"], (tuple, list)):
             # a tuple or list (should be a list since it's json) indicates a chord
-            json_object["pitch"] = tuple(Envelope.from_json(pitch) if isinstance(pitch, dict) else pitch
+            json_object["pitch"] = tuple(Envelope._from_json(pitch) if isinstance(pitch, dict) else pitch
                                          for pitch in json_object["pitch"])
         elif isinstance(json_object["pitch"], dict):
             # a dict indicates it's an envelope
-            json_object["pitch"] = Envelope.from_json(json_object["pitch"])
+            json_object["pitch"] = Envelope._from_json(json_object["pitch"])
 
         if isinstance(json_object["volume"], dict):
-            json_object["volume"] = Envelope.from_json(json_object["volume"])
+            json_object["volume"] = Envelope._from_json(json_object["volume"])
 
         if hasattr(json_object["length"], "__len__"):
             json_object["length"] = tuple(json_object["length"])
@@ -1110,7 +1110,7 @@ class Performance(SavesToJSON):
     @classmethod
     def _from_json(cls, json_dict):
         return cls([PerformancePart._from_json(part_json) for part_json in json_dict["parts"]],
-                   TempoEnvelope.from_json(json_dict["tempo_envelope"]))
+                   TempoEnvelope._from_json(json_dict["tempo_envelope"]))
 
     def __repr__(self):
         return "Performance([\n{}\n])".format(

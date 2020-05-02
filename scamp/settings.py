@@ -36,7 +36,7 @@ class _ScampSettings(SimpleNamespace, SavesToJSON):
                     # there is both an explicitly given setting and a factory default
                     if isinstance(self.factory_defaults[key], SavesToJSON):
                         # if the factory default is a custom scamp class that serializes to or from json (including
-                        # another _ScampSettings derivative), then we use that class's "from_json" method to load it
+                        # another _ScampSettings derivative), then we use that class's "_from_json" method to load it
                         settings_arguments[key] = type(self.factory_defaults[key])._from_json(settings_dict[key])
                     else:
                         # otherwise it should just be a simple json-friendly piece of data

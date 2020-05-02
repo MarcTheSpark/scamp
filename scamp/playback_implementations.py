@@ -165,7 +165,7 @@ class PlaybackImplementation(ABC):
 
     @abstractmethod
     def _from_json(self, json_object, host_instrument):
-        # PlaybackImplementations implement a version of from_json that requires us to pass the host instrument
+        # PlaybackImplementations implement a version of _from_json that requires us to pass the host instrument
         # this avoids the circularity of the host instrument containing references to the playback implementations
         # and the playback implementations containing a reference to the host instrument
         pass

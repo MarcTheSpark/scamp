@@ -13,6 +13,7 @@ import copy
 from abc import ABC, abstractmethod
 import functools
 from typing import Iterator, Type, Callable, List, Sequence, Tuple, Union, TypeVar
+from expenvelope._utilities import SavesToJSON
 
 
 # ------------------------------------------- General Utilities ---------------------------------------------
@@ -51,44 +52,6 @@ def resolve_relative_path(file_name: str, from_root_process: bool = False) -> st
         application_path = os.path.dirname(mod.__file__)
 
     return os.path.join(application_path, file_name)
-
-
-class SavesToJSON(ABC):
-
-    """
-    Abstract base class for SCAMP objects that save to and load from JSON files.
-    Subclasses are expected to implement _to_json, which constructs a JSON-serializable object from the class data
-    (usually a dictionary), and _from_json, which constructs an instance of the class from the data loaded from the
-    JSON file (again, usually a dictionary).
-    """
-
-    @abstractmethod
-    def _to_json(self):
-        pass
-
-    @classmethod
-    @abstractmethod
-    def _from_json(cls, json_object):
-        pass
-
-    def save_to_json(self, file_path: str) -> None:
-        """
-        Save this object to a JSON file using the given path.
-
-        :param file_path: path for saving the file
-        """
-        with open(file_path, "w") as file:
-            json.dump(self._to_json(), file, sort_keys=True, indent=4)
-
-    @classmethod
-    def load_from_json(cls, file_path: str):
-        """
-        Load this object from a JSON file with the given path.
-
-        :param file_path: path for loading the file
-        """
-        with open(file_path, "r") as file:
-            return cls._from_json(json.load(file))
 
 
 def memoize(obj: Callable) -> Callable:

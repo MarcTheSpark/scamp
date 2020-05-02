@@ -350,4 +350,4 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         return session
 
     def __repr__(self):
-        return "Session.from_json({})".format(self._to_json())
+        return "Session._from_json({})".format(self._to_json())
