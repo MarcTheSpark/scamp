@@ -34,6 +34,14 @@ and check out the "tutorial" examples found at https://github.com/MarcTheSpark/s
 
    scamp
 
+   clockblocks
+
+   expenvelope
+
+   pymusicxml
+
+   scamp_extensions
+
 
 Indices and tables
 ==================

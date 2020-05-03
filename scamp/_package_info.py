@@ -1,6 +1,6 @@
 name = "scamp"
 
-version = "0.5.8"
+version = "0.5.9"
 
 author = "Marc Evanstein"
 
@@ -9,14 +9,14 @@ author_email = "marc@marcevanstein.com"
 description = "A computer-assisted composition framework that manages the flow of musical time, plays back notes via "\
               "SoundFonts, MIDI or OSC, and quantizes and saves the result to music notation."
 
-url = "https://github.com/MarcTheSpark/scamp"
+url = "http://scamp.marcevanstein.com"
 
 project_urls = {
     "Source Code": "https://github.com/MarcTheSpark/scamp",
-    "Documentation": "http://scampdocs.marcevanstein.com",
+    "Documentation": "http://scamp.marcevanstein.com",
 }
 
-install_requires = ['pymusicxml >= 0.1.0', 'expenvelope >= 0.3.0', 'clockblocks >= 0.3.0', 'sf2utils', 'python-osc']
+install_requires = ['pymusicxml >= 0.1.0', 'expenvelope >= 0.4.0', 'clockblocks >= 0.4.0', 'sf2utils', 'python-osc']
 
 extras_require = {
     'lilypond': 'abjad==3.1',
