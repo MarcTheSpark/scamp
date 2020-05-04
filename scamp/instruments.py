@@ -567,6 +567,9 @@ class ScampInstrument(SavesToJSON):
                 "flags": [] if flags is None else flags
             }
 
+            if clock.is_fast_forwarding() and "silent" not in self._note_info_by_id[note_id]["flags"]:
+                self._note_info_by_id[note_id]["flags"].append("silent")
+
             if "silent" not in self._note_info_by_id[note_id]["flags"]:
                 # otherwise, call all the playback implementation!
                 for playback_implementation in self.playback_implementations:
@@ -776,9 +779,9 @@ class ScampInstrument(SavesToJSON):
                 clock.fork(parameter_change_segment.run, kwargs={"silent": "silent" in note_info["flags"]})
 
     def change_note_pitch(self, note_id: Union[int, 'NoteHandle'], target_value_or_values: Union[float, Sequence],
-                              transition_length_or_lengths: Union[float, Sequence] = 0,
-                              transition_curve_shape_or_shapes: Union[float, Sequence] = 0,
-                              clock: Clock = None) -> None:
+                          transition_length_or_lengths: Union[float, Sequence] = 0,
+                          transition_curve_shape_or_shapes: Union[float, Sequence] = 0,
+                          clock: Clock = None) -> None:
         """
         Change the pitch of an already started note; can also take a sequence of targets and times.
 

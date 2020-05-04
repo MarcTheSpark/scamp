@@ -174,7 +174,7 @@ class PerformanceNote(SavesToJSON):
             # since the expectation is a tuple as return value, return the note unaltered in a length-1 tuple
             return self,
         else:
-            second_part = deepcopy(self)
+            second_part = self.duplicate()
             second_part.start_beat = split_beat
             self.length, second_part.length = PerformanceNote._split_length(self.length, split_beat - self.start_beat)
 

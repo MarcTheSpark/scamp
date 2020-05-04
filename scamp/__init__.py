@@ -11,6 +11,7 @@ from .instruments import Ensemble, ScampInstrument, NoteHandle, ChordHandle
 from .playback_implementations import *
 from .transcriber import Transcriber
 from .performance import Performance, PerformancePart
+from .spelling import SpellingPolicy
 from .score import *
 from .quantization import *
 from .settings import *
