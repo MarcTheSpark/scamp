@@ -19,7 +19,7 @@ from ._dependencies import abjad
 import math
 from fractions import Fraction
 from copy import deepcopy
-from itertools import accumulate
+from itertools import accumulate, count
 import textwrap
 from collections import namedtuple
 from abc import ABC, abstractmethod
@@ -303,6 +303,10 @@ def _join_same_source_abjad_note_group(same_source_group):
         # abjad().attach(abjad().Slur(), abjad().Selection(same_source_group))
 
 
+# generates unique ids for gliss slurs that won't conflict with manual slurs
+_xml_gliss_slur_id_counter = count()
+
+
 def _join_same_source_xml_note_group(same_source_group):
     available_gliss_numbers = list(range(1, 7))
     # since each gliss needs to be associated with an unambiguous number, here we keep track of which
@@ -397,9 +401,11 @@ def _join_same_source_xml_note_group(same_source_group):
                         gliss_present = True
 
     if gliss_present:
+        # this unique id will get intelligently converted to a number from 1 to 6 by pymusicxml
+        slur_id = "glissSlur{}".format(next(_xml_gliss_slur_id_counter))
         # add slur notation to the very first note and last note
-        same_source_group[0].notations.append(pymusicxml.StartSlur())
-        same_source_group[-1].notations.append(pymusicxml.StopSlur())
+        same_source_group[0].notations.append(pymusicxml.StartSlur(slur_id))
+        same_source_group[-1].notations.append(pymusicxml.StopSlur(slur_id))
 
 
 def _get_clef_from_average_pitch_and_instrument_name(average_pitch: float, instrument_name: str) -> str:
