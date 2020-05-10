@@ -24,7 +24,7 @@ class Transcriber:
         Starts transcribing new performance on the given clock, consisting of the given instrument
 
         :param instrument_or_instruments: the instruments we notate in this Performance
-        :param clock: which clock all timings are relative to, or "absolute" to mean time on the master clock
+        :param clock: which clock all timings are relative to
         :param units: one of ["beats", "time"]. Do we use the beats of the clock or the time?
         :return: the Performance that this transcription writes to, which will be updated as notes are played and acts
             as a handle when calling stop_transcribing.
