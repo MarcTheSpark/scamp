@@ -13,12 +13,12 @@ try:
     else:
         # first choice: use the use the local, tweaked copy of pyfluidsynth (which will also try to
         # load up a local copy of the fluidsynth dll on Windows or dylib on MacOS)
-        from .thirdparty import fluidsynth
+        from ._thirdparty import fluidsynth
 except (ImportError, AttributeError):
     if playback_settings.try_system_fluidsynth_first:
         # second choice: use the use the local, tweaked copy of pyfluidsynth (which will also try to
         # load up a local copy of the fluidsynth dll on Windows or dylib on MacOS)
-        from .thirdparty import fluidsynth
+        from ._thirdparty import fluidsynth
     else:
         # second choice: import using an installed version of pyfluidsynth
         import fluidsynth

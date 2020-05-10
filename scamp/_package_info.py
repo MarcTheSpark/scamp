@@ -25,7 +25,7 @@ extras_require = {
 }
 
 package_data = {
-    'scamp': ['settings/*', 'soundfonts/*', 'thirdparty/*.dll', 'thirdparty/*.dylib']
+    'scamp': ['settings/*', 'soundfonts/*', '_thirdparty/*.dll', '_thirdparty/*.dylib']
 }
 
 classifiers = [

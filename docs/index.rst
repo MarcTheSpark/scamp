@@ -15,7 +15,7 @@ Narrative documentation is on the way; for now, the following video provides a g
 
 .. raw:: html
 
-  <iframe class="youtube" frameborder=0 allowfullscreen="" src="https://www.youtube.com/embed/vpv686Rasds?rel=0&showinfo=0&autoplay=1&listen=0"></iframe>
+  <iframe class="youtube" frameborder=0 allowfullscreen="" src="https://www.youtube.com/embed/vpv686Rasds?rel=0&showinfo=0&listen=0"></iframe>
 
 You can also read the `paper introducing the framework <http://marcevanstein.com/Writings/Evanstein_MAT_Thesis_SCAMP.pdf>`_,
 and check out the "tutorial" examples found at https://github.com/MarcTheSpark/scamp/tree/master/examples/Tutorial.
