@@ -212,19 +212,40 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
             self._listeners["keyboard"].stop()
             del self._listeners["keyboard"]
 
+    # Maps the strange virtual key numbers that pynput spits out (for keys that return a pynput.keyboard.KeyCode) to
+    # the standard javascript keycodes. (Without this mapping, the vk numbers for KeyCode keys and for special keys
+    # that return a pynput.keyboard.Key overlap oddly: e.g. "o" = space = 32.) For some reason pynput doesn't handle
+    # the numpad well, but oh well.
+    _uppers_to_lowers = {u: l for u, l in zip("~!@#$%^&*()_+{}|:\"<>?", "`1234567890-=[]\\;',./")}
+
+    _name_to_js_key_code = {
+        'backspace': 8, 'tab': 9, 'enter': 13, 'shift': 16, 'ctrl': 17, 'alt': 18, 'pause': 19, 'caps_lock': 20,
+        'esc': 27, 'page_up': 33, 'page_down': 34, 'end': 35, 'home': 36, 'left': 37, 'up': 38, 'right': 39, 'down': 40,
+        'insert': 45, 'delete': 46, '0': 48, '1': 49, '2': 50, '3': 51, '4': 52, '5': 53, '6': 54, '7': 55, '8': 56,
+        '9': 57, 'a': 65, 'b': 66, 'c': 67, 'd': 68, 'e': 69, 'f': 70, 'g': 71, 'h': 72, 'i': 73, 'j': 74, 'k': 75,
+        'l': 76, 'm': 77, 'n': 78, 'o': 79, 'p': 80, 'q': 81, 'r': 82, 's': 83, 't': 84, 'u': 85, 'v': 86, 'w': 87,
+        'x': 88, 'y': 89, 'z': 90, 'cmd': 91, 'cmd_r': 92, 'menu': 93, 'f1': 112, 'f2': 113, 'f3': 114, 'f4': 115,
+        'f5': 116, 'f6': 117, 'f7': 118, 'f8': 119, 'f9': 120, 'f10': 121, 'f11': 122, 'f12': 123, 'num_lock': 144,
+        'scroll_lock': 145, ';': 186, '=': 187, ',': 188, '-': 189, '.': 190, '/': 191, '`': 192, '[': 219, '\\': 220,
+        ']': 221, "'": 222
+    }
+
     @staticmethod
     def _name_and_number_from_key(key_or_key_code):
         # converts the irritating system within pynput to a simple key name and key number
-        # TODO: FIX KEY CODES? Why is 'o' the same as space?
         if key_or_key_code is None:
-            name = number = None
-        elif isinstance(key_or_key_code, pynput.keyboard.Key):
-            name = key_or_key_code.name
-            number = key_or_key_code.value.vk
+            return None, None
+
+        name = key_or_key_code.name if isinstance(key_or_key_code, pynput.keyboard.Key) else key_or_key_code.char
+        searchable_name = name.lower().replace("_r", "")
+        if searchable_name in Session._uppers_to_lowers:
+            searchable_name = Session._uppers_to_lowers[searchable_name]
+        if searchable_name in Session._name_to_js_key_code:
+            number = Session._name_to_js_key_code[searchable_name]
         else:
-            # it's KeyCode
-            name = key_or_key_code.char
-            number = key_or_key_code.vk
+            # last resort: use the unreliable vk attribute
+            number = key_or_key_code.value.vk if isinstance(key_or_key_code, pynput.keyboard.Key) \
+                else key_or_key_code.vk
         return name, number
 
     def register_mouse_listener(self, on_move: Callable = None, on_press: Callable = None, on_release: Callable = None,

@@ -155,6 +155,13 @@ def prime_factor(n: int) -> List[int]:
 
     return primes
 
+
+def is_prime(a: int) -> bool:
+    """
+    Checks if a is a prime number.
+    """
+    return not (a < 2 or any(a % x == 0 for x in range(2, int(a ** 0.5) + 1)))
+
 # ---------------------------------------------- List Utilities --------------------------------------------------
 
 
@@ -230,13 +237,6 @@ def get_average_square_correlation(test_string: str, template_string: str) -> fl
 
 # ------------------------------------ Indigestibility (a la Clarence Barlow) ------------------------------------
 # All of these are needed for the indispensability stuff below
-
-
-def is_prime(a: int) -> bool:
-    """
-    Checks if a is a prime number.
-    """
-    return not (a < 2 or any(a % x == 0 for x in range(2, int(a ** 0.5) + 1)))
 
 
 def indigestibility(n: int) -> float:
