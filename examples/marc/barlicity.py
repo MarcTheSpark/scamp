@@ -2,8 +2,8 @@ from scamp import *
 import sys
 from sklearn import manifold
 import numpy as np
-from scamp_extensions.barlicity import harmonicity, gaussian_discount, get_indispensability_array
-from scamp_extensions.utils import midi_to_hertz, hertz_to_midi
+from scamp_extensions.composers.barlicity import harmonicity, _gaussian_discount, get_indispensability_array
+from scamp_extensions.pitch.utilities import midi_to_hertz, hertz_to_midi
 import random
 from PyQt5 import QtCore, QtWidgets, Qt
 
@@ -217,7 +217,7 @@ class Barlicity(QtWidgets.QMainWindow):
         for i, point in enumerate(mds_points):
             index_distance = min((i - self.scanner_index) % len(mds_points),
                                  (self.scanner_index - i) % len(mds_points))
-            index_discount = gaussian_discount(index_distance, 0, 0.45)
+            index_discount = _gaussian_discount(index_distance, 0, 0.45)
             total_multiplier += index_discount
             new_location[0] += point[0] * index_discount
             new_location[1] += point[1] * index_discount

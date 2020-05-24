@@ -1,5 +1,5 @@
 from scamp import *
-from scamp_extensions.barlicity import *
+from scamp_extensions.composers.barlicity import *
 from pynput.mouse import Listener
 import random
 
