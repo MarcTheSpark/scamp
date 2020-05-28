@@ -4,7 +4,8 @@
 
 .. automodule:: {{ fullname }}
 
-{% if classes %}
+{% set manual_classes = members | pick_classes_manually(fullname) %}
+{% if classes or manual_classes %}
 .. rubric:: Classes
 
 .. autosummary::
@@ -12,15 +13,21 @@
     {% for class in classes %}
     {{ class }}
     {% endfor %}
-
+    {% for function in manual_classes %}
+    {{ function }}
+    {% endfor %}
 {% endif %}
 
-{% if functions %}
+{% set manual_functions = members | pick_functions_manually(fullname) %}
+{% if functions or manual_functions %}
 .. rubric:: Functions
 
 .. autosummary::
     :toctree: .
     {% for function in functions %}
+    {{ function }}
+    {% endfor %}
+    {% for function in manual_functions %}
     {{ function }}
     {% endfor %}
 {% endif %}

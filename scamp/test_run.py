@@ -1,5 +1,5 @@
 """
-Simple module with a :code:`play` function that can be used to verify that SCAMP is installed successfully.
+Simple module with a :func:`play` function that can be used to verify that SCAMP is installed successfully.
 """
 
 from . import Session

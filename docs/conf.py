@@ -42,19 +42,49 @@ jinja2.filters.FILTERS['difference'] = difference
 #                                   Hack to allow certain named module attributes
 ##################################################################################################################
 
-_attributes_to_allow = {
-    'scamp.settings': {"playback_settings", "quantization_settings", "engraving_settings"}
+_manually_documented_attributes = {
+    'scamp.settings': {"playback_settings", "quantization_settings", "engraving_settings"},
+}
+
+_manually_documented_functions = {
+    'scamp_extensions.utilities.math': {
+        "gcd", "is_x_pow_of_y", "floor_x_to_pow_of_y", "ceil_x_to_pow_of_y", "round_x_to_pow_of_y", "floor_to_multiple",
+        "ceil_to_multiple", "round_to_multiple", "is_multiple", "prime_factor", "is_prime"
+    },
+    'scamp_extensions.utilities.sequences': {"make_flat_list", "sum_nested_list"},
+    'scamp_extensions.rhythm.metric_structure': {"flatten_beat_groups"}
+}
+
+
+_manually_documented_classes = {
+    'scamp_extensions.rhythm.metric_structure': {"MetricStructure", "MeterArithmeticGroup"}
 }
 
 
 def pick_attributes_manually(a, module_name):
-    if module_name in _attributes_to_allow:
-        return [x for x in a if x in _attributes_to_allow[module_name]]
+    if module_name in _manually_documented_attributes:
+        return [x for x in a if x in _manually_documented_attributes[module_name]]
+    else:
+        return []
+
+
+def pick_functions_manually(a, module_name):
+    if module_name in _manually_documented_functions:
+        return [x for x in a if x in _manually_documented_functions[module_name]]
+    else:
+        return []
+
+
+def pick_classes_manually(a, module_name):
+    if module_name in _manually_documented_classes:
+        return [x for x in a if x in _manually_documented_classes[module_name]]
     else:
         return []
 
 
 jinja2.filters.FILTERS['pick_attributes_manually'] = pick_attributes_manually
+jinja2.filters.FILTERS['pick_functions_manually'] = pick_functions_manually
+jinja2.filters.FILTERS['pick_classes_manually'] = pick_classes_manually
 
 ##################################################################################################################
 #                                      Hack to fix bug w/ bogus ivar symlinks
