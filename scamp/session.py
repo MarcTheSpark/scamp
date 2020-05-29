@@ -4,7 +4,8 @@ functionality flows.
 """
 
 from .transcriber import Transcriber
-from ._midi import *
+from ._midi import get_available_midi_input_devices, get_port_number_of_midi_device, \
+    print_available_midi_input_devices, print_available_midi_output_devices, start_midi_listener
 from .instruments import Ensemble, ScampInstrument
 from clockblocks import Clock, current_clock
 from .utilities import SavesToJSON
@@ -12,6 +13,7 @@ from ._dependencies import pynput, pythonosc
 from threading import Thread, current_thread
 from typing import Union, Tuple, Iterator, Callable, Sequence
 from .performance import Performance
+import threading
 
 
 class Session(Clock, Ensemble, Transcriber, SavesToJSON):
@@ -75,6 +77,13 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         Prints a list of available ports and devices for midi input.
         """
         return print_available_midi_input_devices()
+
+    @staticmethod
+    def print_available_midi_output_devices() -> None:
+        """
+        Prints a list of available ports and devices for midi output.
+        """
+        return print_available_midi_output_devices()
 
     def register_midi_listener(self, port_number_or_device_name: Union[int, str], callback_function: Callable) -> None:
         """

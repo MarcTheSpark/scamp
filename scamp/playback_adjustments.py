@@ -4,7 +4,8 @@ Module containing classes for defining adjustments to the playback of note param
 """
 
 from .utilities import SavesToJSON
-from ._engraving_translations import *
+from ._engraving_translations import articulation_to_xml_element_name, notehead_name_to_xml_type, \
+    notations_to_xml_notations_element
 from typing import Union
 
 
@@ -40,7 +41,7 @@ def _split_string_at_outer_spaces(s):
 class ParamPlaybackAdjustment(SavesToJSON):
 
     """
-    Represents a multiple/add playback adjustment to a single parameter.
+    Represents a multiply/add playback adjustment to a single parameter.
     (The multiply happens first, then the add.
 
     :param multiply: how much to multiply by

@@ -2,7 +2,7 @@
 :class:`scamp.instruments.ScampInstrument` objects to create a :class:`scamp.performance.Performance`"""
 
 from .performance import Performance
-from expenvelope import *
+from expenvelope import Envelope
 from clockblocks import Clock, TempoEnvelope
 from .instruments import ScampInstrument
 from typing import Union, Sequence
@@ -141,7 +141,8 @@ class Transcriber:
                         if len(levels) == 1:
                             extra_parameters[param] = levels[0]
                         else:
-                            extra_parameters[param] = Envelope.from_levels_and_durations(levels, durations, curve_shapes)
+                            extra_parameters[param] = Envelope.from_levels_and_durations(levels, durations,
+                                                                                         curve_shapes)
                 else:
                     # assign to specific variables for pitch and volume, otherwise put in a dictionary of extra params
                     if param == "pitch":

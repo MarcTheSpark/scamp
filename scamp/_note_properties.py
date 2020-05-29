@@ -1,4 +1,4 @@
-from .playback_adjustments import *
+from .playback_adjustments import NotePlaybackAdjustment, PlaybackAdjustmentsDictionary
 from .utilities import SavesToJSON
 from .settings import playback_settings, engraving_settings
 from .spelling import SpellingPolicy

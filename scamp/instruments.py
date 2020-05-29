@@ -12,7 +12,8 @@ from ._midi import get_available_midi_output_devices, print_available_midi_outpu
 from .utilities import SavesToJSON
 from .spelling import SpellingPolicy
 from ._note_properties import NotePropertiesDictionary
-from .playback_implementations import *
+from .playback_implementations import PlaybackImplementation, SoundfontPlaybackImplementation, \
+    MIDIStreamPlaybackImplementation, OSCPlaybackImplementation
 from scamp.utilities import iterate_all_subclasses
 from clockblocks import current_clock, Clock, ClockKilledException, TimeStamp, wait
 from expenvelope import EnvelopeSegment

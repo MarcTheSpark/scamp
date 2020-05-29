@@ -5,6 +5,8 @@ Module containing the :class:`SpellingPolicy` class, which describes how pitches
 import functools
 from .utilities import SavesToJSON
 from typing import Sequence, Tuple, Union
+import pymusicxml
+import abjad
 
 
 ##################################################################################################################
@@ -151,7 +153,8 @@ class SpellingPolicy(SavesToJSON):
                 template = _c_standard_spellings
 
             try:
-                num_sharps_or_flats = _step_circle_of_fifths_positions[_step_names.index(string_initializer_processed[0])]
+                num_sharps_or_flats = \
+                    _step_circle_of_fifths_positions[_step_names.index(string_initializer_processed[0])]
             except ValueError:
                 raise ValueError("Bad spelling policy initialization string. Use only 'sharp', 'flat', "
                                  "or the name of the desired key center (e.g. 'G#' or 'Db') with optional mode.")

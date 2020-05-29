@@ -7,15 +7,16 @@ A :class:`scamp.instruments.ScampInstrument` can have one or more :class:`Playba
 """
 
 from ._midi import SimpleRtMidiOut
-from ._soundfont_host import *
+from ._soundfont_host import SoundfontHost
 from . import instruments as instruments_module
-
 from clockblocks import fork_unsynchronized
 import time
 from abc import ABC, abstractmethod
 import atexit
 from ._dependencies import pythonosc
 from typing import Tuple, Optional
+import logging
+from .settings import playback_settings
 
 
 class PlaybackImplementation(ABC):
@@ -586,7 +587,7 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
     """
 
     def __init__(self, host_instrument: 'instruments_module.ScampInstrument', midi_output_device: str = "default",
-                 num_channels=8, midi_output_name: Optional[str] = None, max_pitch_bend: int ="default",
+                 num_channels=8, midi_output_name: Optional[str] = None, max_pitch_bend: int = "default",
                  note_on_and_off_only: bool = False):
         super().__init__(host_instrument, num_channels, note_on_and_off_only)
 
@@ -745,7 +746,8 @@ class OSCPlaybackImplementation(PlaybackImplementation):
             self.change_note_parameter(note_id, param, value)
 
     def end_note(self, note_id: int) -> None:
-        self.client.send_message("/{}/{}".format(self.message_prefix, self.osc_message_addresses["end_note"]), [note_id])
+        self.client.send_message("/{}/{}".format(self.message_prefix,
+                                                 self.osc_message_addresses["end_note"]), [note_id])
         if note_id in self._currently_playing:
             self._currently_playing.remove(note_id)
 
