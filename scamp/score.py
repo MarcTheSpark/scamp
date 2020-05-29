@@ -916,6 +916,9 @@ class Score(ScoreComponent, ScoreContainer):
 
     def _to_abjad(self):
         abjad_score = abjad().Score([part._to_abjad() for part in self.parts])
+        # tempo markings will be attached to the top staff.
+        # Here we sort out whether or not that staff is part of a staff group or not
+        top_staff = abjad_score[0][0] if isinstance(abjad_score[0], abjad().StaffGroup) else abjad_score[0]
 
         # go through and add all of the tempo marks to the xml score
         key_points, guide_marks = self._get_tempo_key_points_and_guide_marks()
@@ -924,7 +927,7 @@ class Score(ScoreComponent, ScoreContainer):
         rit_or_accel_spanner_start = None  # for storing the starting leaf of a rit or accel spanner
 
         # go through each measure and add the tempo annotations
-        for abjad_measure, score_measure in zip(abjad_score[0], self.staves[0].measures):
+        for abjad_measure, score_measure in zip(top_staff, self.staves[0].measures):
             # if there's no more key points or guide marks, we're done
             if len(key_points) + len(guide_marks) == 0:
                 break
