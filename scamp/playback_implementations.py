@@ -3,7 +3,7 @@ Module containing the abstract base class :class:`PlaybackImplementation`, as we
 subclasses: :class:`SoundfontPlaybackImplementation`, :class:`MidiPlaybackImplementations`, and
 :class:`OSCPlaybackImplementation`. :class:`PlaybackImplementations` do the actual work of playback, either by
 playing sounds or by sending messages to external synthesizers to play sounds.
-A :class:`scamp.instruments.ScampInstrument` can have one or more :class:`PlaybackImplementations`.
+A :class:`~scamp.instruments.ScampInstrument` can have one or more :class:`PlaybackImplementations`.
 """
 
 from ._midi import SimpleRtMidiOut
@@ -25,7 +25,7 @@ class PlaybackImplementation(ABC):
     Abstract base class for playback implementations, which do the actual work of playback, either by playing sounds or
     by sending messages to external synthesizers to play sounds.
 
-    :param host_instrument: The :class:`scamp.instruments.ScampInstrument` that will use this playback implementation
+    :param host_instrument: The :class:`~scamp.instruments.ScampInstrument` that will use this playback implementation
         for playback. When this PlaybackImplementation is constructed, it is automatically added to the list of
         PlaybackImplementations that the host instrument uses.
     """

@@ -1,5 +1,7 @@
 import pkgutil
 import importlib
+import inspect
+from types import ModuleType
 
 
 template = """{package_name} package
@@ -11,8 +13,8 @@ template = """{package_name} package
    :show-inheritance:
 
 {subpackages}
-
 {modules}
+{api}
 """
 
 subpackages_template = """.. rubric:: Sub-packages:
@@ -35,6 +37,12 @@ modules_template = """.. rubric:: Modules:
 
 {module_names}"""
 
+api_template = """.. rubric:: Public-Facing API (result of `import *`):
+
+.. autosummary::
+
+{api_names}"""
+
 packages = ["scamp", "clockblocks", "expenvelope", "pymusicxml", "scamp_extensions"]
 
 for package_name in packages:
@@ -42,21 +50,34 @@ for package_name in packages:
 
     module_names = ""
     sub_package_names = ""
-    for module in pkgutil.iter_modules(package.__path__):
+    api_names = ""
+
+    for module_or_subpackage in pkgutil.iter_modules(package.__path__):
         # skip protected modules and subpackages (for now, the only sub-package is "_thirdparty")
-        if not module.name.startswith("_"):
-            if module.ispkg:
-                sub_package_names += "   {}.{}\n".format(package_name, module.name)
-                packages.append("{}.{}".format(package_name, module.name))
+        if not module_or_subpackage.name.startswith("_"):
+            if module_or_subpackage.ispkg:
+                sub_package_names += "   {}.{}\n".format(package_name, module_or_subpackage.name)
+                packages.append("{}.{}".format(package_name, module_or_subpackage.name))
             else:
-                module_names += "   {}.{}\n".format(package_name, module.name)
+                module_names += "   {}.{}\n".format(package_name, module_or_subpackage.name)
+
+    api_name_paths = []
+    for x in package.__dict__:
+        if not x.startswith("_"):
+            if inspect.getmodule(package.__dict__[x]) and not isinstance(package.__dict__[x], ModuleType):
+                api_name_paths.append(inspect.getmodule(package.__dict__[x]).__name__ + "." + x)
+    if len(api_name_paths) > 0:
+        api_name_paths.sort()
+        api_names = "   ~" + "\n   ~".join(x for x in api_name_paths)
 
     modules_string = modules_template.format(package_name=package_name, module_names=module_names) \
         if len(module_names) > 0 else ""
     subpackages_string = subpackages_template.format(package_name=package_name, subpackage_names=sub_package_names) \
         if len(sub_package_names) > 0 else ""
+    api_string = api_template.format(api_names=api_names) if len(api_names) > 0 else ""
 
     with open(package_name + ".rst", "w") as file:
         file.write(
-            template.format(package_name=package_name, subpackages=subpackages_string, modules=modules_string)
+            template.format(package_name=package_name, subpackages=subpackages_string,
+                            modules=modules_string, api=api_string)
         )

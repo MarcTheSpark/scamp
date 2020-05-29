@@ -479,7 +479,7 @@ class MeasureQuantizationScheme:
 
 class QuantizationScheme:
     """
-    Scheme for quantizing a :class:`scamp.performance.PerformancePart` or :class:`scamp.performance.Performance`
+    Scheme for quantizing a :class:`~scamp.performance.PerformancePart` or :class:`~scamp.performance.Performance`
 
     :param measure_schemes: list of MeasureQuantizationSchemes to use
     :param loop: if True, loops through the list of MeasureQuantizationSchemes; if False, keeps reusing the last
@@ -642,7 +642,7 @@ QuantizedMeasure.__doc__ = """Record of how a measure was quantized (named tuple
 
 class QuantizationRecord(SavesToJSON):
     """
-    Record of how a :class:`scamp.performance.PerformancePart` was quantized.
+    Record of how a :class:`~scamp.performance.PerformancePart` was quantized.
 
     :param quantized_measures: list of quantized measures
     :ivar quantized_measures: list of quantized measures

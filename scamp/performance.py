@@ -1,8 +1,8 @@
 """
 Module containing the :class:`PerformanceNote`, :class:`PerformancePart`, and :class:`Performance` classes, which
-represent transcriptions of notes played by a group of :class:`scamp.instruments.ScampInstrument` objects. These classes
-contain continuous time, pitch, volume, and other parameter data, which can then be quantized and converted into the
-notation-based classes in the score module.
+represent transcriptions of notes played by a group of :class:`~scamp.instruments.ScampInstrument` objects. These
+classes contain continuous time, pitch, volume, and other parameter data, which can then be quantized and converted
+into the notation-based classes in the score module.
 """
 
 import bisect
@@ -26,7 +26,7 @@ from typing import Union, Sequence, Tuple, Iterator, Callable
 @total_ordering
 class PerformanceNote(SavesToJSON):
     """
-    Represents a single note played by a :class:`scamp.instruments.ScampInstrument`.
+    Represents a single note played by a :class:`~scamp.instruments.ScampInstrument`.
 
     :param start_beat: the start beat of the note
     :param length: the length of the note in beats (either a float or a tuple of floats representing tied segments)
@@ -355,7 +355,7 @@ class PerformanceNote(SavesToJSON):
 class PerformancePart(SavesToJSON):
 
     """
-    Transcription of the notes played by a single :class:`scamp.instruments.ScampInstrument`.
+    Transcription of the notes played by a single :class:`~scamp.instruments.ScampInstrument`.
     Can be saved to and loaded from a json file and played back on a clock.
 
     :param instrument: the ScampInstrument associated with this part; used for playback
@@ -746,8 +746,8 @@ class Performance(SavesToJSON):
 
     """
     Representation of note playback events, usually a transcription of the notes played by an
-    :class:`scamp.instruments.Ensemble`. Operates in continuous time, without regard to any particular way of notating
-    it. (As opposed to a :class:`scamp.score.Score`, which represents the notated music.)
+    :class:`~scamp.instruments.Ensemble`. Operates in continuous time, without regard to any particular way of notating
+    it. (As opposed to a :class:`~scamp.score.Score`, which represents the notated music.)
 
     :param parts: list of parts (:class:`PerformancePart` objects) to start with (defaults to empty list)
     :param tempo_envelope: a tempo_envelope to associate with this performance

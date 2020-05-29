@@ -2,7 +2,7 @@
 Module containing user-facing playback classes: :class:`Ensemble`, :class:`ScampInstrument`, and :class:`NoteHandle`/
 :class:`ChordHandle`
 
-The underlying implementation of playback is done by :class:`scamp.playback_implementations.PlaybackImplementation` and
+The underlying implementation of playback is done by :class:`~scamp.playback_implementations.PlaybackImplementation` and
 all of its subclasses, which are found in playback_implementations.py.
 """
 
@@ -15,7 +15,8 @@ from ._note_properties import NotePropertiesDictionary
 from .playback_implementations import PlaybackImplementation, SoundfontPlaybackImplementation, \
     MIDIStreamPlaybackImplementation, OSCPlaybackImplementation
 from scamp.utilities import iterate_all_subclasses
-from clockblocks import current_clock, Clock, ClockKilledException, TimeStamp, wait
+from clockblocks.utilities import wait
+from clockblocks.clock import current_clock, Clock, ClockKilledException, TimeStamp
 from expenvelope import EnvelopeSegment
 import logging
 import time
@@ -29,12 +30,12 @@ class Ensemble(SavesToJSON):
 
     """
     Host for multiple :class:`ScampInstrument` objects, keeping shared resources, and shared default settings.
-    A :class:`scamp.session.Session` is, among other things, an Ensemble.
+    A :class:`~scamp.session.Session` is, among other things, an Ensemble.
 
     :param default_audio_driver: value to initialize default_audio_driver instance variable to
     :param default_soundfont: value to initialize default_soundfont instance variable to
     :param default_midi_output_device: value to initialize default_midi_output_device instance variable to
-    :param default_spelling_policy: a :class:`scamp.spelling.SpellingPolicy` (or a string or tuple interpretable as
+    :param default_spelling_policy: a :class:`~scamp.spelling.SpellingPolicy` (or a string or tuple interpretable as
         such) to use for all instruments in this ensemble, overriding scamp defaults.
     :param instruments: list of instruments to populate this ensemble with. NOTE: generally it is not a good idea
         to initialize an Ensemble with this argument, but better to use the new_part methods after the fact. This is

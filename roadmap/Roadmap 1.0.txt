@@ -2,6 +2,10 @@ Documentation:
     - Basic Tutorial, intermixing the examples in the tutorial directory with text
     - Maybe make a multi-tempo example that doesn't have nested tempi first.
 
+Testing:
+    - Look into unittests
+    - Create a way of testing all the examples without having to wait for them.
+
 Playback:
     - Can we put chords on the same clock??
 

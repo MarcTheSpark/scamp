@@ -140,7 +140,7 @@ class PlaybackSettings(_ScampSettings):
         prefixes we will use for them. For instance, if you want start note messages to use "note_on", set the
         osc_message_addresses["start_note"] = "note_on", and all OSC messages starting a note will come out as
         [instrument name]/note_on/
-    :ivar adjustments: a :class:`scamp.playback_adjustments.PlaybackAdjustmentsDictionary` defining how playback should
+    :ivar adjustments: a :class:`~scamp.playback_adjustments.PlaybackAdjustmentsDictionary` defining how playback should
         be altered in response to different articulations/notations/etc.
     :ivar try_system_fluidsynth_first: if True, always tries system copy of the fluidsynth libraries first before using
         the one embedded in the scamp package.
@@ -230,9 +230,9 @@ class QuantizationSettings(_ScampSettings):
         values.)
     :ivar max_divisor: int representing the default maximum divisor allowed for a beat
     :ivar max_divisor_indigestibility: float representing the default cap on the indigestibility of beat divisors. (See
-        :class:`scamp.quantization.BeatQuantizationScheme`)
+        :class:`~scamp.quantization.BeatQuantizationScheme`)
     :ivar simplicity_preference: float representing the default degree of preference for simple beat divisors. (See
-        :class:`scamp.quantization.BeatQuantizationScheme`)
+        :class:`~scamp.quantization.BeatQuantizationScheme`)
     :ivar default_time_signature: string (e.g. "4/4") representing the default time signature to use when one is not
         specified.
     """

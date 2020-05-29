@@ -8,18 +8,18 @@ Easy Setup on MacOS
 -------------------
 
 The easiest way to get setup with SCAMP and Python on MacOS, is to download `a custom version of the Thonny Python
-editor with all of the SCAMP libraries pre-installed <https://marcevanstein.ddns.net/s/6kxBSxGrtxjAyCw>`_. (Thonny is a
+editor with all of the SCAMP libraries pre-installed <https://marcevanstein.ddns.net/s/6kxBSxGrtxjAyCw>`__. (Thonny is a
 simple development environment designed specifically for beginners. You can read more about it
-`here <https://thonny.org/>`_.)
+`here <https://thonny.org/>`__.)
 
-After installing the Thonny/SCAMP bundle, the next step is to `download and install LilyPond <http://lilypond.org>`_.
+After installing the Thonny/SCAMP bundle, the next step is to `download and install LilyPond <http://lilypond.org>`__.
 Place the installed copy of LilyPond in the Applications directory so that SCAMP can find it.
 
 ..  note::
 
     If you are running MacOS Catalina 10.15 (or future versions), the current official release of LilyPond will not work
     for you, since it is a 32-bit application, and Catalina abandons 32-bit support. However, you can download an
-    experimental 64-bit build `here <https://marcevanstein.ddns.net/s/jZpXE3ZBY5add3G>`_.
+    experimental 64-bit build `here <https://marcevanstein.ddns.net/s/jZpXE3ZBY5add3G>`__.
 
 This video provides a step-by-step walk-through of the installation process:
 
@@ -41,7 +41,7 @@ Setting up SCAMP on Linux involves four very simple steps:
 Installing Thonny
 ~~~~~~~~~~~~~~~~~
 
-Instructions for installing Thonny on Linux can be found at `<https://thonny.org/>`_. One good approach is to open a
+Instructions for installing Thonny on Linux can be found at `<https://thonny.org/>`__. One good approach is to open a
 terminal window and type:
 
 .. code::
@@ -88,7 +88,7 @@ distros, simply open a terminal and type:
     sudo apt install lilypond
 
 If you want the most up-to-date version, however, you can also follow the instructions on
-`the LilyPond website <https://lilypond.org/unix.html>`_.
+`the LilyPond website <https://lilypond.org/unix.html>`__.
 
 Testing it Out
 ~~~~~~~~~~~~~~
@@ -115,7 +115,8 @@ If you're new to Python, the easiest way to get up and running with SCAMP on Win
 Installing Thonny
 ~~~~~~~~~~~~~~~~~
 
-To install Thonny, simply go to `the Thonny website <https://thonny.org/>`_ and download and run the Windows installer. You may run into an issue with Windows Defender not trusting the installer; just click "More info" and
+To install Thonny, simply go to `the Thonny website <https://thonny.org/>`__ and download and run the Windows installer.
+You may run into an issue with Windows Defender not trusting the installer; just click "More info" and
 "Run anyway":
 
 +-------+-------+
@@ -141,7 +142,8 @@ From inside scamp, go to the `Tools` menu and select `Manage Packages...`
    :width: 70%
    :align: center
 
-In the dialog that opens, type "scamp" into the textbox and click "Find package from PyPI". PyPI is an online repository of Python libraries from which SCAMP can be downloaded and installed. Click the "Install" button:
+In the dialog that opens, type "scamp" into the textbox and click "Find package from PyPI". PyPI is an online repository
+of Python libraries from which SCAMP can be downloaded and installed. Click the "Install" button:
 
 .. image:: WindowsInstallSCAMP.png
    :width: 70%
@@ -159,7 +161,10 @@ After having installed SCAMP, search for and install the following packages, upo
 Installing LilyPond
 ~~~~~~~~~~~~~~~~~~~
 
-One of the tools that SCAMP uses to produce music notation is a marvelous piece of free and open source music notation software called LilyPond. Download and install LilyPond from `the LilyPond website <http://lilypond.org/windows.html>`_. You may see an unnerving dialog about allowing and "unknown publisher to make changes". Just click yes and proceed with the installation:
+One of the tools that SCAMP uses to produce music notation is a marvelous piece of free and open source music notation
+software called LilyPond. Download and install LilyPond from `the LilyPond website <http://lilypond.org/windows.html>`__.
+You may see an unnerving dialog about allowing and "unknown publisher to make changes". Just click yes and proceed with
+the installation:
 
 .. image:: WindowsLilypondUnnerving.png
    :width: 70%

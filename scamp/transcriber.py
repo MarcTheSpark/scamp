@@ -1,5 +1,5 @@
 """Module containing the :class:`Transcriber` class which records the playback of a group of
-:class:`scamp.instruments.ScampInstrument` objects to create a :class:`scamp.performance.Performance`"""
+:class:`~scamp.instruments.ScampInstrument` objects to create a :class:`~scamp.performance.Performance`"""
 
 from .performance import Performance
 from expenvelope import Envelope
@@ -10,7 +10,7 @@ from typing import Union, Sequence
 
 class Transcriber:
     """
-    Class responsible for transcribing notes played by instruments into a :class:`scamp.performance.Performance`.
+    Class responsible for transcribing notes played by instruments into a :class:`~scamp.performance.Performance`.
     It is possible to run multiple transcriptions simultaneously, for instance starting at different times,
     recording different instruments, or recording relative to different clocks.
     """
