@@ -222,7 +222,6 @@ class SpellingPolicy(SavesToJSON):
 
         :param midi_num: a MIDI pitch value
         """
-        from . import pymusicxml
         name, octave, alteration = self.resolve_name_octave_and_alteration(midi_num)
         return pymusicxml.Pitch(name.upper(), octave, alteration)
 

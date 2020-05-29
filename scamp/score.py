@@ -14,7 +14,7 @@ from ._engraving_translations import length_to_note_type, get_xml_notehead, get_
     articulation_to_xml_element_name, notations_to_xml_notations_element
 from ._note_properties import NotePropertiesDictionary
 import pymusicxml
-from pymusicxml.music_xml_objects import _XMLNote
+from pymusicxml.music_xml_objects import _XMLNote, MusicXMLComponent
 from ._dependencies import abjad
 import math
 from fractions import Fraction
@@ -486,7 +486,7 @@ stemless = {
         pass
 
     @abstractmethod
-    def to_music_xml(self) -> pymusicxml.MusicXMLComponent:
+    def to_music_xml(self) -> MusicXMLComponent:
         """
         Convert this score component to its corresponding pymusicxml component
         """
