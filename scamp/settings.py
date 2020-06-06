@@ -8,6 +8,7 @@ scamp package. These instances are part of the global scamp namespace, and conta
 from types import SimpleNamespace
 from .utilities import resolve_relative_path, SavesToJSON
 from .playback_adjustments import PlaybackAdjustmentsDictionary, NotePlaybackAdjustment
+from expenvelope.envelope import Envelope
 from . import spelling
 import logging
 import json
@@ -136,6 +137,12 @@ class PlaybackSettings(_ScampSettings):
         synthesizer/program, instruments will be immediately set to use this value for the maximum pitch bend. (Makes
         sense probably to leave this at the MIDI default of 2 semitones, in case the receiving device doesn't listen
         to messages that reset the pitch bend range.)
+    :ivar soundfont_volume_to_velocity_curve: an :class:`~expenvelope.envelope.Envelope` defining how volume values get
+        mapped to MIDI velocities in soundfont-based playback. The default maps the range 0-1 to the range 0-127, but
+        with some non-linear shaping towards higher velocity values. This is because, for some reason, soundfont
+        playback is almost inaudible low velocities.
+    :ivar streaming_midi_volume_to_velocity_curve: same as ``soundfont_volume_to_velocity_curve``, but for streaming
+        MIDI playback. This defaults to a linear mapping from 0-1 to 0-127.
     :ivar osc_message_addresses: Dictionary mapping the different kinds of playback messages to the OSC messages
         prefixes we will use for them. For instance, if you want start note messages to use "note_on", set the
         osc_message_addresses["start_note"] = "note_on", and all OSC messages starting a note will come out as
@@ -156,6 +163,8 @@ class PlaybackSettings(_ScampSettings):
         "default_midi_output_device": None,
         "default_max_soundfont_pitch_bend": 48,
         "default_max_streaming_midi_pitch_bend": 2,
+        "soundfont_volume_to_velocity_curve": Envelope.from_points((0, 0), (0.1, 40), (1, 127)),
+        "streaming_midi_volume_to_velocity_curve": Envelope.from_points((0, 0), (1, 127)),
         "osc_message_addresses": {
             "start_note": "start_note",
             "end_note": "end_note",
@@ -181,7 +190,8 @@ class PlaybackSettings(_ScampSettings):
         # This is here to help with auto-completion so that the IDE knows what attributes are available
         self.named_soundfonts = self.default_soundfont = self.default_audio_driver = \
             self.default_midi_output_device = self.default_max_soundfont_pitch_bend = \
-            self.default_max_streaming_midi_pitch_bend = self.osc_message_addresses = \
+            self.default_max_streaming_midi_pitch_bend = self.soundfont_volume_to_velocity_curve = \
+            self.streaming_midi_volume_to_velocity_curve = self.osc_message_addresses = \
             self.adjustments = self.try_system_fluidsynth_first = None
         super().__init__(settings_dict)
         assert isinstance(self.adjustments, PlaybackAdjustmentsDictionary)

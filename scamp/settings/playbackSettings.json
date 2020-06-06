@@ -50,5 +50,23 @@
         "end_note": "end_note",
         "start_note": "start_note"
     },
+    "soundfont_volume_to_velocity_curve": {
+        "durations": [
+            0.1,
+            0.9
+        ],
+        "levels": [
+            0,
+            40,
+            127
+        ]
+    },
+    "streaming_midi_volume_to_velocity_curve": {
+        "length": 1,
+        "levels": [
+            0,
+            127
+        ]
+    },
     "try_system_fluidsynth_first": false
 }

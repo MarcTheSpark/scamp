@@ -630,7 +630,7 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
         if self.max_pitch_bend != 2:
             self.set_max_pitch_bend(self.max_pitch_bend)
         rt_simple_out, chan = self._get_rt_simple_out_and_channel(chan)
-        velocity = max(0, min(127, int(velocity_from_0_to_1 * 127)))
+        velocity = int(playback_settings.streaming_midi_volume_to_velocity_curve.value_at(velocity_from_0_to_1))
         rt_simple_out.note_on(chan, pitch, velocity)
 
     def note_off(self, chan: int, pitch: int):

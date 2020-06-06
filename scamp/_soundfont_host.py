@@ -153,7 +153,7 @@ class SoundfontInstrument:
             self.soundfont_host.synth.program_select(i, self.soundfont_id, bank, preset)
 
     def note_on(self, chan, pitch, volume_from_0_to_1):
-        velocity = max(0, min(127, int(volume_from_0_to_1 * 127)))
+        velocity = int(playback_settings.soundfont_volume_to_velocity_curve.value_at(volume_from_0_to_1))
         absolute_channel = self.channels[chan]
         self.soundfont_host.synth.noteon(absolute_channel, pitch, velocity)
 
