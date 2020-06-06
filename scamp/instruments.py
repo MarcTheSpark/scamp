@@ -468,7 +468,7 @@ class ScampInstrument(SavesToJSON):
             note_handle.end()
             raise e
 
-    def play_chord(self, pitches: Sequence, volume, length, properties: dict = None, blocking: bool = True,
+    def play_chord(self, pitches: Sequence, volume, length, properties: Union[str, dict] = None, blocking: bool = True,
                    clock: Clock = None) -> None:
         """
         Play a chord with the given pitches, volume, and length. Essentially, this is a convenience method that

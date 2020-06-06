@@ -587,11 +587,11 @@ class EngravingSettings(_ScampSettings):
         return value
 
 
-#: Instance of PlaybackSettings containing the actual playback defaults that are consulted
+#: Instance of :class:`~scamp.settings.PlaybackSettings` containing the actual playback defaults to be consulted
 playback_settings: PlaybackSettings = PlaybackSettings.load()
-#: Instance of QuantizationSettings containing the actual quantization defaults that are consulted
+#: Instance of :class:`~scamp.settings.QuantizationSettings` containing the actual quantization defaults to be consulted
 quantization_settings: QuantizationSettings = QuantizationSettings.load()
-#: Instance of EngravingSettings containing the actual engraving defaults that are consulted
+#: Instance of :class:`~scamp.settings.EngravingSettings` containing the actual engraving defaults to be consulted
 engraving_settings: EngravingSettings = EngravingSettings.load()
 
 

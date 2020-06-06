@@ -45,6 +45,14 @@ api_template = """.. rubric:: Public-Facing API (result of `import *`):
 
 packages = ["scamp", "clockblocks", "expenvelope", "pymusicxml", "scamp_extensions"]
 
+# these are here, because some extension modules are actually just re-imports of protected scamp modules
+# so when we inspect the import path of the objects they lead to the wrong place
+api_name_path_replacements = {
+    "scamp._metric_structure.MeterArithmeticGroup": "scamp_extensions.rhythm.metric_structure.MeterArithmeticGroup",
+    "scamp._metric_structure.MetricStructure": "scamp_extensions.rhythm.metric_structure.MetricStructure",
+}
+
+
 for package_name in packages:
     package = importlib.import_module(package_name)
 
@@ -65,7 +73,10 @@ for package_name in packages:
     for x in package.__dict__:
         if not x.startswith("_"):
             if inspect.getmodule(package.__dict__[x]) and not isinstance(package.__dict__[x], ModuleType):
-                api_name_paths.append(inspect.getmodule(package.__dict__[x]).__name__ + "." + x)
+                api_name_path = inspect.getmodule(package.__dict__[x]).__name__ + "." + x
+                if api_name_path in api_name_path_replacements:
+                    api_name_path = api_name_path_replacements[api_name_path]
+                api_name_paths.append(api_name_path)
     if len(api_name_paths) > 0:
         api_name_paths.sort()
         api_names = "   ~" + "\n   ~".join(x for x in api_name_paths)
