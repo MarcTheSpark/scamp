@@ -9,23 +9,32 @@ ABJAD_MINIMUM_VERSION = "3.1"
 try:
     if playback_settings.try_system_fluidsynth_first:
         # first choice: import using an installed version of pyfluidsynth
+        logging.debug("Trying to load system copy of pyfluidsynth.")
         import fluidsynth
     else:
         # first choice: use the use the local, tweaked copy of pyfluidsynth (which will also try to
         # load up a local copy of the fluidsynth dll on Windows or dylib on MacOS)
+        logging.debug("Trying to copy of pyfluidsynth from within SCAMP package.")
         from ._thirdparty import fluidsynth
+    logging.debug("Loading of pyfluidsynth succeeded.")
 except (ImportError, AttributeError):
-    if playback_settings.try_system_fluidsynth_first:
-        # second choice: use the use the local, tweaked copy of pyfluidsynth (which will also try to
-        # load up a local copy of the fluidsynth dll on Windows or dylib on MacOS)
-        from ._thirdparty import fluidsynth
-    else:
-        # second choice: import using an installed version of pyfluidsynth
-        import fluidsynth
-except (ImportError, AttributeError):
-    # if we're here, it's probably because fluidsynth wasn't installed
-    fluidsynth = None
-    logging.warning("Fluidsynth could not be loaded; synth output will not be available.")
+    logging.debug("Loading of pyfluidsynth failed.")
+    try:
+        if playback_settings.try_system_fluidsynth_first:
+            # second choice: use the use the local, tweaked copy of pyfluidsynth (which will also try to
+            # load up a local copy of the fluidsynth dll on Windows or dylib on MacOS)
+            logging.debug("Trying to copy of pyfluidsynth from within SCAMP package.")
+            from ._thirdparty import fluidsynth
+        else:
+            # second choice: import using an installed version of pyfluidsynth
+            logging.debug("Trying to load system copy of pyfluidsynth.")
+            import fluidsynth
+        logging.debug("Loading of pyfluidsynth succeeded.")
+    except (ImportError, AttributeError):
+        # if we're here, it's probably because fluidsynth wasn't installed
+        logging.debug("Loading of pyfluidsynth failed again.")
+        fluidsynth = None
+        logging.warning("Fluidsynth could not be loaded; synth output will not be available.")
 
 if fluidsynth is not None and playback_settings.default_audio_driver == "auto":
     print("Testing for working audio driver...")

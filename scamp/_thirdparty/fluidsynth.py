@@ -23,6 +23,7 @@ from ctypes.util import find_library
 import platform
 import os
 from ..settings import playback_settings
+import logging
 
 # Python2-3 compatibility hack
 try:
@@ -32,6 +33,7 @@ except NameError:
 
 
 def _try_to_load_local_fl_library():
+    logging.debug("Trying to load fluidsynth DLL/DYLIB from within SCAMP.")
     out = None
     try:
         if platform.system() == "Darwin":
@@ -39,19 +41,38 @@ def _try_to_load_local_fl_library():
         elif platform.system() == "Windows":
             try:
                 out = CDLL(os.path.join(os.path.dirname(__file__), "libfluidsynth64.dll"))
-            except OSError:
+            except OSError as e:
+                logging.debug("Encountered error during load of 64-bit library: '{}'".format(str(e)))
+                logging.debug("Trying to load 32-bit library.")
                 out = CDLL(os.path.join(os.path.dirname(__file__), "libfluidsynth.dll"))
+        else:
+            logging.debug("No local copy (not on mac or windows).")
+    except OSError as e:
+        logging.debug("Encountered error during load: '{}'".format(str(e)))
     finally:
+        if out is None:
+            logging.debug("Loading of SCAMP's copy of fluidsynth DLL/DYLIB failed.")
+        else:
+            logging.debug("Loading of SCAMP's copy of fluidsynth DLL/DYLIB succeeded.")
         return out
 
 
 def _try_to_load_system_fl_library():
+    logging.debug("Trying to load system copy of fluidsynth DLL/DYLIB.")
     lib = find_library('fluidsynth') or \
           find_library('libfluidsynth') or \
           find_library('libfluidsynth-1')
     if lib is not None:
-        return CDLL(lib)
+        logging.debug("Found a system copy at '{}'".format(lib))
+        try:
+            out = CDLL(lib)
+        except OSError as e:
+            logging.debug("Encountered error during load: '{}'".format(str(e)))
+            return None
+        logging.debug("System copy of fluidsynth DLL/DYLIB loaded successfully.")
+        return out
     else:
+        logging.debug("Could not find system copy of fluidsynth DLL/DYLIB.")
         return None
 
 
