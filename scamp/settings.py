@@ -34,14 +34,7 @@ class _ScampSettings(SimpleNamespace, SavesToJSON):
             settings_arguments = {}
             for key in set(settings_dict.keys()).union(set(self.factory_defaults.keys())):
                 if key in settings_dict and key in self.factory_defaults:
-                    # there is both an explicitly given setting and a factory default
-                    if isinstance(self.factory_defaults[key], SavesToJSON):
-                        # if the factory default is a custom scamp class that serializes to or from json (including
-                        # another _ScampSettings derivative), then we use that class's "_from_json" method to load it
-                        settings_arguments[key] = type(self.factory_defaults[key])._from_json(settings_dict[key])
-                    else:
-                        # otherwise it should just be a simple json-friendly piece of data
-                        settings_arguments[key] = settings_dict[key]
+                    settings_arguments[key] = settings_dict[key]
                 elif key in settings_dict:
                     # there is no factory default for this key, which really shouldn't happen
                     # it suggests someone added something to the json file that shouldn't be there
@@ -81,11 +74,11 @@ class _ScampSettings(SimpleNamespace, SavesToJSON):
         """
         return cls({})
 
-    def _to_json(self):
-        return {key: value._to_json() if hasattr(value, "_to_json") else value for key, value in vars(self).items()}
+    def _to_dict(self):
+        return {k: v for k, v in vars(self).items()}
 
     @classmethod
-    def _from_json(cls, json_object):
+    def _from_dict(cls, json_object):
         return cls(json_object)
 
     @classmethod
@@ -445,7 +438,7 @@ class EngravingSettings(_ScampSettings):
             "DEFAULT": ["treble", "bass"]
         },
         "clef_pitch_centers": {
-            "bass": 50,
+            "bass": 48,
             "tenor": 57,
             "alto": 60,
             "treble": 71,

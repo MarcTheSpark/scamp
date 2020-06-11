@@ -9,7 +9,7 @@ import math
 import itertools
 import functools
 from typing import Iterator, Type, Callable, List, Sequence, Tuple, Union, TypeVar
-from expenvelope._utilities import SavesToJSON
+from expenvelope.json_serializer import SavesToJSON, SavesToJSONMeta
 
 
 # ------------------------------------------- General Utilities ---------------------------------------------

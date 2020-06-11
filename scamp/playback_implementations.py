@@ -11,15 +11,24 @@ from ._soundfont_host import SoundfontHost
 from . import instruments as instruments_module
 from clockblocks import fork_unsynchronized
 import time
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 import atexit
 from ._dependencies import pythonosc
 from typing import Tuple, Optional
 import logging
 from .settings import playback_settings
+from .utilities import SavesToJSON, SavesToJSONMeta
 
 
-class PlaybackImplementation(ABC):
+class _PlaybackImplementationMeta(SavesToJSONMeta):
+
+    def __call__(cls, *args, **kwargs):
+        instance = super().__call__(*args, **kwargs)
+        instance._try_to_bind_host_instrument()
+        return instance
+
+
+class PlaybackImplementation(SavesToJSON, metaclass=_PlaybackImplementationMeta):
 
     """
     Abstract base class for playback implementations, which do the actual work of playback, either by playing sounds or
@@ -31,13 +40,42 @@ class PlaybackImplementation(ABC):
     """
 
     def __init__(self, host_instrument: 'instruments_module.ScampInstrument'):
-        # these get populated when the PlaybackImplementation is registered
-        self._host_instrument = host_instrument
-        self._note_info_dict = host_instrument._note_info_by_id
-        host_instrument.playback_implementations.append(self)
         # this is a fallback: if the instrument does not belong to an ensemble, it does not have
         # shared resources and so it will rely on its own privately held resources.
         self._resources = None
+        self._host_instrument = host_instrument
+        # This are set when the host instrument is set
+        self._note_info_dict = None
+
+    def _try_to_bind_host_instrument(self):
+        if self._host_instrument is not None:
+            self.set_host_instrument(self._host_instrument)
+
+    def set_host_instrument(self, host_instrument: 'instruments_module.ScampInstrument'):
+        """
+        Sets the host instrument for this PlaybackImplementation. Ordinarily, the host instrument is supplied as an
+        argument to the `__init__` method, which then automatically calls this method. However, it is also possible
+        to pass the value None to the host instrument argument initially and later set it with this method.
+
+        :param host_instrument: The :class:`~scamp.instruments.ScampInstrument` that will use this playback
+            implementation for playback. This PlaybackImplementation will be added to the host instrument's
+            `playback_implementations` attribute.
+        """
+        # these get populated when the PlaybackImplementation is registered
+        self._host_instrument = host_instrument
+        self._note_info_dict = host_instrument._note_info_by_id
+        if self not in host_instrument.playback_implementations:
+            host_instrument.playback_implementations.append(self)
+        self._initialize_shared_resources()
+
+    def _initialize_shared_resources(self):
+        """
+        Called right after this PlaybackImplementation has been attached to a host instrument. Any initialization that
+        relies upon setting and accessing shared ensemble resources needs to happen here.
+        If a host instrument is passed to the constructor, this will happen at the end of the PlaybackImplementation
+        constructor; otherwise it will happen when :func:`set_host_instrument` is called.
+        """
+        pass
 
     """
     Methods for storing and accessing shared resources for the ensemble. 
@@ -51,6 +89,9 @@ class PlaybackImplementation(ABC):
         instance of fluidsynth (and therefore SoundfontHost) needs to be running for all instruments in the ensemble,
         so this is a way of pooling that resource.
         """
+        if self._host_instrument is None:
+            raise RuntimeError("PlaybackImplementation was never attached to a host instrument. "
+                               "Cannot access resources.")
         if self._host_instrument.ensemble is None:
             # if this instrument is not part of an ensemble, it can't really have shared resources
             # instead, it creates a local resources dictionary and uses that
@@ -160,19 +201,8 @@ class PlaybackImplementation(ABC):
         """
         pass
 
-    @abstractmethod
-    def _to_json(self):
-        pass
 
-    @abstractmethod
-    def _from_json(self, json_object, host_instrument):
-        # PlaybackImplementations implement a version of _from_json that requires us to pass the host instrument
-        # this avoids the circularity of the host instrument containing references to the playback implementations
-        # and the playback implementations containing a reference to the host instrument
-        pass
-
-
-class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
+class _MIDIPlaybackImplementation(PlaybackImplementation):
 
     """
     This is the abstract base class for playback implementations that use the MIDI protocol.
@@ -192,13 +222,12 @@ class _MIDIPlaybackImplementation(PlaybackImplementation, ABC):
         the same MIDI channels, only using an extra one due to microtonality.
     """
 
-    def __init__(self, host_instrument: 'instruments_module.ScampInstrument', num_channels: int = 8,
+    def __init__(self, host_instrument: 'instruments_module.ScampInstrument' = None, num_channels: int = 8,
                  note_on_and_off_only: bool = False):
         super().__init__(host_instrument)
         self.note_on_and_off_only = note_on_and_off_only
         self.num_channels = num_channels
         self.ringing_notes = []
-
     # -------------------------- Abstract methods to be implemented by subclasses--------------
 
     @abstractmethod
@@ -503,29 +532,31 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
     def __init__(self, host_instrument: 'instruments_module.ScampInstrument', bank_and_preset: Tuple[int, int] = (0, 0),
                  soundfont: str = "default", num_channels: int = 8, audio_driver: str = "default",
                  max_pitch_bend: int = "default", note_on_and_off_only: bool = False):
-
         super().__init__(host_instrument, num_channels, note_on_and_off_only)
 
         # we hold onto these arguments for the purposes of json serialization
         # note that if the audio_driver said "default", then we save it as "default",
         # rather than what that default resolved to.
-        self.num_channels = num_channels
         self.audio_driver = audio_driver
+        self.bank_and_preset = bank_and_preset
 
-        audio_driver = playback_settings.default_audio_driver if audio_driver == "default" else audio_driver
+        self.max_pitch_bend = max_pitch_bend
         self.soundfont = playback_settings.default_soundfont if soundfont == "default" else soundfont
+        # these are setup by the `_initialize_shared_resources` function
+        self.soundfont_host = self.soundfont_instrument = None
+
+    def _initialize_shared_resources(self):
+        audio_driver = playback_settings.default_audio_driver if self.audio_driver == "default" else self.audio_driver
         soundfont_host_resource_key = "{}_soundfont_host".format(audio_driver)
         if not self.has_shared_resource(soundfont_host_resource_key):
             self.set_shared_resource(soundfont_host_resource_key, SoundfontHost(self.soundfont, audio_driver))
         self.soundfont_host = self.get_shared_resource(soundfont_host_resource_key)
         if self.soundfont not in self.soundfont_host.soundfont_ids:
             self.soundfont_host.load_soundfont(self.soundfont)
-        self.soundfont_instrument = self.soundfont_host.add_instrument(num_channels, bank_and_preset, self.soundfont)
-
-        self.bank_and_preset = bank_and_preset
-        self.max_pitch_bend = None
+        self.soundfont_instrument = self.soundfont_host.add_instrument(self.num_channels, self.bank_and_preset,
+                                                                       self.soundfont)
         self.set_max_pitch_bend(playback_settings.default_max_soundfont_pitch_bend
-                                if max_pitch_bend == "default" else max_pitch_bend)
+                                if self.max_pitch_bend == "default" else self.max_pitch_bend)
 
     # -------------------------------- Main Playback Methods --------------------------------
 
@@ -548,21 +579,18 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
     def cc(self, chan: int, cc_number: int, value_from_0_to_1: float):
         self.soundfont_instrument.cc(chan, cc_number, value_from_0_to_1)
 
-    def _to_json(self):
+    def _to_dict(self):
         return {
-            "type": "SoundfontPlaybackImplementation",
-            "args": {
-                "bank_and_preset": self.bank_and_preset,
-                "soundfont": self.soundfont,
-                "num_channels": self.num_channels,
-                "audio_driver": self.audio_driver,
-                "max_pitch_bend": self.max_pitch_bend
-            }
+            "bank_and_preset": self.bank_and_preset,
+            "soundfont": self.soundfont,
+            "num_channels": self.num_channels,
+            "audio_driver": self.audio_driver,
+            "max_pitch_bend": self.max_pitch_bend
         }
 
     @classmethod
-    def _from_json(cls, json_object, host_instrument):
-        return cls(host_instrument, **json_object["args"])
+    def _from_dict(cls, json_dict):
+        return cls(**json_dict, host_instrument=None)
 
 
 class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
@@ -676,20 +704,17 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
         cc_value = max(0, min(127, int(value_from_0_to_1 * 127)))
         rt_simple_out.cc(chan, cc_number, cc_value)
 
-    def _to_json(self):
+    def _to_dict(self):
         return {
-            "type": "MIDIStreamPlaybackImplementation",
-            "args": {
-                "midi_output_device": self.midi_output_device,
-                "num_channels": self.num_channels,
-                "midi_output_name": self.midi_output_name,
-                "max_pitch_bend": self.max_pitch_bend
-            }
+            "midi_output_device": self.midi_output_device,
+            "num_channels": self.num_channels,
+            "midi_output_name": self.midi_output_name,
+            "max_pitch_bend": self.max_pitch_bend
         }
 
     @classmethod
-    def _from_json(cls, json_object, host_instrument):
-        return cls(host_instrument, **json_object["args"])
+    def _from_dict(cls, json_dict):
+        return cls(**json_dict)
 
 
 class OSCPlaybackImplementation(PlaybackImplementation):
@@ -769,17 +794,14 @@ class OSCPlaybackImplementation(PlaybackImplementation):
         """
         pass
 
-    def _to_json(self):
+    def _to_dict(self):
         return {
-            "type": "OSCPlaybackImplementation",
-            "args": {
-                "port": self.port,
-                "ip_address": self.ip_address,
-                "message_prefix": self.message_prefix,
-                "osc_message_addresses": self.osc_message_addresses
-            }
+            "port": self.port,
+            "ip_address": self.ip_address,
+            "message_prefix": self.message_prefix,
+            "osc_message_addresses": self.osc_message_addresses
         }
 
     @classmethod
-    def _from_json(cls, json_object, host_instrument):
-        return cls(host_instrument, **json_object["args"])
+    def _from_dict(cls, json_dict):
+        return cls(**json_dict)

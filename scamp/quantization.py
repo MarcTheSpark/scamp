@@ -132,12 +132,15 @@ class TimeSignature(SavesToJSON):
         else:
             return 4 * self.numerator / self.denominator
 
-    def _to_json(self):
-        return self.numerator, self.denominator
+    def _to_dict(self):
+        return {
+            "numerator": self.numerator,
+            "denominator": self.denominator
+        }
 
     @classmethod
-    def _from_json(cls, json_object):
-        return cls(*json_object)
+    def _from_dict(cls, json_dict):
+        return cls(**json_dict)
 
     def to_abjad(self) -> 'abjad().TimeSignature':
         """
@@ -652,29 +655,22 @@ class QuantizationRecord(SavesToJSON):
     def __init__(self, quantized_measures: Sequence[QuantizedMeasure]):
         self.quantized_measures = quantized_measures
 
-    def _to_json(self):
+    def _to_dict(self):
         quantized_measures_json_friendly = []
         for quantized_measure in self.quantized_measures:
             quantized_measure_as_dict = quantized_measure._asdict()
-            quantized_beats_as_dicts = []
-            for beat in quantized_measure.beats:
-                quantized_beats_as_dicts.append(beat._asdict())
+            quantized_beats_as_dicts = [beat._asdict() for beat in quantized_measure.beats]
             quantized_measure_as_dict["beats"] = quantized_beats_as_dicts
-            quantized_measure_as_dict["time_signature"] = quantized_measure_as_dict["time_signature"]._to_json()
             quantized_measures_json_friendly.append(quantized_measure_as_dict)
         return quantized_measures_json_friendly
 
     @classmethod
-    def _from_json(cls, json_object):
+    def _from_dict(cls, json_dict):
         quantized_measures = []
-        for quantized_measure_as_dict in json_object:
-            quantized_measure_as_dict["time_signature"] = TimeSignature._from_json(
-                quantized_measure_as_dict["time_signature"]
-            )
-            quantized_beats = []
-            for quantized_beat_as_dict in quantized_measure_as_dict["beats"]:
-                quantized_beats.append(QuantizedBeat(**quantized_beat_as_dict))
-            quantized_measure_as_dict["beats"] = quantized_beats
+        for quantized_measure_as_dict in json_dict:
+            quantized_measure_as_dict["beats"] = [
+                QuantizedBeat(**quantized_beat_as_dict) for quantized_beat_as_dict in quantized_measure_as_dict["beats"]
+            ]
             quantized_measures.append(QuantizedMeasure(**quantized_measure_as_dict))
         return cls(quantized_measures)
 

@@ -1,32 +1,39 @@
 {
+    "_type": "PlaybackSettings",
     "adjustments": {
+        "_type": "PlaybackAdjustmentsDictionary",
         "articulations": {
             "accent": {
                 "volume_adjustment": {
+                    "_type": "ParamPlaybackAdjustment",
                     "add": 0,
                     "multiply": 1.2
                 }
             },
             "marcato": {
                 "volume_adjustment": {
+                    "_type": "ParamPlaybackAdjustment",
                     "add": 0,
                     "multiply": 1.5
                 }
             },
             "staccatissimo": {
                 "length_adjustment": {
+                    "_type": "ParamPlaybackAdjustment",
                     "add": 0,
                     "multiply": 0.3
                 }
             },
             "staccato": {
                 "length_adjustment": {
+                    "_type": "ParamPlaybackAdjustment",
                     "add": 0,
                     "multiply": 0.5
                 }
             },
             "tenuto": {
                 "length_adjustment": {
+                    "_type": "ParamPlaybackAdjustment",
                     "add": 0,
                     "multiply": 1.2
                 }
@@ -51,6 +58,7 @@
         "start_note": "start_note"
     },
     "soundfont_volume_to_velocity_curve": {
+        "_type": "Envelope",
         "durations": [
             0.1,
             0.9
@@ -62,6 +70,7 @@
         ]
     },
     "streaming_midi_volume_to_velocity_curve": {
+        "_type": "Envelope",
         "length": 1,
         "levels": [
             0,

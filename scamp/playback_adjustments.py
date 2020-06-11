@@ -7,6 +7,7 @@ from .utilities import SavesToJSON
 from ._engraving_translations import articulation_to_xml_element_name, notehead_name_to_xml_type, \
     notations_to_xml_notations_element
 from typing import Union
+from collections import UserDict
 
 
 def _split_string_at_outer_spaces(s):
@@ -127,12 +128,12 @@ class ParamPlaybackAdjustment(SavesToJSON):
         # you would end up trying to add two Envelopes, which we don't allow
         return self.add if self.multiply == 0 else param_value * self.multiply + self.add
 
-    def _to_json(self):
+    def _to_dict(self):
         return self.__dict__
 
     @classmethod
-    def _from_json(cls, json_object):
-        return cls(**json_object)
+    def _from_dict(cls, json_dict):
+        return cls(**json_dict)
 
     def __repr__(self):
         return "ParamPlaybackAdjustment({}, {})".format(self.multiply, self.add)
@@ -259,22 +260,19 @@ class NotePlaybackAdjustment(SavesToJSON):
                self.volume_adjustment.adjust_value(volume) if self.volume_adjustment is not None else volume, \
                self.length_adjustment.adjust_value(length) if self.length_adjustment is not None else length
 
-    def _to_json(self):
+    def _to_dict(self):
         json_dict = {}
         if self.pitch_adjustment is not None:
-            json_dict["pitch_adjustment"] = self.pitch_adjustment._to_json()
+            json_dict["pitch_adjustment"] = self.pitch_adjustment
         if self.volume_adjustment is not None:
-            json_dict["volume_adjustment"] = self.volume_adjustment._to_json()
+            json_dict["volume_adjustment"] = self.volume_adjustment
         if self.length_adjustment is not None:
-            json_dict["length_adjustment"] = self.length_adjustment._to_json()
+            json_dict["length_adjustment"] = self.length_adjustment
         return json_dict
 
     @classmethod
-    def _from_json(cls, json_object):
-        return cls(**{
-            adjustment_name: ParamPlaybackAdjustment._from_json(json_object[adjustment_name])
-            for adjustment_name in json_object
-        })
+    def _from_dict(cls, json_dict):
+        return cls(**json_dict)
 
     def __repr__(self):
         return "NotePlaybackAdjustment({}, {}, {})".format(
@@ -282,7 +280,7 @@ class NotePlaybackAdjustment(SavesToJSON):
         )
 
 
-class PlaybackAdjustmentsDictionary(dict, SavesToJSON):
+class PlaybackAdjustmentsDictionary(UserDict, SavesToJSON):
 
     """
     Dictionary containing playback adjustments for different articulations, noteheads, and other notations.
@@ -391,22 +389,22 @@ class PlaybackAdjustmentsDictionary(dict, SavesToJSON):
         else:
             raise ValueError("Playback property not found.")
 
-    def _to_json(self):
+    def _to_dict(self):
         return {
-            key: value._to_json() if hasattr(value, "_to_json")
-            else PlaybackAdjustmentsDictionary._to_json(value) if isinstance(value, dict)
+            key: value._to_dict() if hasattr(value, "_to_dict")
+            else PlaybackAdjustmentsDictionary._to_dict(value) if isinstance(value, dict)
             else value for key, value in self.items() if value is not None
         }
 
     @classmethod
-    def _from_json(cls, json_object):
+    def _from_dict(cls, json_dict):
         # convert all adjustments from dictionaries to NotePlaybackAdjustments
-        for notation_category in json_object:
-            for notation_name in json_object[notation_category]:
-                if json_object[notation_category][notation_name] is not None:
-                    json_object[notation_category][notation_name] = \
-                        NotePlaybackAdjustment._from_json(json_object[notation_category][notation_name])
-        return cls(**json_object)
+        for notation_category in json_dict:
+            for notation_name in json_dict[notation_category]:
+                if json_dict[notation_category][notation_name] is not None:
+                    json_dict[notation_category][notation_name] = \
+                        NotePlaybackAdjustment._from_dict(json_dict[notation_category][notation_name])
+        return cls(**json_dict)
 
     def __repr__(self):
         return "PlaybackAdjustmentsDictionary(articulations={}, noteheads={}, notations={})".format(

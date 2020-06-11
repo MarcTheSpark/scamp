@@ -10,6 +10,7 @@ Playback:
     - Can we put chords on the same clock??
 
 Engraving:
+    - Engraving clefs for copies of instrument (second instrument called violin can end up with bass clef)
     - Engraving Microtonal adjustments in both abjad and MusicXML. Might want to make a special lilypond command for
     microtonal annotations? Don't engrave after first part of tied note unless glissando.
     - Engraving tremolo in abjad. Other notations?
@@ -25,5 +26,5 @@ Engraving:
     - Key signatures?
 
 Assorted:
-    - make to and from JSON use a custom encoder and decoder. This requires overriding object_hook in the decoder, and
-    default in the encoder. See: https://stackoverflow.com/questions/48991911/how-to-write-a-custom-json-decoder-for-a-complex-object
+    - Consider cleaning out the playback implementation shit, so that all instruments -- in or outside an ensemble --
+    can share module-level playback resources as far as soundfonts are concerned.

@@ -1,4 +1,5 @@
 {
+    "_type": "QuantizationSettings",
     "default_time_signature": "4/4",
     "inner_split_weighting": 0.75,
     "max_divisor": 8,

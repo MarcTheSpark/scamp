@@ -11,6 +11,7 @@ from clockblocks import Clock, current_clock
 from .utilities import SavesToJSON
 from ._dependencies import pynput, pythonosc
 from threading import Thread, current_thread
+from .spelling import SpellingPolicy
 from typing import Union, Tuple, Iterator, Callable, Sequence
 from .performance import Performance
 import threading
@@ -34,15 +35,15 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
     """
 
     def __init__(self, tempo: float = 60, default_soundfont: str = "default", default_audio_driver: str = "default",
-                 default_midi_output_device: Union[str, int] = "default", max_threads=200):
+                 default_midi_output_device: Union[str, int] = "default",
+                 default_spelling_policy: Union[SpellingPolicy, str, tuple] = None,
+                 instruments: Sequence['ScampInstrument'] = None, max_threads=200):
         Clock.__init__(self, name="MASTER", initial_tempo=tempo, pool_size=max_threads)
         Ensemble.__init__(self, default_soundfont=default_soundfont, default_audio_driver=default_audio_driver,
-                          default_midi_output_device=default_midi_output_device)
+                          default_midi_output_device=default_midi_output_device,
+                          default_spelling_policy=default_spelling_policy, instruments=instruments)
         Transcriber.__init__(self)
 
-        # A policy for spelling notes used as the default for the entire session
-        # Useful if the entire session is in a particular key, for instance
-        self._default_spelling_policy = None
         self._listeners = {"midi": {}, "osc": {}}
 
     def run_as_server(self) -> 'Session':
@@ -364,20 +365,17 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
             self if clock is None else clock, units=units
         )
 
-    def _to_json(self):
-        json_object = Ensemble._to_json(self)
-        json_object["tempo"] = self.tempo
-        return json_object
+    def _to_dict(self):
+        json_dict = Ensemble._to_dict(self)
+        json_dict["tempo"] = self.tempo
+        return json_dict
 
     @classmethod
-    def _from_json(cls, json_dict):
-        json_instruments = json_dict.pop("instruments")
-        default_spelling_policy = json_dict.pop("default_spelling_policy")
+    def _from_dict(cls, json_dict):
         session = cls(**json_dict)
-        session.default_spelling_policy = default_spelling_policy
-        session.instruments = [ScampInstrument._from_json(json_instrument, session)
-                               for json_instrument in json_instruments]
+        for instrument in session.instruments:
+            instrument.set_ensemble(session)
         return session
 
     def __repr__(self):
-        return "Session._from_json({})".format(self._to_json())
+        return "Session._from_dict({})".format(self._to_dict())

@@ -224,18 +224,20 @@ class SpellingPolicy(SavesToJSON):
         name, octave, alteration = self.resolve_name_octave_and_alteration(midi_num)
         return pymusicxml.Pitch(name.upper(), octave, alteration)
 
-    def _to_json(self):
+    def _to_dict(self) -> dict:
         # check to see this SpellingPolicy is identical to one made from one of the following string initializers
         # if so, save it that way instead, for simplicity
         for string_initializer in ("C", "G", "D", "A", "E", "B", "F#", "Db", "Ab", "Eb", "Bb", "F", "b", "#"):
             if self.step_alteration_pairs == SpellingPolicy.from_string(string_initializer).step_alteration_pairs:
-                return string_initializer
+                return {"key": string_initializer}
         # otherwise, save the entire spelling
-        return self.step_alteration_pairs
+        return {"step_alterations": self.step_alteration_pairs}
 
     @classmethod
-    def _from_json(cls, json_object):
-        return cls.interpret(json_object)
+    def _from_dict(cls, json_dict):
+        if "key" in json_dict:
+            return cls.from_string(json_dict["key"])
+        return cls(json_dict["step_alterations"])
 
     def __repr__(self):
         return "SpellingPolicy({})".format(self.step_alteration_pairs)

@@ -303,48 +303,18 @@ class PerformanceNote(SavesToJSON):
         else:
             return self.start_beat == other
 
-    def duplicate(self) -> 'PerformanceNote':
-        """
-        Returns a copy of this PerformanceNote
-        """
-        return self._from_json(self._to_json())
-
-    def _to_json(self):
-        if isinstance(self.pitch, (tuple, list)):
-            # if this is a chord
-            json_pitch = [p._to_json() if isinstance(p, Envelope) else p for p in self.pitch]
-        elif isinstance(self.pitch, Envelope):
-            json_pitch = self.pitch._to_json()
-        else:
-            json_pitch = self.pitch
-
+    def _to_dict(self):
         return {
             "start_beat": self.start_beat,
             "length": self.length,
-            "pitch": json_pitch,
-            "volume": self.volume._to_json() if isinstance(self.volume, Envelope) else self.volume,
-            "properties": self.properties._to_json()
+            "pitch": self.pitch,
+            "volume": self.volume,
+            "properties": self.properties
         }
 
     @classmethod
-    def _from_json(cls, json_object):
-        if isinstance(json_object["pitch"], (tuple, list)):
-            # a tuple or list (should be a list since it's json) indicates a chord
-            json_object["pitch"] = tuple(Envelope._from_json(pitch) if isinstance(pitch, dict) else pitch
-                                         for pitch in json_object["pitch"])
-        elif isinstance(json_object["pitch"], dict):
-            # a dict indicates it's an envelope
-            json_object["pitch"] = Envelope._from_json(json_object["pitch"])
-
-        if isinstance(json_object["volume"], dict):
-            json_object["volume"] = Envelope._from_json(json_object["volume"])
-
-        if hasattr(json_object["length"], "__len__"):
-            json_object["length"] = tuple(json_object["length"])
-
-        json_object["properties"] = NotePropertiesDictionary._from_json(json_object["properties"])
-
-        return PerformanceNote(**json_object)
+    def _from_dict(cls, json_dict):
+        return PerformanceNote(**json_dict)
 
     def __repr__(self):
         return "PerformanceNote(start_beat={}, length={}, pitch={}, volume={}, properties={})".format(
@@ -695,38 +665,17 @@ class PerformancePart(SavesToJSON):
         """
         return self._instrument_id[1]
 
-    def duplicate(self) -> 'PerformancePart':
-        """
-        Returns a copy of this PerformancePart
-        """
-        return self._from_json(self._to_json())
-
-    def _to_json(self):
+    def _to_dict(self):
         return {
             "name": self.name,
             "instrument_id": self._instrument_id,
-            "voices": {
-                voice_name: [n._to_json() for n in voice] for voice_name, voice in self.voices.items()
-            },
-            "voice_quantization_records": {
-                voice_name: self.voice_quantization_records[voice_name]._to_json()
-                for voice_name in self.voice_quantization_records
-            } if self.voice_quantization_records is not None else None
+            "voices": self.voices,
+            "voice_quantization_records": self.voice_quantization_records
         }
 
     @classmethod
-    def _from_json(cls, json_dict):
-        performance_part = cls(name=json_dict["name"])
-        performance_part._instrument_id = json_dict["instrument_id"]
-        for voice in json_dict["voices"]:
-            for note in json_dict["voices"][voice]:
-                performance_part.add_note(PerformanceNote._from_json(note), voice=voice)
-        performance_part.voice_quantization_records = {
-            voice_name: QuantizationRecord._from_json(json_dict["voice_quantization_records"][voice_name])
-            for voice_name in json_dict["voice_quantization_records"]
-        } if json_dict["voice_quantization_records"] is not None else None
-
-        return performance_part
+    def _from_dict(cls, json_dict):
+        return cls(**json_dict)
 
     def __repr__(self):
         voice_strings = [
@@ -1098,19 +1047,12 @@ class Performance(SavesToJSON):
             simplicity_preference=simplicity_preference, title=title, composer=composer
         )
 
-    def duplicate(self) -> 'Performance':
-        """
-        Returns a copy of this Performance
-        """
-        return self._from_json(self._to_json())
-
-    def _to_json(self):
-        return {"parts": [part._to_json() for part in self.parts], "tempo_envelope": self.tempo_envelope._to_json()}
+    def _to_dict(self):
+        return {"parts": self.parts, "tempo_envelope": self.tempo_envelope}
 
     @classmethod
-    def _from_json(cls, json_dict):
-        return cls([PerformancePart._from_json(part_json) for part_json in json_dict["parts"]],
-                   TempoEnvelope._from_json(json_dict["tempo_envelope"]))
+    def _from_dict(cls, json_dict):
+        return cls(**json_dict)
 
     def __repr__(self):
         return "Performance([\n{}\n])".format(

@@ -1,4 +1,5 @@
 {
+    "_type": "EngravingSettings",
     "allow_duple_tuplets_in_compound_time": true,
     "articulation_split_protocols": {
         "accent": "first",
@@ -11,7 +12,7 @@
     "clef_pitch_centers": {
         "alto": 60,
         "baritone": 53,
-        "bass": 50,
+        "bass": 48,
         "mezzo-soprano": 64,
         "soprano": 67,
         "tenor": 57,
@@ -109,7 +110,10 @@
         "Perl Jam",
         "PHPrince"
     ],
-    "default_spelling_policy": "C",
+    "default_spelling_policy": {
+        "_type": "SpellingPolicy",
+        "key": "C"
+    },
     "default_titles": [
         "On the Code Again",
         "The Long and Winding Code",
@@ -121,6 +125,7 @@
         "Hit the Code, Jack"
     ],
     "glissandi": {
+        "_type": "GlissandiSettings",
         "consider_non_extrema_control_points": true,
         "control_point_policy": "split",
         "include_end_grace_note": true,
@@ -137,6 +142,7 @@
     "show_microtonal_annotations": false,
     "show_music_xml_command_line": "auto",
     "tempo": {
+        "_type": "TempoSettings",
         "guide_mark_resolution": 0.125,
         "guide_mark_sensitivity": 0.08,
         "include_guide_marks": true,

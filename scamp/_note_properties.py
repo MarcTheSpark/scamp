@@ -6,6 +6,7 @@ from expenvelope import Envelope
 from copy import deepcopy
 import logging
 import json
+from collections import UserDict
 
 
 def _split_string_at_outer_commas(s):
@@ -37,7 +38,7 @@ def _split_string_at_outer_commas(s):
     return out
 
 
-class NotePropertiesDictionary(dict, SavesToJSON):
+class NotePropertiesDictionary(UserDict, SavesToJSON):
 
     def __init__(self, **kwargs):
         NotePropertiesDictionary._standardize_plural_entry("articulations", kwargs)
@@ -317,9 +318,8 @@ class NotePropertiesDictionary(dict, SavesToJSON):
                self.playback_adjustments == other_properties_dict.playback_adjustments and \
                self.text == other_properties_dict.text
 
-    def _to_json(self):
+    def _to_dict(self) -> dict:
         json_friendly_dict = dict(deepcopy(self))
-        json_friendly_dict["playback_adjustments"] = [x._to_json() for x in self.playback_adjustments]
         del json_friendly_dict["temp"]
 
         # remove entries that contain no information for conciseness. They will be reconstructed when reloading.
@@ -336,31 +336,12 @@ class NotePropertiesDictionary(dict, SavesToJSON):
         if self["spelling_policy"] is None:
             del json_friendly_dict["spelling_policy"]
 
-        # when saving to json, any extra playback parameters that are envelopes must be converted
-        # to a json-friendly dictionary representation of the envelope
-        for key, value in json_friendly_dict.items():
-            if (key.startswith("param_") or key.endswith("_param")) and isinstance(value, Envelope):
-                json_friendly_dict[key] = value._to_json()
-
         return json_friendly_dict
 
     @classmethod
-    def _from_json(cls, json_object):
-        # if the object has playback adjustments convert all adjustments from dictionaries to NotePlaybackAdjustments
-        if "playback_adjustments" in json_object:
-            json_object["playback_adjustments"] = [NotePlaybackAdjustment._from_json(x)
-                                                   for x in json_object["playback_adjustments"]]
-        if "spelling_policy" in json_object:
-            json_object["spelling_policy"] = SpellingPolicy._from_json(json_object["spelling_policy"])
-
-        # if there are extra parameters of playback which were given envelopes, those envelopes will be have been
-        # converted to their json-friendly dictionary representations, This converts them back to envelopes
-        for key, value in json_object.items():
-            if (key.startswith("param_") or key.endswith("_param")) and isinstance(value, dict):
-                json_object[key] = Envelope._from_json(value)
-
-        return cls(**json_object)
+    def _from_dict(cls, json_dict):
+        return cls(**json_dict)
 
     def __repr__(self):
         # this simplifies the properties dictionary to only the parts that deviate from the defaults
-        return repr(self._to_json())
+        return repr(self._to_dict())
