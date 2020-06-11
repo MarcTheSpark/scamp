@@ -1,6 +1,8 @@
 {
+    "_type": "Performance",
     "parts": [
         {
+            "_type": "PerformancePart",
             "instrument_id": [
                 "shakuhachi",
                 0
@@ -10,25 +12,15 @@
             "voices": {
                 "_unspecified_": [
                     {
-                        "length": 0.22491874046870208,
-                        "pitch": 87,
-                        "properties": {},
-                        "start_beat": 1.821391251790672,
-                        "volume": 1.0
-                    },
-                    {
-                        "length": 0.24379991897218645,
-                        "pitch": 73,
-                        "properties": {},
-                        "start_beat": 3.046309992259374,
-                        "volume": 1.0
-                    },
-                    {
+                        "_type": "PerformanceNote",
                         "length": 2.5,
-                        "pitch": 97,
-                        "properties": {},
-                        "start_beat": 5.290109911231561,
+                        "pitch": 90,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
+                        "start_beat": 2.2409583159836544,
                         "volume": {
+                            "_type": "Envelope",
                             "curve_shapes": [
                                 0,
                                 2,
@@ -48,18 +40,71 @@
                         }
                     },
                     {
-                        "length": 0.21930618080145337,
-                        "pitch": 75,
-                        "properties": {},
-                        "start_beat": 8.29010991123156,
-                        "volume": 1.0
+                        "_type": "PerformanceNote",
+                        "length": 2.5,
+                        "pitch": 94,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
+                        "start_beat": 5.240958315983654,
+                        "volume": {
+                            "_type": "Envelope",
+                            "curve_shapes": [
+                                0,
+                                2,
+                                0
+                            ],
+                            "durations": [
+                                0.32608695652173836,
+                                1.8478260869565233,
+                                0.32608695652173836
+                            ],
+                            "levels": [
+                                1.0,
+                                0.2,
+                                1.0,
+                                1.0
+                            ]
+                        }
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 2.5,
-                        "pitch": 97,
-                        "properties": {},
-                        "start_beat": 11.509416092033014,
+                        "pitch": 99,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
+                        "start_beat": 8.740958315983654,
                         "volume": {
+                            "_type": "Envelope",
+                            "curve_shapes": [
+                                0,
+                                2,
+                                0
+                            ],
+                            "durations": [
+                                0.32608695652173836,
+                                1.8478260869565233,
+                                0.32608695652173836
+                            ],
+                            "levels": [
+                                1.0,
+                                0.2,
+                                1.0,
+                                1.0
+                            ]
+                        }
+                    },
+                    {
+                        "_type": "PerformanceNote",
+                        "length": 2.5,
+                        "pitch": 82,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
+                        "start_beat": 11.740958315983654,
+                        "volume": {
+                            "_type": "Envelope",
                             "curve_shapes": [
                                 0,
                                 2,
@@ -82,6 +127,7 @@
             }
         },
         {
+            "_type": "PerformancePart",
             "instrument_id": [
                 "oboe",
                 0
@@ -91,422 +137,602 @@
             "voices": {
                 "_unspecified_": [
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 90.92922210699005,
-                        "properties": {},
+                        "pitch": 95.80727751534998,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 0.0,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 95.70965846014195,
-                        "properties": {},
+                        "pitch": 91.83324220895314,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 0.25,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 94.27735082474334,
-                        "properties": {},
+                        "pitch": 91.89680460681282,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 0.5,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 91.12520402771243,
-                        "properties": {},
+                        "pitch": 94.22533086446607,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 0.75,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 94.08959094684398,
-                        "properties": {},
+                        "pitch": 91.48680196399313,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 1.0,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 94.81505296957586,
-                        "properties": {},
+                        "pitch": 91.7879813171555,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 1.25,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 94.26325598492474,
-                        "properties": {},
+                        "pitch": 91.16283806034548,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 1.5,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 90.35940757532549,
-                        "properties": {},
+                        "pitch": 92.63103581262375,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 1.75,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 91.1976693851998,
-                        "properties": {},
+                        "pitch": 91.67965077002297,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 2.0,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 95.53731455803506,
-                        "properties": {},
+                        "pitch": 90.34362491845465,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 2.25,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 89.88940713874429,
-                        "properties": {},
+                        "pitch": 96.30173018119405,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 2.5,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 96.51282688304076,
-                        "properties": {},
+                        "pitch": 90.62685328163704,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 2.75,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 91.71119416224106,
-                        "properties": {},
+                        "pitch": 93.44330287738218,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 3.0,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 90.040761167016,
-                        "properties": {},
+                        "pitch": 89.68257283854753,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 3.25,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 95.14378347310326,
-                        "properties": {},
+                        "pitch": 92.36704200048067,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 3.5,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 90.67605596855071,
-                        "properties": {},
+                        "pitch": 95.87663997356002,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 3.75,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 94.7829240620968,
-                        "properties": {},
+                        "pitch": 93.29641005182222,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 4.0,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 89.07526948155187,
-                        "properties": {},
+                        "pitch": 91.16801951541757,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 4.25,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 91.4319399476634,
-                        "properties": {},
+                        "pitch": 89.38044698896822,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 4.5,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 93.04939692347787,
-                        "properties": {},
+                        "pitch": 93.54939433092242,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 4.75,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 93.32792098421655,
-                        "properties": {},
+                        "pitch": 89.03654239443382,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 5.0,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 88.80049122118788,
-                        "properties": {},
+                        "pitch": 89.4936349508203,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 5.25,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 89.15618391122004,
-                        "properties": {},
+                        "pitch": 91.99031081431826,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 5.5,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 88.95842145692603,
-                        "properties": {},
+                        "pitch": 94.65179125214516,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 5.75,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 92.47325017487968,
-                        "properties": {},
+                        "pitch": 93.01906678893242,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 6.0,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 92.0195560964254,
-                        "properties": {},
+                        "pitch": 88.52158405767707,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 6.25,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 94.01798547062745,
-                        "properties": {},
+                        "pitch": 94.17486737997312,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 6.5,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 93.00972780291272,
-                        "properties": {},
+                        "pitch": 89.72405908135491,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 6.75,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 87.73831942477115,
-                        "properties": {},
+                        "pitch": 88.90888134530508,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 7.0,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 87.87538982310426,
-                        "properties": {},
+                        "pitch": 93.27785339407627,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 7.25,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 88.68444323130781,
-                        "properties": {},
+                        "pitch": 86.96292530764734,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 7.5,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 90.56165421662112,
-                        "properties": {},
+                        "pitch": 86.44176867733877,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 7.75,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 91.58857074845447,
-                        "properties": {},
+                        "pitch": 92.34389980898577,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 8.0,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 90.34536705202183,
-                        "properties": {},
+                        "pitch": 91.7074369597732,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 8.25,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 89.37470824605009,
-                        "properties": {},
+                        "pitch": 86.03378576960775,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 8.5,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 85.43464512754278,
-                        "properties": {},
+                        "pitch": 88.0922228155136,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 8.75,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 89.7454082020912,
-                        "properties": {},
+                        "pitch": 89.32029963663511,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 9.0,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 90.53799606916468,
-                        "properties": {},
+                        "pitch": 85.57911856007304,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 9.25,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 89.24567689558535,
-                        "properties": {},
+                        "pitch": 88.30064544828838,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 9.5,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 86.37002423923457,
-                        "properties": {},
+                        "pitch": 85.21555056799461,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 9.75,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 90.4335921309733,
-                        "properties": {},
+                        "pitch": 87.07897133484856,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 10.0,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 88.02718374874053,
-                        "properties": {},
+                        "pitch": 86.17467287865578,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 10.25,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 85.13434896621008,
-                        "properties": {},
+                        "pitch": 85.85623057991627,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 10.5,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 89.20454896081196,
-                        "properties": {},
+                        "pitch": 87.2556686924349,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 10.75,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 88.09276294354237,
-                        "properties": {},
+                        "pitch": 83.02929502505002,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 11.0,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 84.79449418951445,
-                        "properties": {},
+                        "pitch": 85.73526835452185,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 11.25,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 86.94405649592649,
-                        "properties": {},
+                        "pitch": 83.17189698163277,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 11.5,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 83.15186492983007,
-                        "properties": {},
+                        "pitch": 82.7190079037602,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 11.75,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 83.1095777067208,
-                        "properties": {},
+                        "pitch": 84.45788358223446,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 12.0,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 81.13552131437262,
-                        "properties": {},
+                        "pitch": 85.91302902510337,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 12.25,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 86.03720858341214,
-                        "properties": {},
+                        "pitch": 82.80383290893505,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 12.5,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 84.8481504444612,
-                        "properties": {},
+                        "pitch": 81.14649983187387,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 12.75,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 81.69605611648704,
-                        "properties": {},
+                        "pitch": 83.18597446090781,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 13.0,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 84.27546758876488,
-                        "properties": {},
+                        "pitch": 79.83689468030092,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 13.25,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 85.97521458211007,
-                        "properties": {},
+                        "pitch": 82.88263305786718,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 13.5,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 83.9232731056221,
-                        "properties": {},
+                        "pitch": 82.14969810912179,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 13.75,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 80.42923655480494,
-                        "properties": {},
+                        "pitch": 82.20507922475473,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 14.0,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 84.22481172295647,
-                        "properties": {},
+                        "pitch": 79.43484067332625,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 14.25,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 79.43556120868539,
-                        "properties": {},
+                        "pitch": 81.71784501346811,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 14.5,
                         "volume": 0.4
                     },
                     {
+                        "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 81.51904993651016,
-                        "properties": {},
+                        "pitch": 82.1188851014348,
+                        "properties": {
+                            "_type": "NotePropertiesDictionary"
+                        },
                         "start_beat": 14.75,
                         "volume": 0.4
                     }
@@ -515,6 +741,7 @@
         }
     ],
     "tempo_envelope": {
+        "_type": "TempoEnvelope",
         "length": 50.0,
         "levels": [
             1.0,

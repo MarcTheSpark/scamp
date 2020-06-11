@@ -1,46 +1,47 @@
 {
+    "_type": "Session",
     "default_audio_driver": "default",
     "default_midi_output_device": "default",
     "default_soundfont": "default",
     "default_spelling_policy": null,
     "instruments": [
         {
+            "_type": "ScampInstrument",
             "default_spelling_policy": null,
             "name": "shakuhachi",
             "playback_implementations": [
                 {
-                    "args": {
-                        "audio_driver": "default",
-                        "bank_and_preset": [
-                            0,
-                            77
-                        ],
-                        "max_pitch_bend": 48,
-                        "num_channels": 8,
-                        "soundfont": "general_midi"
-                    },
-                    "type": "SoundfontPlaybackImplementation"
+                    "_type": "SoundfontPlaybackImplementation",
+                    "audio_driver": "default",
+                    "bank_and_preset": [
+                        0,
+                        77
+                    ],
+                    "max_pitch_bend": 48,
+                    "num_channels": 8,
+                    "soundfont": "general_midi"
                 }
-            ]
+            ],
+            "standalone": false
         },
         {
+            "_type": "ScampInstrument",
             "default_spelling_policy": null,
             "name": "oboe",
             "playback_implementations": [
                 {
-                    "args": {
-                        "audio_driver": "default",
-                        "bank_and_preset": [
-                            0,
-                            68
-                        ],
-                        "max_pitch_bend": 48,
-                        "num_channels": 8,
-                        "soundfont": "general_midi"
-                    },
-                    "type": "SoundfontPlaybackImplementation"
+                    "_type": "SoundfontPlaybackImplementation",
+                    "audio_driver": "default",
+                    "bank_and_preset": [
+                        0,
+                        68
+                    ],
+                    "max_pitch_bend": 48,
+                    "num_channels": 8,
+                    "soundfont": "general_midi"
                 }
-            ]
+            ],
+            "standalone": false
         }
     ],
     "tempo": 60.0

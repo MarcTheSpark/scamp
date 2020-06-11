@@ -91,7 +91,7 @@ elif platform.system() == "Windows":
     elif os.path.exists(r"C:\Program Files\LilyPond\usr\bin"):
         if not os.environ["PATH"].endswith(";"):
             os.environ["PATH"] += ";"
-        os.environ["PATH"] += r"C:\Program Files\LilyPond\usr\bin;";
+        os.environ["PATH"] += r"C:\Program Files\LilyPond\usr\bin;"
 
 
 def abjad():

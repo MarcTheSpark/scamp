@@ -1,4 +1,5 @@
 from scamp import *
+import math
 
 s = Session()
 piano = s.new_part("piano")

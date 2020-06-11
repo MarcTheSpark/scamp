@@ -62,8 +62,8 @@ class _ScampSettings(SimpleNamespace, SavesToJSON):
         :param persist: if True, rewrites the JSON file from which defaults are loaded, meaning that this reset will
             persist to the running of scripts in the future.
         """
-        for key in self._factory_defaults:
-            vars(self)[key] = self._factory_defaults[key]
+        for key in self.factory_defaults:
+            vars(self)[key] = self.factory_defaults[key]
         if persist:
             self.make_persistent()
 

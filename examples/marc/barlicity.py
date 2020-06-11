@@ -6,6 +6,8 @@ from scamp_extensions.composers.barlicity import harmonicity, _gaussian_discount
 from scamp_extensions.pitch.utilities import midi_to_hertz, hertz_to_midi
 import random
 from PyQt5 import QtCore, QtWidgets, Qt
+import math
+from fractions import Fraction
 
 
 ##################################################################################################################

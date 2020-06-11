@@ -6,7 +6,6 @@ import functools
 from .utilities import SavesToJSON
 from typing import Sequence, Tuple, Union
 import pymusicxml
-import abjad
 
 
 ##################################################################################################################
