@@ -7,6 +7,7 @@ into the notation-based classes in the score module.
 
 import bisect
 from functools import total_ordering
+from numbers import Real
 from expenvelope import Envelope
 from ._note_properties import NotePropertiesDictionary
 from .settings import engraving_settings
@@ -343,8 +344,12 @@ class PerformancePart(SavesToJSON):
     """
 
     def __init__(self, instrument: ScampInstrument = None, name: str = None, voices: Union[dict, Sequence] = None,
-                 instrument_id: Tuple[str, int] = None, voice_quantization_records: dict = None):
+                 instrument_id: Tuple[str, int] = None, voice_quantization_records: dict = None,
+                 clef_preference: Sequence[Union[str, Tuple[str, Real]]] = None):
         self.instrument = instrument  # A ScampInstrument instance
+        self.clef_preference = clef_preference if clef_preference is not None \
+            else instrument.resolve_clef_preference() if instrument is not None \
+            else engraving_settings.clefs_by_instrument["default"]
         # the name of the part can be specified directly, or if not derives from the instrument it's attached to
         # if the part is not attached to an instrument, it starts with a name of None
         self.name = name if name is not None else instrument.name if instrument is not None else None
@@ -669,6 +674,7 @@ class PerformancePart(SavesToJSON):
         return {
             "name": self.name,
             "instrument_id": self._instrument_id,
+            "clef_preference": self.clef_preference,
             "voices": self.voices,
             "voice_quantization_records": self.voice_quantization_records
         }

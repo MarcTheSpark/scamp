@@ -12,16 +12,17 @@ from ._midi import get_available_midi_output_devices, print_available_midi_outpu
 from .utilities import SavesToJSON
 from .spelling import SpellingPolicy
 from ._note_properties import NotePropertiesDictionary
-from .playback_implementations import PlaybackImplementation, SoundfontPlaybackImplementation, \
-    MIDIStreamPlaybackImplementation, OSCPlaybackImplementation
-from scamp.utilities import iterate_all_subclasses
+from .playback_implementations import SoundfontPlaybackImplementation, MIDIStreamPlaybackImplementation, \
+    OSCPlaybackImplementation
+from .settings import engraving_settings
 from clockblocks.utilities import wait
 from clockblocks.clock import current_clock, Clock, ClockKilledException, TimeStamp
 from expenvelope import EnvelopeSegment
 import logging
 import time
 from threading import Lock
-from typing import Union, Sequence
+from typing import Union, Sequence, Tuple
+from numbers import Real
 from expenvelope import Envelope
 from copy import deepcopy
 
@@ -84,14 +85,18 @@ class Ensemble(SavesToJSON):
         instrument.set_ensemble(self)
         return instrument
 
-    def new_silent_part(self, name: str = None) -> 'ScampInstrument':
+    def new_silent_part(self, name: str = None, default_spelling_policy: SpellingPolicy = None,
+                        clef_preference="from_name") -> 'ScampInstrument':
         """
         Creates and returns a new ScampInstrument for this Ensemble with no PlaybackImplementations.
 
         :param name: name of the new part
+        :param default_spelling_policy: the :attr:`~ScampInstrument.default_spelling_policy` for the new part
+        :param clef_preference: the :attr:`~ScampInstrument.clef_preference` for the new part
         :return: the newly created ScampInstrument
         """
-        return self.add_instrument(ScampInstrument(name, self))
+        return self.add_instrument(ScampInstrument(name, self, default_spelling_policy=default_spelling_policy,
+                                                   clef_preference=clef_preference))
 
     @staticmethod
     def _resolve_preset_from_name(name, soundfont):
@@ -111,7 +116,8 @@ class Ensemble(SavesToJSON):
 
     def new_part(self, name: str = None, preset="auto", soundfont: str = "default", num_channels: int = 8,
                  audio_driver: str = "default", max_pitch_bend: int = "default",
-                 note_on_and_off_only: bool = False) -> 'ScampInstrument':
+                 note_on_and_off_only: bool = False, default_spelling_policy: SpellingPolicy = None,
+                 clef_preference="from_name") -> 'ScampInstrument':
         """
         Creates and returns a new ScampInstrument for this Ensemble that uses a SoundfontPlaybackImplementation. Unless
         otherwise specified, the default soundfont for this Ensemble/Session will be used, and we will search for the
@@ -130,6 +136,8 @@ class Ensemble(SavesToJSON):
             doesn't do any dynamic pitch/volume/parameter changes. Without this flag, notes will all be placed on
             separate MIDI channels, since they could potentially change pitch or volume; with this flags, we know they
             won't, so they can share the same MIDI channels, only using an extra one due to microtonality.
+        :param default_spelling_policy: the :attr:`~ScampInstrument.default_spelling_policy` for the new part
+        :param clef_preference: the :attr:`~ScampInstrument.clef_preference` for the new part
         :return: the newly created ScampInstrument
         """
         # Resolve soundfont and audio driver to ensemble defaults if necessary (these may well be the string
@@ -145,7 +153,8 @@ class Ensemble(SavesToJSON):
 
         name = "Track " + str(len(self.instruments) + 1) if name is None else name
 
-        instrument = self.new_silent_part(name)
+        instrument = self.new_silent_part(name, default_spelling_policy=default_spelling_policy,
+                                          clef_preference=clef_preference)
         instrument.add_soundfont_playback(preset, soundfont, num_channels, audio_driver, max_pitch_bend,
                                           note_on_and_off_only)
 
@@ -153,7 +162,8 @@ class Ensemble(SavesToJSON):
 
     def new_midi_part(self, name: str = None, midi_output_device: Union[int, str] = "default",
                       num_channels: int = 8, midi_output_name: str = None, max_pitch_bend: int = "default",
-                      note_on_and_off_only: bool = False) -> 'ScampInstrument':
+                      note_on_and_off_only: bool = False, default_spelling_policy: SpellingPolicy = None,
+                      clef_preference="from_name") -> 'ScampInstrument':
         """
         Creates and returns a new ScampInstrument for this Ensemble that uses a MIDIStreamPlaybackImplementation.
         This means that when notes are played by this instrument, midi messages are sent out to the given device.
@@ -170,20 +180,24 @@ class Ensemble(SavesToJSON):
             doesn't do any dynamic pitch/volume/parameter changes. Without this flag, notes will all be placed on
             separate MIDI channels, since they could potentially change pitch or volume; with this flags, we know they
             won't, so they can share the same MIDI channels, only using an extra one due to microtonality.
+        :param default_spelling_policy: the :attr:`~ScampInstrument.default_spelling_policy` for the new part
+        :param clef_preference: the :attr:`~ScampInstrument.clef_preference` for the new part
         :return: the newly created ScampInstrument
         """
         midi_output_device = self.default_midi_output_device if midi_output_device == "default" else midi_output_device
 
         name = "Track " + str(len(self.instruments) + 1) if name is None else name
 
-        instrument = self.new_silent_part(name)
+        instrument = self.new_silent_part(name, default_spelling_policy=default_spelling_policy,
+                                          clef_preference=clef_preference)
         instrument.add_streaming_midi_playback(midi_output_device, num_channels, midi_output_name, max_pitch_bend,
                                                note_on_and_off_only)
 
         return instrument
 
     def new_osc_part(self, name: str = None, port: int = None, ip_address: str = "127.0.0.1",
-                     message_prefix: str = None, osc_message_addresses: dict = "default") -> 'ScampInstrument':
+                     message_prefix: str = None, osc_message_addresses: dict = "default",
+                     default_spelling_policy: SpellingPolicy = None, clef_preference="from_name") -> 'ScampInstrument':
         """
         Creates and returns a new ScampInstrument for this Ensemble that uses a OSCPlaybackImplementation. This means
         that when notes are played by this instrument, osc messages are sent out to the specified address
@@ -195,11 +209,14 @@ class Ensemble(SavesToJSON):
         :param osc_message_addresses: dictionary defining the address used for each type of playback message. defaults
             to using "start_note", "end_note", "change_pitch", "change_volume", "change_parameter". The default can
             be changed in playback settings.
+        :param default_spelling_policy: the :attr:`~ScampInstrument.default_spelling_policy` for the new part
+        :param clef_preference: the :attr:`~ScampInstrument.clef_preference` for the new part
         :return: the newly created ScampInstrument
         """
         name = "Track " + str(len(self.instruments) + 1) if name is None else name
 
-        instrument = self.new_silent_part(name)
+        instrument = self.new_silent_part(name, default_spelling_policy=default_spelling_policy,
+                                          clef_preference=clef_preference)
         instrument.add_osc_playback(port, ip_address, message_prefix, osc_message_addresses)
 
         return instrument
@@ -272,6 +289,9 @@ class Ensemble(SavesToJSON):
             instrument.set_ensemble(ensemble)
         return ensemble
 
+    def __str__(self):
+        return "Ensemble({})".format(self.instruments)
+
     def __repr__(self):
         return "Ensemble._from_dict({})".format(self._to_dict())
 
@@ -284,6 +304,8 @@ class ScampInstrument(SavesToJSON):
 
     :param name: name of this instrument (e.g. when printed in a score)
     :param ensemble: Ensemble to which this instrument will belong.
+    :param default_spelling_policy: sets :attr:`ScampInstrument.default_spelling_policy`
+    :param clef_preference: sets :attr:`ScampInstrument.clef_preference`
     :ivar name: name of this instrument (e.g. when printed in a score)
     :ivar name_count: when there are multiple instruments of the same name within an Ensemble, this variable assigns
         each a unique index (starting with 0), to distinguish them
@@ -294,10 +316,13 @@ class ScampInstrument(SavesToJSON):
     _note_id_generator = itertools.count()
     _change_param_call_counter = itertools.count()
 
-    def __init__(self, name: str = None, ensemble: Ensemble = None, default_spelling_policy: SpellingPolicy = None):
+    def __init__(self, name: str = None, ensemble: Ensemble = None, default_spelling_policy: SpellingPolicy = None,
+                 clef_preference="from_name"):
         super().__init__()
 
         self.name = name
+        self._clef_preference = None
+        self.clef_preference = clef_preference
 
         self._transcribers_to_notify = []
 
@@ -1037,9 +1062,73 @@ class ScampInstrument(SavesToJSON):
                     playback_implementation.cc(chan, cc_number, value_from_0_to_1)
 
     @property
+    def clef_preference(self):
+        """
+        The clef preference for this instrument. Can be any of:
+
+        - "from_name", which picks clef based on the instrument name
+        - "default", which uses the default clef preferences for an unknown instrument
+        - the name of a clef
+        - the name of an instrument whose clef defaults to use
+        - a list of possible clefs. Each of these choices should be either a valid clef name string or a tuple of
+        (valid clef name string, center pitch).
+
+        """
+        return self._clef_preference
+
+    @clef_preference.setter
+    def clef_preference(self, value):
+        old_value = self._clef_preference
+        self._clef_preference = value
+        try:
+            self.resolve_clef_preference()
+        except RuntimeError as e:
+            self._clef_preference = old_value
+            raise e
+
+    def resolve_clef_preference(self) -> Sequence[Union[str, Tuple[str, Real]]]:
+        """
+        Resolves the clef preference to a sequence of possible clef choices.
+        """
+        if isinstance(self.clef_preference, str):
+            if self.clef_preference == "from_name":
+                # base clef preference on instrument name
+                if self.name.lower().strip() in engraving_settings.clefs_by_instrument:
+                    return engraving_settings.clefs_by_instrument[self.name.lower().strip()]
+                else:
+                    # instrument name is not found, so revert to default clef preferences
+                    return engraving_settings.clefs_by_instrument["default"]
+            elif self.clef_preference == "default":
+                # just use the default clef preferences
+                return engraving_settings.clefs_by_instrument["default"]
+            elif self.clef_preference in engraving_settings.clef_pitch_centers:
+                # clef preference is the name of a clef
+                return [self.clef_preference]
+            elif self.clef_preference.lower().strip() in engraving_settings.clefs_by_instrument:
+                # clef preference is an instrument name
+                return engraving_settings.clefs_by_instrument[self.clef_preference.lower().strip()]
+            raise RuntimeError("Clef preference could not be resolved.")
+        elif isinstance(self.clef_preference, Sequence):
+            # if not a string, clef preference should be a sequence of possible clef choices
+            # each of these choices should be either a valid clef name string or a tuple of
+            # (valid clef name string, center pitch)
+            if all(
+                x in engraving_settings.clef_pitch_centers or hasattr(x, "__len__") and
+                x[0] in engraving_settings.clef_pitch_centers and isinstance(x[1], Real)
+                for x in self.clef_preference
+            ):
+                return self.clef_preference
+            else:
+                raise RuntimeError("Clef preference not understood.")
+        else:
+            raise RuntimeError("Clef preference not understood.")
+
+    @property
     def default_spelling_policy(self):
         """
-        Set the default spelling policy for notes played back by this instrument
+        The default spelling policy for notes played back by this instrument. (Can be set with either a
+        :class:`~scamp.spelling.SpellingPolicy` or a string, which is passed to
+        :func:`~scamp.spelling.SpellingPolicy.from_string`)
         """
         return self._default_spelling_policy
 
@@ -1072,6 +1161,7 @@ class ScampInstrument(SavesToJSON):
             "name": self.name,
             "playback_implementations": self.playback_implementations,
             "default_spelling_policy": self.default_spelling_policy,
+            "clef_preference": self.clef_preference,
             "standalone": self._export_as_stand_alone
         }
 
@@ -1092,6 +1182,9 @@ class ScampInstrument(SavesToJSON):
                 playback_implementation.set_host_instrument(instrument)
             # if not, this will happen in the ensemble's _from_dict method
         return instrument
+
+    def __str__(self):
+        return "ScampInstrument({})".format(self.name)
 
     def __repr__(self):
         return "ScampInstrument._from_dict({})".format(self._to_dict())
@@ -1293,6 +1386,9 @@ class ChordHandle:
         """
         for note_handle in self.note_handles:
             note_handle.end()
+
+    def __repr__(self):
+        return "ChordHandle({}, {})".format(self.note_handles, self._intervals)
 
 
 class _ParameterChangeSegment(EnvelopeSegment):

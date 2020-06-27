@@ -7,6 +7,7 @@
     "instruments": [
         {
             "_type": "ScampInstrument",
+            "clef_preference": "from_name",
             "default_spelling_policy": null,
             "name": "shakuhachi",
             "playback_implementations": [
@@ -26,6 +27,7 @@
         },
         {
             "_type": "ScampInstrument",
+            "clef_preference": "from_name",
             "default_spelling_policy": null,
             "name": "oboe",
             "playback_implementations": [

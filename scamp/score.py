@@ -4,7 +4,7 @@ largest to smallest: :class:`Score`, :class:`StaffGroup`, :class:`Staff`, :class
 :class:`Voice`, :class:`Tuplet`, and :class:`NoteLike`. One important role of the classes in this module is to
 provide export functionality to both MusicXML and LilyPond.
 """
-
+from numbers import Real
 from .settings import quantization_settings, engraving_settings
 from expenvelope import Envelope
 from .quantization import QuantizationRecord, QuantizationScheme, QuantizedMeasure, TimeSignature
@@ -408,13 +408,8 @@ def _join_same_source_xml_note_group(same_source_group):
         same_source_group[-1].notations.append(pymusicxml.StopSlur(slur_id))
 
 
-def _get_clef_from_average_pitch_and_instrument_name(average_pitch: float, instrument_name: str) -> str:
-    instrument_name = instrument_name.lower().strip()
-    # find the choices appropriate for this instrument
-    clef_choices = engraving_settings.clefs_by_instrument[instrument_name] \
-        if instrument_name in engraving_settings.clefs_by_instrument \
-        else engraving_settings.clefs_by_instrument["DEFAULT"]
-
+def _get_clef_from_average_pitch_and_clef_choices(average_pitch: float,
+                                                  clef_choices: Sequence[Union[str, Tuple[str, Real]]]) -> str:
     # find the clef whose pitch center is closest to the average pitch
     closest_clef = None
     closest_distance = float("inf")
@@ -689,7 +684,7 @@ class ScoreContainer(ABC):
 
     def __repr__(self):
         extra_args_string = "" if not hasattr(self, "_extra_field_names") \
-            else ", ".join("{}={}".format(x, self.__dict__[x]) for x in self._extra_field_names)
+            else ", ".join("{}={}".format(x, repr(self.__dict__[x])) for x in self._extra_field_names)
         if len(extra_args_string) > 0:
             extra_args_string += ", "
         contents_string = "\n" + textwrap.indent(",\n".join(str(x) for x in self._contents), "   ") + "\n" \
@@ -1152,9 +1147,11 @@ class StaffGroup(ScoreComponent, ScoreContainer):
     :param name: the name of the staff group on the score
     """
 
-    def __init__(self, staves: Sequence['Staff'], name: str = None):
+    def __init__(self, staves: Sequence['Staff'], name: str = None,
+                 clef_choices: Sequence[Union[str, Tuple[str, Real]]] = None):
         ScoreContainer.__init__(self, staves, "staves", Staff)
         self._name = name
+        self.clef_choices = engraving_settings.clefs_by_instrument["default"] if clef_choices is None else clef_choices
         self._set_clefs()
 
     @property
@@ -1179,7 +1176,7 @@ class StaffGroup(ScoreComponent, ScoreContainer):
 
     @classmethod
     def from_quantized_performance_part(cls, quantized_performance_part: 'performance_module.PerformancePart') \
-            -> 'StaffGroup':
+                                        -> 'StaffGroup':
         """
         Constructs a new StaffGroup from an already quantized PerformancePart.
 
@@ -1195,7 +1192,7 @@ class StaffGroup(ScoreComponent, ScoreContainer):
 
         return StaffGroup._from_measure_voice_grid(
             measure_voice_grid, quantized_performance_part._get_longest_quantization_record(),
-            name=staff_group_name
+            name=staff_group_name, clef_choices=quantized_performance_part.clef_preference
         )
 
     @staticmethod
@@ -1358,7 +1355,8 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         return measure_grid
 
     @classmethod
-    def _from_measure_voice_grid(cls, measure_bins, quantization_record: QuantizationRecord, name: str = None):
+    def _from_measure_voice_grid(cls, measure_bins, quantization_record: QuantizationRecord, name: str = None,
+                                 clef_choices: Sequence[Union[str, Tuple[str, Real]]] = None):
         """
         Creates a StaffGroup with Staves that accommodate engraving_settings.max_voices_per_part voices each
 
@@ -1413,7 +1411,7 @@ class StaffGroup(ScoreComponent, ScoreContainer):
                     name=name + " ({})".format(str(i + 1)) if len(staves) > 1 else name
                 )
                 for i, staff in enumerate(staves)
-            ], name=name
+            ], name=name, clef_choices=clef_choices
         )
 
     def _set_clefs(self):
@@ -1425,9 +1423,10 @@ class StaffGroup(ScoreComponent, ScoreContainer):
                     for voice in measure:
                         for note in voice.iterate_notes(include_rests=False):
                             average_pitch += note.average_pitch()
+                            num_notes += 1
             if num_notes > 0:
                 average_pitch /= num_notes
-                clef_choice = _get_clef_from_average_pitch_and_instrument_name(average_pitch, self.name)
+                clef_choice = _get_clef_from_average_pitch_and_clef_choices(average_pitch, self.clef_choices)
                 for staff in self.staves:
                     staff.measures[0].clef = clef_choice
         else:
@@ -1435,7 +1434,7 @@ class StaffGroup(ScoreComponent, ScoreContainer):
             for staff in self.staves:
                 last_clef_used = None
                 for i, measure in enumerate(staff.measures):
-                    this_measure_clef = measure.get_appropriate_clef(self.name)
+                    this_measure_clef = measure.get_appropriate_clef(self.clef_choices)
                     if this_measure_clef is not None:
                         # there are some pitches in this measure from which to choose a clef
                         if last_clef_used is None:
@@ -1612,7 +1611,7 @@ class Measure(ScoreComponent, ScoreContainer):
                     voices.append(Voice.from_performance_voice(*voice_content))
             return cls(voices, time_signature, show_time_signature=show_time_signature)
 
-    def get_appropriate_clef(self, instrument_name: str):
+    def get_appropriate_clef(self, clef_choices: Sequence[Union[str, Tuple[str, Real]]]):
         # find the average pitch of this measure
         average_pitch = 0
         num_notes = 0
@@ -1629,7 +1628,7 @@ class Measure(ScoreComponent, ScoreContainer):
 
         average_pitch /= num_notes
 
-        return _get_clef_from_average_pitch_and_instrument_name(average_pitch, instrument_name)
+        return _get_clef_from_average_pitch_and_clef_choices(average_pitch, clef_choices)
 
     def _to_abjad(self, source_id_dict=None):
         is_top_level_call = True if source_id_dict is None else False

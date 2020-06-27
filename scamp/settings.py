@@ -435,7 +435,7 @@ class EngravingSettings(_ScampSettings):
             "viola": ["alto", ("treble", 75)],
             "cello": [("bass", 59), ("tenor", 66), ("treble", 74)],
             "bass": ["bass", "treble"],
-            "DEFAULT": ["treble", "bass"]
+            "default": ["treble", "bass"]
         },
         "clef_pitch_centers": {
             "bass": 48,
