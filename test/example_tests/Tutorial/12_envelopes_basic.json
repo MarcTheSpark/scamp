@@ -1,0 +1,4 @@
+[
+    "{\n    \"_type\": \"Envelope\",\n    \"durations\": [\n        0.3333333333333333,\n        0.3333333333333333,\n        0.33333333333333337\n    ],\n    \"levels\": [\n        60,\n        72,\n        66,\n        70\n    ]\n}",
+    "{\n    \"_type\": \"Envelope\",\n    \"curve_shapes\": [\n        2,\n        -2,\n        -2\n    ],\n    \"durations\": [\n        2,\n        1,\n        1\n    ],\n    \"levels\": [\n        60,\n        72,\n        66,\n        70\n    ]\n}"
+]
