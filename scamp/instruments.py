@@ -16,7 +16,7 @@ from .playback_implementations import SoundfontPlaybackImplementation, MIDIStrea
     OSCPlaybackImplementation
 from .settings import engraving_settings
 from clockblocks.utilities import wait
-from clockblocks.clock import current_clock, Clock, ClockKilledException, TimeStamp
+from clockblocks.clock import current_clock, Clock, ClockKilledError, TimeStamp
 from expenvelope import EnvelopeSegment
 import logging
 import time
@@ -344,7 +344,12 @@ class ScampInstrument(SavesToJSON):
         if ensemble is not None:
             self.set_ensemble(ensemble)
 
-    def set_ensemble(self, ensemble: 'Ensemble'):
+    def set_ensemble(self, ensemble: 'Ensemble') -> None:
+        """
+        Sets the ensemble that this instrument belongs to. Generally this happens automatically.
+        
+        :param ensemble: the :class:`Ensemble` that this instrument should belong to.
+        """
         if self.ensemble == ensemble:
             # already set to this ensemble
             return
@@ -505,7 +510,7 @@ class ScampInstrument(SavesToJSON):
             else:
                 clock.wait(length)
             note_handle.end()
-        except ClockKilledException as e:
+        except ClockKilledError as e:
             note_handle.end()
             raise e
 
