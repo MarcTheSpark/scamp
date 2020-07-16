@@ -224,10 +224,11 @@ class PerformanceNote(SavesToJSON):
                     # default to keeping the articulation on everything
 
                 # we also want to keep track of which notes came from the same original note for doing ties and such
-                if "_source_id" in self.properties:
-                    second_part.properties["_source_id"] = self.properties["_source_id"]
+                if "_source_id" in self.properties.temp:
+                    second_part.properties.temp["_source_id"] = self.properties.temp["_source_id"]
                 else:
-                    second_part.properties["_source_id"] = self.properties["_source_id"] = PerformanceNote.next_id()
+                    second_part.properties.temp["_source_id"] = \
+                        self.properties.temp["_source_id"] = PerformanceNote.next_id()
 
             return self, second_part
 

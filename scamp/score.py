@@ -2432,22 +2432,22 @@ class NoteLike(ScoreComponent):
             # sometimes a note will not have a _source_id property defined, since it never gets broken into tied
             # components. However, if it's a glissando and there's stemless grace notes involved, we're going to
             # have to give it a _source_id so that it can share it with its grace notes
-            if grace_container is not None and "_source_id" not in self.properties:
-                self.properties["_source_id"] = performance_module.PerformanceNote.next_id()
+            if grace_container is not None and "_source_id" not in self.properties.temp:
+                self.properties.temp["_source_id"] = performance_module.PerformanceNote.next_id()
 
-            if "_source_id" in self.properties:
+            if "_source_id" in self.properties.temp:
                 # here we take the new note that we're creating and add it to the bin in source_id_dict that
                 # contains all the notes of the same source, so that they can be tied / joined by glissandi
-                if self.properties["_source_id"] in source_id_dict:
+                if self.properties.temp["_source_id"] in source_id_dict:
                     # this source_id is already associated with a leaf, so add it to the list
-                    source_id_dict[self.properties["_source_id"]].append(abjad_object)
+                    source_id_dict[self.properties.temp["_source_id"]].append(abjad_object)
                 else:
                     # we don't yet have a record on this source_id, so start a list with this object under that key
-                    source_id_dict[self.properties["_source_id"]] = [abjad_object]
+                    source_id_dict[self.properties.temp["_source_id"]] = [abjad_object]
 
                 # add any grace notes to the same bin as their parent
                 if grace_container is not None:
-                    source_id_dict[self.properties["_source_id"]].extend(grace_container)
+                    source_id_dict[self.properties.temp["_source_id"]].extend(grace_container)
 
         self._attach_abjad_articulations(abjad_object, grace_container)
         return abjad_object
@@ -2572,17 +2572,17 @@ class NoteLike(ScoreComponent):
             # sometimes a note will not have a _source_id property defined, since it never gets broken into tied
             # components. However, if it's a glissando and there's stemless grace notes involved, we're going to
             # have to give it a _source_id so that it can share it with its grace notes
-            if "_source_id" not in self.properties:
-                self.properties["_source_id"] = performance_module.PerformanceNote.next_id()
+            if "_source_id" not in self.properties.temp:
+                self.properties.temp["_source_id"] = performance_module.PerformanceNote.next_id()
 
             # here we take the new note that we're creating and add it to the bin in source_id_dict that
             # contains all the notes of the same source, so that they can be joined by glissandi
-            if self.properties["_source_id"] in source_id_dict:
+            if self.properties.temp["_source_id"] in source_id_dict:
                 # this source_id is already associated with a leaf, so add it to the list
-                source_id_dict[self.properties["_source_id"]].extend(out)
+                source_id_dict[self.properties.temp["_source_id"]].extend(out)
             else:
                 # we don't yet have a record on this source_id, so start a list with this object under that key
-                source_id_dict[self.properties["_source_id"]] = list(out)
+                source_id_dict[self.properties.temp["_source_id"]] = list(out)
 
         return out
 
@@ -2637,8 +2637,8 @@ class NoteLike(ScoreComponent):
         belonged together so that we can rejoin them with ties, glissandi, etc.
         (This is done via _join_same_source_abjad_note_group or _join_same_source_xml_note_group)
         """
-        if "_source_id" in self.properties:
-            return self.properties["_source_id"]
+        if "_source_id" in self.properties.temp:
+            return self.properties.temp["_source_id"]
         else:
             return None
 
