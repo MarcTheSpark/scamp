@@ -4,69 +4,7 @@ from ._dependencies import fluidsynth, Sf2File
 import logging
 from collections import OrderedDict
 import re
-
-
-def get_soundfont_presets(which_soundfont="default"):
-    which_soundfont = playback_settings.default_soundfont if which_soundfont == "default" else which_soundfont
-
-    soundfont_path = playback_settings.named_soundfonts[which_soundfont] \
-        if which_soundfont in playback_settings.named_soundfonts else which_soundfont
-
-    if soundfont_path.startswith("./"):
-        soundfont_path = resolve_relative_path("soundfonts/" + soundfont_path[2:])
-    elif not soundfont_path.startswith("/"):
-        soundfont_path = resolve_relative_path("soundfonts/" + soundfont_path)
-
-    if Sf2File is None:
-        raise ModuleNotFoundError("Cannot inspect soundfont presets; please install sf2utils.")
-
-    # if we have sf2utils, load up the preset info from the soundfonts
-    with open(soundfont_path, "rb") as sf2_file:
-        sf2 = Sf2File(sf2_file)
-        return sf2.presets
-
-
-def print_soundfont_presets(which_soundfont="default"):
-    print("PRESETS FOR {}".format("default ({})".format(playback_settings.default_soundfont)
-                                  if which_soundfont == "default" else which_soundfont))
-    for preset in get_soundfont_presets(which_soundfont):
-        print("   {}".format(preset))
-
-
-def get_soundfont_presets_with_substring(word, avoid=None, which_soundfont="default"):
-    """
-    Returns a list of Sf2Presets containing the given word
-
-    :param word: string to match
-    :param avoid: string to avoid matching
-    :param which_soundfont: name of the soundfont to inspect
-    """
-    return [preset for preset in get_soundfont_presets(which_soundfont) if word.lower() in preset.name.lower()
-            and (avoid is None or avoid.lower() not in preset.name.lower())]
-
-
-def get_best_preset_match_for_name(name: str, which_soundfont="default"):
-    """
-    Does fuzzy string matching to find an appropriate preset for given name
-
-    :param name: name of the instrument to find a preset for
-    :param which_soundfont: which soundfont look in
-    :return: a tuple of (Sf2Preset, match score)
-    """
-    if Sf2File is None:
-        raise ModuleNotFoundError("Cannot iterate through soundfont presets; please install sf2utils.")
-    best_preset_match = None
-    best_preset_score = 0
-    altered_name = name.lower()
-    altered_name = _do_name_substitutions(altered_name)
-    for scamp_soundfont_preset in get_soundfont_presets(which_soundfont):
-        altered_preset_name = scamp_soundfont_preset.name.lower()
-        altered_preset_name = _do_name_substitutions(altered_preset_name)
-        score = get_average_square_correlation(altered_name, altered_preset_name)
-        if score > best_preset_score:
-            best_preset_score = score
-            best_preset_match = scamp_soundfont_preset
-    return best_preset_match, best_preset_score
+import os.path
 
 
 class SoundfontHost(SavesToJSON):
@@ -212,6 +150,99 @@ class SoundfontInstrument:
 
 # ------------------------------------------- Utilities ------------------------------------------------
 
+
+def resolve_soundfont_path(soundfont: str):
+    """
+    Consults playback settings and returns the path to the given soundfont
+
+    :param soundfont: either the name of a named soundfont or an explicit soundfont path. Paths are resolved relatively
+    unless they start with a slash.
+    :return: an absolute path to the soundfont
+    """
+    soundfont_path = playback_settings.named_soundfonts[soundfont] \
+        if soundfont in playback_settings.named_soundfonts else soundfont
+
+    if soundfont_path.startswith("/"):
+        # Absolute soundfont path
+        return soundfont_path
+    elif soundfont_path.startswith("~/"):
+        # Relative to user home directory
+        return os.path.expanduser(soundfont_path)
+    else:
+        # Relative to one of the search paths defined in the settings
+        for search_path in playback_settings.soundfont_search_paths:
+            if search_path.startswith("~/"):
+                search_path = os.path.expanduser(search_path)
+            if not search_path.startswith("/"):
+                search_path = resolve_relative_path(search_path)
+
+            if os.path.exists(os.path.join(search_path, soundfont_path)):
+                # look in this search path
+                return os.path.join(search_path, soundfont_path)
+            elif os.path.exists(os.path.join(search_path, soundfont_path + ".sf2")):
+                # try adding an sf2
+                return os.path.join(search_path, soundfont_path + ".sf2")
+        # give up and just return the path as is
+        return soundfont_path
+
+
+def get_soundfont_presets(which_soundfont="default"):
+    which_soundfont = playback_settings.default_soundfont if which_soundfont == "default" else which_soundfont
+
+    soundfont_path = resolve_soundfont_path(which_soundfont)
+
+    if Sf2File is None:
+        raise ModuleNotFoundError("Cannot inspect soundfont presets; please install sf2utils.")
+
+    # if we have sf2utils, load up the preset info from the soundfonts
+    with open(soundfont_path, "rb") as sf2_file:
+        sf2 = Sf2File(sf2_file)
+        return sf2.presets
+
+
+def print_soundfont_presets(which_soundfont="default"):
+    print("PRESETS FOR {}".format("default ({})".format(playback_settings.default_soundfont)
+                                  if which_soundfont == "default" else which_soundfont))
+    for preset in get_soundfont_presets(which_soundfont):
+        print("   {}".format(preset))
+
+
+def get_soundfont_presets_with_substring(word, avoid=None, which_soundfont="default"):
+    """
+    Returns a list of Sf2Presets containing the given word
+
+    :param word: string to match
+    :param avoid: string to avoid matching
+    :param which_soundfont: name of the soundfont to inspect
+    """
+    return [preset for preset in get_soundfont_presets(which_soundfont) if word.lower() in preset.name.lower()
+            and (avoid is None or avoid.lower() not in preset.name.lower())]
+
+
+def get_best_preset_match_for_name(name: str, which_soundfont="default"):
+    """
+    Does fuzzy string matching to find an appropriate preset for given name
+
+    :param name: name of the instrument to find a preset for
+    :param which_soundfont: which soundfont look in
+    :return: a tuple of (Sf2Preset, match score)
+    """
+    if Sf2File is None:
+        raise ModuleNotFoundError("Cannot iterate through soundfont presets; please install sf2utils.")
+    best_preset_match = None
+    best_preset_score = 0
+    altered_name = name.lower()
+    altered_name = _do_name_substitutions(altered_name)
+    for scamp_soundfont_preset in get_soundfont_presets(which_soundfont):
+        altered_preset_name = scamp_soundfont_preset.name.lower()
+        altered_preset_name = _do_name_substitutions(altered_preset_name)
+        score = get_average_square_correlation(altered_name, altered_preset_name)
+        if score > best_preset_score:
+            best_preset_score = score
+            best_preset_match = scamp_soundfont_preset
+    return best_preset_match, best_preset_score
+
+
 _preset_name_substitutions = [
     # voice types
     [r"\b(bs)\b", "bass"],
@@ -268,21 +299,3 @@ def _do_name_substitutions(name: str):
             else:
                 name = name[:match.start(0)] + replace_string + name[match.end(0):]
     return name
-
-
-def resolve_soundfont_path(soundfont: str):
-    """
-    Consults playback settings and returns the path to the given soundfont
-
-    :param soundfont: either the name of a named soundfont or an explicit soundfont path. Paths are resolved relatively
-    unless they start with a slash.
-    :return: an absolute path o the soundfont
-    """
-    soundfont_path = playback_settings.named_soundfonts[soundfont] \
-        if soundfont in playback_settings.named_soundfonts else soundfont
-
-    if soundfont_path.startswith("./"):
-        soundfont_path = resolve_relative_path("soundfonts/" + soundfont_path[2:])
-    elif not soundfont_path.startswith("/"):
-        soundfont_path = resolve_relative_path("soundfonts/" + soundfont_path)
-    return soundfont_path

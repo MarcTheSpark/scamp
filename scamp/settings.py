@@ -151,6 +151,9 @@ class PlaybackSettings(_ScampSettings):
         "named_soundfonts": {
             "general_midi": "Merlin.sf2",
         },
+        "soundfont_search_paths": [
+            "soundfonts/"
+        ],
         "default_soundfont": "general_midi",
         "default_audio_driver": "auto",
         "default_midi_output_device": None,
@@ -185,7 +188,7 @@ class PlaybackSettings(_ScampSettings):
             self.default_midi_output_device = self.default_max_soundfont_pitch_bend = \
             self.default_max_streaming_midi_pitch_bend = self.soundfont_volume_to_velocity_curve = \
             self.streaming_midi_volume_to_velocity_curve = self.osc_message_addresses = \
-            self.adjustments = self.try_system_fluidsynth_first = None
+            self.adjustments = self.try_system_fluidsynth_first = self.soundfont_search_paths = None
         super().__init__(settings_dict)
         assert isinstance(self.adjustments, PlaybackAdjustmentsDictionary)
 

@@ -57,6 +57,9 @@
         "end_note": "end_note",
         "start_note": "start_note"
     },
+    "soundfont_search_paths": [
+        "soundfonts/"
+    ],
     "soundfont_volume_to_velocity_curve": {
         "_type": "Envelope",
         "durations": [
