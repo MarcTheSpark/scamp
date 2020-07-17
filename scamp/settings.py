@@ -480,48 +480,9 @@ class EngravingSettings(_ScampSettings):
         self.tempo: TempoSettings = None
         super().__init__(settings_dict)
         if self.show_music_xml_command_line is None or self.show_music_xml_command_line == "auto":
-            self._auto_set_music_xml_open_command()
+            # default to just a generic open command
+            self.set_music_xml_application()
             self.make_persistent()
-
-    def _auto_set_music_xml_open_command(self):
-        print("Testing for software to open MusicXML files...")
-        app_names_to_try = ["MuseScore", "Sibelius", "Finale", "Dorico"]
-        platform_system = platform.system().lower()
-        if platform_system == "linux":
-            for cmd in [x.lower() for x in app_names_to_try] + app_names_to_try:
-                if shutil.which(cmd) is not None:
-                    print("Found application {}. This has been made the default, but it can be altered by running "
-                          "engraving_settings.set_music_xml_application(NAME_OF_APPLICATION)".format(cmd))
-                    self.set_music_xml_application(cmd)
-                    return
-            # if we can't find the appropriate application, set it to a generic open command
-            print("Could not find an appropriate application; falling back to generic open command.")
-            self.set_music_xml_application()
-        elif platform_system == "windows":
-            program_list = subprocess.check_output(["cmd", "/c", "wmic", "product", "get", "name"]).decode().\
-                replace(" ", "").split("\r\r\n")
-            for app_name in app_names_to_try:
-                for installed_program in program_list:
-                    if app_name.lower() in installed_program.lower():
-                        print("Found application {}. This has been made the default, but it can be altered by running "
-                              "engraving_settings.set_music_xml_application(NAME_OF_APPLICATION)".
-                              format(installed_program))
-                        self.set_music_xml_application(installed_program)
-                        return
-            print("Could not find an appropriate application; falling back to generic open command.")
-            self.set_music_xml_application()
-        elif platform_system == "darwin":
-            for app_name in app_names_to_try:
-                if subprocess.call(["open", "-Ra", app_name]) == 0:
-                    print("Found application {}. This has been made the default, but it can be altered by running "
-                          "engraving_settings.set_music_xml_application(NAME_OF_APPLICATION)".format(app_name))
-                    self.set_music_xml_application(app_name)
-                    return
-            # if we can't find the appropriate application, set it to a generic open command
-            print("Could not find an appropriate application; falling back to generic open command.")
-            self.set_music_xml_application()
-        else:
-            logging.warning("Unrecognized platform {}".format(platform_system))
 
     def set_music_xml_application(self, application_name: str = None) -> None:
         """
@@ -540,7 +501,7 @@ class EngravingSettings(_ScampSettings):
         elif platform_system == "windows":
             # generic open command on windows is "start"
             self.show_music_xml_command_line = "cmd.exe /c start {}".format(application_name) \
-                if application_name is not None else "start"
+                if application_name is not None else "cmd.exe /c start"
         else:
             logging.warning("Cannot run \"show_xml\" on unrecognized platform {}".format(platform_system))
 

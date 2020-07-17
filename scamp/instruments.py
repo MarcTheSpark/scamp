@@ -1075,8 +1075,7 @@ class ScampInstrument(SavesToJSON):
         - "default", which uses the default clef preferences for an unknown instrument
         - the name of a clef
         - the name of an instrument whose clef defaults to use
-        - a list of possible clefs. Each of these choices should be either a valid clef name string or a tuple of
-        (valid clef name string, center pitch).
+        - a list of possible clefs. Each of these choices should be either a valid clef name string or a tuple of (valid clef name string, center pitch).
 
         """
         return self._clef_preference

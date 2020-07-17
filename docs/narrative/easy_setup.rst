@@ -64,8 +64,21 @@ this:
 
    Installing the *scamp* package using the Thonny package manager.
 
-Using this tool, search for and install the following packages: *scamp*, *pynput*, *python-rtmidi*, and *abjad*. (If you
-run into an issue with *python-rtmidi*, try opening a terminal and running :code:`sudo apt install python3-dev`.)
+
+Type “scamp” into the textbox and click “Find package from PyPI”. PyPI is an online repository of Python libraries from
+which SCAMP can be downloaded and installed. Click the “Install” button.
+
+Having done that, you will want to search for and install the following optional dependencies in order to get the full
+functionality that SCAMP has to offer:
+
+- `python-rtmidi` (offers the ability to stream MIDI to an external synthesizer or application. Note that, on linux, you may have to install some development packages such as `python3-dev` for this packages to install successfully.)
+
+- `abjad` (makes it possible to generate scores via LilyPond)
+
+- `pynput` (offers responsiveness to mouse and keyboard events)
+
+- `scamp_extensions` (offers a range of useful extensions, like scales and other musical constructs)
+
 
 Installing FluidSynth
 ~~~~~~~~~~~~~~~~~~~~~
@@ -149,13 +162,16 @@ of Python libraries from which SCAMP can be downloaded and installed. Click the 
    :width: 70%
    :align: center
 
-After having installed SCAMP, search for and install the following packages, upon which scamp depends:
+Having done that, you will want to search for and install the following optional dependencies in order to get the full
+functionality that SCAMP has to offer:
 
-- `python-rtmidi`
+- `python-rtmidi` (offers the ability to stream MIDI to an external synthesizer or application)
 
-- `abjad`
+- `abjad` (makes it possible to generate scores via LilyPond)
 
-- `pynput`
+- `pynput` (offers responsiveness to mouse and keyboard events)
+
+- `scamp_extensions` (offers a range of useful extensions, like scales and other musical constructs)
 
 
 Installing LilyPond
