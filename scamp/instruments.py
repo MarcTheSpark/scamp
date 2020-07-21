@@ -155,15 +155,16 @@ class Ensemble(SavesToJSON):
 
         instrument = self.new_silent_part(name, default_spelling_policy=default_spelling_policy,
                                           clef_preference=clef_preference)
-        instrument.add_soundfont_playback(preset, soundfont, num_channels, audio_driver, max_pitch_bend,
-                                          note_on_and_off_only)
+        instrument.add_soundfont_playback(preset=preset, soundfont=soundfont, num_channels=num_channels,
+                                          audio_driver=audio_driver, max_pitch_bend=max_pitch_bend,
+                                          note_on_and_off_only=note_on_and_off_only)
 
         return instrument
 
     def new_midi_part(self, name: str = None, midi_output_device: Union[int, str] = "default",
                       num_channels: int = 8, midi_output_name: str = None, max_pitch_bend: int = "default",
                       note_on_and_off_only: bool = False, default_spelling_policy: SpellingPolicy = None,
-                      clef_preference="from_name") -> 'ScampInstrument':
+                      clef_preference="from_name", start_channel: int = 0) -> 'ScampInstrument':
         """
         Creates and returns a new ScampInstrument for this Ensemble that uses a MIDIStreamPlaybackImplementation.
         This means that when notes are played by this instrument, midi messages are sent out to the given device.
@@ -182,6 +183,9 @@ class Ensemble(SavesToJSON):
             won't, so they can share the same MIDI channels, only using an extra one due to microtonality.
         :param default_spelling_policy: the :attr:`~ScampInstrument.default_spelling_policy` for the new part
         :param clef_preference: the :attr:`~ScampInstrument.clef_preference` for the new part
+        :param start_channel: the first channel to use. For instance, if start_channel is 4, and num_channels is 5,
+            we will use channels (4, 5, 6, 7, 8). NOTE: channel counting in SCAMP starts from 0, so this may show
+            up as channels 5-9 in your MIDI software.
         :return: the newly created ScampInstrument
         """
         midi_output_device = self.default_midi_output_device if midi_output_device == "default" else midi_output_device
@@ -190,8 +194,9 @@ class Ensemble(SavesToJSON):
 
         instrument = self.new_silent_part(name, default_spelling_policy=default_spelling_policy,
                                           clef_preference=clef_preference)
-        instrument.add_streaming_midi_playback(midi_output_device, num_channels, midi_output_name, max_pitch_bend,
-                                               note_on_and_off_only)
+        instrument.add_streaming_midi_playback(midi_output_device=midi_output_device, num_channels=num_channels,
+                                               midi_output_name=midi_output_name, max_pitch_bend=max_pitch_bend,
+                                               note_on_and_off_only=note_on_and_off_only, start_channel=start_channel)
 
         return instrument
 
@@ -217,7 +222,8 @@ class Ensemble(SavesToJSON):
 
         instrument = self.new_silent_part(name, default_spelling_policy=default_spelling_policy,
                                           clef_preference=clef_preference)
-        instrument.add_osc_playback(port, ip_address, message_prefix, osc_message_addresses)
+        instrument.add_osc_playback(port=port, ip_address=ip_address, message_prefix=message_prefix,
+                                    osc_message_addresses=osc_message_addresses)
 
         return instrument
 
@@ -964,8 +970,9 @@ class ScampInstrument(SavesToJSON):
             preset = Ensemble._resolve_preset_from_name(self.name if preset == "auto" else preset, soundfont)
         elif isinstance(preset, int):
             preset = (0, preset)
-        SoundfontPlaybackImplementation(self, preset, soundfont, num_channels, audio_driver,
-                                        max_pitch_bend, note_on_and_off_only)
+        SoundfontPlaybackImplementation(self, bank_and_preset=preset, soundfont=soundfont, num_channels=num_channels,
+                                        audio_driver=audio_driver, max_pitch_bend=max_pitch_bend,
+                                        note_on_and_off_only=note_on_and_off_only)
         return self
 
     def remove_soundfont_playback(self) -> 'ScampInstrument':
@@ -982,7 +989,7 @@ class ScampInstrument(SavesToJSON):
 
     def add_streaming_midi_playback(self, midi_output_device: Union[int, str] = "default", num_channels: int = 8,
                                     midi_output_name: str = None, max_pitch_bend: int = "default",
-                                    note_on_and_off_only: bool = False) -> 'ScampInstrument':
+                                    note_on_and_off_only: bool = False, start_channel: int = 0) -> 'ScampInstrument':
         """
         Add a streaming MIDI playback implementation for this instrument.
 
@@ -995,10 +1002,14 @@ class ScampInstrument(SavesToJSON):
             doesn't do any dynamic pitch/volume/parameter changes. Without this flag, notes will all be placed on
             separate MIDI channels, since they could potentially change pitch or volume; with this flags, we know they
             won't, so they can share the same MIDI channels, only using an extra one due to microtonality.
+        :param start_channel: the first channel to use. For instance, if start_channel is 4, and num_channels is 5,
+            we will use channels (4, 5, 6, 7, 8). NOTE: channel counting in SCAMP starts from 0, so this may show
+            up as channels 5-9 in your MIDI software.
         :return: self
         """
-        MIDIStreamPlaybackImplementation(self, midi_output_device, num_channels, midi_output_name,
-                                         max_pitch_bend, note_on_and_off_only)
+        MIDIStreamPlaybackImplementation(self, midi_output_device=midi_output_device, num_channels=num_channels,
+                                         midi_output_name=midi_output_name, max_pitch_bend=max_pitch_bend,
+                                         note_on_and_off_only=note_on_and_off_only, start_channel=start_channel)
         return self
 
     def remove_streaming_midi_playback(self) -> 'ScampInstrument':
@@ -1026,7 +1037,8 @@ class ScampInstrument(SavesToJSON):
             defined in playback_settings
         :return: self
         """
-        OSCPlaybackImplementation(self, port, ip_address, message_prefix, osc_message_addresses)
+        OSCPlaybackImplementation(self, port=port, ip_address=ip_address, message_prefix=message_prefix,
+                                  osc_message_addresses=osc_message_addresses)
         return self
 
     def remove_osc_playback(self) -> 'ScampInstrument':

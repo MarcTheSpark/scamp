@@ -616,12 +616,13 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
 
     def __init__(self, host_instrument: 'instruments_module.ScampInstrument', midi_output_device: str = "default",
                  num_channels=8, midi_output_name: Optional[str] = None, max_pitch_bend: int = "default",
-                 note_on_and_off_only: bool = False):
+                 note_on_and_off_only: bool = False, start_channel=0):
         super().__init__(host_instrument, num_channels, note_on_and_off_only)
 
         # we hold onto these arguments for the purposes of json serialization
         # note that if the midi_output_device or midi_output_name said "default",
         # then we save it as "default", rather than what that default resolved to.
+        self.start_channel = start_channel
         self.num_channels = num_channels
         self.midi_output_device = midi_output_device
         self.midi_output_name = midi_output_name
@@ -634,12 +635,12 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
             midi_output_name = "Unnamed" if host_instrument.name is None else host_instrument.name
 
         # since rtmidi can only have 16 output channels, we need to create several output devices if we are using more
-        if num_channels <= 16:
+        if start_channel + num_channels <= 16:
             self.rt_simple_outs = [SimpleRtMidiOut(midi_output_device, midi_output_name)]
         else:
             self.rt_simple_outs = [
                 SimpleRtMidiOut(midi_output_device, midi_output_name + " chans {}-{}".format(chan, chan + 15))
-                for chan in range(0, num_channels, 16)
+                for chan in range(0, start_channel + num_channels, 16)
             ]
 
         self.max_pitch_bend = None
@@ -648,8 +649,8 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
 
     def _get_rt_simple_out_and_channel(self, chan):
         assert chan < self.num_channels
-        adjusted_chan = chan % 16
-        rt_simple_out = self.rt_simple_outs[(chan - adjusted_chan) // 16]
+        adjusted_chan = (chan + self.start_channel) % 16
+        rt_simple_out = self.rt_simple_outs[chan // 16]
         return rt_simple_out, adjusted_chan
 
     def note_on(self, chan: int, pitch: int, velocity_from_0_to_1: float):
