@@ -4,7 +4,8 @@ designed to act as a hub, flexibly connecting the composer-programmer to a wide 
 notation.
 """
 
-from clockblocks import Clock, TempoEnvelope, MetricPhaseTarget, wait, fork_unsynchronized, fork, current_clock
+from clockblocks import Clock, TempoEnvelope, MetricPhaseTarget, wait, fork_unsynchronized, fork, current_clock, \
+    wait_forever, wait_for_children_to_finish
 from expenvelope import Envelope, EnvelopeSegment
 from .session import Session
 from .instruments import Ensemble, ScampInstrument, NoteHandle, ChordHandle

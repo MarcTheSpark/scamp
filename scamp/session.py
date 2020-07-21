@@ -377,5 +377,8 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
             instrument.set_ensemble(session)
         return session
 
+    def __str__(self):
+        return "Session(tempo={}, instruments={})".format(self.tempo, self.instruments)
+
     def __repr__(self):
         return "Session._from_dict({})".format(self._to_dict())
