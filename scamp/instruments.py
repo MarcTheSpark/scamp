@@ -709,7 +709,7 @@ class ScampInstrument(SavesToJSON):
                 properties.spelling_policy = self.default_spelling_policy
             # if the instrument doesn't have a default spelling policy check the host (probably a Session)
             elif self.ensemble is not None and self.ensemble.default_spelling_policy is not None:
-                properties.spelling_policy = self.default_spelling_policy
+                properties.spelling_policy = self.ensemble.default_spelling_policy
             # if the host doesn't have a default, then don't do anything and it will fall back to playback_settings
         return properties
 

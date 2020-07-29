@@ -182,8 +182,16 @@ def resolve_soundfont_path(soundfont: str):
             elif os.path.exists(os.path.join(search_path, soundfont_path + ".sf2")):
                 # try adding an sf2
                 return os.path.join(search_path, soundfont_path + ".sf2")
-        # give up and just return the path as is
-        return soundfont_path
+
+    # finally, if we're running from a script, search in the same directory as the script for the file
+    import __main__
+    if hasattr(__main__, "__file__"):
+        script_dir = os.path.dirname(os.path.abspath(__main__.__file__))
+        if os.path.exists(os.path.join(script_dir, soundfont_path + ".sf2")):
+            return os.path.join(script_dir, soundfont_path + ".sf2")
+
+    # give up and just return the path as is
+    return soundfont_path
 
 
 def get_soundfont_presets(which_soundfont="default"):
