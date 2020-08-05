@@ -185,6 +185,10 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
                         raise ValueError("Cannot have multiple values for a voice property.")
                     properties_dict["voice"] = value
 
+                elif key in "texts":  # note that this allows the singular "articulation" too
+                    for value in values:
+                        properties_dict["texts"].append(value)
+
         properties_dict._convert_params_to_envelopes_if_needed()
         return properties_dict
 
@@ -220,11 +224,11 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
         self["notations"] = value
 
     @property
-    def text(self):
+    def texts(self):
         return self["texts"]
 
-    @text.setter
-    def text(self, value):
+    @texts.setter
+    def texts(self, value):
         self["texts"] = value
 
     @property
@@ -316,7 +320,7 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
         return self.articulations == other_properties_dict.articulations and \
                self.notations == other_properties_dict.notations and \
                self.playback_adjustments == other_properties_dict.playback_adjustments and \
-               self.text == other_properties_dict.text
+               self.texts == other_properties_dict.texts
 
     def _to_dict(self) -> dict:
         json_friendly_dict = dict(deepcopy(self))
@@ -329,7 +333,7 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
             del json_friendly_dict["noteheads"]
         if len(self.notations) == 0:
             del json_friendly_dict["notations"]
-        if len(self.text) == 0:
+        if len(self.texts) == 0:
             del json_friendly_dict["texts"]
         if len(self.playback_adjustments) == 0:
             del json_friendly_dict["playback_adjustments"]

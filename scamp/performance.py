@@ -223,6 +223,9 @@ class PerformanceNote(SavesToJSON):
                     # note, if the split protocol says "all" (or doesn't exist), then we just
                     # default to keeping the articulation on everything
 
+                # clear all of the text for the second part, since we only need it at the start of the note
+                second_part.properties.texts.clear()
+
                 # we also want to keep track of which notes came from the same original note for doing ties and such
                 if "_source_id" in self.properties.temp:
                     second_part.properties.temp["_source_id"] = self.properties.temp["_source_id"]
@@ -622,7 +625,7 @@ class PerformancePart(SavesToJSON):
     def _get_longest_quantization_record(self):
         # useful if we want to get a sense of all the measures involved and their quantization,
         # since some voices may only last for a few measures and cut off early
-        if len(self.voice_quantization_records) is 0:
+        if len(self.voice_quantization_records) == 0:
             return None
         return max(self.voice_quantization_records.values(),
                    key=lambda quantization_record: len(quantization_record.quantized_measures))

@@ -2395,7 +2395,7 @@ class NoteLike(ScoreComponent):
         elif self.does_glissando():
             # This is a note doing a glissando
             abjad_object = abjad().Note(self.properties.spelling_policy.resolve_abjad_pitch(self.pitch.start_level()),
-                                      duration)
+                                        duration)
             # Set the notehead
             self._set_abjad_note_head_styles(abjad_object)
             last_pitch = abjad_object.written_pitch
@@ -2501,7 +2501,6 @@ class NoteLike(ScoreComponent):
     def to_music_xml(self, source_id_dict=None) -> Sequence[_XMLNote]:
         notations = [notations_to_xml_notations_element[x] for x in self.properties.notations
                      if x in notations_to_xml_notations_element]
-
         if self.is_rest():
             return pymusicxml.Rest(self.written_length),
         elif self.is_chord():
@@ -2515,6 +2514,10 @@ class NoteLike(ScoreComponent):
                 ), italic=True), )
             else:
                 directions = ()
+
+            # add text annotations from properties
+            if len(self.properties.texts) > 0:
+                directions += tuple(pymusicxml.TextAnnotation(x) for x in self.properties.texts)
 
             out = [pymusicxml.Chord(
                 tuple(self.properties.spelling_policy.resolve_music_xml_pitch(p) for p in start_pitches),
@@ -2531,7 +2534,7 @@ class NoteLike(ScoreComponent):
                     # only add a grace chord if it differs in pitch from the last chord / grace chord
                     if these_pitches[0] != out[-1].pitches[0]:
                         out.append(pymusicxml.GraceChord(
-                            these_pitches, 1.0, stemless=True,
+                            these_pitches, 0.5, stemless=True,
                             noteheads=tuple(get_xml_notehead(notehead) if notehead != "normal" else None
                                             for notehead in self.properties.noteheads)
                         ))
@@ -2545,6 +2548,10 @@ class NoteLike(ScoreComponent):
                 directions = (pymusicxml.TextAnnotation("({})".format(round(start_pitch, 3)), italic=True), )
             else:
                 directions = ()
+
+            # add text annotations from properties
+            if len(self.properties.texts) > 0:
+                directions += tuple(pymusicxml.TextAnnotation(x) for x in self.properties.texts)
 
             out = [pymusicxml.Note(
                 self.properties.spelling_policy.resolve_music_xml_pitch(start_pitch),
@@ -2560,7 +2567,7 @@ class NoteLike(ScoreComponent):
                     # only add a grace note if it differs in pitch from the last note / grace note
                     if this_pitch != out[-1].pitch:
                         out.append(pymusicxml.GraceNote(
-                            this_pitch, 1.0, stemless=True,
+                            this_pitch, 0.5, stemless=True,
                             notehead=(get_xml_notehead(self.properties.noteheads[0])
                                       if self.properties.noteheads[0] != "normal" else None)
                         ))
