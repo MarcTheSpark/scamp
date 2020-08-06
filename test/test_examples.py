@@ -4,7 +4,11 @@ import importlib.util
 import os
 import json
 import sys
-import difflib
+import re
+import random
+
+
+random.seed(0)
 
 
 if len(sys.argv) > 1 and sys.argv[1] == "-s":
@@ -40,7 +44,11 @@ def get_example_result(python_file_path):
             result.composer = ""
             result.title = ""
             results.append(str(result))
-            results.append(str(result.to_music_xml().to_xml(pretty_print=True)))
+            results.append(re.sub(
+                r"\n.*<encoding-date>.*</encoding-date>",
+                "",
+                str(result.to_music_xml().to_xml(pretty_print=True))
+            ))
             results.append(str(result.to_lilypond()))
         else:
             results.append(str(result))
@@ -67,11 +75,15 @@ def test_example_result(python_file_path):
                 if a == b:
                     out.append(True)
                 else:
-                    diffs = [x for x in difflib.ndiff(a.split("\n"), b.split("\n")) if x.startswith(("-", "+"))]
-                    if len(diffs) > MAX_DIFF_LINES:
-                        out.append("\n".join(diffs[:MAX_DIFF_LINES]) + "\n ... etc ...")
-                    else:
-                        out.append("\n".join(diffs))
+                    this_diff = []
+                    for a_line, b_line in zip(a.split("\n"), b.split("\n")):
+                        if a_line != b_line:
+                            if len(this_diff) > MAX_DIFF_LINES:
+                                this_diff.append("  ... etc ...")
+                                break
+                            this_diff.append("  - {}".format(a_line))
+                            this_diff.append("  + {}".format(b_line))
+                    out.append("\n".join(this_diff))
             return out
     else:
         raise FileNotFoundError("Could not test example result for {}. No prior result has been saved.".format(
@@ -101,7 +113,6 @@ for example_path in examples:
             print('\033[0m')
             failures += 1
         total += 1
-
 
 if not SAVE_NEW:
     print('\033[1m' + "{}/{} scripts tested successfully".format(total - failures, total) + '\033[0m')
