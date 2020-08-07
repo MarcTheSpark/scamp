@@ -16,6 +16,7 @@
 Added lots of bindings and stuff to help with playing live -- Bill Peterson <albedozero@gmail.com>
 Added sequencer support -- Christian Romberg <distjubo@gmail.com>
 Tried to build in fluidsynth 2 capability while maintaining backwards compatibility -- Bill Peterson <albedozero@gmail.com>
+SCAMP Integration -- Marc Evanstein <marc@marcevanstein.com>
 """
 
 from ctypes import *
@@ -31,6 +32,9 @@ try:
 except NameError:
     str = basestring
 
+
+# -------------------------------------------- SCAMP Integration ---------------------------------------------
+# (This section was added to facilitate incorporation within SCAMP)
 
 def _try_to_load_local_fl_library():
     logging.debug("Trying to load fluidsynth DLL/DYLIB from within SCAMP.")
@@ -89,6 +93,8 @@ else:
 
 if _fl is None:
     raise ImportError("Couldn't find the FluidSynth library.")
+
+# ------------------------------------------------------------------------------------------------------------
 
 
 # Helper function for declaring function prototypes
