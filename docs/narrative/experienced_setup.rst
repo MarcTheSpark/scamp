@@ -77,6 +77,6 @@ To install the most up-to-date version (assuming you have git installed), you ca
 
 .. code-block:: bash
 
-    pip3 install git+https://github.com/MarcTheSpark/scamp_extensions
+    pip3 install git+https://git.sr.ht/~marcevanstein/scamp_extensions
 
 This will install the latest version from this repo.

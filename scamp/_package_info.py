@@ -28,7 +28,7 @@ description = "A computer-assisted composition framework that manages the flow o
 url = "http://scamp.marcevanstein.com"
 
 project_urls = {
-    "Source Code": "https://github.com/MarcTheSpark/scamp",
+    "Source Code": "https://sr.ht/~marcevanstein/scamp/",
     "Documentation": "http://scamp.marcevanstein.com",
 }
 

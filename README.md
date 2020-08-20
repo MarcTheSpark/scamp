@@ -24,9 +24,9 @@ messages, placing notes on separate channels where necessary so that these pitch
 not conflict.
 
 - Effortless playback of glissandi and dynamic envelopes. Both pitch and volume can follow 
-arbitrary curves defined using the [_expenvelope_](https://github.com/MarcTheSpark/expenvelope) package.
+arbitrary curves defined using the [_expenvelope_](https://git.sr.ht/~marcevanstein/expenvelope) package.
 
-- Flexible and precise polyphonic tempo control using [_clockblocks_](https://github.com/MarcTheSpark/clockblocks). 
+- Flexible and precise polyphonic tempo control using [_clockblocks_](https://git.sr.ht/~marcevanstein/clockblocks). 
 In SCAMP, different layers of music moving at different tempi can be interweaved with one 
 another while remaining coordinated. Smooth accelerandi and ritardandi are possible, and the 
 resulting music can be quantized according to the tempo of any layer.
@@ -44,7 +44,7 @@ While this may be a worthwhile trade-off in many cases, it is not the goal of SC
 the goal is to provide general purpose tools, to remove the drudgery of implementing practical 
 functionality that is needed again and again. Beyond this scope, users are encouraged to write 
 and share their own extensions to suit their own compositional inclinations. (Several such 
-extensions are available in the [_scamp_extensions_](https://github.com/MarcTheSpark/scamp_extensions) package.)
+extensions are available in the [_scamp_extensions_](https://git.sr.ht/~marcevanstein/scamp_extensions) package.)
 
 Other key values underlying this framework are:
 
@@ -195,7 +195,7 @@ pip3 install --user scamp_extensions
 To install the most up-to-date version (assuming you have git installed), you can instead run:
 
 ```
-pip3 install --user git+https://github.com/MarcTheSpark/scamp_extensions
+pip3 install --user git+https://git.sr.ht/~marcevanstein/scamp_extensions
 ```
 
 This will install the latest version from this repository.
