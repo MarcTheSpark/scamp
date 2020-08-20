@@ -57,9 +57,9 @@ functionality under the hood, it shouldn't be encountered by the user until it i
 - Modularity and adherence as much as possible to the [Unix Philosophy](https://en.wikipedia.org/wiki/Unix_philosophy). 
 SCAMP bundles a number of tools together for convenience, but it may be more than a given user 
 needs. For this reason, the MusicXML export capability is available separately as 
-[_pymusicxml_](http://www.github.com/MarcTheSpark/pymusicxml), the flexible musical Envelope 
-class is available separately as [_expenvelope_](http://www.github.com/MarcTheSpark/expenvelope), 
-and the system for managing musical time is available separately as [_clockblocks_](http://www.github.com/MarcTheSpark/clockblocks).
+[_pymusicxml_](https://git.sr.ht/~marcevanstein/pymusicxml), the flexible musical Envelope 
+class is available separately as [_expenvelope_](https://git.sr.ht/~marcevanstein/expenvelope), 
+and the system for managing musical time is available separately as [_clockblocks_](https://git.sr.ht/~marcevanstein/clockblocks).
 
 
 ## Installation & Requirements
