@@ -1,5 +1,5 @@
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
-#  SCAMP (Suite for Computer-Assisted Music in Python)                                           #
+#  This file is part of SCAMP (Suite for Computer-Assisted Music in Python)                      #
 #  Copyright © 2020 Marc Evanstein <marc@marcevanstein.com>.                                     #
 #                                                                                                #
 #  This program is free software: you can redistribute it and/or modify it under the terms of    #
@@ -68,7 +68,7 @@ mds_points = mds.fit(harmonic_distances).embedding_
 # scale those mds_points into the range 0-1000 in x and y coordinates for drawing
 point_range = min(x[0] for x in mds_points), max(x[0] for x in mds_points), \
               min(x[1] for x in mds_points), max(x[1] for x in mds_points)
-scale_factor = 1200 / max(point_range[1] - point_range[0], point_range[3] - point_range[2])
+scale_factor = 1400 / max(point_range[1] - point_range[0], point_range[3] - point_range[2])
 mds_points *= scale_factor
 mds_points += 500
 
@@ -106,6 +106,11 @@ class Barlicity(QtWidgets.QMainWindow):
         # the scanner moves around between the different points; this keeps track of where it is
         self.scanner_index = 0
 
+        view.setMouseTracking(True)
+        def mme(evt):
+            self.start()
+        view.mousePressEvent = mme
+
         # create all of the points
         self.points_graphics = []
         for i, point in enumerate(points):
@@ -131,12 +136,14 @@ class Barlicity(QtWidgets.QMainWindow):
     def showEvent(self, a0):
         # when the window is shown, we set up scamp
         super().showEvent(a0)
+        
+    def start(self):
         self.session = Session().run_as_server()
         self.harpsichord = self.session.new_part("harpsichord")
         self.piano = self.session.new_part("piano")
         self.session.fork(self.run_scanner, name="SCANNER_CLOCK")
         piano_clock = self.session.fork(self.piano_part, initial_tempo=PIANO_TEMPO, name="PIANO_CLOCK")
-        self.session.fork(self.harpsichord_part, initial_tempo=HARPSICHORD_TEMPO, name="PIANO_CLOCK")
+#         self.session.fork(self.harpsichord_part, initial_tempo=HARPSICHORD_TEMPO, name="PIANO_CLOCK")
         self.session.start_transcribing(clock=piano_clock)
 
     def closeEvent(self, a0):

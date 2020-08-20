@@ -5,8 +5,9 @@ Module containing the main settings classes: :class:`PlaybackSettings`, :class:`
 and :code:`engraving_settings`) is loaded from JSON configuration files within within the settings directory of the
 scamp package. These instances are part of the global scamp namespace, and contain scamp's default configuration.
 """
+
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
-#  SCAMP (Suite for Computer-Assisted Music in Python)                                           #
+#  This file is part of SCAMP (Suite for Computer-Assisted Music in Python)                      #
 #  Copyright © 2020 Marc Evanstein <marc@marcevanstein.com>.                                     #
 #                                                                                                #
 #  This program is free software: you can redistribute it and/or modify it under the terms of    #
@@ -29,8 +30,6 @@ from . import spelling
 import logging
 import json
 import platform
-import shutil
-import subprocess
 from typing import Optional
 
 

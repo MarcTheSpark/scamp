@@ -8,7 +8,7 @@ then slows down to half speed within the accelerating parent process.
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
-#  SCAMP (Suite for Computer-Assisted Music in Python)                                           #
+#  This file is part of SCAMP (Suite for Computer-Assisted Music in Python)                      #
 #  Copyright © 2020 Marc Evanstein <marc@marcevanstein.com>.                                     #
 #                                                                                                #
 #  This program is free software: you can redistribute it and/or modify it under the terms of    #
