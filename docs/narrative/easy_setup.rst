@@ -25,7 +25,7 @@ This video provides a step-by-step walk-through of the installation process:
 
 .. raw:: html
 
-  <iframe class="youtube" frameborder=0 allowfullscreen="" src="https://www.youtube.com/embed/PRM-FxBtAfo?rel=0&showinfo=0&autoplay=1&listen=0"></iframe>
+  <iframe class="youtube" frameborder=0 allowfullscreen="" src="https://www.youtube.com/embed/PRM-FxBtAfo?rel=0&showinfo=0&listen=0"></iframe>
 
 
 Easy Setup on Linux

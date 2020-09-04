@@ -11,14 +11,15 @@ flow of musical time, play back notes via SoundFonts or MIDI or OSC messages to 
 and exports the result to music notation in the form of MusicXML or LilyPond.
 
 Below, you will find instructions for getting SCAMP up and running on your computer, as well as complete API Documentation.
-Narrative documentation is on the way; for now, the following video provides a good introduction to the framework:
+Narrative documentation is available in the form of these :ref:`video tutorials`. If you're looking for more of an overview,
+the following video provides a good introduction to the framework:
 
 .. raw:: html
 
   <iframe class="youtube" frameborder=0 allowfullscreen="" src="https://www.youtube.com/embed/vpv686Rasds?rel=0&showinfo=0&listen=0"></iframe>
 
 You can also read the `paper introducing the framework <http://marcevanstein.com/Writings/Evanstein_MAT_Thesis_SCAMP.pdf>`_,
-and check out the "tutorial" examples found at https://git.sr.ht/~marcevanstein/scamp/tree/master/examples/Tutorial.
+and check out the "tutorial" examples found `here <https://git.sr.ht/~marcevanstein/scamp/tree/master/examples/Tutorial>`_.
 
 .. toctree::
    :maxdepth: 2
@@ -27,6 +28,12 @@ and check out the "tutorial" examples found at https://git.sr.ht/~marcevanstein/
    narrative/easy_setup
 
    narrative/experienced_setup
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Narrative Documentation:
+
+   narrative/tutorial_videos
 
 .. toctree::
    :maxdepth: 2
