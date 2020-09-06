@@ -25,9 +25,6 @@ import re
 import random
 
 
-random.seed(0)
-
-
 if len(sys.argv) > 1 and sys.argv[1] == "-s":
     SAVE_NEW = True
 else:
@@ -54,6 +51,7 @@ def import_module(python_file_path):
 
 
 def get_example_result(python_file_path):
+    random.seed(0)
     mod = import_module(python_file_path)
     results = []
     for result in mod.test_results():
