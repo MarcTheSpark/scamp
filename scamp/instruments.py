@@ -25,7 +25,7 @@ all of its subclasses, which are found in playback_implementations.py.
 import itertools
 from ._soundfont_host import get_best_preset_match_for_name, print_soundfont_presets
 from ._midi import get_available_midi_output_devices, print_available_midi_output_devices
-from .utilities import SavesToJSON
+from .utilities import SavesToJSON, NoteProperty
 from .spelling import SpellingPolicy
 from ._note_properties import NotePropertiesDictionary
 from .playback_implementations import SoundfontPlaybackImplementation, MIDIStreamPlaybackImplementation, \
@@ -381,7 +381,7 @@ class ScampInstrument(SavesToJSON):
         for playback_implementation in self.playback_implementations:
             playback_implementation.set_host_instrument(self)
 
-    def play_note(self, pitch, volume, length, properties: Union[str, dict] = None, blocking: bool = True,
+    def play_note(self, pitch, volume, length, properties: Union[str, dict, NoteProperty] = None, blocking: bool = True,
                   clock: Clock = None) -> None:
         """
         Play a note on this instrument, with the given pitch, volume and length.
@@ -393,25 +393,32 @@ class ScampInstrument(SavesToJSON):
             with 0 representing silence and 1 representing max volume.
         :param length: either a number (of beats), or a tuple representing a set of tied segments
         :param properties: Catch-all for a wide range of other playback and notation details that we may want to convey
-            about a note.
-
-            These details can either be given in a dictionary or a string for greater brevity. Recognized
-            dictionary keys are "articulation(s)", "notehead(s)", "notation(s)", "text(s)", "playback_adjustment(s)",
-            "key"/"spelling_policy", "voice", and "param_*" (for specifying arbitrary extra parameters). For example:
+            about a note. These details can either be given in a dictionary or a string (for greater brevity).
+            Recognized dictionary keys are "articulation(s)", "notehead(s)", "notation(s)", "text(s)",
+            "playback_adjustment(s)", "key"/"spelling_policy", "voice", and "param_*" (for specifying arbitrary
+            extra parameters). For example:
 
             .. code-block:: python3
 
                 properties={
-                    "articulations": ["staccato", "tenuto"],  # add  staccato and tenuto articulations
-                    "notehead": "x",  # change to an "x" notehead
-                    "notation": "tremolo32",  # add a 32-note tremolo
-                    "text": "Hello there!",  # add this text to the score by the note
-                    "playback_adjustment": NotePlaybackAdjustment.add_to_params(pitch=12),  # play an octave higher
-                    # (alternatively "pitch + 12" would be interpreted by NotePlaybackAdjustment.from_string)
-                    "key": "Bb major",  # notate accidentals consistent with the key of Bb major
-                    "voice": 2, # place the note in voice two (named voices are also allowed)
-                    "param_vibrato": [2, 6, 1]  # sets the "vibrato" parameter to an envelope going from 2 to 6 to 1
-                    # (note that extra parameters are only executed if the playback implementation recognizes them)
+                     # add  staccato and tenuto articulations
+                    "articulations": ["staccato", "tenuto"],
+                    # change to an "x" notehead
+                    "notehead": "x",
+                    # add a 32-note tremolo
+                    "notation": "tremolo32",
+                    # add this text to the score by the note
+                    "text": "Hello there!",
+                    # play an octave higher (could also use a NotePlaybackAdjustment object)
+                    "playback_adjustment": "pitch + 12",
+                    # notate accidentals consistent with the key of Bb major
+                    "key": "Bb major",
+                    # place the note in voice two (named voices are also allowed)
+                    "voice": 2,
+                    # sets the "vibrato" parameter to an envelope going from 2 to 6 to 1
+                    # (note that extra parameters only effect playback when used with
+                    # a playback implementation that recognizes them)
+                    "param_vibrato": [2, 6, 1]
                 }
 
             Since this dictionary format can be quite cumbersome, it is also possible to pass a string containing
@@ -422,10 +429,15 @@ class ScampInstrument(SavesToJSON):
                 properties="articulations: staccato/tenuto, harmonic, #, volume * 0.7"
 
             The comma separates different properties, and the forward slash separates multiple entries for the same
-            property. Properties can either be given with explicit key/value pairs (separated by colon), or a value
-            can simply be given and the type of property will be inferred. In the above example, it is inferred that
-            "harmonic" is a notehead, that the "#" is a desired spelling, and that "volume * 0.7" is a string to be
-            parsed as a playback adjustment.
+            property (with the exception of with the text property, since a slash could be part of the text). Properties
+            can either be given with explicit key/value pairs (separated by colon), or a value can simply be given and
+            the type of property will be inferred. In the above example, it is inferred that "harmonic" is a notehead,
+            that the "#" is a desired spelling, and that "volume * 0.7" is a string to be parsed as a
+            :class:`~scamp.playback_adjustments.NotePlaybackAdjustment` using its
+            :func:`~scamp.playback_adjustments.NotePlaybackAdjustment.from_string` method.
+
+            Finally, it is also possible to directly pass a :class:`~scamp.spelling.SpellingPolicy`,
+            :class:`~scamp.text.StaffText`, or :class:`~scamp.playback_adjustments.NotePlaybackAdjustment`.
         :param blocking: if True, don't return until the note is done playing; if False, return immediately
         :param clock: which clock to use. If None, capture the clock from context.
         """
@@ -536,16 +548,16 @@ class ScampInstrument(SavesToJSON):
             note_handle.end()
             raise e
 
-    def play_chord(self, pitches: Sequence, volume, length, properties: Union[str, dict] = None, blocking: bool = True,
-                   clock: Clock = None) -> None:
+    def play_chord(self, pitches: Sequence, volume, length, properties: Union[str, dict, NoteProperty] = None,
+                   blocking: bool = True, clock: Clock = None) -> None:
         """
         Play a chord with the given pitches, volume, and length. Essentially, this is a convenience method that
         bundles together several calls to "play_note" and takes a list of pitches rather than a single pitch
 
         :param pitches: a list of pitches for the notes of this chord
-        :param volume: see description for "play_note"
-        :param length: see description for "play_note"
-        :param properties: see description for "play_note". One extra wrinkle to note with chords: if one value is
+        :param volume: see :func:`play_note`
+        :param length: see :func:`play_note`
+        :param properties: see :func:`play_note`. One extra wrinkle to note with chords: if one value is
             given for the "notehead" property then all noteheads are set to that value. If multiple values are given,
             they will be assigned to individual noteheads, and there should be the same number as notes in the chord.
         :param blocking: see description for "play_note"
@@ -574,14 +586,14 @@ class ScampInstrument(SavesToJSON):
             properties.noteheads = [properties.noteheads[-1]]
         self.play_note(pitches[-1], volume, length, properties=properties, blocking=blocking, clock=clock)
 
-    def start_note(self, pitch: float, volume: float, properties: dict = None, clock: Clock = None,
-                   max_volume: float = 1, flags: Sequence[str] = None) -> 'NoteHandle':
+    def start_note(self, pitch: float, volume: float, properties: Union[str, dict, NoteProperty] = None,
+                   clock: Clock = None, max_volume: float = 1, flags: Sequence[str] = None) -> 'NoteHandle':
         """
         Start a note with the given pitch, volume, and properties
 
         :param pitch: the pitch / starting pitch of the note (not an Envelope)
         :param volume: the volume / starting volume of the note (not an Envelope)
-        :param properties: see description under "play_note"
+        :param properties: see :func:`play_note`
         :param clock: the clock on which to run any animation of pitch, volume, etc. If None, captures the clock from
             context.
         :param max_volume: This is a bit of a pain, but since midi playback requires us to set the velocity at the
@@ -663,15 +675,15 @@ class ScampInstrument(SavesToJSON):
 
         return handle
 
-    def start_chord(self, pitches: Sequence[float], volume: float, properties: dict = None,
+    def start_chord(self, pitches: Sequence[float], volume: float, properties: Union[str, dict, NoteProperty] = None,
                     clock: Clock = None, max_volume: float = 1, flags: Sequence[str] = None) -> 'ChordHandle':
         """
         Simple utility for starting chords without starting each note individually.
 
         :param pitches: a list of pitches (not Envelopes)
-        :param volume: see start_note
-        :param properties: see start_note. In general, properties are cloned to all members of the chord. However,
-            noteheads can be separately defined using this syntax: "noteheads: diamond / normal / cross"
+        :param volume: see :func:`start_note`
+        :param properties: see :func:`play_note`. In general, properties are cloned to all members of the chord.
+            However, noteheads can be separately defined using this syntax: "noteheads: diamond / normal / cross"
         :param clock: see start_note
         :param max_volume: see start_note
         :param flags: see start_note
@@ -894,8 +906,8 @@ class ScampInstrument(SavesToJSON):
     def end_note(self, note_id: Union[int, 'NoteHandle'] = None) -> None:
         """
         Ends the note with the given note id. If none is specified, ends oldest note started.
-        Note that this only applies to notes started in an open-ended way with 'start_note', notes created using
-        play_note have their lifecycle controlled automatically.
+        Note that this only applies to notes started in an open-ended way with :func:`start_note`, notes created using
+        :func:`play_note` have their lifecycle controlled automatically.
 
         :param note_id: either the id itself or a NoteHandle with that id. Default of None ends the oldest note
         """
@@ -973,11 +985,11 @@ class ScampInstrument(SavesToJSON):
         :param audio_driver: which driver to use
         :param max_pitch_bend: max pitch bend to allow
         :param note_on_and_off_only: This enforces a rule of no dynamic pitch bends, expression (volume) changes, or
-            other cc messages. Valuable when using :code:`start_note` instead of :code:`play_note` in music that
+            other cc messages. Valuable when using :func:`start_note` instead of :func:`play_note` in music that
             doesn't do any dynamic pitch/volume/parameter changes. Without this flag, notes will all be placed on
             separate MIDI channels, since they could potentially change pitch or volume; with this flags, we know they
             won't, so they can share the same MIDI channels, only using an extra one due to microtonality.
-        :return: self
+        :return: self, for chaining purposes
         """
         soundfont = self.ensemble.default_soundfont \
             if self.ensemble is not None and soundfont == "default" else soundfont
@@ -995,7 +1007,7 @@ class ScampInstrument(SavesToJSON):
         """
         Remove the most recent SoundfontPlaybackImplementation from this instrument.
 
-        :return: self
+        :return: self, for chaining purposes
         """
         for index in reversed(range(len(self.playback_implementations))):
             if isinstance(self.playback_implementations[index], SoundfontPlaybackImplementation):
@@ -1014,14 +1026,14 @@ class ScampInstrument(SavesToJSON):
         :param midi_output_name: name given to the output stream
         :param max_pitch_bend: max pitch bend to allow
         :param note_on_and_off_only: This enforces a rule of no dynamic pitch bends, expression (volume) changes, or
-            other cc messages. Valuable when using :code:`start_note` instead of :code:`play_note` in music that
+            other cc messages. Valuable when using :func:`start_note` instead of :func:`play_note` in music that
             doesn't do any dynamic pitch/volume/parameter changes. Without this flag, notes will all be placed on
             separate MIDI channels, since they could potentially change pitch or volume; with this flags, we know they
             won't, so they can share the same MIDI channels, only using an extra one due to microtonality.
         :param start_channel: the first channel to use. For instance, if start_channel is 4, and num_channels is 5,
             we will use channels (4, 5, 6, 7, 8). NOTE: channel counting in SCAMP starts from 0, so this may show
             up as channels 5-9 in your MIDI software.
-        :return: self
+        :return: self, for chaining purposes
         """
         MIDIStreamPlaybackImplementation(self, midi_output_device=midi_output_device, num_channels=num_channels,
                                          midi_output_name=midi_output_name, max_pitch_bend=max_pitch_bend,
@@ -1032,7 +1044,7 @@ class ScampInstrument(SavesToJSON):
         """
         Remove the most recent MIDIStreamPlaybackImplementation from this instrument.
 
-        :return self
+        :return: self, for chaining purposes
         """
         for index in reversed(range(len(self.playback_implementations))):
             if isinstance(self.playback_implementations[index], MIDIStreamPlaybackImplementation):
@@ -1051,7 +1063,7 @@ class ScampInstrument(SavesToJSON):
             with all spaces removed.
         :param osc_message_addresses: the specifix message addresses to be used for each type of message. Defaults are
             defined in playback_settings
-        :return: self
+        :return: self, for chaining purposes
         """
         OSCPlaybackImplementation(self, port=port, ip_address=ip_address, message_prefix=message_prefix,
                                   osc_message_addresses=osc_message_addresses)
@@ -1061,7 +1073,7 @@ class ScampInstrument(SavesToJSON):
         """
         Remove the most recent OSCPlaybackImplementation from this instrument.
 
-        :return self
+        :return: self, for chaining purposes
         """
         for index in reversed(range(len(self.playback_implementations))):
             if isinstance(self.playback_implementations[index], OSCPlaybackImplementation):

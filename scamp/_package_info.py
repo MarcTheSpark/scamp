@@ -16,7 +16,7 @@
 
 name = "scamp"
 
-version = "0.7.3"
+version = "0.7.4"
 
 author = "Marc Evanstein"
 
@@ -32,7 +32,7 @@ project_urls = {
     "Documentation": "http://scamp.marcevanstein.com",
 }
 
-install_requires = ['pymusicxml >= 0.3.3', 'expenvelope >= 0.6.0', 'clockblocks >= 0.5.3', 'sf2utils', 'python-osc']
+install_requires = ['pymusicxml >= 0.3.4', 'expenvelope >= 0.6.0', 'clockblocks >= 0.5.3', 'sf2utils', 'python-osc']
 
 extras_require = {
     'lilypond': 'abjad==3.1',

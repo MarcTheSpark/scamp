@@ -424,9 +424,9 @@ class PerformancePart(SavesToJSON):
             # if the voice kwarg is given, use it - it should be a string
             assert isinstance(voice, str)
             voice_name = voice
-        elif "voice" in note.properties:
+        elif note.properties.voice is not None:
             # if the note specifies its voice, use that
-            voice_name = str(note.properties["voice"])
+            voice_name = str(note.properties.voice)
         else:
             # otherwise, use the catch-all voice "_unspecified_"
             voice_name = "_unspecified_"

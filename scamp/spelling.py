@@ -19,7 +19,7 @@ Module containing the :class:`SpellingPolicy` class, which describes how pitches
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
 import functools
-from .utilities import SavesToJSON
+from .utilities import SavesToJSON, NoteProperty
 from typing import Sequence, Tuple, Union
 import pymusicxml
 
@@ -51,7 +51,7 @@ _flat_order = tuple(reversed(_sharp_order))
 ##################################################################################################################
 
 
-class SpellingPolicy(SavesToJSON):
+class SpellingPolicy(SavesToJSON, NoteProperty):
 
     """
     Object that translates pitches or pitch classes to the actual spelling used in a score

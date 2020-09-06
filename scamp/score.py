@@ -29,6 +29,7 @@ from .utilities import prime_factor, floor_x_to_pow_of_y, is_x_pow_of_y, ceil_to
 from ._engraving_translations import length_to_note_type, get_xml_notehead, get_lilypond_notehead_name, \
     articulation_to_xml_element_name, notations_to_xml_notations_element
 from ._note_properties import NotePropertiesDictionary
+from .text import StaffText
 import pymusicxml
 from pymusicxml.music_xml_objects import _XMLNote, MusicXMLComponent
 from ._dependencies import abjad
@@ -2467,6 +2468,7 @@ class NoteLike(ScoreComponent):
                     source_id_dict[self.properties.temp["_source_id"]].extend(grace_container)
 
         self._attach_abjad_articulations(abjad_object, grace_container)
+        self._attach_abjad_texts(abjad_object)
         return abjad_object
 
     def _set_abjad_note_head_styles(self, abjad_note_or_chord):
@@ -2515,6 +2517,11 @@ class NoteLike(ScoreComponent):
                 for articulation in self._get_release_articulations():
                     abjad().attach(abjad().Articulation(articulation), grace_container[-1])
 
+    def _attach_abjad_texts(self, abjad_note_or_chord):
+        for text in self.properties.texts:
+            assert isinstance(text, StaffText)
+            abjad().attach(text.to_abjad(), abjad_note_or_chord)
+
     def to_music_xml(self, source_id_dict=None) -> Sequence[_XMLNote]:
         notations = [notations_to_xml_notations_element[x] for x in self.properties.notations
                      if x in notations_to_xml_notations_element]
@@ -2534,7 +2541,7 @@ class NoteLike(ScoreComponent):
 
             # add text annotations from properties
             if len(self.properties.texts) > 0:
-                directions += tuple(pymusicxml.TextAnnotation(x) for x in self.properties.texts)
+                directions += tuple(text.to_pymusicxml() for text in self.properties.texts)
 
             out = [pymusicxml.Chord(
                 tuple(self.properties.spelling_policy.resolve_music_xml_pitch(p) for p in start_pitches),
@@ -2568,7 +2575,7 @@ class NoteLike(ScoreComponent):
 
             # add text annotations from properties
             if len(self.properties.texts) > 0:
-                directions += tuple(pymusicxml.TextAnnotation(x) for x in self.properties.texts)
+                directions += tuple(text.to_pymusicxml() for text in self.properties.texts)
 
             out = [pymusicxml.Note(
                 self.properties.spelling_policy.resolve_music_xml_pitch(start_pitch),

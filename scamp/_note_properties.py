@@ -18,6 +18,7 @@ from .playback_adjustments import NotePlaybackAdjustment, PlaybackAdjustmentsDic
 from .utilities import SavesToJSON
 from .settings import playback_settings, engraving_settings
 from .spelling import SpellingPolicy
+from .text import StaffText
 from expenvelope import Envelope
 from copy import deepcopy
 import logging
@@ -57,29 +58,39 @@ def _split_string_at_outer_commas(s):
 class NotePropertiesDictionary(UserDict, SavesToJSON):
 
     def __init__(self, **kwargs):
-        NotePropertiesDictionary._standardize_plural_entry("articulations", kwargs)
-        NotePropertiesDictionary._standardize_plural_entry("noteheads", kwargs)
-        if len(kwargs["noteheads"]) == 0:
-            kwargs["noteheads"] = ["normal"]
-        NotePropertiesDictionary._standardize_plural_entry("notations", kwargs)
-        NotePropertiesDictionary._standardize_plural_entry("texts", kwargs)
-        NotePropertiesDictionary._standardize_plural_entry("playback_adjustments", kwargs)
-
-        for i, adjustment in enumerate(kwargs["playback_adjustments"]):
-            if isinstance(adjustment, str):
-                kwargs["playback_adjustments"][i] = NotePlaybackAdjustment.from_string(adjustment)
-
-        if "spelling_policy" not in kwargs:
-            kwargs["spelling_policy"] = None
-        if "temp" not in kwargs:
-            # this is a throwaway directory that is not kept when we save to json
-            kwargs["temp"] = {}
-
+        NotePropertiesDictionary._normalize_dictionary_keys(kwargs)
         super().__init__(**kwargs)
         self._convert_params_to_envelopes_if_needed()
+        self._validate_values()
 
     @staticmethod
-    def _standardize_plural_entry(key_name, dictionary):
+    def _normalize_dictionary_keys(dictionary):
+        NotePropertiesDictionary._standardize_plural_key("articulations", dictionary)
+        NotePropertiesDictionary._standardize_plural_key("noteheads", dictionary)
+        if len(dictionary["noteheads"]) == 0:
+            dictionary["noteheads"] = ["normal"]
+        NotePropertiesDictionary._standardize_plural_key("notations", dictionary)
+        NotePropertiesDictionary._standardize_plural_key("texts", dictionary)
+        NotePropertiesDictionary._standardize_plural_key("playback_adjustments", dictionary)
+
+        for i, adjustment in enumerate(dictionary["playback_adjustments"]):
+            if isinstance(adjustment, str):
+                dictionary["playback_adjustments"][i] = NotePlaybackAdjustment.from_string(adjustment)
+
+        if "spelling_policy" not in dictionary:
+            dictionary["spelling_policy"] = None
+
+        if "temp" not in dictionary:
+            # this is a throwaway directory that is not kept when we save to json
+            dictionary["temp"] = {}
+        return dictionary
+
+    @staticmethod
+    def _standardize_plural_key(key_name, dictionary):
+        """
+        Makes sure that the given entry exists in a plural form (e.g. "texts" instead of "text") and that
+        it points to a list of items.
+        """
         if key_name not in dictionary:
             if key_name[:-1] in dictionary:
                 # the non-plural version is there, so convert to the standard plural version
@@ -89,6 +100,61 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
                 dictionary[key_name] = []
         if not isinstance(dictionary[key_name], (list, tuple)):
             dictionary[key_name] = [dictionary[key_name]]
+
+    def _validate_values(self):
+        validated_articulations = []
+        for articulation in self["articulations"]:
+            if articulation in PlaybackAdjustmentsDictionary.all_articulations:
+                validated_articulations.append(articulation)
+            else:
+                logging.warning("Articulation {} not understood".format(articulation))
+        self["articulations"] = validated_articulations
+
+        validated_noteheads = []
+        for notehead in self["noteheads"]:
+            if notehead in PlaybackAdjustmentsDictionary.all_noteheads:
+                validated_noteheads.append(notehead)
+            else:
+                logging.warning("Notehead {} not understood".format(notehead))
+                validated_noteheads.append("normal")
+        self["noteheads"] = validated_noteheads
+
+        validated_notations = []
+        for notation in self["notations"]:
+            if notation in PlaybackAdjustmentsDictionary.all_notations:
+                validated_notations.append(notation)
+            else:
+                logging.warning("Notation {} not understood".format(notation))
+        self["notations"] = validated_notations
+
+        validated_playback_adjustments = []
+        for playback_adjustment in self["playback_adjustments"]:
+            if isinstance(playback_adjustment, NotePlaybackAdjustment):
+                validated_playback_adjustments.append(playback_adjustment)
+            elif isinstance(playback_adjustment, str):
+                validated_playback_adjustments.append(NotePlaybackAdjustment.from_string(playback_adjustment))
+            else:
+                logging.warning("Playback adjustment {} not understood".format(playback_adjustment))
+        self["playback_adjustments"] = validated_playback_adjustments
+
+        if self["spelling_policy"] is not None and not isinstance(self["spelling_policy"], SpellingPolicy):
+            try:
+                if not isinstance("spelling_policy", str):
+                    raise ValueError()
+                self["spelling_policy"] = SpellingPolicy.from_string(self["spelling_policy"])
+            except ValueError:
+                logging.warning("Spelling policy \"{}\" not understood".format(self["spelling_policy"]))
+                self["spelling_policy"] = None
+
+        validated_texts = []
+        for text in self["texts"]:
+            if isinstance(text, StaffText):
+                validated_texts.append(text)
+            elif isinstance(text, str):
+                validated_texts.append(StaffText.from_string(text))
+            else:
+                logging.warning("Staff text \"{}\" not understood".format(self["text"]))
+        self["texts"] = validated_texts
 
     @classmethod
     def from_unknown_format(cls, properties):
@@ -106,14 +172,15 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
         """
         if isinstance(properties, str):
             return NotePropertiesDictionary.from_string(properties)
-        elif isinstance(properties, NotePlaybackAdjustment):
+        elif isinstance(properties, (SpellingPolicy, NotePlaybackAdjustment, StaffText)):
             return NotePropertiesDictionary.from_list([properties])
         elif isinstance(properties, list):
             return NotePropertiesDictionary.from_list(properties)
         elif properties is None:
             return cls()
         else:
-            assert isinstance(properties, dict), "Properties argument wrongly formatted."
+            if not isinstance(properties, dict):
+                raise ValueError("Properties argument wrongly formatted.")
             return cls(**properties)
 
     @classmethod
@@ -124,13 +191,18 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
     @classmethod
     def from_list(cls, properties_list):
         assert isinstance(properties_list, (list, tuple))
-        properties_dict = cls()
+        # this pre-populates the dict with all of the key/value pairs we need
+        properties_dict = NotePropertiesDictionary._normalize_dictionary_keys({})
 
         for note_property in properties_list:
             if isinstance(note_property, NotePlaybackAdjustment):
                 properties_dict["playback_adjustments"].append(note_property)
+            elif isinstance(note_property, SpellingPolicy):
+                properties_dict["spelling_policy"] = note_property
+            elif isinstance(note_property, StaffText):
+                properties_dict["texts"].append(note_property)
             elif isinstance(note_property, str):
-                # if there's a colon, it represents a key / value pair, e.g. "articulation: staccato"
+                # if there's a colon, it represents a key/value pair, e.g. "articulation: staccato"
                 if ":" in note_property:
                     colon_index = note_property.index(":")
                     key, value = note_property[:colon_index].replace(" ", "").lower(), \
@@ -159,37 +231,19 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
                         raise ValueError("Note property {} not understood".format(note_property))
 
                 if key in "articulations":  # note that this allows the singular "articulation" too
-                    for value in values:
-                        if value in PlaybackAdjustmentsDictionary.all_articulations:
-                            properties_dict["articulations"].append(value)
-                        else:
-                            logging.warning("Articulation {} not understood".format(value))
+                    properties_dict["articulations"].extend(values)
 
                 elif key in "noteheads":  # note that this allows the singular "notehead" too
-                    properties_dict["noteheads"] = []
-                    for value in values:
-                        if value in PlaybackAdjustmentsDictionary.all_noteheads:
-                            properties_dict["noteheads"].append(value)
-                        else:
-                            logging.warning("Notehead {} not understood".format(value))
-                            properties_dict["noteheads"].append("normal")
+                    properties_dict["noteheads"] = values
 
                 elif key in "notations":  # note that this allows the singular "notation" too
-                    for value in values:
-                        if value in PlaybackAdjustmentsDictionary.all_notations:
-                            properties_dict["notations"].append(value)
-                        else:
-                            logging.warning("Notation {} not understood".format(value))
+                    properties_dict["notations"].extend(values)
 
                 elif key in "playback_adjustments":  # note that this allows the singular "playback_adjustment" too
-                    for value in values:
-                        properties_dict["playback_adjustments"].append(NotePlaybackAdjustment.from_string(value))
+                    properties_dict["playback_adjustments"].extend(values)
 
                 elif key in ("key", "spelling", "spellingpolicy", "spelling_policy"):
-                    try:
-                        properties_dict["spelling_policy"] = SpellingPolicy.from_string(values[0])
-                    except ValueError:
-                        logging.warning("Spelling policy \"{}\" not understood".format(values[0]))
+                    properties_dict["spelling_policy"] = value
 
                 elif key.startswith("param_") or key.endswith("_param"):
                     if not len(values) == 1:
@@ -201,12 +255,12 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
                         raise ValueError("Cannot have multiple values for a voice property.")
                     properties_dict["voice"] = value
 
-                elif key in "texts":  # note that this allows the singular "articulation" too
-                    for value in values:
-                        properties_dict["texts"].append(value)
+                elif key in "texts":  # note that this allows the singular "text" too
+                    # note that do .append(value), instead of .extend(values), because a text could have a
+                    # slash in it and we don't want it to be multiple texts.
+                    properties_dict["texts"].append(value)
 
-        properties_dict._convert_params_to_envelopes_if_needed()
-        return properties_dict
+        return cls(**properties_dict)
 
     def _convert_params_to_envelopes_if_needed(self):
         # if we've been given extra parameters of playback, and their values are envelopes written as lists, etc.
@@ -271,6 +325,13 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
             self["spelling_policy"] = tuple(tuple(x) for x in value)
         else:
             raise ValueError("Spelling policy not understood.")
+
+    @property
+    def voice(self):
+        if "voice" in self:
+            return self["voice"]
+        else:
+            return None
 
     def iterate_extra_parameters_and_values(self):
         for key, value in self.items():

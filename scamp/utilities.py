@@ -28,6 +28,16 @@ from typing import Iterator, Type, Callable, List, Sequence, Tuple, Union, TypeV
 from expenvelope.json_serializer import SavesToJSON, SavesToJSONMeta
 
 
+# -------------------------------------------- Utility Classes ----------------------------------------------
+
+class NoteProperty:
+    """
+    Parent class for class for classes like :class:`~scamp.spelling.SpellingPolicy`, :class:`~scamp.text.StaffText` and
+    :class:`~scamp.playback_adjustments.NotePlaybackAdjustment`, which can be passed to the properties argument of
+    :func:`~scamp.instruments.ScampInstrument.play_note`.
+    """
+    pass
+
 # ------------------------------------------- General Utilities ---------------------------------------------
 
 

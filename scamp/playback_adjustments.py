@@ -19,7 +19,7 @@ Module containing classes for defining adjustments to the playback of note param
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
-from .utilities import SavesToJSON
+from .utilities import SavesToJSON, NoteProperty
 from ._engraving_translations import articulation_to_xml_element_name, notehead_name_to_xml_type, \
     notations_to_xml_notations_element
 from typing import Union
@@ -155,7 +155,7 @@ class ParamPlaybackAdjustment(SavesToJSON):
         return "ParamPlaybackAdjustment({}, {})".format(self.multiply, self.add)
 
 
-class NotePlaybackAdjustment(SavesToJSON):
+class NotePlaybackAdjustment(SavesToJSON, NoteProperty):
 
     """
     Represents an adjustment to the pitch, volume and/or length of the playback of a single note
