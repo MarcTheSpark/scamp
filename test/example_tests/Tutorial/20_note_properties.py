@@ -43,6 +43,30 @@ piano.play_chord([60, 65], 0.5, 1, "noteheads: x/circle-x")
 piano.play_note(60, 0.5, 1, {
     "articulations": ["tenuto", "accent"],
 })
+
+# the properties argument can be used to specify which voice a note should appear in
+piano.play_note(62, 0.5, 0.5, "voice: 1")
+piano.play_note(60, 0.5, 0.5, "voice: 2")
+piano.play_note(58, 0.5, 0.5, "voice: 2")
+piano.play_note(62, 0.5, 0.5, "voice: 2")
+piano.play_note(64, 0.5, 0.5, "voice: 1")
+piano.play_note(62, 0.5, 0.5, "voice: 2")
+piano.play_note(60, 0.5, 0.5, "voice: 2")
+piano.play_note(64, 0.5, 0.5, "voice: 2")
+piano.play_note(65, 0.5, 4, "voice: 1")
+
+# You can also specify voices by name instead of number. In this case, scamp will
+# simply keep notes in the same named voice together, determining the number automatically
+piano.play_note(62, 0.5, 0.5, "voice: top_notes")
+piano.play_note(60, 0.5, 0.5, "voice: bottom_notes")
+piano.play_note(58, 0.5, 0.5, "voice: bottom_notes")
+piano.play_note(62, 0.5, 0.5, "voice: bottom_notes")
+piano.play_note(64, 0.5, 0.5, "voice: top_notes")
+piano.play_note(62, 0.5, 0.5, "voice: bottom_notes")
+piano.play_note(60, 0.5, 0.5, "voice: bottom_notes")
+piano.play_note(64, 0.5, 0.5, "voice: bottom_notes")
+piano.play_note(65, 0.5, 4, "voice: top_notes")
+
 performance = s.stop_transcribing()
 
 

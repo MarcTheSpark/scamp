@@ -1681,7 +1681,8 @@ class Measure(ScoreComponent, ScoreContainer):
         is_top_level_call = True if source_id_dict is None else False
         source_id_dict = {} if source_id_dict is None else source_id_dict
 
-        xml_voices = [voice.to_music_xml(source_id_dict) for voice in self.voices]
+        xml_voices = [voice.to_music_xml(source_id_dict) if voice is not None else None
+                      for voice in self.voices]
         time_signature = (self.time_signature.numerator, self.time_signature.denominator) \
             if self.show_time_signature else None
 
