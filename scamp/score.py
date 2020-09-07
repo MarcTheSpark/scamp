@@ -457,8 +457,7 @@ class ScoreComponent(ABC):
     """
 
     #: LilyPond code to define stemless notes when we're rendering a full score (goes outside the lilypond context)
-    _outer_stemless_def = """
-% Definition to improve score readability
+    _outer_stemless_def = r"""% Definition to improve score readability
 stemless = {
     \once \override Beam.stencil = ##f
     \once \override Flag.stencil = ##f
@@ -487,6 +486,18 @@ stemless = {
         r"\override Score.Glissando #'breakable = ##t",
         "\n"
     ]
+
+    #: LilyPond markup function for microtonal pitch annotations
+    _pitch_annotation_function = r"""
+#(define-markup-command (pitch-annotation layout props text) (markup?)
+  "Command for creating a microtonal pitch annotation."
+  (interpret-markup layout props
+    (markup 
+     (#:smaller #:italic (string-append "(" text ")"))
+     )
+    )
+  )
+    """
 
     @abstractmethod
     def _to_abjad(self) -> 'abjad().Component':
@@ -547,6 +558,9 @@ stemless = {
         if r"\stemless" in lilypond_code:
             abjad().attach(abjad().LilyPondLiteral(ScoreComponent._inner_stemless_def), abjad_object, "opening")
 
+        if r"\pitch-annotation" in lilypond_code:
+            abjad().attach(abjad().LilyPondLiteral(ScoreComponent._pitch_annotation_function), abjad_object, "opening")
+
         return abjad_object
 
     def to_abjad_lilypond_file(self) -> 'abjad().LilyPondFile':
@@ -572,6 +586,9 @@ stemless = {
         # definition of stemless outside of the main score object.
         if r"\stemless" in lilypond_code:
             abjad_lilypond_file.items.insert(-1, ScoreComponent._outer_stemless_def)
+
+        if r"\pitch-annotation" in lilypond_code:
+            abjad_lilypond_file.items.insert(-1, ScoreComponent._pitch_annotation_function)
 
         if title is not None:
             abjad_lilypond_file.header_block.title = abjad().Markup(title)
@@ -2388,6 +2405,7 @@ class NoteLike(ScoreComponent):
                                            for x in self.pitch]
                 # Set the notehead
                 self._set_abjad_note_head_styles(abjad_object)
+                NoteLike._attach_abjad_microtonal_annotation(abjad_object, [p.start_level() for p in self.pitch])
                 last_pitches = abjad_object.written_pitches
 
                 grace_points = self._get_grace_points()
@@ -2400,6 +2418,7 @@ class NoteLike(ScoreComponent):
                                               for x in self.pitch]
                     # Set the notehead
                     self._set_abjad_note_head_styles(grace_chord)
+                    NoteLike._attach_abjad_microtonal_annotation(grace_chord, [p.value_at(t) for p in self.pitch])
                     # but first check that we're not just repeating the last grace chord
                     if grace_chord.written_pitches != last_pitches:
                         grace_notes.append(grace_chord)
@@ -2409,6 +2428,8 @@ class NoteLike(ScoreComponent):
                 abjad_object.note_heads = [self.properties.spelling_policy.resolve_abjad_pitch(x) for x in self.pitch]
                 # Set the noteheads
                 self._set_abjad_note_head_styles(abjad_object)
+                # attach any microtonal annotations (if setting is flipped)
+                NoteLike._attach_abjad_microtonal_annotation(abjad_object, self.pitch)
 
         elif self.does_glissando():
             # This is a note doing a glissando
@@ -2416,14 +2437,20 @@ class NoteLike(ScoreComponent):
                                         duration)
             # Set the notehead
             self._set_abjad_note_head_styles(abjad_object)
+            # attach any microtonal annotations (if setting is flipped)
+            NoteLike._attach_abjad_microtonal_annotation(abjad_object, self.pitch.start_level())
+
             last_pitch = abjad_object.written_pitch
 
             grace_points = self._get_grace_points()
 
             for t in grace_points:
                 grace = abjad().Note(self.properties.spelling_policy.resolve_abjad_pitch(self.pitch.value_at(t)), 1 / 16)
+
                 # Set the notehead
                 self._set_abjad_note_head_styles(grace)
+                # attach any microtonal annotations (if setting is flipped)
+                NoteLike._attach_abjad_microtonal_annotation(grace, self.pitch.value_at(t))
                 # but first check that we're not just repeating the last grace note pitch
                 if last_pitch != grace.written_pitch:
                     grace_notes.append(grace)
@@ -2433,6 +2460,7 @@ class NoteLike(ScoreComponent):
             abjad_object = abjad().Note(self.properties.spelling_policy.resolve_abjad_pitch(self.pitch), duration)
             # Set the notehead
             self._set_abjad_note_head_styles(abjad_object)
+            NoteLike._attach_abjad_microtonal_annotation(abjad_object, self.pitch)
 
         # Now we make, fill, and attach the abjad AfterGraceContainer, if applicable
         if len(grace_notes) > 0:
@@ -2470,6 +2498,25 @@ class NoteLike(ScoreComponent):
         self._attach_abjad_articulations(abjad_object, grace_container)
         self._attach_abjad_texts(abjad_object)
         return abjad_object
+
+    @staticmethod
+    def _attach_abjad_microtonal_annotation(note_object, pitch_or_pitches):
+        if hasattr(pitch_or_pitches, '__len__'):
+            if any(round(p, engraving_settings.microtonal_annotation_digits) != round(p) for p in pitch_or_pitches) \
+                    and engraving_settings.show_microtonal_annotations:
+                abjad().attach(abjad().Markup(
+                    abjad().MarkupCommand(
+                        'pitch-annotation',
+                        "; ".join(str(round(p, engraving_settings.microtonal_annotation_digits))
+                                  for p in pitch_or_pitches)
+                    ), direction=abjad().Up), note_object)
+        else:
+            if round(pitch_or_pitches, engraving_settings.microtonal_annotation_digits) != round(pitch_or_pitches) and \
+                    engraving_settings.show_microtonal_annotations:
+                abjad().attach(abjad().Markup(
+                    abjad().MarkupCommand(
+                        'pitch-annotation', str(round(pitch_or_pitches, engraving_settings.microtonal_annotation_digits))
+                    ), direction=abjad().Up), note_object)
 
     def _set_abjad_note_head_styles(self, abjad_note_or_chord):
         if isinstance(abjad_note_or_chord, abjad().Note):
@@ -2530,15 +2577,7 @@ class NoteLike(ScoreComponent):
         elif self.is_chord():
             start_pitches = tuple(p.start_level() if isinstance(p, Envelope) else p for p in self.pitch)
 
-            # if any of the starting pitches are not integers, and we are showing microtonal annotations,
-            # add a text direction stating what the true pitches of the chord should be
-            if any(x != int(x) for x in start_pitches) and engraving_settings.show_microtonal_annotations:
-                directions = (pymusicxml.TextAnnotation("({})".format(
-                    "; ".join(str(round(p, 3)) for p in start_pitches)
-                ), italic=True), )
-            else:
-                directions = ()
-
+            directions = NoteLike._get_xml_microtonal_annotation(start_pitches)
             # add text annotations from properties
             if len(self.properties.texts) > 0:
                 directions += tuple(text.to_pymusicxml() for text in self.properties.texts)
@@ -2553,26 +2592,23 @@ class NoteLike(ScoreComponent):
             if self.does_glissando():
                 grace_points = self._get_grace_points(engraving_settings.glissandi.max_inner_graces_music_xml)
                 for t in grace_points:
-                    these_pitches = tuple(self.properties.spelling_policy.resolve_music_xml_pitch(
-                        p.value_at(t) if isinstance(p, Envelope) else p) for p in self.pitch)
+                    pitch_values = [p.value_at(t) if isinstance(p, Envelope) else p for p in self.pitch]
+                    these_pitches = tuple(self.properties.spelling_policy.resolve_music_xml_pitch(p)
+                                          for p in pitch_values)
+
                     # only add a grace chord if it differs in pitch from the last chord / grace chord
                     if these_pitches[0] != out[-1].pitches[0]:
                         out.append(pymusicxml.GraceChord(
                             these_pitches, 0.5, stemless=True,
                             noteheads=tuple(get_xml_notehead(notehead) if notehead != "normal" else None
-                                            for notehead in self.properties.noteheads)
+                                            for notehead in self.properties.noteheads),
+                            directions=NoteLike._get_xml_microtonal_annotation(pitch_values)
                         ))
 
         else:
             start_pitch = self.pitch.start_level() if isinstance(self.pitch, Envelope) else self.pitch
 
-            # if the starting pitch is not an integer, and we are showing microtonal annotations,
-            # add a text direction stating what the true pitch of the note should be
-            if start_pitch != int(start_pitch) and engraving_settings.show_microtonal_annotations:
-                directions = (pymusicxml.TextAnnotation("({})".format(round(start_pitch, 3)), italic=True), )
-            else:
-                directions = ()
-
+            directions = NoteLike._get_xml_microtonal_annotation(start_pitch)
             # add text annotations from properties
             if len(self.properties.texts) > 0:
                 directions += tuple(text.to_pymusicxml() for text in self.properties.texts)
@@ -2593,7 +2629,8 @@ class NoteLike(ScoreComponent):
                         out.append(pymusicxml.GraceNote(
                             this_pitch, 0.5, stemless=True,
                             notehead=(get_xml_notehead(self.properties.noteheads[0])
-                                      if self.properties.noteheads[0] != "normal" else None)
+                                      if self.properties.noteheads[0] != "normal" else None),
+                            directions=NoteLike._get_xml_microtonal_annotation(self.pitch.value_at(t))
                         ))
 
         self._attach_articulations_to_xml_note_group(out)
@@ -2616,6 +2653,30 @@ class NoteLike(ScoreComponent):
                 source_id_dict[self.properties.temp["_source_id"]] = list(out)
 
         return out
+
+    @staticmethod
+    def _get_xml_microtonal_annotation(pitch_or_pitches):
+        if hasattr(pitch_or_pitches, '__len__'):
+            # if any of the starting pitches are not integers, and we are showing microtonal annotations,
+            # returns a text direction stating what the true pitches of the chord should be
+            if any(round(p, engraving_settings.microtonal_annotation_digits) != round(p) for p in pitch_or_pitches) \
+                    and engraving_settings.show_microtonal_annotations:
+                return pymusicxml.TextAnnotation("({})".format(
+                    "; ".join(str(round(p, engraving_settings.microtonal_annotation_digits)) for p in pitch_or_pitches)
+                ), italic=True),
+            else:
+                return ()
+        else:
+            # if the starting pitch is not an integer, and we are showing microtonal annotations,
+            # add a text direction stating what the true pitch of the note should be
+            if round(pitch_or_pitches, engraving_settings.microtonal_annotation_digits) != round(pitch_or_pitches) \
+                    and engraving_settings.show_microtonal_annotations:
+                return pymusicxml.TextAnnotation(
+                    "({})".format(round(pitch_or_pitches, engraving_settings.microtonal_annotation_digits)),
+                    italic=True
+                ),
+            else:
+                return ()
 
     @staticmethod
     def _attach_articulation_to_xml_note_or_chord(articulation, xml_note_or_chord):

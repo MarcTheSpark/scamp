@@ -51,6 +51,8 @@ def import_module(python_file_path):
 
 
 def get_example_result(python_file_path):
+    # restore state
+    scamp.engraving_settings.restore_factory_defaults()
     random.seed(0)
     mod = import_module(python_file_path)
     results = []

@@ -419,6 +419,8 @@ class EngravingSettings(_ScampSettings):
     :ivar show_microtonal_annotations: if True, annotates microtonal pitches with the exact floating-point MIDI pitch
         value that they are intended to represent. (This is useful, since normally the best a notation program can
         do is quarter tones.
+    :ivar microtonal_annotation_digits: number of digits after the decimal place to show when showing microtonal
+        annotations.
     """
 
     #: Default engraving settings (from when SCAMP was installed)
@@ -477,6 +479,7 @@ class EngravingSettings(_ScampSettings):
         "pad_incomplete_parts": True,
         "show_music_xml_command_line": "auto",
         "show_microtonal_annotations": False,
+        "microtonal_annotation_digits": 2,
     }
 
     _settings_name = "Engraving settings"
@@ -489,8 +492,8 @@ class EngravingSettings(_ScampSettings):
             self.rest_beat_hierarchy_spacing = self.rest_num_divisions_penalty = self.articulation_split_protocols = \
             self.default_titles = self.default_composers = self.default_spelling_policy = self.ignore_empty_parts = \
             self.pad_incomplete_parts = self.show_music_xml_command_line = self.show_microtonal_annotations = \
-            self.allow_duple_tuplets_in_compound_time = self.clefs_by_instrument = self.clef_pitch_centers = \
-            self.clef_selection_policy = None
+            self.microtonal_annotation_digits = self.allow_duple_tuplets_in_compound_time = self.clefs_by_instrument = \
+            self.clef_pitch_centers = self.clef_selection_policy = None
         self.glissandi: GlissandiSettings = None
         self.tempo: TempoSettings = None
         super().__init__(settings_dict)
