@@ -30,6 +30,7 @@ url = "http://scamp.marcevanstein.com"
 project_urls = {
     "Source Code": "https://sr.ht/~marcevanstein/scamp/",
     "Documentation": "http://scamp.marcevanstein.com",
+    "Forum": "http://scampsters.marcevanstein.com"
 }
 
 install_requires = ['pymusicxml >= 0.3.4', 'expenvelope >= 0.6.0', 'clockblocks >= 0.5.3', 'sf2utils', 'python-osc']

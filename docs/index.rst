@@ -3,7 +3,8 @@ SCAMP (Suite for Computer-Assisted Music in Python) |release|
 
 `Source Code <https://sr.ht/~marcevanstein/scamp>`_ |
 `PyPI <https://pypi.org/project/scamp>`_ |
-`Paper <http://marcevanstein.com/Writings/Evanstein_MAT_Thesis_SCAMP.pdf>`_
+`Paper <http://marcevanstein.com/Writings/Evanstein_MAT_Thesis_SCAMP.pdf>`_ |
+`Forum <https://scampsters.marcevanstein.com>`_
 
 SCAMP is a computer-assisted composition framework in Python designed to act as a hub, flexibly connecting the
 composer-programmer to a variety of resources for playback and notation. SCAMP provides functionality to manage the
@@ -20,6 +21,13 @@ the following video provides a good introduction to the framework:
 
 You can also read the `paper introducing the framework <http://marcevanstein.com/Writings/Evanstein_MAT_Thesis_SCAMP.pdf>`_,
 and check out the "tutorial" examples found `here <https://git.sr.ht/~marcevanstein/scamp/tree/master/examples/Tutorial>`_.
+
+Community
+---------
+
+Consider joining the forum at https://scampsters.marcevanstein.com/, where you can ask questions, share your creations,
+make suggestions for the development of the framework, and generally take part in the wider SCAMP community. The forum
+is open-registration, and runs on `Discourse <https://www.discourse.org/>`_, an open-source discussion platform.
 
 .. toctree::
    :maxdepth: 2
