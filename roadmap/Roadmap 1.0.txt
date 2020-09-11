@@ -1,23 +1,18 @@
 Documentation:
-    - Basic Tutorial, intermixing the examples in the tutorial directory with text
     - Maybe make a multi-tempo example that doesn't have nested tempi first.
 
 Testing:
     - Look into unittests
-    - Create a way of testing all the examples without having to wait for them.
 
 Playback:
     - Can we put chords on the same clock??
 
 Engraving:
     - Engraving clefs for copies of instrument (second instrument called violin can end up with bass clef)
-    - Engraving Microtonal adjustments in both abjad and MusicXML. Might want to make a special lilypond command for
-    microtonal annotations? Don't engrave after first part of tied note unless glissando.
     - Engraving tremolo in abjad. Other notations?
-    - Engraving text in abjad.
     - Fix problem where it splits into two voices when you have notes that overlapped originally but then quantize
     in such a way that they would fit into the same voice. e.g. 0 to 0.7, 0.65 - 1.0, quantized into a triplet.
-    - Arbitrary text annotations passed through the properties dictionary. Should there by a CombinedPropertyChange
+    - Should there by a CombinedPropertyChange
     class that allows for a notation and playback change?
     - Dynamics (just as annotations to notes)
     - Engraving Trills, mordents and other symbol notations like that (perhaps, for now, affect playback by adding a
@@ -28,3 +23,4 @@ Engraving:
 Assorted:
     - Consider cleaning out the playback implementation shit, so that all instruments -- in or outside an ensemble --
     can share module-level playback resources as far as soundfonts are concerned.
+    - Fluidsynth save to wave file!
