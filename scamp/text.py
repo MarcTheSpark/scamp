@@ -1,3 +1,7 @@
+"""
+Module containing utilities for representing text in SCAMP, currently containing the :class:`StaffText` class.
+"""
+
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 #  This file is part of SCAMP (Suite for Computer-Assisted Music in Python)                      #
 #  Copyright © 2020 Marc Evanstein <marc@marcevanstein.com>.                                     #
@@ -13,6 +17,7 @@
 #  You should have received a copy of the GNU General Public License along with this program.    #
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
+
 from ._dependencies import abjad
 from .utilities import SavesToJSON, NoteProperty
 import pymusicxml
@@ -20,17 +25,23 @@ import pymusicxml
 
 class StaffText(SavesToJSON, NoteProperty):
 
-    def __init__(self, text: str, italic: bool = False, bold: bool = False, placement: str = "above"):
-        """
-        Represents text that will be attached to the staff at a given note.
-        Place this object in the fourth `properties` argument of :func:`~scamp.instruments.ScampInstrument.play_note`,
-        either alone, or under the "text" key.
+    """
+    Represents text that will be attached to the staff at a given note.
+    Place this object in the fourth `properties` argument of :func:`~scamp.instruments.ScampInstrument.play_note`,
+    either alone, or under the "text" key.
 
-        :param text: the text to display
-        :param italic: whether or not to make text italic
-        :param bold: whether or not to make text bold
-        :param placement: placement relative to the staff; either "above" of "below"
-        """
+    :param text: the text to display
+    :param italic: whether or not to make text italic
+    :param bold: whether or not to make text bold
+    :param placement: placement relative to the staff; either "above" of "below"
+    :ivar text: the text to display
+    :ivar italic: whether or not to make text italic
+    :ivar bold: whether or not to make text bold
+    :ivar placement: placement relative to the staff; either "above" of "below"
+    """
+
+    def __init__(self, text: str, italic: bool = False, bold: bool = False, placement: str = "above"):
+
         if placement not in ("above", "below"):
             raise ValueError("StaffText placement must be either \"above\" or \"below\".")
         self.text = text
