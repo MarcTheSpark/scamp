@@ -5,6 +5,7 @@ Testing:
     - Look into unittests
 
 Playback:
+    - Make normalization of an envelope an option. If they don't specify a length, do it automatically
     - Can we put chords on the same clock??
 
 Engraving:
