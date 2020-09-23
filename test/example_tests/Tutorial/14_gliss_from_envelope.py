@@ -28,7 +28,7 @@ s.fast_forward_in_beats(float("inf"))
 viola = s.new_part("viola")
 
 e = Envelope.from_levels_and_durations(
-    [60, 72, 66, 70], [3, 1, 1],
+    [60, 72, 66, 70], [3 * 4/5, 1 * 4/5, 1 * 4/5],
     curve_shapes=[2, -2, -2]
 )
 

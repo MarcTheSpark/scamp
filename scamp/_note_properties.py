@@ -83,6 +83,9 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
         if "temp" not in dictionary:
             # this is a throwaway directory that is not kept when we save to json
             dictionary["temp"] = {}
+        # we use this to know which parameters initially were set from lists, so that we know whether to resize the
+        # Envelope to the length of the note, in the case that playback_settings.resize_parameter_envelopes == "lists"
+        dictionary["temp"]["parameters_that_came_from_lists"] = set()
         return dictionary
 
     @staticmethod
@@ -245,7 +248,7 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
                 elif key in ("key", "spelling", "spellingpolicy", "spelling_policy"):
                     properties_dict["spelling_policy"] = value
 
-                elif key.startswith("param_") or key.endswith("_param"):
+                elif key.startswith("param_"):
                     if not len(values) == 1:
                         raise ValueError("Cannot have multiple values for a parameter property.")
                     properties_dict[key] = json.loads(value)
@@ -265,9 +268,9 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
     def _convert_params_to_envelopes_if_needed(self):
         # if we've been given extra parameters of playback, and their values are envelopes written as lists, etc.
         # this converts them all to Envelope objects
-        for key, value in self.items():
-            if (key.startswith("param_") or key.endswith("_param")) and isinstance(value, (list, tuple)):
-                self[key] = Envelope.from_list(value)
+        for param, value in self.iterate_extra_parameters_and_values():
+            self["param_" + param] = Envelope.from_list(value)
+            self.temp["parameters_that_came_from_lists"].add(param)
 
     @property
     def articulations(self):
@@ -335,8 +338,8 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
 
     def iterate_extra_parameters_and_values(self):
         for key, value in self.items():
-            if key.startswith("param_") or key.endswith("_param"):
-                yield key.replace("param_", "").replace("_param", ""), value
+            if key.startswith("param_"):
+                yield key.replace("param_", ""), value
 
     def starts_tie(self):
         return "_starts_tie" in self and self["_starts_tie"]

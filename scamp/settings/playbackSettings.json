@@ -57,6 +57,7 @@
         "end_note": "end_note",
         "start_note": "start_note"
     },
+    "resize_parameter_envelopes": "lists",
     "soundfont_search_paths": [
         "soundfonts/"
     ],

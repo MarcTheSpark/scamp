@@ -30,7 +30,7 @@ from .spelling import SpellingPolicy
 from ._note_properties import NotePropertiesDictionary
 from .playback_implementations import SoundfontPlaybackImplementation, MIDIStreamPlaybackImplementation, \
     OSCPlaybackImplementation
-from .settings import engraving_settings
+from .settings import engraving_settings, playback_settings
 from clockblocks.utilities import wait
 from clockblocks.clock import current_clock, Clock, ClockKilledError, TimeStamp
 from expenvelope import EnvelopeSegment
@@ -459,8 +459,14 @@ class ScampInstrument(SavesToJSON):
                     clock = Clock()
 
         properties = self._standardize_properties(properties)
-        pitch = Envelope.from_list(pitch) if hasattr(pitch, "__len__") else pitch
-        volume = Envelope.from_list(volume) if hasattr(volume, "__len__") else volume
+
+        if hasattr(pitch, "__len__"):
+            properties.temp["parameters_that_came_from_lists"].add("pitch")
+            pitch = Envelope.from_list(pitch)
+
+        if hasattr(volume, "__len__"):
+            properties.temp["parameters_that_came_from_lists"].add("volume")
+            volume = Envelope.from_list(volume)
 
         adjusted_pitch, adjusted_volume, adjusted_length, did_an_adjustment = \
             properties.apply_playback_adjustments(pitch, volume, length)
@@ -510,13 +516,19 @@ class ScampInstrument(SavesToJSON):
         # sum_length will represent the total number of beats in either case
         sum_length = sum(length) if hasattr(length, "__len__") else length
 
-        # normalize all envelopes to to the duration of the note
-        if isinstance(pitch, Envelope):
+        # normalize envelopes to the duration of the note if the setting say to do so
+        if isinstance(pitch, Envelope) and (playback_settings.resize_parameter_envelopes == "always" or
+                                            playback_settings.resize_parameter_envelopes == "lists" and
+                                            "pitch" in properties.temp["parameters_that_came_from_lists"]):
             pitch.normalize_to_duration(sum_length)
-        if isinstance(volume, Envelope):
+        if isinstance(volume, Envelope) and (playback_settings.resize_parameter_envelopes == "always" or
+                                             playback_settings.resize_parameter_envelopes == "lists" and
+                                             "volume" in properties.temp["parameters_that_came_from_lists"]):
             volume.normalize_to_duration(sum_length)
         for param, value in properties.iterate_extra_parameters_and_values():
-            if isinstance(value, Envelope):
+            if isinstance(value, Envelope) and (playback_settings.resize_parameter_envelopes == "always" or
+                                                playback_settings.resize_parameter_envelopes == "lists" and
+                                                param in properties.temp["parameters_that_came_from_lists"]):
                 value.normalize_to_duration(sum_length)
 
         # if we know ahead of time that neither pitch nor volume changes, we can pass

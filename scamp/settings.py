@@ -159,6 +159,9 @@ class PlaybackSettings(_ScampSettings):
         be altered in response to different articulations/notations/etc.
     :ivar try_system_fluidsynth_first: if True, always tries system copy of the fluidsynth libraries first before using
         the one embedded in the scamp package.
+    :ivar resize_parameter_envelopes: one of "never", "lists", and "always". This determines whether or not parameter
+        envelopes are resized to the length of the note. The default value of "lists" does this resizing only when the
+        envelope was created indirectly by passing a list to the parameter.
     """
 
     #: Default playback settings (from when SCAMP was installed)
@@ -191,6 +194,7 @@ class PlaybackSettings(_ScampSettings):
             "marcato": NotePlaybackAdjustment.scale_params(volume=1.5),
         }),
         "try_system_fluidsynth_first": False,
+        "resize_parameter_envelopes": "lists",
     }
 
     _settings_name = "Playback settings"
@@ -203,7 +207,8 @@ class PlaybackSettings(_ScampSettings):
             self.default_midi_output_device = self.default_max_soundfont_pitch_bend = \
             self.default_max_streaming_midi_pitch_bend = self.soundfont_volume_to_velocity_curve = \
             self.streaming_midi_volume_to_velocity_curve = self.osc_message_addresses = \
-            self.adjustments = self.try_system_fluidsynth_first = self.soundfont_search_paths = None
+            self.adjustments = self.try_system_fluidsynth_first = self.soundfont_search_paths = \
+            self.resize_parameter_envelopes = None
         super().__init__(settings_dict)
         assert isinstance(self.adjustments, PlaybackAdjustmentsDictionary)
 
@@ -234,6 +239,18 @@ class PlaybackSettings(_ScampSettings):
         """
         for a, b in self.named_soundfonts.items():
             print("{}: {}".format(a, b))
+
+    @staticmethod
+    def _validate_attribute(key, value):
+        if key == "resize_parameter_envelopes" and value not in ("lists", "always", "never"):
+            logging.warning(
+                "Invalid value of \"{}\" for glissando control point policy: must be one of: \"lists\", \"always\", or "
+                "\"never\". Defaulting to \"{}\".".format(
+                    value, PlaybackSettings.factory_defaults["resize_parameter_envelopes"]
+                )
+            )
+            return PlaybackSettings.factory_defaults["resize_parameter_envelopes"]
+        return value
 
 
 class QuantizationSettings(_ScampSettings):
