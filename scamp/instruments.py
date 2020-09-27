@@ -478,7 +478,7 @@ class ScampInstrument(SavesToJSON):
                 if hasattr(adjusted_volume, "__len__") else adjusted_volume
             # play, but don't transcribe the modified version (though only if the clock is not fast-forwarding)
             if not clock.is_fast_forwarding():
-                clock.fork(self._do_play_note,
+                clock.fork(self._do_play_note, name="DO_PLAY_NOTE",
                            args=(adjusted_pitch, adjusted_volume, adjusted_length, properties),
                            kwargs={"transcribe": False})
             # transcribe, but don't play the unmodified version
@@ -862,7 +862,7 @@ class ScampInstrument(SavesToJSON):
                         except Exception as e:
                             raise e
 
-                clock.fork(do_animation_sequence, name="PARAM_ANIMATION({})".format(param_name))
+                clock.fork(do_animation_sequence, name="PARAM_ANIMATION_SEQUENCE({})".format(param_name))
             else:
                 parameter_change_segment = _ParameterChangeSegment(
                     parameter_change_function, note_info["parameter_values"][param_name], target_value_or_values,
@@ -870,7 +870,8 @@ class ScampInstrument(SavesToJSON):
                     temporal_resolution=temporal_resolution)
                 with note_info["segments_list_lock"]:
                     segments_list.append(parameter_change_segment)
-                clock.fork(parameter_change_segment.run, kwargs={"silent": "silent" in note_info["flags"]})
+                clock.fork(parameter_change_segment.run, name="PARAM_ANIMATION({})".format(param_name),
+                           kwargs={"silent": "silent" in note_info["flags"]})
 
     def change_note_pitch(self, note_id: Union[int, 'NoteHandle'], target_value_or_values: Union[float, Sequence],
                           transition_length_or_lengths: Union[float, Sequence] = 0,
@@ -1450,7 +1451,7 @@ class ChordHandle:
 class _ParameterChangeSegment(EnvelopeSegment):
 
     """
-    Convenient class for handling interruptable transitions of parameter values and storing info on them
+    Convenience class for handling interruptable transitions of parameter values and storing info on them
     (This is an implementation detail.)
 
     :param parameter_change_function: since this is for general parameters, we pass the function to be called
@@ -1492,6 +1493,7 @@ class _ParameterChangeSegment(EnvelopeSegment):
         Runs the segment from start to finish, gradually changing the parameter.
         This function runs as a synchronized clock process (it should be forked), and it starts a parallel,
         unsynchronized process ("_animation_function") to do the actual calls to change parameter
+
         :param silent: this flag causes none of the animation to actually happen. This is used when we're trying to
         notate a note but not play it back, as in the case of a note that has been adjusted (where we playback -- but
         don't notate -- the adjusted version, while we run -- but don't play back -- the unadjusted version.)

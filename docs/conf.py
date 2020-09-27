@@ -61,6 +61,8 @@ jinja2.filters.FILTERS['difference'] = difference
 
 _manually_documented_attributes = {
     'scamp.settings': {"playback_settings", "quantization_settings", "engraving_settings"},
+    'clockblocks.settings': {'running_behind_warning_threshold_long', 'running_behind_warning_threshold_short',
+                             'catching_up_child_clocks_threshold_min', 'catching_up_child_clocks_threshold_max'}
 }
 
 _manually_documented_functions = {

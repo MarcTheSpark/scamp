@@ -142,7 +142,8 @@ class ParamPlaybackAdjustment(SavesToJSON):
         # in case the param value is a Envelope, it's best to leave out the multiply if it's zero
         # for instance, if param_value is a Envelope, multiply is zero and add is a Envelope,
         # you would end up trying to add two Envelopes, which we don't allow
-        return self.add if self.multiply == 0 else param_value * self.multiply + self.add
+        return self.add if self.multiply == 0 else param_value + self.add if self.multiply == 1 \
+            else param_value * self.multiply + self.add
 
     def _to_dict(self):
         return self.__dict__

@@ -394,7 +394,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         return session
 
     def __str__(self):
-        return "Session(tempo={}, instruments={})".format(self.tempo, self.instruments)
+        return "Session(tempo={}, instruments={})".format(self.tempo, [inst.name for inst in self.instruments])
 
     def __repr__(self):
         return "Session._from_dict({})".format(self._to_dict())
