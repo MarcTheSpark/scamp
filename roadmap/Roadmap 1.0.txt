@@ -5,16 +5,13 @@ Testing:
     - Look into unittests
 
 Playback:
-    - Make normalization of an envelope an option. If they don't specify a length, do it automatically
     - Can we put chords on the same clock??
 
 Engraving:
-    - Engraving clefs for copies of instrument (second instrument called violin can end up with bass clef)
-    - Engraving tremolo in abjad. Other notations?
+    - Engraving NOTATIONS!!!!!! also tremolo in abjad.
+    - Engraving dynamics!!!!!!
     - Fix problem where it splits into two voices when you have notes that overlapped originally but then quantize
     in such a way that they would fit into the same voice. e.g. 0 to 0.7, 0.65 - 1.0, quantized into a triplet.
-    - Should there by a CombinedPropertyChange
-    class that allows for a notation and playback change?
     - Dynamics (just as annotations to notes)
     - Engraving Trills, mordents and other symbol notations like that (perhaps, for now, affect playback by adding a
     square wave for a trill, similar thing with mordent).

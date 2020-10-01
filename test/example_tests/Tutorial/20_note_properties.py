@@ -53,7 +53,6 @@ piano.play_note(64, 0.5, 0.5, "voice: 1")
 piano.play_note(62, 0.5, 0.5, "voice: 2")
 piano.play_note(60, 0.5, 0.5, "voice: 2")
 piano.play_note(64, 0.5, 0.5, "voice: 2")
-piano.play_note(65, 0.5, 4, "voice: 1")
 
 # You can also specify voices by name instead of number. In this case, scamp will
 # simply keep notes in the same named voice together, determining the number automatically
@@ -65,7 +64,31 @@ piano.play_note(64, 0.5, 0.5, "voice: top_notes")
 piano.play_note(62, 0.5, 0.5, "voice: bottom_notes")
 piano.play_note(60, 0.5, 0.5, "voice: bottom_notes")
 piano.play_note(64, 0.5, 0.5, "voice: bottom_notes")
-piano.play_note(65, 0.5, 4, "voice: top_notes")
+
+# You can also use the properties argument for playback adjustments, which do not affect notation
+# This will cut the length of the note in half, and play it up an octave
+piano.play_note(65, 0.5, 1, "playback_adjustment: length * 0.5; pitch + 12")
+# Usually it's not necessary to specify that it's a playback adjustment.
+# This will play the note with a gliss up and down a half step
+piano.play_note(65, 0.5, 1, "pitch + [0, 2, 0]")
+# This will change the playback length to two beats, but still notate a quarter note
+# The result is that the note bleeds into the following beat (good for legato)
+piano.play_note(65, 0.5, 1, "length = 2")
+# Internally all of these strings are converted to a NotePlaybackAdjustment object, which you can give directly
+# This sets the note to play back with a totally different pitch volume and duration than notated
+piano.play_note(65, 0.5, 1, NotePlaybackAdjustment.set_params(pitch=78, volume=0.9, length=0.1))
+
+# Under the hood, everything we pass to the properties argument gets converted to a NoteProperties
+# object, we can use this to bundle playback and notation, such as in this wiggle ornament
+wiggle = NoteProperties.from_list([
+    "text: ~",
+    NotePlaybackAdjustment.add_to_params(pitch=Envelope.from_levels_and_durations([0, 1, 0], [0.1, 0.1]))
+])
+piano.play_note(62, 0.5, 0.5, wiggle)
+piano.play_note(64, 0.5, 0.5, "staccato")
+piano.play_note(65, 0.5, 0.5, [wiggle, "staccato"])
+piano.play_note(63, 0.5, 0.5, "staccato")
+piano.play_note(66, 0.5, 2, [wiggle, "accent"])
 
 performance = s.stop_transcribing()
 

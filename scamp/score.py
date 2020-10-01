@@ -28,7 +28,7 @@ from . import performance as performance_module  # to distinguish it from variab
 from .utilities import prime_factor, floor_x_to_pow_of_y, is_x_pow_of_y, ceil_to_multiple, floor_to_multiple
 from ._engraving_translations import length_to_note_type, get_xml_notehead, get_lilypond_notehead_name, \
     articulation_to_xml_element_name, notations_to_xml_notations_element
-from ._note_properties import NotePropertiesDictionary
+from .note_properties import NoteProperties
 from .text import StaffText
 import pymusicxml
 from pymusicxml.music_xml_objects import _XMLNote, MusicXMLComponent
@@ -2261,12 +2261,12 @@ class NoteLike(ScoreComponent):
     """
 
     def __init__(self, pitch: Union[Envelope, float, Tuple, None], written_length: float,
-                 properties: NotePropertiesDictionary):
+                 properties: NoteProperties):
 
         self.pitch = pitch
         self.written_length = Fraction(written_length).limit_denominator()
-        self.properties = properties if isinstance(properties, NotePropertiesDictionary) \
-            else NotePropertiesDictionary.from_unknown_format(properties)
+        self.properties = properties if isinstance(properties, NoteProperties) \
+            else NoteProperties.from_unknown_format(properties)
 
     def is_rest(self) -> bool:
         """Returns whether or not this is a rest."""

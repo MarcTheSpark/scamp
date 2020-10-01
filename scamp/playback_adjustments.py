@@ -18,11 +18,13 @@ Module containing classes for defining adjustments to the playback of note param
 #  You should have received a copy of the GNU General Public License along with this program.    #
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
-
+import re
+from numbers import Real
 from .utilities import SavesToJSON, NoteProperty
 from ._engraving_translations import articulation_to_xml_element_name, notehead_name_to_xml_type, \
     notations_to_xml_notations_element
-from typing import Union
+from expenvelope import Envelope
+from typing import Union, Sequence
 from collections import UserDict
 
 
@@ -59,7 +61,7 @@ class ParamPlaybackAdjustment(SavesToJSON):
 
     """
     Represents a multiply/add playback adjustment to a single parameter.
-    (The multiply happens first, then the add.
+    (The multiply happens first, then the add.)
 
     :param multiply: how much to multiply by
     :param add: how much to add
@@ -67,9 +69,9 @@ class ParamPlaybackAdjustment(SavesToJSON):
     :ivar add: how much to add
     """
 
-    def __init__(self, multiply: float = 1, add: float = 0):
-        self.multiply = multiply
-        self.add = add
+    def __init__(self, multiply: Union[Real, Envelope, Sequence] = 1, add: Union[Real, Envelope, Sequence] = 0):
+        self.multiply = Envelope.from_list(multiply) if isinstance(multiply, Sequence) else multiply
+        self.add_amount = Envelope.from_list(add) if isinstance(add, Sequence) else add
 
     @classmethod
     def from_string(cls, string: str) -> 'ParamPlaybackAdjustment':
@@ -82,6 +84,10 @@ class ParamPlaybackAdjustment(SavesToJSON):
             where a multiplication and an addition/subtraction are used together, the multiplication must come first.
         :return: a ParamPlaybackAdjustment
         """
+        if "envelope" in string.lower():
+            raise ValueError("Cannot directly use envelope object in string representation of parameter adjustment; "
+                             "use list shorthand instead, or create a ParamPlaybackAdjustment or NotePlaybackAdjustment"
+                             "directly.")
         times_index = string.index("*") if "*" in string else None
         plus_index = string.index("+") if "+" in string else None
         minus_index = string.index("-") if "-" in string else None
@@ -93,15 +99,25 @@ class ParamPlaybackAdjustment(SavesToJSON):
             else:
                 assert not (plus_index is not None and minus_index is not None)
                 plus_minus_index = plus_index if plus_index is not None else minus_index
+
+                multiply_string = add_string = None
                 if times_index is not None:
                     if plus_minus_index is not None:
                         assert plus_minus_index > times_index
-                        return cls(multiply=eval(string[times_index + 1:plus_minus_index]),
-                                   add=eval(string[plus_minus_index:]))
+                        multiply_string = string[times_index + 1:plus_minus_index]
+                        add_string = string[plus_minus_index:] if minus_index is not None \
+                            else string[plus_minus_index + 1:]
                     else:
-                        return cls(multiply=eval(string[times_index + 1:]))
+                        multiply_string = string[times_index + 1:]
                 else:
-                    return cls(add=eval(string[plus_minus_index:]))
+                    add_string = string[plus_minus_index:] if minus_index is not None \
+                        else string[plus_minus_index + 1:]
+
+                add = eval(re.sub(r'\[.*\]', lambda match: "Envelope.from_list(" + match.group(0) + ")",
+                                  add_string)) if add_string is not None else 0
+                multiply = eval(re.sub(r'\[.*\]', lambda match: "Envelope.from_list(" + match.group(0) + ")",
+                                       multiply_string)) if multiply_string is not None else 1
+                return cls(add=add, multiply=multiply)
         except AssertionError:
             raise ValueError("Bad parameter adjustment expression.")
 
@@ -132,28 +148,38 @@ class ParamPlaybackAdjustment(SavesToJSON):
         """
         return cls(1, value)
 
-    def adjust_value(self, param_value):
+    def adjust_value(self, param_value, normalize_envelope_to_length=None):
         """
         Apply this adjustment to a given parameter value
 
         :param param_value: the parameter value to adjust
+        :param normalize_envelope_to_length: if given, and the add or multiply is an Envelope object, normalize the
+            length of that envelope object to this.
         :return: the adjusted value of the parameter
         """
         # in case the param value is a Envelope, it's best to leave out the multiply if it's zero
         # for instance, if param_value is a Envelope, multiply is zero and add is a Envelope,
         # you would end up trying to add two Envelopes, which we don't allow
-        return self.add if self.multiply == 0 else param_value + self.add if self.multiply == 1 \
-            else param_value * self.multiply + self.add
+        add_amount = self.add_amount.normalize_to_duration(normalize_envelope_to_length, in_place=False) \
+            if isinstance(self.add_amount, Envelope) and normalize_envelope_to_length is not None else self.add_amount
+        mul_amount = self.multiply.normalize_to_duration(normalize_envelope_to_length, in_place=False) \
+            if isinstance(self.multiply, Envelope) and normalize_envelope_to_length is not None else self.multiply
+
+        return add_amount if mul_amount == 0 else param_value + add_amount if mul_amount == 1 \
+            else param_value * mul_amount + add_amount
+
+    def uses_envelope(self):
+        return isinstance(self.add_amount, Envelope) or isinstance(self.multiply, Envelope)
 
     def _to_dict(self):
-        return self.__dict__
+        return {"multiply": self.multiply, "add": self.add_amount}
 
     @classmethod
     def _from_dict(cls, json_dict):
         return cls(**json_dict)
 
     def __repr__(self):
-        return "ParamPlaybackAdjustment({}, {})".format(self.multiply, self.add)
+        return "ParamPlaybackAdjustment({}, {})".format(self.multiply, self.add_amount)
 
 
 class NotePlaybackAdjustment(SavesToJSON, NoteProperty):
@@ -170,11 +196,14 @@ class NotePlaybackAdjustment(SavesToJSON, NoteProperty):
     """
 
     def __init__(self, pitch_adjustment: ParamPlaybackAdjustment = None,
-                 volume_adjustment: ParamPlaybackAdjustment = None,
-                 length_adjustment: ParamPlaybackAdjustment = None):
+                 volume_adjustment: ParamPlaybackAdjustment = None, length_adjustment: ParamPlaybackAdjustment = None,
+                 scale_envelopes_to_length=False):
         self.pitch_adjustment: ParamPlaybackAdjustment = pitch_adjustment
         self.volume_adjustment: ParamPlaybackAdjustment = volume_adjustment
         self.length_adjustment: ParamPlaybackAdjustment = length_adjustment
+        if self.length_adjustment is not None and self.length_adjustment.uses_envelope():
+            raise ValueError("Length adjustment cannot use an Envelope; what would that even mean?")
+        self.scale_envelopes_to_length = scale_envelopes_to_length
 
     @classmethod
     def from_string(cls, string: str) -> 'NotePlaybackAdjustment':
@@ -188,7 +217,7 @@ class NotePlaybackAdjustment(SavesToJSON, NoteProperty):
             for visual clarity.
         :return: a shiny new NotePlaybackAdjustment
         """
-        string = string.replace(" ", "").replace(",", "").replace(";", "")
+        string = string.replace(" ", "").replace(";", "")
         pitch_adjustment = volume_adjustment = length_adjustment = None
         for adjustment_expression in NotePlaybackAdjustment._split_at_param_names(string):
             if adjustment_expression.startswith("pitch"):
@@ -204,7 +233,7 @@ class NotePlaybackAdjustment(SavesToJSON, NoteProperty):
                     raise ValueError("Multiple conflicting length adjustments given.")
                 length_adjustment = ParamPlaybackAdjustment.from_string(adjustment_expression)
         return cls(pitch_adjustment=pitch_adjustment, volume_adjustment=volume_adjustment,
-                   length_adjustment=length_adjustment)
+                   length_adjustment=length_adjustment, scale_envelopes_to_length=True)
 
     @staticmethod
     def _split_at_param_names(string: str):
@@ -270,12 +299,16 @@ class NotePlaybackAdjustment(SavesToJSON, NoteProperty):
 
         :param pitch: pitch to adjust
         :param volume: volume to adjust
-        :param length: length tho adjust
+        :param length: length to adjust
         :return: tuple of (adjusted_pitch, adjusted_volume, adjusted_length)
         """
-        return self.pitch_adjustment.adjust_value(pitch) if self.pitch_adjustment is not None else pitch, \
-               self.volume_adjustment.adjust_value(volume) if self.volume_adjustment is not None else volume, \
-               self.length_adjustment.adjust_value(length) if self.length_adjustment is not None else length
+        adjusted_length = self.length_adjustment.adjust_value(length) if self.length_adjustment is not None else length
+
+        return self.pitch_adjustment.adjust_value(pitch, adjusted_length if self.scale_envelopes_to_length else None) \
+                   if self.pitch_adjustment is not None else pitch, \
+               self.volume_adjustment.adjust_value(volume, adjusted_length if self.scale_envelopes_to_length else None) \
+                   if self.volume_adjustment is not None else volume, \
+               adjusted_length
 
     def _to_dict(self):
         json_dict = {}

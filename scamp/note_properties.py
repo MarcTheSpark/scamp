@@ -1,3 +1,8 @@
+"""
+Module containing the NoteProperties object, which is a dictionary that stores a variety of playback and notation
+options that affect a given note.
+"""
+
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 #  This file is part of SCAMP (Suite for Computer-Assisted Music in Python)                      #
 #  Copyright © 2020 Marc Evanstein <marc@marcevanstein.com>.                                     #
@@ -13,9 +18,9 @@
 #  You should have received a copy of the GNU General Public License along with this program.    #
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
-
+from numbers import Real
 from .playback_adjustments import NotePlaybackAdjustment, PlaybackAdjustmentsDictionary
-from .utilities import SavesToJSON
+from .utilities import SavesToJSON, NoteProperty
 from .settings import playback_settings, engraving_settings
 from .spelling import SpellingPolicy
 from .text import StaffText
@@ -24,6 +29,7 @@ from copy import deepcopy
 import logging
 import json
 from collections import UserDict
+from typing import Sequence, List, Union, Iterator, Tuple, MutableMapping
 
 
 def _split_string_at_outer_commas(s):
@@ -55,23 +61,32 @@ def _split_string_at_outer_commas(s):
     return out
 
 
-class NotePropertiesDictionary(UserDict, SavesToJSON):
+class NoteProperties(UserDict, SavesToJSON, NoteProperty):
+
+    """
+    A dictionary-style class that stores a variety of playback and notation options affecting a single note.
+
+    :param kwargs: key value pairs that make up this dictionary. Recognized dictionary keys are "articulation(s)",
+    "notehead(s)", "notation(s)", "text(s)", "playback_adjustment(s)", "key"/"spelling_policy", "voice", and "param_*"
+    (for specifying arbitrary extra parameters).
+    """
 
     def __init__(self, **kwargs):
-        NotePropertiesDictionary._normalize_dictionary_keys(kwargs)
+        NoteProperties._normalize_dictionary_keys(kwargs)
         super().__init__(**kwargs)
         self._convert_params_to_envelopes_if_needed()
         self._validate_values()
+        self._merge_bundles()
 
     @staticmethod
     def _normalize_dictionary_keys(dictionary):
-        NotePropertiesDictionary._standardize_plural_key("articulations", dictionary)
-        NotePropertiesDictionary._standardize_plural_key("noteheads", dictionary)
+        NoteProperties._standardize_plural_key("articulations", dictionary)
+        NoteProperties._standardize_plural_key("noteheads", dictionary)
         if len(dictionary["noteheads"]) == 0:
             dictionary["noteheads"] = ["normal"]
-        NotePropertiesDictionary._standardize_plural_key("notations", dictionary)
-        NotePropertiesDictionary._standardize_plural_key("texts", dictionary)
-        NotePropertiesDictionary._standardize_plural_key("playback_adjustments", dictionary)
+        NoteProperties._standardize_plural_key("notations", dictionary)
+        NoteProperties._standardize_plural_key("texts", dictionary)
+        NoteProperties._standardize_plural_key("playback_adjustments", dictionary)
 
         for i, adjustment in enumerate(dictionary["playback_adjustments"]):
             if isinstance(adjustment, str):
@@ -83,6 +98,7 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
         if "temp" not in dictionary:
             # this is a throwaway directory that is not kept when we save to json
             dictionary["temp"] = {}
+
         # we use this to know which parameters initially were set from lists, so that we know whether to resize the
         # Envelope to the length of the note, in the case that playback_settings.resize_parameter_envelopes == "lists"
         dictionary["temp"]["parameters_that_came_from_lists"] = set()
@@ -159,26 +175,37 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
                 logging.warning("Staff text \"{}\" not understood".format(self["text"]))
         self["texts"] = validated_texts
 
-    @classmethod
-    def from_unknown_format(cls, properties):
-        """
-        Interprets a number of data formats as a NotePropertiesDictionary
+    def _merge_bundles(self):
+        NoteProperties._standardize_plural_key("bundles", self)
+        property_bundles = self["bundles"]
+        del self["bundles"]
+        for property_bundle in property_bundles:
+            if not isinstance(property_bundle, MutableMapping):
+                raise ValueError("Invalid bundle; must be a NoteProperties or dict-like object.")
+            self.incorporate(property_bundle)
 
-        :param properties: can be of several formats:
-            - a dictionary of note properties, using the standard format
-            - a list of properties, each of which is a string or a NotePlaybackAdjustment. Each string may be
-            colon-separated key / value pair (e.g. "articulation: staccato"), or simply the value (e.g. "staccato"),
-            in which case an attempt is made to guess the key.
+    @classmethod
+    def from_unknown_format(cls, properties) -> 'NoteProperties':
+        """
+        Interprets a number of data formats as a :class:`NoteProperties`
+
+        :param properties: Can be of several formats:
+            - a dictionary, using the standard format used by :class:`NoteProperties`
+            - a list, each of which is a string, a :class:~scamp.playback_adjustments.NotePlaybackAdjustment`, a
+            :class:`~scamp.spelling.SpellingPolicy`, or a :class:`scamp.text.StaffText`. Each string may be
+            colon-separated key/value pair (e.g. "articulation: staccato"), or simply the value (e.g. "staccato"),
+            in which case an attempt is made to infer the key.
             - a string of comma-separated properties, which just gets split and treated like a list
-            - a NotePlaybackAdjustment, which just put in a list and treated like a list input
-        :return: a newly constructed NotePropertiesDictionary
+            - a :class:~scamp.playback_adjustments.NotePlaybackAdjustment`, :class:`~scamp.spelling.SpellingPolicy`, or
+            :class:`scamp.text.StaffText`, which just put in a list and treated like a list input
+        :return: a newly constructed NoteProperties dictionary
         """
         if isinstance(properties, str):
-            return NotePropertiesDictionary.from_string(properties)
+            return NoteProperties.from_string(properties)
         elif isinstance(properties, (SpellingPolicy, NotePlaybackAdjustment, StaffText)):
-            return NotePropertiesDictionary.from_list([properties])
+            return NoteProperties.from_list([properties])
         elif isinstance(properties, list):
-            return NotePropertiesDictionary.from_list(properties)
+            return NoteProperties.from_list(properties)
         elif properties is None:
             return cls()
         else:
@@ -187,15 +214,37 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
             return cls(**properties)
 
     @classmethod
-    def from_string(cls, properties_string):
+    def from_string(cls, properties_string) -> 'NoteProperties':
+        """
+        Interprets an appropriately formatted string as a NoteProperties.
+
+        :param properties_string: Should be formatted something like this: "articulations: staccato/tenuto, harmonic, #,
+            volume * 0.7". The comma separates different properties, and the forward slash separates multiple entries
+            for the same property (with the exception of with the text property, since a slash could be part of the
+            text). Properties can either be given with explicit key/value pairs (separated by colon), or a value can
+            simply be given and the type of property will be inferred. In the above example, it is inferred that
+            "harmonic" is a notehead, that the "#" is a desired spelling, and that "volume * 0.7" is a string to be
+            parsed as a :class:`~scamp.playback_adjustments.NotePlaybackAdjustment` using its
+            :func:`~scamp.playback_adjustments.NotePlaybackAdjustment.from_string` method.
+        """
         assert isinstance(properties_string, str)
-        return NotePropertiesDictionary.from_list(_split_string_at_outer_commas(properties_string))
+        return NoteProperties.from_list(_split_string_at_outer_commas(properties_string))
 
     @classmethod
-    def from_list(cls, properties_list):
-        assert isinstance(properties_list, (list, tuple))
+    def from_list(cls, properties_list: Sequence) -> 'NoteProperties':
+        """
+        Interprets a lists of properties as a NoteProperties.
+
+        :param properties_list: A list of properties, each of which is one of:
+            - a :class:~scamp.playback_adjustments.NotePlaybackAdjustment`, :class:`~scamp.spelling.SpellingPolicy`, or
+            :class:`scamp.text.StaffText`
+            - a string featuring a key/value pair separated by a colon.
+                See :func:`~scamp.instruments.ScampInstrument.play_note` for a description of the possible properties.
+            - a string featuring just a value, from which the key is inferred. (E.g. "staccato", which is interpreted
+                as "articulation: staccato")
+        """
         # this pre-populates the dict with all of the key/value pairs we need
-        properties_dict = NotePropertiesDictionary._normalize_dictionary_keys({})
+        properties_dict = NoteProperties._normalize_dictionary_keys({})
 
         for note_property in properties_list:
             if isinstance(note_property, NotePlaybackAdjustment):
@@ -204,6 +253,8 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
                 properties_dict["spelling_policy"] = note_property
             elif isinstance(note_property, StaffText):
                 properties_dict["texts"].append(note_property)
+            elif isinstance(note_property, (dict, UserDict)):
+                NoteProperties.incorporate(properties_dict, note_property)
             elif isinstance(note_property, str):
                 # if there's a colon, it represents a key/value pair, e.g. "articulation: staccato"
                 if ":" in note_property:
@@ -273,7 +324,8 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
             self.temp["parameters_that_came_from_lists"].add(param)
 
     @property
-    def articulations(self):
+    def articulations(self) -> List[str]:
+        """List of articulations associated with this NoteProperties."""
         return self["articulations"]
 
     @articulations.setter
@@ -281,7 +333,8 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
         self["articulations"] = value
 
     @property
-    def noteheads(self):
+    def noteheads(self) -> List[str]:
+        """List of noteheads associated with this NoteProperties."""
         return self["noteheads"]
 
     @noteheads.setter
@@ -289,7 +342,8 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
         self["noteheads"] = value
 
     @property
-    def notations(self):
+    def notations(self) -> List[str]:
+        """List of notations associated with this NoteProperties."""
         return self["notations"]
 
     @notations.setter
@@ -297,7 +351,8 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
         self["notations"] = value
 
     @property
-    def texts(self):
+    def texts(self) -> List[StaffText]:
+        """List of texts associated with this NoteProperties."""
         return self["texts"]
 
     @texts.setter
@@ -305,7 +360,8 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
         self["texts"] = value
 
     @property
-    def playback_adjustments(self):
+    def playback_adjustments(self) -> List[NotePlaybackAdjustment]:
+        """List of playback adjustments associated with this NoteProperties."""
         return self["playback_adjustments"]
 
     @playback_adjustments.setter
@@ -313,7 +369,8 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
         self["playback_adjustments"] = value
 
     @property
-    def spelling_policy(self):
+    def spelling_policy(self) -> SpellingPolicy:
+        """Spelling policy associated with this NoteProperties."""
         return self["spelling_policy"] if self["spelling_policy"] is not None \
             else engraving_settings.default_spelling_policy
 
@@ -330,25 +387,30 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
             raise ValueError("Spelling policy not understood.")
 
     @property
-    def voice(self):
+    def voice(self) -> Union[str, None]:
+        """Voice this note should appear in."""
         if "voice" in self:
             return self["voice"]
         else:
             return None
 
-    def iterate_extra_parameters_and_values(self):
+    def iterate_extra_parameters_and_values(self) -> Iterator[Tuple[str, Union[Real, Envelope]]]:
+        """Iterates through additional parameters and their values."""
         for key, value in self.items():
             if key.startswith("param_"):
                 yield key.replace("param_", ""), value
 
-    def starts_tie(self):
+    def starts_tie(self) -> bool:
+        """Whether or not this note starts a tie."""
         return "_starts_tie" in self and self["_starts_tie"]
 
-    def ends_tie(self):
+    def ends_tie(self) -> bool:
+        """Whether or not this note ends a tie."""
         return "_ends_tie" in self and self["_ends_tie"]
 
     @property
-    def temp(self):
+    def temp(self) -> dict:
+        """Temporary properties; these are not saved to JSON when this is exported."""
         return self["temp"]
 
     def apply_playback_adjustments(self, pitch, volume, length, include_notation_derived=True):
@@ -395,8 +457,8 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
 
         return pitch, volume, length, did_an_adjustment
 
-    def mergeable_with(self, other_properties_dict):
-        assert isinstance(other_properties_dict, NotePropertiesDictionary)
+    def mergeable_with(self, other_properties_dict: 'NoteProperties') -> bool:
+        """Determines whether this NoteProperties is compatible with another for chord merger purposes."""
         return self.articulations == other_properties_dict.articulations and \
                self.notations == other_properties_dict.notations and \
                self.playback_adjustments == other_properties_dict.playback_adjustments and \
@@ -425,6 +487,27 @@ class NotePropertiesDictionary(UserDict, SavesToJSON):
     @classmethod
     def _from_dict(cls, json_dict):
         return cls(**json_dict)
+
+    def incorporate(self, other_dict: MutableMapping):
+        for key in ("articulations", "noteheads", "notations", "texts", "playback_adjustments"):
+            for singular_or_plural_key in (key[:-1], key):  # accept, e.g.,  'text' as well as 'texts'
+                if singular_or_plural_key in other_dict:
+                    if key == "noteheads":
+                        # noteheads are just replaced by the new information
+                        self[key] = other_dict[singular_or_plural_key]
+                    elif hasattr(other_dict[singular_or_plural_key], '__len__'):
+                        # for all the others, we extend if they have a list...
+                        self[key].extend(other_dict[singular_or_plural_key])
+                    else:
+                        # ...and append if it's just one item
+                        self[key].append(other_dict[singular_or_plural_key])
+        if "spelling_policy" in other_dict and other_dict["spelling_policy"] is not None:
+            self["spelling_policy"] = other_dict["spelling_policy"]
+        if "voice" in other_dict and other_dict["voice"] is not None:
+            self["voice"] = other_dict["voice"]
+
+    def __add__(self, other):
+        return self.copy().incorporate(other)
 
     def __repr__(self):
         # this simplifies the properties dictionary to only the parts that deviate from the defaults

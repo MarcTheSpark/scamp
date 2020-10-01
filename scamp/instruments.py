@@ -27,7 +27,7 @@ from ._soundfont_host import get_best_preset_match_for_name, print_soundfont_pre
 from ._midi import get_available_midi_output_devices, print_available_midi_output_devices
 from .utilities import SavesToJSON, NoteProperty
 from .spelling import SpellingPolicy
-from ._note_properties import NotePropertiesDictionary
+from .note_properties import NoteProperties
 from .playback_implementations import SoundfontPlaybackImplementation, MIDIStreamPlaybackImplementation, \
     OSCPlaybackImplementation
 from .settings import engraving_settings, playback_settings
@@ -381,8 +381,8 @@ class ScampInstrument(SavesToJSON):
         for playback_implementation in self.playback_implementations:
             playback_implementation.set_host_instrument(self)
 
-    def play_note(self, pitch, volume, length, properties: Union[str, dict, NoteProperty] = None, blocking: bool = True,
-                  clock: Clock = None) -> None:
+    def play_note(self, pitch, volume, length, properties: Union[str, dict, Sequence, NoteProperty] = None,
+                  blocking: bool = True, clock: Clock = None) -> None:
         """
         Play a note on this instrument, with the given pitch, volume and length.
 
@@ -468,6 +468,8 @@ class ScampInstrument(SavesToJSON):
             properties.temp["parameters_that_came_from_lists"].add("volume")
             volume = Envelope.from_list(volume)
 
+        ScampInstrument._normalize_envelopes(pitch, volume, length, properties)
+
         adjusted_pitch, adjusted_volume, adjusted_length, did_an_adjustment = \
             properties.apply_playback_adjustments(pitch, volume, length)
 
@@ -497,21 +499,8 @@ class ScampInstrument(SavesToJSON):
                            args=(pitch, volume, length, properties),
                            kwargs={"silent": clock.is_fast_forwarding()})
 
-    def _do_play_note(self, clock, pitch, volume, length, properties, silent=False, transcribe=True):
-        """
-        This runs the actual thread that plays the note, and is scheduled when play_note is called.
-        If playback adjustments were made, then we schedule the altered version of _do_play_note to play back, but with
-        "transcribe" set to false, and we schedule an unaltered version of _do_play_note to run silently, but with
-        "transcribe" set to true. This way the transcription is not affected by performance adjustments.
-
-        :param clock: which clock this plays back on
-        :param pitch: either a number, an Envelope
-        :param volume: either a number, an Envelope
-        :param length: either a number (of beats), or a tuple representing a set of tied segments
-        :param properties: a NotePropertiesDictionary
-        :param silent: if True, don't actually do any of the playback; just go through the motions for transcribing it
-        :param transcribe: if False, don't notify Transcribers at the end of the note
-        """
+    @staticmethod
+    def _normalize_envelopes(pitch, volume, length, properties):
         # length can either be a single number of beats or a list/tuple or segments to be split
         # sum_length will represent the total number of beats in either case
         sum_length = sum(length) if hasattr(length, "__len__") else length
@@ -530,6 +519,22 @@ class ScampInstrument(SavesToJSON):
                                                 playback_settings.resize_parameter_envelopes == "lists" and
                                                 param in properties.temp["parameters_that_came_from_lists"]):
                 value.normalize_to_duration(sum_length)
+
+    def _do_play_note(self, clock, pitch, volume, length, properties, silent=False, transcribe=True):
+        """
+        This runs the actual thread that plays the note, and is scheduled when play_note is called.
+        If playback adjustments were made, then we schedule the altered version of _do_play_note to play back, but with
+        "transcribe" set to false, and we schedule an unaltered version of _do_play_note to run silently, but with
+        "transcribe" set to true. This way the transcription is not affected by performance adjustments.
+
+        :param clock: which clock this plays back on
+        :param pitch: either a number, an Envelope
+        :param volume: either a number, an Envelope
+        :param length: either a number (of beats), or a tuple representing a set of tied segments
+        :param properties: a NoteProperties dictionary
+        :param silent: if True, don't actually do any of the playback; just go through the motions for transcribing it
+        :param transcribe: if False, don't notify Transcribers at the end of the note
+        """
 
         # if we know ahead of time that neither pitch nor volume changes, we can pass
         fixed = not isinstance(pitch, Envelope) and not isinstance(volume, Envelope)
@@ -560,7 +565,7 @@ class ScampInstrument(SavesToJSON):
             note_handle.end()
             raise e
 
-    def play_chord(self, pitches: Sequence, volume, length, properties: Union[str, dict, NoteProperty] = None,
+    def play_chord(self, pitches: Sequence, volume, length, properties: Union[str, dict, Sequence, NoteProperty] = None,
                    blocking: bool = True, clock: Clock = None) -> None:
         """
         Play a chord with the given pitches, volume, and length. Essentially, this is a convenience method that
@@ -598,7 +603,7 @@ class ScampInstrument(SavesToJSON):
             properties.noteheads = [properties.noteheads[-1]]
         self.play_note(pitches[-1], volume, length, properties=properties, blocking=blocking, clock=clock)
 
-    def start_note(self, pitch: float, volume: float, properties: Union[str, dict, NoteProperty] = None,
+    def start_note(self, pitch: float, volume: float, properties: Union[str, dict, Sequence, NoteProperty] = None,
                    clock: Clock = None, max_volume: float = 1, flags: Sequence[str] = None) -> 'NoteHandle':
         """
         Start a note with the given pitch, volume, and properties
@@ -687,7 +692,8 @@ class ScampInstrument(SavesToJSON):
 
         return handle
 
-    def start_chord(self, pitches: Sequence[float], volume: float, properties: Union[str, dict, NoteProperty] = None,
+    def start_chord(self, pitches: Sequence[float], volume: float,
+                    properties: Union[str, dict, Sequence, NoteProperty] = None,
                     clock: Clock = None, max_volume: float = 1, flags: Sequence[str] = None) -> 'ChordHandle':
         """
         Simple utility for starting chords without starting each note individually.
@@ -729,18 +735,18 @@ class ScampInstrument(SavesToJSON):
 
         return ChordHandle(note_handles, intervals)
 
-    def _standardize_properties(self, raw_properties) -> NotePropertiesDictionary:
+    def _standardize_properties(self, raw_properties) -> NoteProperties:
         """
         Turns the properties given into the standard form of a NotePropertiesDictionary
 
         :param raw_properties: can be None, a string, a list, or a dict
         :return: a NotePropertiesDictionary
         """
-        if isinstance(raw_properties, NotePropertiesDictionary):
+        if isinstance(raw_properties, NoteProperties):
             return raw_properties
 
-        properties = NotePropertiesDictionary.from_unknown_format(raw_properties) \
-            if not isinstance(raw_properties, NotePropertiesDictionary) else raw_properties
+        properties = NoteProperties.from_unknown_format(raw_properties) \
+            if not isinstance(raw_properties, NoteProperties) else raw_properties
 
         # resolve the spelling policy based on defaults (local first, then more global)
         if properties["spelling_policy"] is None:

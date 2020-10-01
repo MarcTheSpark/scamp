@@ -25,7 +25,7 @@ import bisect
 from functools import total_ordering
 from numbers import Real
 from expenvelope import Envelope
-from ._note_properties import NotePropertiesDictionary
+from .note_properties import NoteProperties
 from .settings import engraving_settings
 from .quantization import quantize_performance_part, QuantizationRecord, QuantizationScheme
 from .settings import quantization_settings
@@ -67,8 +67,8 @@ class PerformanceNote(SavesToJSON):
         # if pitch is a tuple, this indicates a chord
         self.pitch = pitch
         self.volume = volume
-        self.properties = properties if isinstance(properties, NotePropertiesDictionary) \
-            else NotePropertiesDictionary.from_unknown_format(properties)
+        self.properties = properties if isinstance(properties, NoteProperties) \
+            else NoteProperties.from_unknown_format(properties)
 
     def length_sum(self) -> float:
         """
