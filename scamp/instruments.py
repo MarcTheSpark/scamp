@@ -382,7 +382,7 @@ class ScampInstrument(SavesToJSON):
             playback_implementation.set_host_instrument(self)
 
     def play_note(self, pitch, volume, length, properties: Union[str, dict, Sequence, NoteProperty] = None,
-                  blocking: bool = True, clock: Clock = None) -> None:
+                  blocking: bool = True, clock: Clock = None, silent: bool = False, transcribe: bool = True) -> None:
         """
         Play a note on this instrument, with the given pitch, volume and length.
 
@@ -440,6 +440,10 @@ class ScampInstrument(SavesToJSON):
             :class:`~scamp.text.StaffText`, or :class:`~scamp.playback_adjustments.NotePlaybackAdjustment`.
         :param blocking: if True, don't return until the note is done playing; if False, return immediately
         :param clock: which clock to use. If None, capture the clock from context.
+        :param silent: if True, note is not played back, but is still transcribed when a
+            :class:`~scamp.transcriber.Transcriber is active. (Generally ignored by end user.)
+        :param transcribe: if False, note is not transcribed even when a :class:`~scamp.transcriber.Transcriber` is
+            active. (Generally ignored by end user.)
         """
         if clock is None:
             # first try to just get the clock operating on the current thread
@@ -482,22 +486,23 @@ class ScampInstrument(SavesToJSON):
             if not clock.is_fast_forwarding():
                 clock.fork(self._do_play_note, name="DO_PLAY_NOTE",
                            args=(adjusted_pitch, adjusted_volume, adjusted_length, properties),
-                           kwargs={"transcribe": False})
+                           kwargs={"transcribe": False, "silent": silent})
             # transcribe, but don't play the unmodified version
             if blocking:
-                self._do_play_note(clock, pitch, volume, length, properties, silent=True)
+                self._do_play_note(clock, pitch, volume, length, properties, silent=True, transcribe=transcribe)
             else:
                 clock.fork(self._do_play_note, name="DO_PLAY_NOTE",
-                           args=(pitch, volume, length, properties), kwargs={"silent": True})
+                           args=(pitch, volume, length, properties), kwargs={"silent": True, "transcribe": transcribe})
         else:
             # No adjustments, so no need to separate transcription from playback
             # (However, if the clock is fast-forwarding, make it silent)
             if blocking:
-                self._do_play_note(clock, pitch, volume, length, properties, silent=clock.is_fast_forwarding())
+                self._do_play_note(clock, pitch, volume, length, properties,
+                                   silent=clock.is_fast_forwarding() or silent, transcribe=transcribe)
             else:
                 clock.fork(self._do_play_note, name="DO_PLAY_NOTE",
                            args=(pitch, volume, length, properties),
-                           kwargs={"silent": clock.is_fast_forwarding()})
+                           kwargs={"silent": clock.is_fast_forwarding() or silent, "transcribe": transcribe})
 
     @staticmethod
     def _normalize_envelopes(pitch, volume, length, properties):
@@ -566,7 +571,7 @@ class ScampInstrument(SavesToJSON):
             raise e
 
     def play_chord(self, pitches: Sequence, volume, length, properties: Union[str, dict, Sequence, NoteProperty] = None,
-                   blocking: bool = True, clock: Clock = None) -> None:
+                   blocking: bool = True, clock: Clock = None, silent: bool = False, transcribe: bool = True) -> None:
         """
         Play a chord with the given pitches, volume, and length. Essentially, this is a convenience method that
         bundles together several calls to "play_note" and takes a list of pitches rather than a single pitch
@@ -579,6 +584,8 @@ class ScampInstrument(SavesToJSON):
             they will be assigned to individual noteheads, and there should be the same number as notes in the chord.
         :param blocking: see description for "play_note"
         :param clock: see description for "play_note"
+        :param silent: see description for "play_note"
+        :param transcribe: see description for "play_note"
         """
         if not hasattr(pitches, "__len__"):
             raise ValueError("'pitches' must be a list of pitches.")
@@ -595,13 +602,15 @@ class ScampInstrument(SavesToJSON):
             properties_copy = deepcopy(properties)
             if len(properties.noteheads) > 1:
                 properties_copy.noteheads = [properties_copy.noteheads[i]]
-            self.play_note(pitch, volume, length, properties=properties_copy, blocking=False, clock=clock)
+            self.play_note(pitch, volume, length, properties=properties_copy, blocking=False, clock=clock,
+                           silent=silent, transcribe=transcribe)
 
         # for the last pitch, block or not based on the blocking parameter
         # also, if we've been given a list of noteheads, pick out the last one
         if len(properties.noteheads) > 1:
             properties.noteheads = [properties.noteheads[-1]]
-        self.play_note(pitches[-1], volume, length, properties=properties, blocking=blocking, clock=clock)
+        self.play_note(pitches[-1], volume, length, properties=properties, blocking=blocking, clock=clock,
+                       silent=silent, transcribe=transcribe)
 
     def start_note(self, pitch: float, volume: float, properties: Union[str, dict, Sequence, NoteProperty] = None,
                    clock: Clock = None, max_volume: float = 1, flags: Sequence[str] = None) -> 'NoteHandle':

@@ -29,7 +29,7 @@ from copy import deepcopy
 import logging
 import json
 from collections import UserDict
-from typing import Sequence, List, Union, Iterator, Tuple, MutableMapping
+from typing import Sequence, List, Union, Iterator, Tuple, MutableMapping, Optional
 
 
 def _split_string_at_outer_commas(s):
@@ -488,13 +488,22 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
     def _from_dict(cls, json_dict):
         return cls(**json_dict)
 
-    def incorporate(self, other_dict: MutableMapping):
+    def incorporate(self, other_dict: Optional[MutableMapping]) -> 'NoteProperties':
+        """
+        Incorporates a different NoteProperties or dictionary into this one.
+
+        :param other_dict: A NoteProperties, or a dictionary-like object with similar structure
+        :return: self, for chaining purposes
+        """
+        if other_dict is None:
+            return self
         for key in ("articulations", "noteheads", "notations", "texts", "playback_adjustments"):
             for singular_or_plural_key in (key[:-1], key):  # accept, e.g.,  'text' as well as 'texts'
                 if singular_or_plural_key in other_dict:
                     if key == "noteheads":
-                        # noteheads are just replaced by the new information
-                        self[key] = other_dict[singular_or_plural_key]
+                        if other_dict[singular_or_plural_key] != ["normal"]:
+                            # noteheads are just replaced by the new information
+                            self[key] = other_dict[singular_or_plural_key]
                     elif hasattr(other_dict[singular_or_plural_key], '__len__'):
                         # for all the others, we extend if they have a list...
                         self[key].extend(other_dict[singular_or_plural_key])
@@ -505,6 +514,7 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
             self["spelling_policy"] = other_dict["spelling_policy"]
         if "voice" in other_dict and other_dict["voice"] is not None:
             self["voice"] = other_dict["voice"]
+        return self
 
     def __add__(self, other):
         return self.copy().incorporate(other)

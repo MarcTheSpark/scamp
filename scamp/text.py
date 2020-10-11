@@ -70,7 +70,7 @@ class StaffText(SavesToJSON, NoteProperty):
         """Converts this to a pymusicxml TextAnnotation object."""
         return pymusicxml.TextAnnotation(self.text, placement=self.placement, italic=self.italic, bold=self.bold)
 
-    def to_abjad(self) -> abjad().Markup:
+    def to_abjad(self) -> 'abjad.Markup':
         """Converts this to an abjad Markup object."""
         out = abjad().Markup(self.text, direction=abjad().Up if self.placement == "above" else abjad().Down)
         if self.italic:

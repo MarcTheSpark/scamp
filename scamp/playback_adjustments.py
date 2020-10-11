@@ -178,6 +178,11 @@ class ParamPlaybackAdjustment(SavesToJSON):
     def _from_dict(cls, json_dict):
         return cls(**json_dict)
 
+    def __eq__(self, other):
+        if not isinstance(other, ParamPlaybackAdjustment):
+            return False
+        return self.multiply == other.multiply and self.add_amount == other.add_amount
+
     def __repr__(self):
         return "ParamPlaybackAdjustment({}, {})".format(self.multiply, self.add_amount)
 
@@ -318,11 +323,18 @@ class NotePlaybackAdjustment(SavesToJSON, NoteProperty):
             json_dict["volume_adjustment"] = self.volume_adjustment
         if self.length_adjustment is not None:
             json_dict["length_adjustment"] = self.length_adjustment
+        if self.scale_envelopes_to_length:
+            json_dict["scale_envelopes_to_length"] = self.scale_envelopes_to_length
         return json_dict
 
     @classmethod
     def _from_dict(cls, json_dict):
         return cls(**json_dict)
+
+    def __eq__(self, other):
+        if not isinstance(other, NotePlaybackAdjustment):
+            return False
+        return self._to_dict() == other._to_dict()
 
     def __repr__(self):
         return "NotePlaybackAdjustment({}, {}, {})".format(
