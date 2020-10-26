@@ -67,8 +67,8 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
     A dictionary-style class that stores a variety of playback and notation options affecting a single note.
 
     :param kwargs: key value pairs that make up this dictionary. Recognized dictionary keys are "articulation(s)",
-    "notehead(s)", "notation(s)", "text(s)", "playback_adjustment(s)", "key"/"spelling_policy", "voice", and "param_*"
-    (for specifying arbitrary extra parameters).
+        "notehead(s)", "notation(s)", "text(s)", "playback_adjustment(s)", "key"/"spelling_policy", "voice", and
+        "param_*" (for specifying arbitrary extra parameters).
     """
 
     def __init__(self, **kwargs):
@@ -190,14 +190,11 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
         Interprets a number of data formats as a :class:`NoteProperties`
 
         :param properties: Can be of several formats:
+
             - a dictionary, using the standard format used by :class:`NoteProperties`
-            - a list, each of which is a string, a :class:~scamp.playback_adjustments.NotePlaybackAdjustment`, a
-            :class:`~scamp.spelling.SpellingPolicy`, or a :class:`scamp.text.StaffText`. Each string may be
-            colon-separated key/value pair (e.g. "articulation: staccato"), or simply the value (e.g. "staccato"),
-            in which case an attempt is made to infer the key.
+            - a list, each of which is a string, a :class:`~scamp.playback_adjustments.NotePlaybackAdjustment`, a :class:`~scamp.spelling.SpellingPolicy`, or a :class:`scamp.text.StaffText`. Each string may be colon-separated key/value pair (e.g. "articulation: staccato"), or simply the value (e.g. "staccato"), in which case an attempt is made to infer the key.
             - a string of comma-separated properties, which just gets split and treated like a list
-            - a :class:~scamp.playback_adjustments.NotePlaybackAdjustment`, :class:`~scamp.spelling.SpellingPolicy`, or
-            :class:`scamp.text.StaffText`, which just put in a list and treated like a list input
+            - a :class:`~scamp.playback_adjustments.NotePlaybackAdjustment`, :class:`~scamp.spelling.SpellingPolicy`, or :class:`scamp.text.StaffText`, which just put in a list and treated like a list input
         :return: a newly constructed NoteProperties dictionary
         """
         if isinstance(properties, str):
@@ -236,8 +233,9 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
         Interprets a lists of properties as a NoteProperties.
 
         :param properties_list: A list of properties, each of which is one of:
+
             - a :class:~scamp.playback_adjustments.NotePlaybackAdjustment`, :class:`~scamp.spelling.SpellingPolicy`, or
-            :class:`scamp.text.StaffText`
+                :class:`scamp.text.StaffText`
             - a string featuring a key/value pair separated by a colon.
                 See :func:`~scamp.instruments.ScampInstrument.play_note` for a description of the possible properties.
             - a string featuring just a value, from which the key is inferred. (E.g. "staccato", which is interpreted

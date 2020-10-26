@@ -21,7 +21,7 @@ from types import ModuleType
 
 
 template = """{package_name} package
-==============================================
+=================================================
 
 .. automodule:: {package_name}
    :members:

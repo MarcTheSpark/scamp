@@ -4,7 +4,8 @@ SCAMP (Suite for Computer-Assisted Music in Python) |release|
 `Source Code <https://sr.ht/~marcevanstein/scamp>`_ |
 `PyPI <https://pypi.org/project/scamp>`_ |
 `Paper <http://marcevanstein.com/Writings/Evanstein_MAT_Thesis_SCAMP.pdf>`_ |
-`Forum <https://scampsters.marcevanstein.com>`_
+`Forum <https://scampsters.marcevanstein.com>`_ |
+`Donate <https://liberapay.com/marcevanstein/donate>`_
 
 SCAMP is a computer-assisted composition framework in Python designed to act as a hub, flexibly connecting the
 composer-programmer to a variety of resources for playback and notation. SCAMP provides functionality to manage the
@@ -22,13 +23,6 @@ the following video provides a good introduction to the framework:
 You can also read the `paper introducing the framework <http://marcevanstein.com/Writings/Evanstein_MAT_Thesis_SCAMP.pdf>`_,
 and check out the "tutorial" examples found `here <https://git.sr.ht/~marcevanstein/scamp/tree/master/examples/Tutorial>`_.
 
-Community
----------
-
-Consider joining the forum at https://scampsters.marcevanstein.com/, where you can ask questions, share your creations,
-make suggestions for the development of the framework, and generally take part in the wider SCAMP community. The forum
-is open-registration, and runs on `Discourse <https://www.discourse.org/>`_, an open-source discussion platform.
-
 .. toctree::
    :maxdepth: 2
    :caption: Set Up and Installation:
@@ -42,6 +36,27 @@ is open-registration, and runs on `Discourse <https://www.discourse.org/>`_, an 
    :caption: Narrative Documentation:
 
    narrative/tutorial_videos
+
+
+Community
+---------
+
+Consider joining the forum at https://scampsters.marcevanstein.com/, where you can ask questions, share your creations,
+make suggestions for the development of the framework, and generally take part in the wider SCAMP community. The forum
+is open-registration, and runs on `Discourse <https://www.discourse.org/>`_, an open-source discussion platform.
+
+Support SCAMP!
+--------------
+
+Although SCAMP will always be free to use and completely open source, a great deal of time and energy has gone into its
+development. If you'd like to support that development, consider donating via Liberapay:
+
+.. raw:: html
+
+    <div style="margin: 0px auto 30px auto">
+        <script src="https://liberapay.com/marcevanstein/widgets/button.js"></script>
+        <noscript><a href="https://liberapay.com/marcevanstein/donate"><img alt="Donate using Liberapay" src="https://liberapay.com/assets/widgets/donate.svg"></a></noscript>
+    </div>
 
 .. toctree::
    :maxdepth: 2

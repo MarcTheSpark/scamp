@@ -441,7 +441,7 @@ class ScampInstrument(SavesToJSON):
         :param blocking: if True, don't return until the note is done playing; if False, return immediately
         :param clock: which clock to use. If None, capture the clock from context.
         :param silent: if True, note is not played back, but is still transcribed when a
-            :class:`~scamp.transcriber.Transcriber is active. (Generally ignored by end user.)
+            :class:`~scamp.transcriber.Transcriber` is active. (Generally ignored by end user.)
         :param transcribe: if False, note is not transcribed even when a :class:`~scamp.transcriber.Transcriber` is
             active. (Generally ignored by end user.)
         """
