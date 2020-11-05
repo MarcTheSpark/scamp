@@ -20,7 +20,6 @@ Various and sundry utility functions used by SCAMP.
 
 import os
 import sys
-import inspect
 import math
 import itertools
 import functools
@@ -51,29 +50,39 @@ def iterate_all_subclasses(type_name: Type) -> Iterator[Type]:
             yield x
 
 
-def resolve_relative_path(file_name: str, from_root_process: bool = False) -> str:
+def resolve_path(path: str) -> str:
     """
-    Resolves the relative path file_name into an absolute path.
-    If this script is running from an executable made by PyInstaller, the returned path is considered
-    relative to the parent of the directory containing that executable (which is the app bundle root).
-    If this is running in any other context, then we inspect the stack to find the module that made
-    this call, and resolve the path relative to the directory in which that module resides.
-    Optionally, if the 'from_root_process' flag is on, we resolve relative to this root module
+    Resolves the given path based on a variety of prefixes.
 
-    :param file_name: a relative path to be resolved
-    :param from_root_process: whether or not to resolve based on the location of the root module
-    :return: absolute
+    :param path: A path, possibly prefixed by "/", "~/", or "%PKG/". A prefix of "/" will be interpreted as an absolute
+        path, a prefix of "~/" will be interpreted as relative to the user's home directory, a prefix of "%PKG/"
+        will be interpreted as relative to the package source directory, and an unprefixed path will be interpreted as
+        relative to the current working directory.
+    :return: the resolved path
     """
+    if path.startswith("%PKG/"):
+        # Relative to the package source directory
+        return resolve_package_path(path[5:])
+    elif path.startswith("/"):
+        # Absolute soundfont path
+        return path
+    elif path.startswith("~/"):
+        # Relative to user home directory
+        return os.path.expanduser(path)
+    else:
+        # Unprefixed paths are relative to the working directory
+        return os.path.join(os.getcwd(), path)
+
+
+def resolve_package_path(path: str) -> str:
     if getattr(sys, 'frozen', False):
-        # Python is running from an executable made by PyInstaller (the bootloader adds 'frozen' to sys)
-        application_path = os.path.join(os.path.dirname(sys.executable), "..")
+        # Python is running from a binary executable made by PyInstaller (the bootloader adds 'frozen' to sys)
+        package_dir = os.path.dirname(sys.executable)
     else:
         # Otherwise, inspect the stack to find the module that made this call (or the root module if desired)
-        frm = inspect.stack()[1] if not from_root_process else inspect.stack()[-1]
-        mod = inspect.getmodule(frm[0])
-        application_path = os.path.dirname(mod.__file__)
+        package_dir = os.path.dirname(__file__)
 
-    return os.path.join(application_path, file_name)
+    return os.path.join(package_dir, path)
 
 
 def memoize(obj: Callable) -> Callable:

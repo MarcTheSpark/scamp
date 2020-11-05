@@ -30,7 +30,7 @@ try:
     else:
         # first choice: use the use the local, tweaked copy of pyfluidsynth (which will also try to
         # load up a local copy of the fluidsynth dll on Windows or dylib on MacOS)
-        logging.debug("Trying to copy of pyfluidsynth from within SCAMP package.")
+        logging.debug("Trying to load copy of pyfluidsynth from within SCAMP package.")
         from ._thirdparty import fluidsynth
     logging.debug("Loading of pyfluidsynth succeeded.")
 except (ImportError, AttributeError):

@@ -59,7 +59,7 @@
     },
     "resize_parameter_envelopes": "lists",
     "soundfont_search_paths": [
-        "soundfonts/"
+        "%PKG/soundfonts/"
     ],
     "soundfont_volume_to_velocity_curve": {
         "_type": "Envelope",

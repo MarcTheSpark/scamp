@@ -23,7 +23,7 @@ scamp package. These instances are part of the global scamp namespace, and conta
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
 from types import SimpleNamespace
-from .utilities import resolve_relative_path, SavesToJSON
+from .utilities import resolve_package_path, SavesToJSON
 from .playback_adjustments import PlaybackAdjustmentsDictionary, NotePlaybackAdjustment
 from expenvelope.envelope import Envelope
 from . import spelling
@@ -80,7 +80,7 @@ class _ScampSettings(SimpleNamespace, SavesToJSON):
         Rewrites the JSON file from which settings are loaded, meaning that this reset will persist to the running of
         scripts in the future.
         """
-        self.save_to_json(resolve_relative_path(self._json_path))
+        self.save_to_json(resolve_package_path(self._json_path))
 
     @classmethod
     def factory_default(cls):
@@ -105,7 +105,7 @@ class _ScampSettings(SimpleNamespace, SavesToJSON):
         """
         assert cls._is_root_setting, "Cannot load a non-root setting automatically."
         try:
-            return cls.load_from_json(resolve_relative_path(cls._json_path))
+            return cls.load_from_json(resolve_package_path(cls._json_path))
         except FileNotFoundError:
             logging.warning("{} not found; generating defaults.".format(cls._settings_name))
             factory_defaults = cls.factory_default()
@@ -170,7 +170,7 @@ class PlaybackSettings(_ScampSettings):
             "general_midi": "Merlin.sf2",
         },
         "soundfont_search_paths": [
-            "soundfonts/"
+            "%PKG/soundfonts/"
         ],
         "default_soundfont": "general_midi",
         "default_audio_driver": "auto",

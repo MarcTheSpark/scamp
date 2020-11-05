@@ -14,7 +14,7 @@
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
-from .utilities import resolve_relative_path, SavesToJSON, get_average_square_correlation
+from .utilities import resolve_path, SavesToJSON, get_average_square_correlation
 from .settings import playback_settings
 from ._dependencies import fluidsynth, Sf2File
 import logging
@@ -61,7 +61,7 @@ class SoundfontHost(SavesToJSON):
         return SoundfontInstrument(self, num_channels, bank_and_preset, soundfont_id)
 
     def load_soundfont(self, soundfont):
-        soundfont_path = resolve_soundfont_path(soundfont)
+        soundfont_path = resolve_soundfont(soundfont)
 
         if Sf2File is not None:
             # if we have sf2utils, load up the preset info from the soundfonts
@@ -167,53 +167,53 @@ class SoundfontInstrument:
 # ------------------------------------------- Utilities ------------------------------------------------
 
 
-def resolve_soundfont_path(soundfont: str):
+def resolve_soundfont(soundfont: str) -> str:
     """
     Consults playback settings and returns the path to the given soundfont
 
-    :param soundfont: either the name of a named soundfont or an explicit soundfont path. Paths are resolved relatively
-    unless they start with a slash.
+    :param soundfont: either the name of a named soundfont or an explicit soundfont path. Paths starting with "/" are
+        absolute, "~/" are relative to the user home directory, "%PKG/" are relative to the scamp package root, and
+        unprefixed paths are tested against all of the search paths defined in playback_settings.soundfont_search_paths
+        and then against the current working directory.
     :return: an absolute path to the soundfont
     """
     soundfont_path = playback_settings.named_soundfonts[soundfont] \
         if soundfont in playback_settings.named_soundfonts else soundfont
 
-    if soundfont_path.startswith("/"):
+    path = _resolve_soundfont_path(soundfont_path)
+    if os.path.exists(path):
+        return path
+    elif not path.endswith(".sf2"):
+        path = _resolve_soundfont_path(soundfont_path + ".sf2")
+        if os.path.exists(path):
+            return path
+    if soundfont in playback_settings.named_soundfonts:
+        raise ValueError("Named soundfont \"{}\" was resolved to \"{}\", which did not exist.".format(soundfont, path))
+    else:
+        raise ValueError("\"{}\" was not recognized either as a named "
+                         "soundfont or as a valid path to a soundfont".format(soundfont))
+
+
+def _resolve_soundfont_path(soundfont_path: str) -> str:
+    """Implementation minus checking for both with and without .sf2 extension."""
+
+    if soundfont_path.startswith(("/", "~/", "%PKG/")):
         # Absolute soundfont path
-        return soundfont_path
-    elif soundfont_path.startswith("~/"):
-        # Relative to user home directory
-        return os.path.expanduser(soundfont_path)
+        return resolve_path(soundfont_path)
     else:
         # Relative to one of the search paths defined in the settings
         for search_path in playback_settings.soundfont_search_paths:
-            if search_path.startswith("~/"):
-                search_path = os.path.expanduser(search_path)
-            if not search_path.startswith("/"):
-                search_path = resolve_relative_path(search_path)
+            resolved_search_path = resolve_path(search_path)
+            if os.path.exists(os.path.join(resolved_search_path, soundfont_path)):
+                return os.path.join(resolved_search_path, soundfont_path)
 
-            if os.path.exists(os.path.join(search_path, soundfont_path)):
-                # look in this search path
-                return os.path.join(search_path, soundfont_path)
-            elif os.path.exists(os.path.join(search_path, soundfont_path + ".sf2")):
-                # try adding an sf2
-                return os.path.join(search_path, soundfont_path + ".sf2")
-
-    # finally, if we're running from a script, search in the same directory as the script for the file
-    import __main__
-    if hasattr(__main__, "__file__"):
-        script_dir = os.path.dirname(os.path.abspath(__main__.__file__))
-        if os.path.exists(os.path.join(script_dir, soundfont_path + ".sf2")):
-            return os.path.join(script_dir, soundfont_path + ".sf2")
-
-    # give up and just return the path as is
-    return soundfont_path
+    return os.path.join(os.getcwd(), soundfont_path)
 
 
 def get_soundfont_presets(which_soundfont="default"):
     which_soundfont = playback_settings.default_soundfont if which_soundfont == "default" else which_soundfont
 
-    soundfont_path = resolve_soundfont_path(which_soundfont)
+    soundfont_path = resolve_soundfont(which_soundfont)
 
     if Sf2File is None:
         raise ModuleNotFoundError("Cannot inspect soundfont presets; please install sf2utils.")
