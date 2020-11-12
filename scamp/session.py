@@ -23,10 +23,9 @@ from .transcriber import Transcriber
 from ._midi import get_available_midi_input_devices, get_port_number_of_midi_device, \
     print_available_midi_input_devices, print_available_midi_output_devices, start_midi_listener
 from .instruments import Ensemble, ScampInstrument
-from clockblocks import Clock, current_clock
+from clockblocks import Clock
 from .utilities import SavesToJSON
 from ._dependencies import pynput, pythonosc
-from threading import Thread, current_thread
 from .spelling import SpellingPolicy
 from typing import Union, Tuple, Iterator, Callable, Sequence
 from .performance import Performance
@@ -69,15 +68,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
 
         :return: self
         """
-        def run_server():
-            current_thread().__clock__ = self
-            while True:
-                current_clock().wait_forever()
-
-        Thread(target=run_server, daemon=True).start()
-        # don't have the thread that called this recognize the Session as its clock anymore
-        current_thread().__clock__ = None
-        return self
+        return super(Session, self).run_as_server()
 
     # ----------------------------------- Listeners ----------------------------------
 
