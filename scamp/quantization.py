@@ -672,18 +672,19 @@ class QuantizationRecord(SavesToJSON):
         self.quantized_measures = quantized_measures
 
     def _to_dict(self):
-        quantized_measures_json_friendly = []
+        out = {"quantized_measures": []}
+        quantized_measures_json_friendly = out["quantized_measures"]
         for quantized_measure in self.quantized_measures:
             quantized_measure_as_dict = quantized_measure._asdict()
             quantized_beats_as_dicts = [beat._asdict() for beat in quantized_measure.beats]
             quantized_measure_as_dict["beats"] = quantized_beats_as_dicts
             quantized_measures_json_friendly.append(quantized_measure_as_dict)
-        return quantized_measures_json_friendly
+        return out
 
     @classmethod
     def _from_dict(cls, json_dict):
         quantized_measures = []
-        for quantized_measure_as_dict in json_dict:
+        for quantized_measure_as_dict in json_dict["quantized_measures"]:
             quantized_measure_as_dict["beats"] = [
                 QuantizedBeat(**quantized_beat_as_dict) for quantized_beat_as_dict in quantized_measure_as_dict["beats"]
             ]
