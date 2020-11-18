@@ -38,7 +38,7 @@ def shaku_part(clock):
     while True:
         if random.random() < 0.5:
             shaku.play_note(66 + random.choice(pentatonic) + 12*random.randint(0, 2),
-                            Envelope.from_levels_and_durations([1.0, 0.2, 1.0, 1.0], [0.15, 0.85, 0.15], [0, 2, 0]),
+                            Envelope([1.0, 0.2, 1.0, 1.0], [0.15, 0.85, 0.15], [0, 2, 0]),
                             2.5, blocking=True)
             clock.wait(0.5 + random.choice([0, 0.5]))
         else:

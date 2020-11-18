@@ -27,7 +27,7 @@ from scamp import *
 s = Session()
 viola = s.new_part("viola")
 
-fp_cresc = Envelope.from_levels_and_durations(
+fp_cresc = Envelope(
     [0.8, 0.3, 1],
     [0.07, 0.93],
     curve_shapes=[2, 4]

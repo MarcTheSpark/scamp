@@ -40,7 +40,7 @@ while s.beat() < 20:
         # percussive envelope
         Envelope.ar(0.1, note_length - 0.1),
         # fp crescendo envelope
-        Envelope.from_levels_and_durations([1, 0.2, 1], [0.1, note_length - 0.1], curve_shapes=[-2, 3])
+        Envelope([1, 0.2, 1], [0.1, note_length - 0.1], curve_shapes=[-2, 3])
     ])
     vib_width_env = [random.uniform(0, 5) for _ in range(2)]
     vib_freq_env = [random.uniform(3, 13) for _ in range(2)]

@@ -147,18 +147,17 @@ class Transcriber:
                         if len(levels) == 1:
                             pitch = levels[0]
                         else:
-                            pitch = Envelope.from_levels_and_durations(levels, durations, curve_shapes)
+                            pitch = Envelope(levels, durations, curve_shapes)
                     elif param == "volume":
                         if len(levels) == 1:
                             volume = levels[0]
                         else:
-                            volume = Envelope.from_levels_and_durations(levels, durations, curve_shapes)
+                            volume = Envelope(levels, durations, curve_shapes)
                     else:
                         if len(levels) == 1:
                             extra_parameters[param] = levels[0]
                         else:
-                            extra_parameters[param] = Envelope.from_levels_and_durations(levels, durations,
-                                                                                         curve_shapes)
+                            extra_parameters[param] = Envelope(levels, durations, curve_shapes)
                 else:
                     # assign to specific variables for pitch and volume, otherwise put in a dictionary of extra params
                     if param == "pitch":

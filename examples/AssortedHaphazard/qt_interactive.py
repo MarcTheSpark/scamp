@@ -45,7 +45,7 @@ if __name__ == '__main__':
     piano = s.new_part("piano")
     s.start_transcribing()
 
-    speed_response = Envelope.from_levels_and_durations([2, 0.1], [800], [-5])
+    speed_response = Envelope([2, 0.1], [800], [-5])
 
     def play_notes():
         while True:

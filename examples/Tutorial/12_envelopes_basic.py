@@ -27,7 +27,7 @@ e = Envelope.from_levels(
 )
 e.show_plot("Evenly Spaced")
 
-e = Envelope.from_levels_and_durations(
+e = Envelope(
     [60, 72, 66, 70], [2, 1, 1],
     curve_shapes=[2, -2, -2]
 )

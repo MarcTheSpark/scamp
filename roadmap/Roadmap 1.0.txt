@@ -7,6 +7,8 @@ Testing:
 Playback:
     - Can we put chords on the same clock??
     - Have pitch and volume playback adjustments affect start_notes?
+    - have clock fork able to schedule when it forks
+    - register all notes off with atexit so that notes don't hang with external synthesizers
 
 Engraving:
     - Engraving NOTATIONS!!!!!! also tremolo in abjad.

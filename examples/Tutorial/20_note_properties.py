@@ -80,7 +80,7 @@ piano.play_note(65, 0.5, 1, NotePlaybackAdjustment.set_params(pitch=78, volume=0
 # object, we can use this to bundle playback and notation, such as in this wiggle ornament
 wiggle = NoteProperties.from_list([
     "text: ~",
-    NotePlaybackAdjustment.add_to_params(pitch=Envelope.from_levels_and_durations([0, 1, 0], [0.1, 0.1]))
+    NotePlaybackAdjustment.add_to_params(pitch=Envelope([0, 1, 0], [0.1, 0.1]))
 ])
 piano.play_note(62, 0.5, 0.5, wiggle)
 piano.play_note(64, 0.5, 0.5, "staccato")

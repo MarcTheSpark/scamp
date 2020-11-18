@@ -18,7 +18,7 @@ from scamp import *
 
 # playback_settings.adjustments.set("staccato", "length * 0.3")
 
-forte_piano = Envelope.from_levels_and_durations(
+forte_piano = Envelope(
     [0.8, 0.4, 1.0], [0.2, 0.8], curve_shapes=[0, 3]
 )
 

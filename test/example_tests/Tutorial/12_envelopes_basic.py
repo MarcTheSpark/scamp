@@ -26,7 +26,7 @@ e1 = Envelope.from_levels(
     [60, 72, 66, 70]
 )
 
-e2 = Envelope.from_levels_and_durations(
+e2 = Envelope(
     [60, 72, 66, 70], [2, 1, 1],
     curve_shapes=[2, -2, -2]
 )

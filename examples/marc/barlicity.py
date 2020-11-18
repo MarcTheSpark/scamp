@@ -31,7 +31,7 @@ from fractions import Fraction
 ##################################################################################################################
 
 
-piano_distillation_timeline = Envelope.from_levels_and_durations((0, 1, 0), (120, 120))
+piano_distillation_timeline = Envelope((0, 1, 0), (120, 120))
 
 SCAN_PERIOD, WIDTH_AVERAGE, WIDTH_VARIATION, WIDTH_VARIATION_PERIOD, WIDTH_START_PHASE = \
     160, 10.0, 5.0, 20, 3*math.pi / 2

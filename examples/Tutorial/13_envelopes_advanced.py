@@ -26,16 +26,18 @@ import math
 
 # Ways of constructing Envelopes
 
-envelope_from_levels = Envelope.from_levels((1.0, 0.2, 0.6, 0), length=3)
-envelope_from_levels.show_plot("Envelope from levels alone")
-
-envelope_from_levels_and_durations = Envelope.from_levels_and_durations((1.0, 0.2, 0.6, 0), (2.0, 1.0, 3.0))
+envelope_from_levels_and_durations = Envelope((1.0, 0.2, 0.6, 0), (2.0, 1.0, 3.0))
+# alternative: `Envelope.from_levels_and_durations((1.0, 0.2, 0.6, 0), (2.0, 1.0, 3.0))`
 envelope_from_levels_and_durations.show_plot("Envelope from levels and durations")
 
-envelope_from_levels_and_durations_with_curve_shapes = Envelope.from_levels_and_durations(
+envelope_from_levels_and_durations_with_curve_shapes = Envelope(
     (1.0, 0.2, 0.6, 0), (2.0, 1.0, 3.0), curve_shapes=(2, 2, -3)
 )
+# alternative: `Envelope.from_levels_and_durations((1.0, 0.2, 0.6, 0), (2.0, 1.0, 3.0), curve_shapes=(2, 2, -3))`
 envelope_from_levels_and_durations_with_curve_shapes.show_plot("Envelope with curve shapes")
+
+envelope_from_levels = Envelope.from_levels((1.0, 0.2, 0.6, 0), length=3)
+envelope_from_levels.show_plot("Envelope from levels alone")
 
 envelope_from_points = Envelope.from_points((-1, 5), (1, 6), (5, -2))
 envelope_from_points.show_plot("Envelope from points")
