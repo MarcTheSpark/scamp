@@ -34,6 +34,15 @@ class Transcriber:
     def __init__(self):
         self._transcriptions_in_progress = []
 
+    @property
+    def transcriptions_in_progress(self) -> Sequence[Performance]:
+        """Tuple of all current transcriptions."""
+        return tuple(self._transcriptions_in_progress)
+
+    def is_transcribing(self) -> bool:
+        """Checks if any transcriptions are in progress."""
+        return len(self._transcriptions_in_progress) > 0
+
     def start_transcribing(self, instrument_or_instruments: Union[ScampInstrument, Sequence[ScampInstrument]],
                            clock: Clock, units: str = "beats") -> Performance:
         """
