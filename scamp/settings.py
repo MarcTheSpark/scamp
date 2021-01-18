@@ -454,7 +454,21 @@ class EngravingSettings(_ScampSettings):
             "staccatissimo": "last",
             "marcato": "first",
             "tenuto": "both",
-            "accent": "first"
+            "accent": "first",
+            "default": "all"
+        },
+        "notation_split_protocols": {
+            "tremolo": "all",
+            "tremolo1": "all",
+            "tremolo2": "all",
+            "tremolo3": "all",
+            "tremolo4": "all",
+            "tremolo5": "all",
+            "tremolo6": "all",
+            "tremolo7": "all",
+            "tremolo8": "all",
+            "fermata": "last",
+            "default": "first"
         },
         "clefs_by_instrument": {
             "piano": ["treble", "bass"],
@@ -507,10 +521,11 @@ class EngravingSettings(_ScampSettings):
         # This is here to help with auto-completion so that the IDE knows what attributes are available
         self.max_voices_per_part = self.max_dots_allowed = self.beat_hierarchy_spacing = self.num_divisions_penalty = \
             self.rest_beat_hierarchy_spacing = self.rest_num_divisions_penalty = self.articulation_split_protocols = \
-            self.default_titles = self.default_composers = self.default_spelling_policy = self.ignore_empty_parts = \
-            self.pad_incomplete_parts = self.show_music_xml_command_line = self.show_microtonal_annotations = \
-            self.microtonal_annotation_digits = self.allow_duple_tuplets_in_compound_time = self.clefs_by_instrument = \
-            self.clef_pitch_centers = self.clef_selection_policy = None
+            self.notation_split_protocols = self.default_titles = self.default_composers = \
+            self.default_spelling_policy = self.ignore_empty_parts = self.pad_incomplete_parts = \
+            self.show_music_xml_command_line = self.show_microtonal_annotations = self.microtonal_annotation_digits = \
+            self.allow_duple_tuplets_in_compound_time = self.clefs_by_instrument = self.clef_pitch_centers = \
+            self.clef_selection_policy = None
         self.glissandi: GlissandiSettings = None
         self.tempo: TempoSettings = None
         super().__init__(settings_dict)

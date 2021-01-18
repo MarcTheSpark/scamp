@@ -1,3 +1,13 @@
+"""
+SCAMP Example: OSC Listener
+
+Sets up an osc listener using Session.register_osc_listener, which takes in OSC messages and plays back notes and
+horrific bagpipe cluster. To run this example, first run this script, and then run 28b_osc_sender.py, which sends
+messages to trigger playback. (Of course, the real value of this is that incoming OSC messages can come from anywhere
+and can therefore be used to modify an ongoing SCAMP process.)
+"""
+
+
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 #  This file is part of SCAMP (Suite for Computer-Assisted Music in Python)                      #
 #  Copyright © 2020 Marc Evanstein <marc@marcevanstein.com>.                                     #
@@ -14,41 +24,27 @@
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
-name = "scamp"
+from scamp import *
 
-version = "0.8.2"
+s = Session()
+piano = s.new_part("piano")
+flute = s.new_part("flute")
+bagpipe = s.new_part("bagpipe")
 
-author = "Marc Evanstein"
 
-author_email = "marc@marcevanstein.com"
+def play_note_callback(osc_address, pitch, volume, length):
+    if osc_address.split("/")[-1] == "piano":
+        piano.play_note(pitch, volume, length, blocking=False)
+    elif osc_address.split("/")[-1] == "flute":
+        flute.play_note(pitch, volume, length, blocking=False)
 
-description = "A computer-assisted composition framework that manages the flow of musical time, plays back notes via "\
-              "SoundFonts, MIDI or OSC, and quantizes and saves the result to music notation."
 
-url = "http://scamp.marcevanstein.com"
+def bagpipe_callback(osc_address):
+    bagpipe.play_chord([70, 71, 72, 73, 74, 75, 76], 0.5, 0.2, blocking=False)
 
-project_urls = {
-    "Source Code": "https://sr.ht/~marcevanstein/scamp/",
-    "Documentation": "http://scamp.marcevanstein.com",
-    "Forum": "http://scampsters.marcevanstein.com"
-}
 
-install_requires = ['pymusicxml >= 0.5', 'expenvelope >= 0.6.6', 'clockblocks >= 0.6', 'sf2utils', 'python-osc']
+s.register_osc_listener(5995, "/play_note/*", play_note_callback)
+s.register_osc_listener(5995, "/play_bagpipe_cluster", bagpipe_callback)
 
-extras_require = {
-    'lilypond': 'abjad==3.1',
-    'midistream': 'python-rtmidi',
-    'HID': 'pynput',
-}
 
-extras_require['all'] = list(extras_require.values())
-
-package_data = {
-    'scamp': ['settings/*', 'soundfonts/*', '_thirdparty/*.dll', '_thirdparty/*.dylib']
-}
-
-classifiers = [
-    "Programming Language :: Python :: 3.6",
-    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
-    "Operating System :: OS Independent",
-]
+s.wait_forever()

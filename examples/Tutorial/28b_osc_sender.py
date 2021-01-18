@@ -2,7 +2,7 @@
 SCAMP Example: OSC Sender
 
 This doesn't really use SCAMP; it is merely a python script that sends out a few choice osc messages of the sort that
-27a_osc_listener.py is designed to respond to.
+28a_osc_listener.py is designed to respond to.
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

@@ -153,32 +153,63 @@ articulation_to_xml_element_name = {
 }
 
 
-def generate_nested_element(*args):
-    out = this_element = None
-    for element_info in args:
-        if isinstance(element_info, str):
-            out = this_element = ElementTree.Element(element_info) if out is None \
-                else ElementTree.SubElement(out, element_info)
-        else:
-            this_element = ElementTree.Element(element_info[0]) if out is None \
-                else ElementTree.SubElement(this_element, element_info[0])
-            for extra_info in element_info[1:]:
-                if isinstance(extra_info, dict):
-                    this_element.attrib = extra_info
-                elif isinstance(extra_info, str):
-                    this_element.text = extra_info
-    return out
-
-
 notations_to_xml_notations_element = {
-    "tremolo1": generate_nested_element("ornaments", ("tremolo", {"type": "single"}, "1")),
-    "tremolo2": generate_nested_element("ornaments", ("tremolo", {"type": "single"}, "2")),
-    "tremolo3": generate_nested_element("ornaments", ("tremolo", {"type": "single"}, "3")),
-    "tremolo4": generate_nested_element("ornaments", ("tremolo", {"type": "single"}, "4")),
-    "tremolo5": generate_nested_element("ornaments", ("tremolo", {"type": "single"}, "5")),
-    "tremolo8": generate_nested_element("ornaments", ("tremolo", {"type": "single"}, "1")),
-    "tremolo16": generate_nested_element("ornaments", ("tremolo", {"type": "single"}, "2")),
-    "tremolo32": generate_nested_element("ornaments", ("tremolo", {"type": "single"}, "3")),
-    "tremolo64": generate_nested_element("ornaments", ("tremolo", {"type": "single"}, "4")),
-    "tremolo128": generate_nested_element("ornaments", ("tremolo", {"type": "single"}, "5")),
+    "tremolo": pymusicxml.Tremolo(3),
+    "tremolo1": pymusicxml.Tremolo(1),
+    "tremolo2": pymusicxml.Tremolo(2),
+    "tremolo3": pymusicxml.Tremolo(3),
+    "tremolo4": pymusicxml.Tremolo(4),
+    "tremolo5": pymusicxml.Tremolo(5),
+    "tremolo6": pymusicxml.Tremolo(6),
+    "tremolo7": pymusicxml.Tremolo(7),
+    "tremolo8": pymusicxml.Tremolo(8),
+    "down-bow": pymusicxml.DownBow(),
+    "up-bow": pymusicxml.UpBow(),
+    "open-string": pymusicxml.OpenString(),
+    "harmonic": pymusicxml.Harmonic(),
+    "stopped": pymusicxml.Stopped(),
+    "snap-pizzicato": pymusicxml.SnapPizzicato(),
+    "arpeggiate": pymusicxml.Arpeggiate(),
+    "arpeggiate up": pymusicxml.Arpeggiate("up"),
+    "arpeggiate down": pymusicxml.Arpeggiate("down"),
+    "non-arpeggiate": pymusicxml.NonArpeggiate(),
+    "fermata": pymusicxml.Fermata(),
+    "turn": pymusicxml.Turn(),
+    "mordent": pymusicxml.Mordent(),
+    "inverted mordent": pymusicxml.Mordent(inverted=True),
+    "trill mark": pymusicxml.TrillMark(),
 }
+
+notations_to_lilypond_literals = {
+    "up-bow": r"\upbow",
+    "down-bow": r"\downbow",
+    "open-string": r"\open",
+    "harmonic": r"\flageolet",
+    "snap-pizzicato": r"\snappizzicato",
+    "trill mark": r"\trill",
+    "stopped": r"\stopped",
+    "turn": r"\turn",
+    "mordent": r"\mordent",
+    "inverted mordent": r"\prall",
+}
+
+
+def attach_abjad_notation_to_note(abjad_note, notation_string):
+    from ._dependencies import abjad
+    notation_string = notation_string.lower()
+    # markup vs otherwise
+    # fix tremolo to be consistent number of slashes
+    to_attach = None
+    if notation_string in notations_to_lilypond_literals:
+        to_attach = abjad().LilyPondLiteral(notations_to_lilypond_literals[notation_string], format_slot="after")
+    elif "tremolo" in notation_string:
+        num_slashes = int(notation_string[-1]) if len(notation_string) == 8 else 3
+        to_attach = abjad().StemTremolo(2 ** (2 + abjad_note.written_duration.flag_count + num_slashes))
+    elif "arpeggiate" in notation_string:
+        to_attach = abjad().Arpeggio() if notation_string == "arpeggiate" \
+            else abjad().Arpeggio(direction=abjad().Up) if notation_string == "arpeggiate up" \
+            else abjad().Arpeggio(direction=abjad().Down) if notation_string == "arpeggiate down" \
+            else None
+    elif notation_string == "fermata":
+        to_attach = abjad().Fermata()
+    abjad().attach(to_attach, abjad_note)

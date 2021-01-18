@@ -25,13 +25,14 @@ from scamp import *
 s = Session()
 violin = s.new_part("Violin")
 
-# begin recording (defaults to transcribing all instruments within the session)
+# begin transcribing (defaults to transcribing all instruments within the session)
 s.start_transcribing()
+
+# play an arpeggio
 for pitch in [60, 64, 67, 72]:
     violin.play_note(pitch, 1, 0.5)
-    # stop the recording and save the recorded
-    # note events as a performance
 
+# stop the transcription and save the recorded note events as a Performance
 # a Performance is essentially a note event list representing exactly
 # when and how notes were played back, in continuous time
 performance = s.stop_transcribing()

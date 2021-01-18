@@ -7,11 +7,11 @@ Testing:
 Playback:
     - Can we put chords on the same clock??
     - Have pitch and volume playback adjustments affect start_notes?
-    - have clock fork able to schedule when it forks
+    - Add a soundfile playback configuration
     - register all notes off with atexit so that notes don't hang with external synthesizers
 
 Engraving:
-    - Engraving NOTATIONS!!!!!! also tremolo in abjad.
+    - Engraving lines!
     - Engraving dynamics!!!!!!
     - Fix problem where it splits into two voices when you have notes that overlapped originally but then quantize
     in such a way that they would fit into the same voice. e.g. 0 to 0.7, 0.65 - 1.0, quantized into a triplet.
@@ -24,3 +24,6 @@ Assorted:
     - Consider cleaning out the playback implementation shit, so that all instruments -- in or outside an ensemble --
     can share module-level playback resources as far as soundfonts are concerned.
     - Fluidsynth save to wave file!
+
+Extensions:
+    - MIDI file to Performance

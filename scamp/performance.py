@@ -217,27 +217,45 @@ class PerformanceNote(SavesToJSON):
                 self.properties["_starts_tie"] = True
                 second_part.properties["_ends_tie"] = True
 
-                for articulation in self.properties.articulations:
-                    if articulation in engraving_settings.articulation_split_protocols and \
-                            engraving_settings.articulation_split_protocols[articulation] == "first":
+                for articulation in reversed(self.properties.articulations):
+                    split_protocol = engraving_settings.articulation_split_protocols[articulation] \
+                        if articulation in engraving_settings.articulation_split_protocols \
+                        else engraving_settings.articulation_split_protocols["default"]
+                    if split_protocol == "first":
                         # this articulation is about the attack, so should appear only in the first part
                         # of a split note, so remove it from the second
                         second_part.properties.articulations.remove(articulation)
-                    elif articulation in engraving_settings.articulation_split_protocols and \
-                            engraving_settings.articulation_split_protocols[articulation] == "last":
+                    elif split_protocol == "last":
                         # this articulation is about the release, so should appear only in the second part
                         # of a split note, so remove it from the first
                         self.properties.articulations.remove(articulation)
-                    elif articulation in engraving_settings.articulation_split_protocols and \
-                            engraving_settings.articulation_split_protocols[articulation] == "both":
+                    elif split_protocol == "both":
                         # this articulation is about the attack and release, but it doesn't really make
                         # sense to play it on a note the middle of a tied group
                         if self.properties.starts_tie() and self.properties.ends_tie():
                             self.properties.articulations.remove(articulation)
                         if second_part.properties.starts_tie() and second_part.properties.ends_tie():
                             second_part.properties.articulations.remove(articulation)
-                    # note, if the split protocol says "all" (or doesn't exist), then we just
-                    # default to keeping the articulation on everything
+                    elif split_protocol == "all":
+                        # note, if the split protocol is "all", we simply keep the articulation on everything
+                        pass
+
+                # same as above, but for notations
+                for notation in reversed(self.properties.notations):
+                    split_protocol = engraving_settings.notation_split_protocols[notation] \
+                        if notation in engraving_settings.notation_split_protocols \
+                        else engraving_settings.notation_split_protocols["default"]
+                    if split_protocol == "first":
+                        second_part.properties.notations.remove(notation)
+                    elif split_protocol == "last":
+                        self.properties.notations.remove(notation)
+                    elif split_protocol == "both":
+                        if self.properties.starts_tie() and self.properties.ends_tie():
+                            self.properties.notations.remove(notation)
+                        if second_part.properties.starts_tie() and second_part.properties.ends_tie():
+                            second_part.properties.notations.remove(notation)
+                    elif split_protocol == "all":
+                        pass
 
                 # clear all of the text for the second part, since we only need it at the start of the note
                 second_part.properties.texts.clear()

@@ -3,6 +3,7 @@
     "allow_duple_tuplets_in_compound_time": true,
     "articulation_split_protocols": {
         "accent": "first",
+        "default": "all",
         "marcato": "first",
         "staccatissimo": "last",
         "staccato": "last",
@@ -136,6 +137,19 @@
     "max_dots_allowed": 3,
     "max_voices_per_part": 4,
     "microtonal_annotation_digits": 2,
+    "notation_split_protocols": {
+        "default": "first",
+        "fermata": "last",
+        "tremolo": "all",
+        "tremolo1": "all",
+        "tremolo2": "all",
+        "tremolo3": "all",
+        "tremolo4": "all",
+        "tremolo5": "all",
+        "tremolo6": "all",
+        "tremolo7": "all",
+        "tremolo8": "all"
+    },
     "num_divisions_penalty": 0.6,
     "pad_incomplete_parts": true,
     "rest_beat_hierarchy_spacing": 20,

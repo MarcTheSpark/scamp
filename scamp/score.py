@@ -27,11 +27,11 @@ from .quantization import QuantizationRecord, QuantizationScheme, QuantizedMeasu
 from . import performance as performance_module  # to distinguish it from variables named performance
 from .utilities import prime_factor, floor_x_to_pow_of_y, is_x_pow_of_y, ceil_to_multiple, floor_to_multiple
 from ._engraving_translations import length_to_note_type, get_xml_notehead, get_lilypond_notehead_name, \
-    articulation_to_xml_element_name, notations_to_xml_notations_element
+    articulation_to_xml_element_name, notations_to_xml_notations_element, attach_abjad_notation_to_note
 from .note_properties import NoteProperties
 from .text import StaffText
 import pymusicxml
-from pymusicxml.music_xml_objects import _XMLNote, MusicXMLComponent
+from pymusicxml.score_components import _XMLNote, MusicXMLComponent
 from ._dependencies import abjad
 import math
 from fractions import Fraction
@@ -2294,18 +2294,45 @@ class NoteLike(ScoreComponent):
 
     def _get_attack_articulations(self):
         # articulations to be placed on the main note
-        return [a for a in self.properties.articulations if a not in engraving_settings.articulation_split_protocols
-                or engraving_settings.articulation_split_protocols[a] in ("first", "both", "all")]
+        return [a for a in self.properties.articulations
+                if NoteLike._get_articulation_split_protocol(a) in ("first", "both", "all")]
 
     def _get_release_articulations(self):
         # articulations to be placed on the last note of the gliss
-        return [a for a in self.properties.articulations if a not in engraving_settings.articulation_split_protocols
-                or engraving_settings.articulation_split_protocols[a] in ("last", "both", "all")]
+        return [a for a in self.properties.articulations
+                if NoteLike._get_articulation_split_protocol(a) in ("last", "both", "all")]
 
     def _get_inner_articulations(self):
         # articulations to be placed on the inner notes of a gliss
-        return [a for a in self.properties.articulations if a not in engraving_settings.articulation_split_protocols
-                or engraving_settings.articulation_split_protocols[a] == "all"]
+        return [a for a in self.properties.articulations
+                if NoteLike._get_articulation_split_protocol(a) == "all"]
+
+    @staticmethod
+    def _get_articulation_split_protocol(articulation: str):
+        return engraving_settings.articulation_split_protocols[articulation] \
+            if articulation in engraving_settings.articulation_split_protocols \
+            else engraving_settings.articulation_split_protocols["default"]
+
+    def _get_attack_notations(self):
+        # notations to be placed on the main note
+        return [n for n in self.properties.notations
+                if NoteLike._get_notation_split_protocol(n) in ("first", "both", "all")]
+
+    def _get_release_notations(self):
+        # notations to be placed on the last note of the gliss
+        return [n for n in self.properties.notations
+                if NoteLike._get_notation_split_protocol(n) in ("last", "both", "all")]
+
+    def _get_inner_notations(self):
+        # notations to be placed on the inner notes of a gliss
+        return [n for n in self.properties.notations
+                if NoteLike._get_notation_split_protocol(n) == "all"]
+
+    @staticmethod
+    def _get_notation_split_protocol(notation: str):
+        return engraving_settings.notation_split_protocols[notation] \
+            if notation in engraving_settings.notation_split_protocols \
+            else engraving_settings.notation_split_protocols["default"]
 
     def merge_with(self, other: 'NoteLike') -> 'NoteLike':
         """
@@ -2496,6 +2523,7 @@ class NoteLike(ScoreComponent):
                     source_id_dict[self.properties.temp["_source_id"]].extend(grace_container)
 
         self._attach_abjad_articulations(abjad_object, grace_container)
+        self._attach_abjad_notations(abjad_object, grace_container)
         self._attach_abjad_texts(abjad_object)
         return abjad_object
 
@@ -2555,7 +2583,7 @@ class NoteLike(ScoreComponent):
             # only attach attack articulations to the main note
             if attack_notehead is not None:
                 for articulation in self._get_attack_articulations():
-                    abjad().attach(abjad().Articulation(articulation), abjad_note_or_chord)
+                    abjad().attach(abjad().Articulation(articulation), attack_notehead)
             # attach inner articulations to all but the last notehead in the grace container
             for articulation in self._get_inner_articulations():
                 for grace_note in inner_noteheads:
@@ -2563,7 +2591,33 @@ class NoteLike(ScoreComponent):
             # attach release articulations to the last notehead in the grace container
             if release_notehead is not None:
                 for articulation in self._get_release_articulations():
-                    abjad().attach(abjad().Articulation(articulation), grace_container[-1])
+                    abjad().attach(abjad().Articulation(articulation), release_notehead)
+
+    def _attach_abjad_notations(self, abjad_note_or_chord, grace_container):
+        if grace_container is None:
+            # just a single notehead, so attach all notations
+            for notation in self.properties.notations:
+                attach_abjad_notation_to_note(abjad_note_or_chord, notation)
+        else:
+            # there's a gliss
+            attack_notehead = abjad_note_or_chord if not self.properties.ends_tie() else None
+            release_notehead = grace_container[-1] if not self.properties.starts_tie() else None
+            inner_noteheads = ([] if attack_notehead is not None else [abjad_note_or_chord]) + \
+                              [grace for grace in grace_container[:-1]] + \
+                              ([] if release_notehead is not None else [grace_container[-1]])
+
+            # only attach attack notations to the main note
+            if attack_notehead is not None:
+                for notation in self._get_attack_notations():
+                    attach_abjad_notation_to_note(attack_notehead, notation)
+            # attach inner notations to all but the last notehead in the grace container
+            for notation in self._get_inner_notations():
+                for grace_note in inner_noteheads:
+                    attach_abjad_notation_to_note(grace_note, notation)
+            # attach release notations to the last notehead in the grace container
+            if release_notehead is not None:
+                for notation in self._get_release_notations():
+                    attach_abjad_notation_to_note(release_notehead, notation)
 
     def _attach_abjad_texts(self, abjad_note_or_chord):
         for text in self.properties.texts:
@@ -2571,8 +2625,6 @@ class NoteLike(ScoreComponent):
             abjad().attach(text.to_abjad(), abjad_note_or_chord)
 
     def to_music_xml(self, source_id_dict=None) -> Sequence[_XMLNote]:
-        notations = [notations_to_xml_notations_element[x] for x in self.properties.notations
-                     if x in notations_to_xml_notations_element]
         if self.is_rest():
             return pymusicxml.Rest(self.written_length),
         elif self.is_chord():
@@ -2588,7 +2640,7 @@ class NoteLike(ScoreComponent):
                 self.written_length, ties=self._get_xml_tie_state(),
                 noteheads=tuple(get_xml_notehead(notehead) if notehead != "normal" else None
                                 for notehead in self.properties.noteheads),
-                directions=directions, notations=notations
+                directions=directions
             )]
             if self.does_glissando():
                 grace_points = self._get_grace_points(engraving_settings.glissandi.max_inner_graces_music_xml)
@@ -2619,7 +2671,7 @@ class NoteLike(ScoreComponent):
                 self.written_length, ties=self._get_xml_tie_state(),
                 notehead=(get_xml_notehead(self.properties.noteheads[0])
                           if self.properties.noteheads[0] != "normal" else None),
-                directions=directions, notations=notations
+                directions=directions
             )]
             if self.does_glissando():
                 grace_points = self._get_grace_points(engraving_settings.glissandi.max_inner_graces_music_xml)
@@ -2634,7 +2686,7 @@ class NoteLike(ScoreComponent):
                             directions=self._get_xml_microtonal_annotation(self.pitch.value_at(t))
                         ))
 
-        self._attach_articulations_to_xml_note_group(out)
+        self._attach_articulations_and_notations_to_xml_note_group(out)
 
         if source_id_dict is not None and self.does_glissando():
             # this is where we populate the source_id_dict passed down to us from the top level "to_music_xml()" call
@@ -2680,39 +2732,38 @@ class NoteLike(ScoreComponent):
             else:
                 return ()
 
-    @staticmethod
-    def _attach_articulation_to_xml_note_or_chord(articulation, xml_note_or_chord):
-        articulation = articulation_to_xml_element_name[articulation]
-        if isinstance(xml_note_or_chord, pymusicxml.Note):
-            xml_note_or_chord.articulations.append(articulation)
-        else:
-            assert isinstance(xml_note_or_chord, pymusicxml.Chord)
-            xml_note_or_chord.notes[0].articulations.append(articulation)
-
-    def _attach_articulations_to_xml_note_group(self, xml_note_group):
+    def _attach_articulations_and_notations_to_xml_note_group(self, xml_note_group):
         if len(xml_note_group) > 1:
             # there's a gliss, and xml_note_group contains the main note followed by grace notes
             attack_notehead = xml_note_group[0] if not self.properties.ends_tie() else None
             release_notehead = xml_note_group[-1] if not self.properties.starts_tie() else None
             inner_noteheads = xml_note_group[1 if attack_notehead is not None else 0:
                                              -1 if release_notehead is not None else None]
-
-            # only attach attack articulations to the main note
+            # only attach attack articulations and notations to the main note
             if attack_notehead is not None:
                 for articulation in self._get_attack_articulations():
-                    NoteLike._attach_articulation_to_xml_note_or_chord(articulation, attack_notehead)
-            # attach inner articulations to inner grace notes
+                    attack_notehead.articulations.append(articulation_to_xml_element_name[articulation])
+                for notation in self._get_attack_notations():
+                    attack_notehead.notations.append(notations_to_xml_notations_element[notation])
+            # attach inner articulations and notations to inner grace notes
             for articulation in self._get_inner_articulations():
                 for inner_grace_note in inner_noteheads:
-                    NoteLike._attach_articulation_to_xml_note_or_chord(articulation, inner_grace_note)
-            # attach release articulations to the last grace note
+                    inner_grace_note.articulations.append(articulation_to_xml_element_name[articulation])
+            for notation in self._get_inner_notations():
+                for inner_grace_note in inner_noteheads:
+                    inner_grace_note.notations.append(notations_to_xml_notations_element[notation])
+            # attach release articulations and notations to the last grace note
             if release_notehead is not None:
                 for articulation in self._get_release_articulations():
-                    NoteLike._attach_articulation_to_xml_note_or_chord(articulation, release_notehead)
+                    release_notehead.articulations.append(articulation_to_xml_element_name[articulation])
+                for notation in self._get_release_notations():
+                    release_notehead.notations.append(notations_to_xml_notations_element[notation])
         else:
-            # just a single notehead, so attach all articulations
+            # just a single notehead, so attach all articulations and notations
             for articulation in self.properties.articulations:
-                NoteLike._attach_articulation_to_xml_note_or_chord(articulation, xml_note_group[0])
+                xml_note_group[0].articulations.append(articulation_to_xml_element_name[articulation])
+            for notation in self.properties.notations:
+                xml_note_group[0].notations.append(notations_to_xml_notations_element[notation])
 
     def _get_xml_tie_state(self):
         if self.properties.starts_tie() and self.properties.ends_tie():

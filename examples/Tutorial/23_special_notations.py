@@ -1,12 +1,7 @@
 """
-SCAMP Example: OSC Listener
-
-Sets up an osc listener using Session.register_osc_listener, which takes in OSC messages and plays back notes and
-horrific bagpipe cluster. To run this example, first run this script, and then run 27b_osc_sender.py, which sends
-messages to trigger playback. (Of course, the real value of this is that incoming OSC messages can come from anywhere
-and can therefore be used to modify an ongoing SCAMP process.)
+SCAMP Example: Ornaments, tremolo and other single-note notations. These notational details are passed to the fourth,
+optional "properties" argument of play_note.
 """
-
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 #  This file is part of SCAMP (Suite for Computer-Assisted Music in Python)                      #
@@ -23,28 +18,37 @@ and can therefore be used to modify an ongoing SCAMP process.)
 #  You should have received a copy of the GNU General Public License along with this program.    #
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
-
 from scamp import *
 
+# these lines set an playback adjustment to occur on notes with the "turn" notation, bending the pitch up and down
+# a similar approach could be taken with other notations.
+turn_pitch_envelope = Envelope([0, 0, 1, 1, 0, 0, -1, -1, 0, 0], [0.07, 0, 0.07, 0, 0.07, 0, 0.07, 0, 0.07])
+playback_settings.adjustments.set("turn", NotePlaybackAdjustment.add_to_params(pitch=turn_pitch_envelope))
+
 s = Session()
-piano = s.new_part("piano")
-flute = s.new_part("flute")
-bagpipe = s.new_part("bagpipe")
+violin = s.new_part("Violin")
+s.start_transcribing()
 
+for pitch in [60, 64, 67, 72]:
+    violin.play_note(pitch, 1, 0.5)
 
-def play_note_callback(osc_address, pitch, volume, length):
-    if osc_address.split("/")[-1] == "piano":
-        piano.play_note(pitch, volume, length, blocking=False)
-    elif osc_address.split("/")[-1] == "flute":
-        flute.play_note(pitch, volume, length, blocking=False)
+violin.play_note(74, 1, 1, "tremolo")
+violin.play_note(75, 1, 0.5, "tremolo1")
+violin.play_note(76, 1, 0.25, "tremolo2")
+violin.play_note(78, 1, 0.25, "tremolo3")
+violin.play_note(77, 1, 1.75, "turn, tremolo, fermata")
+violin.play_note(84, 1, 0.25, "mordent")
+violin.play_note(83, 1, 1, "inverted mordent")
+violin.play_note(82, 1, 1, "trill mark")
+violin.play_note(81, 1, 1, "open-string")
+violin.play_note(80, 1, 1, "up-bow")
+violin.play_note(79, 1, 1, "down-bow")
+violin.play_note(78, 1, 1, "stopped")
+violin.play_note(77, 1, 1, "snap-pizzicato")
 
+violin.play_chord([60, 64, 67, 72], 1, 1, "arpeggiate")
+violin.play_chord([60, 64, 67, 72], 1, 1, "arpeggiate down")
+violin.play_chord([60, 64, 67, 72], 1, 1, "fermata, arpeggiate up")
 
-def bagpipe_callback(osc_address):
-    bagpipe.play_chord([70, 71, 72, 73, 74, 75, 76], 0.5, 0.2, blocking=False)
-
-
-s.register_osc_listener(5995, "/play_note/*", play_note_callback)
-s.register_osc_listener(5995, "/play_bagpipe_cluster", bagpipe_callback)
-
-
-s.wait_forever()
+performance = s.stop_transcribing()
+performance.to_score().show()

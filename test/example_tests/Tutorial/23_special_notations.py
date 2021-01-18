@@ -1,8 +1,6 @@
 """
-SCAMP Example: Staff Text
-
-Demonstrates various ways of adding text annotations to notes that are played. Text is one of the various
-notational details that can be passed to the fourth, optional "properties" argument of play_note.
+SCAMP Example: Ornaments, tremolo and other single-note notations. These notational details are passed to the fourth,
+optional "properties" argument of play_note.
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
@@ -20,33 +18,44 @@ notational details that can be passed to the fourth, optional "properties" argum
 #  You should have received a copy of the GNU General Public License along with this program.    #
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
-
 from scamp import *
 
+# these lines set an playback adjustment to occur on notes with the "turn" notation, bending the pitch up and down
+# a similar approach could be taken with other notations.
+turn_pitch_envelope = Envelope([0, 0, 1, 1, 0, 0, -1, -1, 0, 0], [0.07, 0, 0.07, 0, 0.07, 0, 0.07, 0, 0.07])
+playback_settings.adjustments.set("turn", NotePlaybackAdjustment.add_to_params(pitch=turn_pitch_envelope))
+
 s = Session()
-violin = s.new_part("violin")
+s.fast_forward_in_beats(float("inf"))
+
+violin = s.new_part("Violin")
 s.start_transcribing()
 
-# the simplest way to add text is to place a "text: [string]" entry in the fourth properties argument
-violin.play_note(81, 0.7, 2, "text: chillingly")
-# you can also use a StaffText object, which is a little more customizable
-violin.play_note(69, 0.5, 2, StaffText("cresc.", bold=True, placement="below"))
-# if you want multiple texts for the same note, you can separate them by commas
-violin.play_note(70, 0.5, 1, "text: soft, text: (with pathos)")
-# if you want to italicise the text without bothering with a StaffText object, you
-# can use a leading/trailing asterisk or underscore, following Markdown conventions
-# (only works on the whole text; you can't italicise only part of the text, for now)
-violin.play_note(71, 0.8, 1, "text: *louder*")
-# you can also do bold using a double asterisk/underscore
-violin.play_note(72, 0.9, 1.5, "text: **LOUD**")
-violin.play_note(73, 0.9, 0.25)
-# here we see that texts can be given as part of a properties dictionary, under the
-# "texts" entry. Also note how three asterisks can be used for bold italic.
-violin.play_chord([62, 74], 1.0, 4.25, {
-    "articulation": "accent",
-    "texts": ["***INSANELY LOUD***",  StaffText("(break something)", placement="below")]
-})
+for pitch in [60, 64, 67, 72]:
+    violin.play_note(pitch, 1, 0.5)
+
+violin.play_note(74, 1, 1, "tremolo")
+violin.play_note(75, 1, 0.5, "tremolo1")
+violin.play_note(76, 1, 0.25, "tremolo2")
+violin.play_note(78, 1, 0.25, "tremolo3")
+violin.play_note(77, 1, 1.75, "turn, tremolo, fermata")
+violin.play_note(84, 1, 0.25, "mordent")
+violin.play_note(83, 1, 1, "inverted mordent")
+violin.play_note(82, 1, 1, "trill mark")
+violin.play_note(81, 1, 1, "open-string")
+violin.play_note(80, 1, 1, "up-bow")
+violin.play_note(79, 1, 1, "down-bow")
+violin.play_note(78, 1, 1, "stopped")
+violin.play_note(77, 1, 1, "snap-pizzicato")
+
+violin.play_chord([60, 64, 67, 72], 1, 1, "arpeggiate")
+violin.play_chord([60, 64, 67, 72], 1, 1, "arpeggiate down")
+violin.play_chord([60, 64, 67, 72], 1, 1, "fermata, arpeggiate up")
 
 performance = s.stop_transcribing()
-performance.to_score().show()
-performance.to_score().show_xml()
+
+def test_results():
+    return (
+        performance,
+        performance.to_score()
+    )
