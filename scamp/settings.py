@@ -170,7 +170,7 @@ class PlaybackSettings(_ScampSettings):
             "general_midi": "Merlin.sf2",
         },
         "soundfont_search_paths": [
-            "%PKG/soundfonts/"
+            "%PKG/soundfonts"
         ],
         "default_soundfont": "general_midi",
         "default_audio_driver": "auto",

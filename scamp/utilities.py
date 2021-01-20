@@ -63,7 +63,7 @@ def resolve_path(path: str) -> str:
     if path.startswith("%PKG/"):
         # Relative to the package source directory
         return resolve_package_path(path[5:])
-    elif path.startswith("/"):
+    elif path.startswith("/") or path[1:].startswith(":\\"):
         # Absolute soundfont path
         return path
     elif path.startswith("~/"):

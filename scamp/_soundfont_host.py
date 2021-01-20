@@ -197,7 +197,7 @@ def resolve_soundfont(soundfont: str) -> str:
 def _resolve_soundfont_path(soundfont_path: str) -> str:
     """Implementation minus checking for both with and without .sf2 extension."""
 
-    if soundfont_path.startswith(("/", "~/", "%PKG/")):
+    if soundfont_path.startswith(("/", "~/", "%PKG/")) or soundfont_path[1:].startswith(":\\"):
         # Absolute soundfont path
         return resolve_path(soundfont_path)
     else:
