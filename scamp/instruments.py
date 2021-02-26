@@ -462,6 +462,12 @@ class ScampInstrument(SavesToJSON):
                     # otherwise, just create a clock to run this all on
                     clock = Clock()
 
+        # A convenience: passing "None" to the pitch just causes a wait call
+        if pitch is None:
+            if blocking:
+                clock.wait(sum(length) if hasattr(length, '__len__') else length)
+            return
+
         properties = self._standardize_properties(properties)
 
         if hasattr(pitch, "__len__"):

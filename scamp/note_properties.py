@@ -318,8 +318,9 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
         # if we've been given extra parameters of playback, and their values are envelopes written as lists, etc.
         # this converts them all to Envelope objects
         for param, value in self.iterate_extra_parameters_and_values():
-            self["param_" + param] = Envelope.from_list(value)
-            self.temp["parameters_that_came_from_lists"].add(param)
+            if hasattr(value, '__len__'):
+                self["param_" + param] = Envelope.from_list(value)
+                self.temp["parameters_that_came_from_lists"].add(param)
 
     @property
     def articulations(self) -> List[str]:

@@ -13,8 +13,8 @@
     {% for class in classes %}
     {{ class }}
     {% endfor %}
-    {% for function in manual_classes %}
-    {{ function }}
+    {% for class in manual_classes %}
+    {{ class }}
     {% endfor %}
 {% endif %}
 

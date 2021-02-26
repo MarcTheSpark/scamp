@@ -82,21 +82,21 @@ _manually_documented_classes = {
 
 def pick_attributes_manually(a, module_name):
     if module_name in _manually_documented_attributes:
-        return [x for x in a if x in _manually_documented_attributes[module_name]]
+        return list(_manually_documented_attributes[module_name])
     else:
         return []
 
 
 def pick_functions_manually(a, module_name):
     if module_name in _manually_documented_functions:
-        return [x for x in a if x in _manually_documented_functions[module_name]]
+        return list(_manually_documented_functions[module_name])
     else:
         return []
 
 
 def pick_classes_manually(a, module_name):
     if module_name in _manually_documented_classes:
-        return [x for x in a if x in _manually_documented_classes[module_name]]
+        return list(_manually_documented_classes[module_name])
     else:
         return []
 
@@ -333,6 +333,7 @@ autodoc_member_order = 'bysource'
 autoclass_content = 'class'
 autosummary_generate = True
 autosummary_generate_overwrite = False  # Doesn't seem to work?
+
 
 # -- Options for todo extension ----------------------------------------------
 

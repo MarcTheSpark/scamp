@@ -11,8 +11,10 @@ Playback:
     - register all notes off with atexit so that notes don't hang with external synthesizers
 
 Engraving:
+    - Clean up quantization: allow setting exact divisors. Remove max indigestibility in favor of setting exact divisors.
     - Engraving lines!
     - Engraving dynamics!!!!!!
+    - Fixing the wanderer class tempo stuff
     - Fix problem where it splits into two voices when you have notes that overlapped originally but then quantize
     in such a way that they would fit into the same voice. e.g. 0 to 0.7, 0.65 - 1.0, quantized into a triplet.
     - Engraving Trills, mordents and other symbol notations like that (perhaps, for now, affect playback by adding a
@@ -24,6 +26,7 @@ Assorted:
     - Consider cleaning out the playback implementation shit, so that all instruments -- in or outside an ensemble --
     can share module-level playback resources as far as soundfonts are concerned.
     - Fluidsynth save to wave file!
+    - Windows midi recognition
 
 Extensions:
     - MIDI file to Performance

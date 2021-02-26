@@ -550,7 +550,7 @@ stemless = {
         """
         assert abjad() is not None, "Abjad is required for this operation."
         abjad_object = self._to_abjad()
-        lilypond_code = format(abjad_object)
+        lilypond_code = abjad().lilypond(abjad_object)
         if r"\glissando" in lilypond_code:
             for gliss_override in ScoreComponent._gliss_overrides:
                 abjad().attach(abjad().LilyPondLiteral(gliss_override), abjad_object, "opening")
@@ -572,7 +572,7 @@ stemless = {
         title = self.title if hasattr(self, "title") else None
         composer = self.composer if hasattr(self, "composer") else None
         abjad_object = self._to_abjad()
-        lilypond_code = format(abjad_object)
+        lilypond_code = abjad().lilypond(abjad_object)
 
         if r"\glissando" in lilypond_code:
             for gliss_override in ScoreComponent._gliss_overrides:
@@ -604,7 +604,15 @@ stemless = {
         :param file_path: file path to save to
         """
         with open(file_path, "w") as output_file:
-            output_file.write(format(self.to_abjad_lilypond_file()))
+            output_file.write(abjad().lilypond(self.to_abjad_lilypond_file()))
+
+    def export_pdf(self, file_path) -> None:
+        """
+        Exports score as a PDF file and saves it to the given file_path
+
+        :param file_path: where to save the PDF
+        """
+        abjad().persist.as_pdf(self.to_abjad_lilypond_file(), file_path)
 
     def to_lilypond(self, wrap_as_file=False) -> str:
         """
@@ -615,7 +623,7 @@ stemless = {
         :return: a string containing the LilyPond code
         """
         assert abjad() is not None, "Abjad is required for this operation."
-        return format(self.to_abjad_lilypond_file() if wrap_as_file else self.to_abjad())
+        return abjad().lilypond(self.to_abjad_lilypond_file() if wrap_as_file else self.to_abjad())
 
     def print_lilypond(self, wrap_as_file=False) -> None:
         """
@@ -869,6 +877,8 @@ class Score(ScoreComponent, ScoreContainer):
                 contents.append(staff_group)
             elif len(staff_group.staves) == 1:
                 contents.append(staff_group.staves[0])
+        if len(contents) == 0:
+            raise ValueError("Cannot create score from empty performance.")
         out = cls(
             contents,
             title=engraving_settings.get_default_title() if title == "default" else title,
