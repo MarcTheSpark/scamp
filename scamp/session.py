@@ -254,6 +254,9 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
             return None, None
 
         name = key_or_key_code.name if isinstance(key_or_key_code, pynput.keyboard.Key) else key_or_key_code.char
+        if name is None:
+            return "undefined", key_or_key_code.value.vk if isinstance(key_or_key_code, pynput.keyboard.Key) \
+                else key_or_key_code.vk
         searchable_name = name.lower().replace("_r", "")
         if searchable_name in Session._uppers_to_lowers:
             searchable_name = Session._uppers_to_lowers[searchable_name]

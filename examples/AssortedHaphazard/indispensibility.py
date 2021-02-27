@@ -16,7 +16,6 @@
 
 from scamp import *
 from scamp_extensions.composers.barlicity import *
-from pynput.mouse import Listener
 import random
 
 
@@ -24,17 +23,16 @@ threshold = 0
 syncopation_chance = 0
 
 
-def on_move(x, y):
+def mouse_move(x, y):
     global threshold, syncopation_chance
-    threshold = y / 1800
-    syncopation_chance = x / 2079
-
-
-# Collect events until released
-Listener(on_move=on_move).start()
+    syncopation_chance = x
+    threshold = y
 
 
 s = Session()
+
+s.register_mouse_listener(on_move=mouse_move, relative_coordinates=True)
+
 drum = s.new_part("taiko", (0, 116), num_channels=150)
 violin = s.new_part("violin")
 
