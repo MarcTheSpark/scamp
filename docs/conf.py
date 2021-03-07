@@ -36,6 +36,8 @@
 import scamp
 import sphinx_rtd_theme
 import datetime
+import re
+
 
 ##################################################################################################################
 #                            Hack to add intersect and difference filters in templates
@@ -114,6 +116,7 @@ from docutils import nodes
 from sphinx.util.docfields import TypedField
 from sphinx import addnodes
 
+
 def patched_make_field(self, types, domain, items, env):
     # type: (List, unicode, Tuple) -> nodes.field
     def handle_item(fieldarg, content):
@@ -149,6 +152,7 @@ def patched_make_field(self, types, domain, items, env):
     fieldbody = nodes.field_body('', bodynode)
     return nodes.field('', fieldname, fieldbody)
 
+
 TypedField.make_field = patched_make_field
 
 # -----------------------------------------------------------------------------------------------------------------
@@ -165,6 +169,14 @@ version = scamp.__version__
 # The full version, including alpha/beta/rc tags
 release = scamp.__version__
 
+# Update the version of abjad referenced in experienced_setup.rst
+# to the one SCAMP currently depends on
+with open("narrative/experienced_setup.rst", "r+") as f:
+    data = f.read()
+    f.seek(0)
+    output = re.sub(r'abjad==.*', r'abjad=={}'.format(scamp._package_info.ABJAD_VERSION), data)
+    f.write(output)
+    f.truncate()
 
 # -- General configuration ---------------------------------------------------
 

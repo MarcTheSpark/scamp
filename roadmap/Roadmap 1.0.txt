@@ -12,6 +12,8 @@ Playback:
 
 Engraving:
     - Clean up quantization: allow setting exact divisors. Remove max indigestibility in favor of setting exact divisors.
+    - Merge `to_abjad()` and `to_abjad_lilypond_file()` into just a single `to_abjad()`, clarify special formatting
+    into a single block? Also, add an argument to to_abjad() that allows adding/modifying blocks?
     - Engraving lines!
     - Engraving dynamics!!!!!!
     - Fixing the wanderer class tempo stuff

@@ -21,7 +21,7 @@ scamp package. These instances are part of the global scamp namespace, and conta
 #  You should have received a copy of the GNU General Public License along with this program.    #
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
-
+import os
 from types import SimpleNamespace
 from .utilities import resolve_package_path, SavesToJSON
 from .playback_adjustments import PlaybackAdjustmentsDictionary, NotePlaybackAdjustment
@@ -107,7 +107,10 @@ class _ScampSettings(SimpleNamespace, SavesToJSON):
         try:
             return cls.load_from_json(resolve_package_path(cls._json_path))
         except FileNotFoundError:
-            logging.warning("{} not found; generating defaults.".format(cls._settings_name))
+            if not os.path.exists(resolve_package_path("settings")):
+                os.mkdir(resolve_package_path("settings"))
+            logging.warning("{} not found; generating defaults. "
+                            "(This is normal on first import.)".format(cls._settings_name))
             factory_defaults = cls.factory_default()
             factory_defaults.make_persistent()
             return factory_defaults

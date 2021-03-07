@@ -578,9 +578,17 @@ stemless = {
             for gliss_override in ScoreComponent._gliss_overrides:
                 abjad().attach(abjad().LilyPondLiteral(gliss_override), abjad_object, "opening")
 
-        abjad_lilypond_file = abjad().LilyPondFile.new(
-            music=abjad_object
-        )
+        header_block = abjad().Block(name="header")
+
+        if title is not None:
+            header_block.title = abjad().Markup(title)
+        if composer is not None:
+            header_block.composer = abjad().Markup(composer)
+
+        score_block = abjad().Block(name="score")
+        score_block.items.append(abjad_object)
+
+        abjad_lilypond_file = abjad().LilyPondFile(items=[header_block, score_block])
 
         # if we're actually producing the lilypond file itself, then we put the simpler
         # definition of stemless outside of the main score object.
@@ -589,11 +597,6 @@ stemless = {
 
         if r"\pitch-annotation" in lilypond_code:
             abjad_lilypond_file.items.insert(-1, ScoreComponent._pitch_annotation_function)
-
-        if title is not None:
-            abjad_lilypond_file.header_block.title = abjad().Markup(title)
-        if composer is not None:
-            abjad_lilypond_file.header_block.composer = abjad().Markup(composer)
 
         return abjad_lilypond_file
 
@@ -1018,7 +1021,8 @@ class Score(ScoreComponent, ScoreContainer):
 
                 # figure out the tempo we're at, and the tempo we're going to next
                 key_point_tempo = self.tempo_envelope.tempo_at(key_point)
-                next_key_point_tempo = self.tempo_envelope.tempo_at(key_points[0]) if len(key_points) > 0 else None
+                next_key_point_tempo = self.tempo_envelope.tempo_at(key_points[0], from_left=True) \
+                    if len(key_points) > 0 else None
                 # figure out whether accel or rit to the next key point, or if none is needed
                 change_indicator = None if next_key_point_tempo is None or next_key_point_tempo == key_point_tempo \
                     else "accel." if next_key_point_tempo > key_point_tempo else "rit."
@@ -1142,7 +1146,8 @@ class Score(ScoreComponent, ScoreContainer):
             while len(key_points) > 0 and key_points[0] - measure_start < score_measure.length:
                 key_point = key_points.pop(0)
                 key_point_tempo = self.tempo_envelope.tempo_at(key_point)
-                next_key_point_tempo = self.tempo_envelope.tempo_at(key_points[0]) if len(key_points) > 0 else None
+                next_key_point_tempo = self.tempo_envelope.tempo_at(key_points[0], from_left=True) \
+                    if len(key_points) > 0 else None
                 # figure out whether accel or rit to the next key point, or if none is needed
                 change_indicator = None if next_key_point_tempo is None or next_key_point_tempo == key_point_tempo \
                     else "accel." if next_key_point_tempo > key_point_tempo else "rit."
@@ -1557,7 +1562,7 @@ class Staff(ScoreComponent, ScoreContainer):
         for same_source_group in source_id_dict.values():
             _join_same_source_abjad_note_group(same_source_group)
         abjad_staff = abjad().Staff(contents, name=self.name)
-        abjad().setting(abjad_staff).instrument_name = abjad().Scheme(self.name, force_quotes=True)
+        abjad().setting(abjad_staff).instrument_name = '#"{}"'.format(self.name)
         return abjad_staff
 
     def to_music_xml(self) -> pymusicxml.Part:
@@ -2545,17 +2550,21 @@ class NoteLike(ScoreComponent):
         if hasattr(pitch_or_pitches, '__len__'):
             if any(round(p, engraving_settings.microtonal_annotation_digits) != round(p) for p in pitch_or_pitches):
                 abjad().attach(abjad().Markup(
-                    abjad().MarkupCommand(
-                        'pitch-annotation',
-                        "; ".join(str(round(p, engraving_settings.microtonal_annotation_digits))
-                                  for p in pitch_or_pitches)
-                    ), direction=abjad().Up), note_object)
+                    r'\markup { \pitch-annotation "' +
+                    "; ".join(str(round(p, engraving_settings.microtonal_annotation_digits))
+                              for p in pitch_or_pitches) +
+                    '" }',
+                    literal=True,
+                    direction=abjad().Up
+                ), note_object)
         else:
             if round(pitch_or_pitches, engraving_settings.microtonal_annotation_digits) != round(pitch_or_pitches):
                 abjad().attach(abjad().Markup(
-                    abjad().MarkupCommand(
-                        'pitch-annotation', str(round(pitch_or_pitches, engraving_settings.microtonal_annotation_digits))
-                    ), direction=abjad().Up), note_object)
+                        r'\markup { \pitch-annotation "' +
+                        str(round(pitch_or_pitches, engraving_settings.microtonal_annotation_digits)) + '" }',
+                        literal=True,
+                        direction=abjad().Up
+                    ), note_object)
 
     def _set_abjad_note_head_styles(self, abjad_note_or_chord):
         if isinstance(abjad_note_or_chord, abjad().Note):

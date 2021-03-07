@@ -15,11 +15,10 @@
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
 from .settings import playback_settings
+from ._package_info import ABJAD_VERSION
 import logging
 import os
 import platform
-
-ABJAD_MINIMUM_VERSION = "3.1"
 
 
 try:
@@ -110,20 +109,32 @@ elif platform.system() == "Windows":
         os.environ["PATH"] += r"C:\Program Files\LilyPond\usr\bin;"
 
 
+_abjad_warning_given = False
+
+
 def abjad():
+    global _abjad_warning_given
     # we make this a function that returns the abjad module so that we don't have to load it unless we need it
     # (since it's kinda slow to load)
     try:
         import abjad as abjad_library
-        if abjad_library.__version__ < ABJAD_MINIMUM_VERSION:
-            logging.warning(
-                "abjad version {} found, but version must be at least {}. "
-                "Lilypond output will not be available".format(abjad_library.__version__, ABJAD_MINIMUM_VERSION)
-            )
-            abjad_library = None
     except ImportError:
-        abjad_library = None
-        logging.warning("abjad was not found; lilypond output will not be available.")
+        raise ImportError("abjad was not found; LilyPond output is not available.")
+
+    if abjad_library.__version__ < ABJAD_VERSION:
+        raise ImportError(
+            "abjad version {} found, but SCAMP is built for version {}. "
+            "Run `pip3 install abjad=={}` to upgrade."
+            .format(abjad_library.__version__, ABJAD_VERSION, ABJAD_VERSION)
+        )
+    elif abjad_library.__version__ > ABJAD_VERSION:
+        if not _abjad_warning_given:
+            logging.warning(
+                "abjad version {} found, but SCAMP is built for earlier version {}. The newer version may not be "
+                "backwards compatible. If errors occur, run `pip3 install abjad=={}` to downgrade."
+                .format(abjad_library.__version__, ABJAD_VERSION, ABJAD_VERSION)
+            )
+            _abjad_warning_given = True
     return abjad_library
 
 

@@ -75,7 +75,7 @@
     },
     "streaming_midi_volume_to_velocity_curve": {
         "_type": "Envelope",
-        "length": 1.0,
+        "length": 1,
         "levels": [
             0,
             127

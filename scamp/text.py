@@ -72,11 +72,12 @@ class StaffText(SavesToJSON, NoteProperty):
 
     def to_abjad(self) -> 'abjad.Markup':
         """Converts this to an abjad Markup object."""
-        out = abjad().Markup(self.text, direction=abjad().Up if self.placement == "above" else abjad().Down)
-        if self.italic:
-            out = out.italic()
-        if self.bold:
-            out = out.bold()
+        markup_string = r"\markup " + \
+                        (r"\bold " if self.bold else "") + \
+                        (r"\italic " if self.italic else "") + \
+                        r"{ " + self.text + " }"
+        out = abjad().Markup(markup_string, direction=abjad().Up if self.placement == "above" else abjad().Down,
+                             literal=True)
         return out
 
     def _to_dict(self) -> dict:

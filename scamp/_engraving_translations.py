@@ -37,17 +37,17 @@ length_to_note_type = {
 
 
 notehead_name_to_lilypond_type = {
-    "normal": "default",
-    "diamond": "diamond",
-    "harmonic": "harmonic",
-    "harmonic black": "harmonic black",
-    "harmonic mixed": "harmonic mixed",
-    "triangle": "triangle",
-    "slash": "slash",
-    "cross": "cross",
-    "x": "cross",
-    "circle-x": "xcircle",
-    "xcircle": "xcircle",
+    "normal": "#'default",
+    "diamond": "#'diamond",
+    "harmonic": "#'harmonic",
+    "harmonic-black": "#'harmonic-black",
+    "harmonic-mixed": "#'harmonic-mixed",
+    "triangle": "#'triangle",
+    "slash": "#'slash",
+    "cross": "#'cross",
+    "x": "#'cross",
+    "circle-x": "#'xcircle",
+    "xcircle": "#'xcircle",
     "inverted triangle": None,
     "square": None,
     "arrow down": None,
@@ -67,7 +67,7 @@ notehead_name_to_lilypond_type = {
     "so": None,
     "la": None,
     "ti": None,
-    "none": "none",
+    "none": "#'none",
 }
 
 
@@ -98,8 +98,8 @@ notehead_name_to_xml_type = {
     "normal": "normal",
     "diamond": "diamond",
     "harmonic": "open mi",
-    "harmonic black": "filled mi",
-    "harmonic mixed": "mi",
+    "harmonic-black": "filled mi",
+    "harmonic-mixed": "mi",
     "triangle": "triangle",
     "slash": "slash",
     "cross": "cross",

@@ -16,7 +16,7 @@
 
 name = "scamp"
 
-version = "0.8.6"
+version = "0.8.7"
 
 author = "Marc Evanstein"
 
@@ -35,8 +35,10 @@ project_urls = {
 
 install_requires = ['pymusicxml >= 0.5', 'expenvelope >= 0.6.6', 'clockblocks >= 0.6.2', 'sf2utils', 'python-osc']
 
+ABJAD_VERSION = "3.3"
+
 extras_require = {
-    'lilypond': 'abjad==3.2',
+    'lilypond': 'abjad==' + ABJAD_VERSION,
     'midistream': 'python-rtmidi',
     'HID': 'pynput',
 }
@@ -44,7 +46,7 @@ extras_require = {
 extras_require['all'] = list(extras_require.values())
 
 package_data = {
-    'scamp': ['settings/*', 'soundfonts/*', '_thirdparty/*.dll', '_thirdparty/*.dylib']
+    'scamp': ['soundfonts/*', '_thirdparty/*.dll', '_thirdparty/*.dylib']
 }
 
 classifiers = [
