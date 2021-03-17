@@ -23,6 +23,7 @@ import json
 import sys
 import re
 import random
+from difflib import Differ
 
 
 if len(sys.argv) > 1 and sys.argv[1] == "-s":
@@ -58,8 +59,8 @@ def get_example_result(python_file_path):
     results = []
     for result in mod.test_results():
         if isinstance(result, scamp.Score):
-            result.composer = ""
-            result.title = ""
+            result.composer = None
+            result.title = None
             results.append(str(result))
             results.append(re.sub(
                 r"\n.*<encoding-date>.*</encoding-date>",
@@ -92,15 +93,29 @@ def test_example_result(python_file_path):
                 if a == b:
                     out.append(True)
                 else:
-                    this_diff = []
-                    for a_line, b_line in zip(a.split("\n"), b.split("\n")):
-                        if a_line != b_line:
-                            if len(this_diff) > MAX_DIFF_LINES:
-                                this_diff.append("  ... etc ...")
-                                break
-                            this_diff.append("  - {}".format(a_line))
-                            this_diff.append("  + {}".format(b_line))
-                    out.append("\n".join(this_diff))
+                    diff = Differ().compare(a.splitlines(True), b.splitlines(True))
+                    processed_diff = []
+                    normal_buffer = []  # buffer of unchanged lines (don't want to print them all)
+                    for line in diff:
+                        if line.startswith(" "):  # normal line
+                            normal_buffer.append(line)
+                        else:
+                            if len(normal_buffer) > 3:
+                                if len(processed_diff) > 0:
+                                    processed_diff.append(normal_buffer[0])
+                                processed_diff.append("...\n")
+                                processed_diff.append(normal_buffer[-1])
+                            else:
+                                processed_diff.extend(normal_buffer)
+                            normal_buffer.clear()
+                            processed_diff.append(line)
+
+                    if len(processed_diff) > 2:
+                        processed_diff.append(normal_buffer[0])
+                        processed_diff.append("...\n")
+                    else:
+                        processed_diff.extend(normal_buffer)
+                    out.append("".join(processed_diff))
             return out
     else:
         raise FileNotFoundError("Could not test example result for {}. No prior result has been saved.".format(

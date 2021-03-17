@@ -18,14 +18,14 @@ from scamp import *
 from random import random
 import math
 
-session = Session()
+s = Session()
 
-session.set_tempo_target(300, 20)
+s.set_tempo_target(300, 20)
 
-violin = session.new_part("violin")
-violin2 = session.new_part("violin2")
+violin = s.new_part("violin")
+violin2 = s.new_part("violin2")
 
-bass_banjo = session.new_part("banjass", (0, 105))
+bass_banjo = s.new_part("banjass", (0, 105))
 
 engraving_settings.max_voices_per_part = 1
 engraving_settings.glissandi.control_point_policy = "grace"
@@ -56,15 +56,16 @@ def sine_glisses(this_clock):
                           72 + 10 * math.sin((this_clock.beat() + 1.0) * freq * 2 * math.pi)],
                          1.0, 1.0)
 
-session.fork(violins)
-session.fork(banjass)
-session.fork(sine_glisses)
-session.start_transcribing()
-session.wait(20)
+
+s.fork(violins)
+s.fork(banjass)
+s.fork(sine_glisses)
+s.start_transcribing()
+s.wait(20)
 violin.end_all_notes()
 violin2.end_all_notes()
 bass_banjo.end_all_notes()
-performance = session.stop_transcribing()
+performance = s.stop_transcribing()
 engraving_settings.ignore_empty_parts = False
 score = performance.to_score(time_signature="2/4")
 score.show()

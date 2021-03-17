@@ -13,6 +13,7 @@
 #  You should have received a copy of the GNU General Public License along with this program.    #
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
+import atexit
 
 from clockblocks import Clock
 import inspect
@@ -61,7 +62,7 @@ def print_available_midi_output_devices():
         print("   [Port {}]: {}".format(port_number, device_name))
 
 
-def get_port_number_of_midi_device(device_name, input_or_output="input"):
+def get_port_number_of_midi_device(device_name, input_or_output):
     """
     Get the port number of a given device based on its a fuzzy string match of its name.
 
@@ -80,7 +81,10 @@ def get_port_number_of_midi_device(device_name, input_or_output="input"):
             correlation = get_average_square_correlation(device_name.lower(), device.lower())
             if correlation > best_correlation:
                 best_match, best_correlation = port, correlation
-    return best_match
+    if best_correlation > 0.5:
+        return best_match
+    else:
+        return None
 
 
 def start_midi_listener(port_number_or_device_name, callback_function, clock):
@@ -128,6 +132,31 @@ def start_midi_listener(port_number_or_device_name, callback_function, clock):
     return midi_in
 
 
+_port_connections = {}
+
+
+def get_port_connection(number, name):
+    if (number, name) in _port_connections:
+        return _port_connections[(number, name)]
+    else:
+        midi_out = rtmidi.MidiOut()
+        if number is not None:
+            midi_out.open_port(number, name)
+        else:
+            midi_out.open_virtual_port(name)
+        _port_connections[(number, name)] = midi_out
+        return midi_out
+
+
+def _cleanup_port_connections():
+    for midi_out_object in _port_connections.values():
+        midi_out_object.delete()
+    _port_connections.clear()
+
+
+atexit.register(_cleanup_port_connections)
+
+
 class SimpleRtMidiOut:
     """
     Wraps a single output of rtmidi to:
@@ -135,23 +164,13 @@ class SimpleRtMidiOut:
     b) fail quietly. If rtmidi can't be loaded, then the user is alerted upon import, and
     from then on all rtmidi calls just don't do anything
     """
+
     def __init__(self, output_device=None, output_name=None):
 
         if rtmidi is not None:
-            self.midiout = rtmidi.MidiOut()
-            # # FOR SOME REASON, in the python-rtmidi examples, they call `del midiout` at the end
-            # # I don't think it's necessary, and it causes an annoying error on exit, so it's commented out
-            # def cleanup():
-            #     del self.midiout
-            # atexit.register(cleanup)
-            if isinstance(output_device, int):
-                self.midiout.open_port(output_device, name=output_name)
-            else:
-                output_port = get_port_number_of_midi_device(output_device) if output_device is not None else None
-                if output_port is not None:
-                    self.midiout.open_port(output_port, name=output_name)
-                else:
-                    self.midiout.open_virtual_port(name=output_name)
+            port_number = output_device if isinstance(output_device, int) \
+                else get_port_number_of_midi_device(output_device, "output") if output_device is not None else None
+            self.midiout = get_port_connection(port_number, output_name)
 
     def note_on(self, chan, pitch, velocity):
         if rtmidi is not None:

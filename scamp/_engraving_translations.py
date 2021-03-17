@@ -213,3 +213,20 @@ def attach_abjad_notation_to_note(abjad_note, notation_string):
     elif notation_string == "fermata":
         to_attach = abjad().Fermata()
     abjad().attach(to_attach, abjad_note)
+
+
+xml_barline_to_lilypond = {
+    "double": "||",
+    "end": "|.",
+    "regular": "|",
+    "dotted": ";",
+    "dashed": "!",
+    "heavy": ".",
+    "light-light": "||",
+    "light-heavy": "|.",
+    "heavy-light": ".|",
+    "heavy-heavy": "..",
+    "tick": "'",
+    "short": "'",  # this bar line type does not exist in LilyPond, it seems, so just do a tick
+    "none": ""
+}

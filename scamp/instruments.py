@@ -41,6 +41,7 @@ from typing import Union, Sequence, Tuple
 from numbers import Real
 from expenvelope import Envelope
 from copy import deepcopy
+import atexit
 
 
 class Ensemble(SavesToJSON):
@@ -365,6 +366,8 @@ class ScampInstrument(SavesToJSON):
         self.name_count = 0
         if ensemble is not None:
             self.set_ensemble(ensemble)
+
+        atexit.register(self.end_all_notes)
 
     def set_ensemble(self, ensemble: 'Ensemble') -> None:
         """

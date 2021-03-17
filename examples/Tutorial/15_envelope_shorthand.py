@@ -40,4 +40,5 @@ viola.play_note([60, 70, 55], 1.0, 4)
 # or so that it never resizes, by altering playback_settings.resize_parameter_envelopes
 viola.play_note([[60, 70, 55], [2, 1], [-2, 0]], 1.0, 4)
 
-s.stop_transcribing().to_score().show()
+performance = s.stop_transcribing()
+performance.to_score().show()

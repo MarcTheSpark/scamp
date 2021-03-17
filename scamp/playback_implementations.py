@@ -28,7 +28,6 @@ from . import instruments as instruments_module
 from clockblocks import fork_unsynchronized
 import time
 from abc import abstractmethod
-import atexit
 from ._dependencies import pythonosc
 from typing import Tuple, Optional
 import logging
@@ -772,12 +771,6 @@ class OSCPlaybackImplementation(PlaybackImplementation):
                                           for key, value in playback_settings.osc_message_addresses.items()}
 
         self._currently_playing = []
-
-        def clean_up():
-            for note_id in list(self._currently_playing):
-                self.end_note(note_id)
-
-        atexit.register(clean_up)
 
     def start_note(self, note_id: int, pitch: float, volume: float, properties: dict,
                    other_parameter_values: dict = None) -> None:

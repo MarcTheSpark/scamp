@@ -27,7 +27,8 @@ from .quantization import QuantizationRecord, QuantizationScheme, QuantizedMeasu
 from . import performance as performance_module  # to distinguish it from variables named performance
 from .utilities import prime_factor, floor_x_to_pow_of_y, is_x_pow_of_y, ceil_to_multiple, floor_to_multiple
 from ._engraving_translations import length_to_note_type, get_xml_notehead, get_lilypond_notehead_name, \
-    articulation_to_xml_element_name, notations_to_xml_notations_element, attach_abjad_notation_to_note
+    articulation_to_xml_element_name, notations_to_xml_notations_element, attach_abjad_notation_to_note, \
+    xml_barline_to_lilypond
 from .note_properties import NoteProperties
 from .text import StaffText
 import pymusicxml
@@ -544,28 +545,43 @@ stemless = {
                             "change the value of \"show_music_xml_command_line\" in the engraving_settings to use "
                             "your program of choice.".format(engraving_settings.show_music_xml_command_line))
 
-    def to_abjad(self) -> 'abjad().Component':
-        """
+    def to_abjad(self, wrap_as_file: bool = False, non_score_blocks: Sequence = None) -> 'abjad().Component':
+        r"""
         Convert this score component to its corresponding abjad component
+
+        :param wrap_as_file: if True, wraps this as an :class:`abjad.LilypondFile`
+        :param non_score_blocks: (Only applicable if `wrap_as_file` is set to True). A list of :class:`abjad.Block`
+            objects (or strings containing the LilyPond code for such a block, which are then parsed by abjad).
+            Typical blocks might be a \header block, a \layout block, or a \paper block. If no header block is
+            specified, one will be created with the score's title and composer. If a header is specified, title and
+            composer will be added if not present.
         """
         assert abjad() is not None, "Abjad is required for this operation."
-        abjad_object = self._to_abjad()
-        lilypond_code = abjad().lilypond(abjad_object)
-        if r"\glissando" in lilypond_code:
-            for gliss_override in ScoreComponent._gliss_overrides:
-                abjad().attach(abjad().LilyPondLiteral(gliss_override), abjad_object, "opening")
+        if wrap_as_file:
+            return self._to_abjad_lilypond_file(non_score_blocks=non_score_blocks)
+        else:
+            abjad_object = self._to_abjad()
+            lilypond_code = abjad().lilypond(abjad_object)
+            if r"\glissando" in lilypond_code:
+                for gliss_override in ScoreComponent._gliss_overrides:
+                    abjad().attach(abjad().LilyPondLiteral(gliss_override), abjad_object, "opening")
 
-        if r"\stemless" in lilypond_code:
-            abjad().attach(abjad().LilyPondLiteral(ScoreComponent._inner_stemless_def), abjad_object, "opening")
+            if r"\stemless" in lilypond_code:
+                abjad().attach(abjad().LilyPondLiteral(ScoreComponent._inner_stemless_def), abjad_object, "opening")
 
-        if r"\pitch-annotation" in lilypond_code:
-            abjad().attach(abjad().LilyPondLiteral(ScoreComponent._pitch_annotation_function), abjad_object, "opening")
+            if r"\pitch-annotation" in lilypond_code:
+                abjad().attach(abjad().LilyPondLiteral(ScoreComponent._pitch_annotation_function),
+                               abjad_object, "opening")
+            return abjad_object
 
-        return abjad_object
+    def _to_abjad_lilypond_file(self, non_score_blocks: Sequence = None) -> 'abjad().LilyPondFile':
+        r"""
+        Convert and wrap as an :class:`abjad.LilyPondFile` object.
 
-    def to_abjad_lilypond_file(self) -> 'abjad().LilyPondFile':
-        """
-        Convert and wrap as a abjad.LilyPondFile object
+        :param non_score_blocks: a list of :class:`abjad.Block` objects (or strings containing the LilyPond code for
+            such a block, which are then parsed by abjad); typical blocks might be a \header block, a
+            \layout block, or a \paper block. If no header block is specified, one will be created with the score's
+            title and composer. If a header is specified, title and composer will be added if not present.
         """
         assert abjad() is not None, "Abjad is required for this operation."
 
@@ -578,17 +594,28 @@ stemless = {
             for gliss_override in ScoreComponent._gliss_overrides:
                 abjad().attach(abjad().LilyPondLiteral(gliss_override), abjad_object, "opening")
 
-        header_block = abjad().Block(name="header")
+        if non_score_blocks is None:
+            non_score_blocks = []
+        else:
+            non_score_blocks = [abjad().parse(block) if isinstance(block, str) else block for block in non_score_blocks]
 
-        if title is not None:
-            header_block.title = abjad().Markup(title)
-        if composer is not None:
-            header_block.composer = abjad().Markup(composer)
+        for block in non_score_blocks:
+            if block.name == "header":
+                header_block = block
+                break
+        else:
+            header_block = abjad().Block(name="header")
+            non_score_blocks.insert(0, header_block)
+
+        if title is not None and not hasattr(header_block, "title"):
+            header_block.title = abjad().Markup(r'\markup { ' + title + ' }', literal=True)
+        if composer is not None and not hasattr(header_block, "composer"):
+            header_block.composer = abjad().Markup(r'\markup { ' + composer + ' }', literal=True)
 
         score_block = abjad().Block(name="score")
         score_block.items.append(abjad_object)
 
-        abjad_lilypond_file = abjad().LilyPondFile(items=[header_block, score_block])
+        abjad_lilypond_file = abjad().LilyPondFile(items=non_score_blocks + [score_block])
 
         # if we're actually producing the lilypond file itself, then we put the simpler
         # definition of stemless outside of the main score object.
@@ -600,49 +627,70 @@ stemless = {
 
         return abjad_lilypond_file
 
-    def export_lilypond(self, file_path) -> None:
-        """
+    def export_lilypond(self, file_path: str, non_score_blocks: Sequence = None) -> None:
+        r"""
         Convert and wrap as a LilyPond (.ly) file, and save to the given path.
 
         :param file_path: file path to save to
+        :param non_score_blocks: a list of :class:`abjad.Block` objects (or strings containing the LilyPond code for
+            such a block, which are then parsed by abjad); typical blocks might be a \header block, a
+            \layout block, or a \paper block. If no header block is specified, one will be created with the score's
+            title and composer. If a header is specified, title and composer will be added if not present.
         """
         with open(file_path, "w") as output_file:
-            output_file.write(abjad().lilypond(self.to_abjad_lilypond_file()))
+            output_file.write(abjad().lilypond(self.to_abjad(wrap_as_file=True, non_score_blocks=non_score_blocks)))
 
-    def export_pdf(self, file_path) -> None:
+    def export_pdf(self, file_path: str, non_score_blocks: Sequence = None) -> None:
         """
         Exports score as a PDF file and saves it to the given file_path
 
         :param file_path: where to save the PDF
+        :param non_score_blocks: a list of :class:`abjad.Block` objects (or strings containing the LilyPond code for
+            such a block, which are then parsed by abjad); typical blocks might be a \header block, a
+            \layout block, or a \paper block. If no header block is specified, one will be created with the score's
+            title and composer. If a header is specified, title and composer will be added if not present.
         """
-        abjad().persist.as_pdf(self.to_abjad_lilypond_file(), file_path)
+        abjad().persist.as_pdf(self.to_abjad(wrap_as_file=True, non_score_blocks=non_score_blocks), file_path)
 
-    def to_lilypond(self, wrap_as_file=False) -> str:
-        """
+    def to_lilypond(self, wrap_as_file: bool = False, non_score_blocks: Sequence = None) -> str:
+        r"""
         Convert to LilyPond code.
 
-        :param wrap_as_file: if True, wraps this object up as a full LilyPond file, ready for compilation. If False,
-            we just get the code for the component itself.
+        :param wrap_as_file: if True, wraps this as an :class:`abjad.LilypondFile`
+        :param non_score_blocks: (Only applicable if `wrap_as_file` is set to True). A list of :class:`abjad.Block`
+            objects (or strings containing the LilyPond code for such a block, which are then parsed by abjad).
+            Typical blocks might be a \header block, a \layout block, or a \paper block. If no header block is
+            specified, one will be created with the score's title and composer. If a header is specified, title and
+            composer will be added if not present.
         :return: a string containing the LilyPond code
         """
         assert abjad() is not None, "Abjad is required for this operation."
-        return abjad().lilypond(self.to_abjad_lilypond_file() if wrap_as_file else self.to_abjad())
+        return abjad().lilypond(self.to_abjad(wrap_as_file=wrap_as_file, non_score_blocks=non_score_blocks))
 
-    def print_lilypond(self, wrap_as_file=False) -> None:
+    def print_lilypond(self, wrap_as_file: bool = False, non_score_blocks: Sequence = None) -> None:
         """
         Convert and print LilyPond code.
 
-        :param wrap_as_file: if True, wraps this object up as a full LilyPond file, ready for compilation. If False,
-            we just get the code for the component itself.
+        :param wrap_as_file: if True, wraps this as an :class:`abjad.LilypondFile`
+        :param non_score_blocks: (Only applicable if `wrap_as_file` is set to True). A list of :class:`abjad.Block`
+            objects (or strings containing the LilyPond code for such a block, which are then parsed by abjad).
+            Typical blocks might be a \header block, a \layout block, or a \paper block. If no header block is
+            specified, one will be created with the score's title and composer. If a header is specified, title and
+            composer will be added if not present.
         """
-        print(self.to_lilypond(wrap_as_file=wrap_as_file))
+        print(self.to_lilypond(wrap_as_file=wrap_as_file, non_score_blocks=non_score_blocks))
 
-    def show(self) -> None:
-        """
-        Using the abjad.show command, generates and opens a PDF of the music represented by this component
+    def show(self, non_score_blocks: Sequence = None) -> None:
+        r"""
+        Using the `abjad.show` command, generates and opens a PDF of the music represented by this component
+
+        :param non_score_blocks: a list of :class:`abjad.Block` objects (or strings containing the LilyPond code for
+            such a block, which are then parsed by abjad); typical blocks might be a \header block, a
+            \layout block, or a \paper block. If no header block is specified, one will be created with the score's
+            title and composer. If a header is specified, title and composer will be added if not present.
         """
         assert abjad() is not None, "Abjad is required for this operation."
-        abjad().show(self.to_abjad_lilypond_file())
+        abjad().show(self.to_abjad(wrap_as_file=True, non_score_blocks=non_score_blocks))
 
 
 class ScoreContainer(ABC):
@@ -760,6 +808,9 @@ class Score(ScoreComponent, ScoreContainer):
     :ivar title: title to be used in the score
     :ivar composer: composer to be written on the score
     :ivar tempo_envelope: a TempoEnvelope function describing how the tempo changes over time
+    :ivar final_barline: what barline to use at the end of the score. Must be one of: "double", "end", "regular",
+        "dotted", "dashed", "heavy", "light-light" (same as "double"), "light-heavy" (same as "end"), "heavy-light",
+        "heavy-heavy", "tick", "short", or "none".
     """
 
     def __init__(self, parts: Sequence[Union['Staff', 'StaffGroup']] = None, title: str = None,
@@ -768,6 +819,7 @@ class Score(ScoreComponent, ScoreContainer):
         self.title = title
         self.composer = composer
         self.tempo_envelope = tempo_envelope
+        self.final_bar_line = "end"
 
     @property
     def parts(self) -> Sequence[Union['StaffGroup', 'Staff']]:
@@ -1062,6 +1114,10 @@ class Score(ScoreComponent, ScoreContainer):
 
             measure_start += score_measure.length
 
+
+        if self.final_bar_line is not None:
+            abjad().attach(abjad().BarLine(xml_barline_to_lilypond[self.final_bar_line]),
+                           abjad().select(abjad_score).leaf(-1))
         return abjad_score
 
     @staticmethod
@@ -1122,6 +1178,10 @@ class Score(ScoreComponent, ScoreContainer):
     def to_music_xml(self) -> pymusicxml.Score:
         xml_score = pymusicxml.Score([part.to_music_xml() for part in self. parts], self.title, self.composer)
 
+        if self.final_bar_line is not None:
+            for staff in xml_score.parts:
+                staff.measures[-1].barline = self.final_bar_line
+
         # go through and add all of the tempo marks to the xml score
         key_points, guide_marks = self._get_tempo_key_points_and_guide_marks()
 
@@ -1180,6 +1240,17 @@ class Score(ScoreComponent, ScoreContainer):
             xml_measure.directions_with_displacements = this_measure_annotations
             measure_start += score_measure.length
         return xml_score
+
+    # Override the signatures of these three methods for the Score class, so they wrap as file by default
+
+    def to_abjad(self, wrap_as_file: bool = True, non_score_blocks: Sequence = None) -> 'abjad().Component':
+        return ScoreComponent.to_abjad(self, wrap_as_file=wrap_as_file, non_score_blocks=non_score_blocks)
+
+    def to_lilypond(self, wrap_as_file: bool = True, non_score_blocks: Sequence = None) -> str:
+        return ScoreComponent.to_lilypond(self, wrap_as_file=wrap_as_file, non_score_blocks=non_score_blocks)
+
+    def print_lilypond(self, wrap_as_file: bool = True, non_score_blocks: Sequence = None) -> None:
+        ScoreComponent.print_lilypond(self, wrap_as_file=wrap_as_file, non_score_blocks=non_score_blocks)
 
 
 # used in arranging voices in a part
