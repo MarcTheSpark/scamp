@@ -30,15 +30,13 @@ from fractions import Fraction
 #                                       Setting up some of the guiding variables
 ##################################################################################################################
 
-
-piano_distillation_timeline = Envelope((0, 1, 0), (120, 120))
-
 SCAN_PERIOD, WIDTH_AVERAGE, WIDTH_VARIATION, WIDTH_VARIATION_PERIOD, WIDTH_START_PHASE = \
     160, 10.0, 5.0, 20, 3*math.pi / 2
 
 PIANO_TEMPO = 140
 HARPSICHORD_TEMPO = 840
 
+piano_distillation_timeline = Envelope((0, 1, 0), (120, 120))
 
 ##################################################################################################################
 #                                             Set up the scale pitches
@@ -68,7 +66,7 @@ mds_points = mds.fit(harmonic_distances).embedding_
 # scale those mds_points into the range 0-1000 in x and y coordinates for drawing
 point_range = min(x[0] for x in mds_points), max(x[0] for x in mds_points), \
               min(x[1] for x in mds_points), max(x[1] for x in mds_points)
-scale_factor = 1400 / max(point_range[1] - point_range[0], point_range[3] - point_range[2])
+scale_factor = 1000 / max(point_range[1] - point_range[0], point_range[3] - point_range[2])
 mds_points *= scale_factor
 mds_points += 500
 
@@ -86,9 +84,12 @@ class Barlicity(QtWidgets.QMainWindow):
         scene = QtWidgets.QGraphicsScene(self)
         view = QtWidgets.QGraphicsView(scene)
         self.setCentralWidget(view)
-        self.resize(Qt.QSize(QtWidgets.QDesktopWidget().availableGeometry(self).size().height() * 0.8,
-                             QtWidgets.QDesktopWidget().availableGeometry(self).size().height() * 0.8))
+
+        window_size = int(QtWidgets.QDesktopWidget().availableGeometry(self).size().height() * 0.8)
+        print(window_size)
+        self.resize(Qt.QSize(window_size, window_size))
         view.setSceneRect(QtCore.QRectF(0, 0, 1000, 1000))
+        view.scale(window_size/1100, window_size/1100)
 
         # create and position the scanner circle
         self.circle = QtWidgets.QGraphicsEllipseItem(QtCore.QRectF(-50, -50, 100, 100))
@@ -118,7 +119,7 @@ class Barlicity(QtWidgets.QMainWindow):
                 scene.addEllipse(Qt.QRectF(point[0] - 5, point[1] - 5, 10, 10), brush=Qt.QColor(0, 0, 0))
             )
             text = scene.addText(str(i))
-            text.setPos(point[0] - 25, point[1])
+            text.setPos(point[0] - 30 * len(str(i)) / 2, point[1])
 
         self.contained_points = []
         # this checks which points are currently in the scanner and puts their indices in self.contained_points
@@ -136,21 +137,21 @@ class Barlicity(QtWidgets.QMainWindow):
     def showEvent(self, a0):
         # when the window is shown, we set up scamp
         super().showEvent(a0)
-        
+
     def start(self):
         self.session = Session().run_as_server()
         self.harpsichord = self.session.new_part("harpsichord")
         self.piano = self.session.new_part("piano")
         self.session.fork(self.run_scanner, name="SCANNER_CLOCK")
         piano_clock = self.session.fork(self.piano_part, initial_tempo=PIANO_TEMPO, name="PIANO_CLOCK")
-#         self.session.fork(self.harpsichord_part, initial_tempo=HARPSICHORD_TEMPO, name="PIANO_CLOCK")
+        self.session.fork(self.harpsichord_part, initial_tempo=HARPSICHORD_TEMPO, name="PIANO_CLOCK")
         self.session.start_transcribing(clock=piano_clock)
 
     def closeEvent(self, a0):
         # when the window is closed, we stop transcribing and create a score
         super().closeEvent(a0)
-        self.session.stop_transcribing().to_score(
-            time_signature="3/4", title="Barlicity (raw)", composer="Marc Evanstein").show_xml()
+        # self.session.stop_transcribing().to_score(
+        #     time_signature="3/4", title="Barlicity (raw)", composer="Marc Evanstein").show_xml()
 
     def piano_part(self, clock: Clock):
         piano_indispensabilities = get_indispensability_array(((3, 2), 3, 2), normalize=True)

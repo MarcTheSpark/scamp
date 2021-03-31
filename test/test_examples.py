@@ -32,7 +32,8 @@ else:
     SAVE_NEW = False
 
 
-MAX_DIFF_LINES = 8
+# number of unaltered lines before and after it shows in the diff
+NUM_DIFF_CONTEXT_LINES = 10
 
 
 example_test_directory = "example_tests"
@@ -100,18 +101,18 @@ def test_example_result(python_file_path):
                         if line.startswith(" "):  # normal line
                             normal_buffer.append(line)
                         else:
-                            if len(normal_buffer) > 3:
+                            if len(normal_buffer) > 2 * NUM_DIFF_CONTEXT_LINES + 1:
                                 if len(processed_diff) > 0:
                                     processed_diff.append(normal_buffer[0])
                                 processed_diff.append("...\n")
-                                processed_diff.append(normal_buffer[-1])
+                                processed_diff.extend(normal_buffer[-NUM_DIFF_CONTEXT_LINES:])
                             else:
                                 processed_diff.extend(normal_buffer)
                             normal_buffer.clear()
                             processed_diff.append(line)
 
-                    if len(processed_diff) > 2:
-                        processed_diff.append(normal_buffer[0])
+                    if len(normal_buffer) > NUM_DIFF_CONTEXT_LINES:
+                        processed_diff.extend(normal_buffer[:NUM_DIFF_CONTEXT_LINES])
                         processed_diff.append("...\n")
                     else:
                         processed_diff.extend(normal_buffer)
