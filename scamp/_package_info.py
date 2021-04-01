@@ -33,7 +33,7 @@ project_urls = {
     "Forum": "http://scampsters.marcevanstein.com"
 }
 
-install_requires = ['pymusicxml >= 0.5', 'expenvelope >= 0.6.6', 'clockblocks >= 0.6.2', 'sf2utils', 'python-osc']
+install_requires = ['pymusicxml >= 0.5', 'expenvelope >= 0.6.7', 'clockblocks >= 0.6.2', 'sf2utils', 'python-osc']
 
 ABJAD_VERSION = "3.3"
 

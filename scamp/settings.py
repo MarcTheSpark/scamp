@@ -23,7 +23,7 @@ scamp package. These instances are part of the global scamp namespace, and conta
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 import os
 from types import SimpleNamespace
-from .utilities import resolve_package_path, SavesToJSON
+from .utilities import resolve_path, SavesToJSON
 from .playback_adjustments import PlaybackAdjustmentsDictionary, NotePlaybackAdjustment
 from expenvelope.envelope import Envelope
 from . import spelling
@@ -43,24 +43,34 @@ class _ScampSettings(SimpleNamespace, SavesToJSON):
     _is_root_setting = False
 
     def __init__(self, settings_dict: dict = None):
+        rewrite_file = False
         if settings_dict is None:
             settings_arguments = self.factory_defaults
         else:
             settings_arguments = {}
             for key in set(settings_dict.keys()).union(set(self.factory_defaults.keys())):
                 if key in settings_dict and key in self.factory_defaults:
+                    # an expected settings key
                     settings_arguments[key] = settings_dict[key]
                 elif key in settings_dict:
                     # there is no factory default for this key, which really shouldn't happen
                     # it suggests someone added something to the json file that shouldn't be there
-                    logging.warning("Unexpected key \"{}\" in {}".format(
-                        key, self._json_path if self._json_path is not None else "settings"
+                    logging.warning("Removing unexpected key \"{}\" in {}.".format(
+                        key, self._json_path.split("/")[-1] if self._json_path is not None else "settings"
                     ))
+                    rewrite_file = True
+                    continue
                 else:
                     # no setting given in the settings_dict, so we fall back to the factory default
                     settings_arguments[key] = self.factory_defaults[key]
+                    logging.warning("Key \"{}\" was not found in {}, and will be added.".format(
+                        key, self._json_path.split("/")[-1] if self._json_path is not None else "settings"
+                    ))
+                    rewrite_file = True
                 settings_arguments[key] = self._validate_attribute(key, settings_arguments[key])
         super().__init__(**settings_arguments)
+        if rewrite_file:
+            self.make_persistent()
 
     def restore_factory_defaults(self, persist=False) -> None:
         """
@@ -80,7 +90,7 @@ class _ScampSettings(SimpleNamespace, SavesToJSON):
         Rewrites the JSON file from which settings are loaded, meaning that this reset will persist to the running of
         scripts in the future.
         """
-        self.save_to_json(resolve_package_path(self._json_path))
+        self.save_to_json(resolve_path(self._json_path))
 
     @classmethod
     def factory_default(cls):
@@ -105,10 +115,10 @@ class _ScampSettings(SimpleNamespace, SavesToJSON):
         """
         assert cls._is_root_setting, "Cannot load a non-root setting automatically."
         try:
-            return cls.load_from_json(resolve_package_path(cls._json_path))
+            return cls.load_from_json(resolve_path(cls._json_path))
         except FileNotFoundError:
-            if not os.path.exists(resolve_package_path("settings")):
-                os.mkdir(resolve_package_path("settings"))
+            if not os.path.exists(resolve_path("%DATA/settings")):
+                os.mkdir(resolve_path("%DATA/settings"))
             logging.warning("{} not found; generating defaults. "
                             "(This is normal on first import.)".format(cls._settings_name))
             factory_defaults = cls.factory_default()
@@ -201,7 +211,7 @@ class PlaybackSettings(_ScampSettings):
     }
 
     _settings_name = "Playback settings"
-    _json_path = "settings/playbackSettings.json"
+    _json_path = "%DATA/settings/playbackSettings.json"
     _is_root_setting = True
 
     def __init__(self, settings_dict: dict = None):
@@ -290,7 +300,7 @@ class QuantizationSettings(_ScampSettings):
     }
 
     _settings_name = "Quantization settings"
-    _json_path = "settings/quantizationSettings.json"
+    _json_path = "%DATA/settings/quantizationSettings.json"
     _is_root_setting = True
 
     def __init__(self, settings_dict: dict = None):
@@ -333,7 +343,7 @@ class GlissandiSettings(_ScampSettings):
     }
 
     _settings_name = "Glissandi settings"
-    _json_path = "settings/engravingSettings.json"
+    _json_path = "%DATA/settings/engravingSettings.json"
     _is_root_setting = False
 
     def __init__(self, settings_dict: dict = None):
@@ -379,7 +389,7 @@ class TempoSettings(_ScampSettings):
     }
 
     _settings_name = "Tempo settings"
-    _json_path = "settings/engravingSettings.json"
+    _json_path = "%DATA/settings/engravingSettings.json"
     _is_root_setting = False
 
     def __init__(self, settings_dict: dict = None):
@@ -517,7 +527,7 @@ class EngravingSettings(_ScampSettings):
     }
 
     _settings_name = "Engraving settings"
-    _json_path = "settings/engravingSettings.json"
+    _json_path = "%DATA/settings/engravingSettings.json"
     _is_root_setting = True
 
     def __init__(self, settings_dict: dict = None):

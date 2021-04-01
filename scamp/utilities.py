@@ -50,6 +50,21 @@ def iterate_all_subclasses(type_name: Type) -> Iterator[Type]:
             yield x
 
 
+# Define the data folder path (e.g. where settings are stored)
+if sys.platform.startswith("win"):
+    os_data_path = os.getenv("LOCALAPPDATA")
+elif sys.platform.startswith("darwin"):
+    os_data_path = "~/Library/Application Support"
+else:
+    # linux
+    os_data_path = os.getenv("XDG_DATA_HOME", "~/.local/share")
+
+os_data_path = os.path.expanduser(os_data_path)
+scamp_data_path = os.path.join(os_data_path, "SCAMP")
+if not os.path.exists(scamp_data_path):
+    os.makedirs(scamp_data_path, exist_ok=True)
+
+
 def resolve_path(path: str) -> str:
     """
     Resolves the given path based on a variety of prefixes.
@@ -63,6 +78,8 @@ def resolve_path(path: str) -> str:
     if path.startswith("%PKG/"):
         # Relative to the package source directory
         return resolve_package_path(path[5:])
+    elif path.startswith("%DATA/"):
+        return os.path.join(scamp_data_path, path[6:])
     elif path.startswith("/") or path[1:].startswith(":\\"):
         # Absolute soundfont path
         return path
