@@ -33,7 +33,7 @@ else:
 
 
 # number of unaltered lines before and after it shows in the diff
-NUM_DIFF_CONTEXT_LINES = 10
+NUM_DIFF_CONTEXT_LINES = 2
 
 
 example_test_directory = "example_tests"
