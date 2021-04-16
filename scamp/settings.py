@@ -30,6 +30,7 @@ from . import spelling
 import logging
 import json
 import platform
+import subprocess
 from typing import Optional
 
 
@@ -129,6 +130,21 @@ class _ScampSettings(SimpleNamespace, SavesToJSON):
         except (TypeError, json.decoder.JSONDecodeError):
             logging.warning("Error loading {}; falling back to defaults.".format(cls._settings_name.lower()))
             return cls.factory_default()
+
+    def open_json_file(self):
+        platform_system = platform.system().lower()
+
+        if platform_system == "linux":
+            # generic open command on linux is "xdg-open"
+            subprocess.call(["xdg-open", resolve_path(self._json_path)])
+        elif platform_system == "darwin":
+            # generic open command on mac is "open"
+            subprocess.call(["open", resolve_path(self._json_path)])
+        elif platform_system == "windows":
+            # generic open command on windows is "start"
+            subprocess.call(["start", resolve_path(self._json_path)])
+        else:
+            logging.warning("Cannot run \"open_json_file\" on unrecognized platform {}".format(platform_system))
 
     @staticmethod
     def _validate_attribute(key, value):
