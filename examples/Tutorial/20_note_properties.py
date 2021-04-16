@@ -43,7 +43,8 @@ piano.play_note(60, 0.5, 1, {
 })
 
 # the properties argument can be used to specify which voice a note should appear in
-piano.play_note(62, 0.5, 0.5, "voice: 1")
+# you can also add dynamic text, although it doesn't cause any change in playback within SCAMP
+piano.play_note(62, 0.5, 0.5, "voice: 1, dynamic: ff")
 piano.play_note(60, 0.5, 0.5, "voice: 2")
 piano.play_note(58, 0.5, 0.5, "voice: 2")
 piano.play_note(62, 0.5, 0.5, "voice: 2")
@@ -54,7 +55,7 @@ piano.play_note(64, 0.5, 0.5, "voice: 2")
 
 # You can also specify voices by name instead of number. In this case, scamp will
 # simply keep notes in the same named voice together, determining the number automatically
-piano.play_note(62, 0.5, 0.5, "voice: top_notes")
+piano.play_note(62, 0.5, 0.5, "voice: top_notes, dynamic: pp")
 piano.play_note(60, 0.5, 0.5, "voice: bottom_notes")
 piano.play_note(58, 0.5, 0.5, "voice: bottom_notes")
 piano.play_note(62, 0.5, 0.5, "voice: bottom_notes")
@@ -70,16 +71,19 @@ piano.play_note(65, 0.5, 1, "playback_adjustment: length * 0.5; pitch + 12")
 # This will play the note with a gliss up and down a half step
 piano.play_note(65, 0.5, 1, "pitch + [0, 2, 0]")
 # This will change the playback length to two beats, but still notate a quarter note
-# The result is that the note bleeds into the following beat (good for legato)
+# The result is that the note bleeds into the following beat (potentially good for legato)
 piano.play_note(65, 0.5, 1, "length = 2")
 # Internally all of these strings are converted to a NotePlaybackAdjustment object, which you can give directly
 # This sets the note to play back with a totally different pitch volume and duration than notated
 piano.play_note(65, 0.5, 1, NotePlaybackAdjustment.set_params(pitch=78, volume=0.9, length=0.1))
 
-# Under the hood, everything we pass to the properties argument gets converted to a NoteProperties
-# object, we can use this to bundle playback and notation, such as in this wiggle ornament
+# Under the hood, everything we pass to the properties argument gets converted to a NoteProperties object
+# We can actually create our own NoteProperties objects, which bundle together several properties, perhaps with
+# a specified playback adjustment. Then, we can pass this to the properties argument of play_note. Here, we create
+# the wiggle property, which puts a mordent and the italic word "ZIG" on a note, and makes it bend up and down.
 wiggle = NoteProperties.from_list([
-    "text: ~",
+    "text: *ZIG*",
+    "notation: inverted mordent",
     NotePlaybackAdjustment.add_to_params(pitch=Envelope([0, 1, 0], [0.1, 0.1]))
 ])
 piano.play_note(62, 0.5, 0.5, wiggle)

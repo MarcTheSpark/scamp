@@ -1,4 +1,9 @@
 Documentation:
+    - Point to the example scripts in the documentation
+    - Point to the Forum in the tutorial
+    - Music made with SCAMP in the documentation!
+    - Add last tutorial video to tutorial videos page
+    - Make a documentation page for note properties, including tables of all the possible options.
     - Maybe make a multi-tempo example that doesn't have nested tempi first.
 
 Testing:
@@ -7,13 +12,10 @@ Testing:
 Playback:
     - Can we put chords on the same clock??
     - Have pitch and volume playback adjustments affect start_notes?
-    - Add a soundfile playback configuration
-    - register all notes off with atexit so that notes don't hang with external synthesizers
+    - Add a soundfile playback implementation
 
 Engraving:
     - Clean up quantization: allow setting exact divisors. Remove max indigestibility in favor of setting exact divisors.
-    - Merge `to_abjad()` and `to_abjad_lilypond_file()` into just a single `to_abjad()`, clarify special formatting
-    into a single block? Also, add an argument to to_abjad() that allows adding/modifying blocks?
     - Engraving lines!
     - Engraving dynamics!!!!!!
     - Fixing the wanderer class tempo stuff
@@ -28,7 +30,6 @@ Assorted:
     - Consider cleaning out the playback implementation shit, so that all instruments -- in or outside an ensemble --
     can share module-level playback resources as far as soundfonts are concerned.
     - Fluidsynth save to wave file!
-    - Windows midi recognition
 
 Extensions:
     - MIDI file to Performance

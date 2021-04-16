@@ -3,11 +3,19 @@ Quantization:
 
 Playback:
     - Switch to LinuxSampler as default, enabling use of .sfz files
-    - Key-switches that allow the nature of the playback of a single instrument to change. This would be done via the
-    properties dictionary, I think, maybe also affecting notation?
 
 Engraving:
-    - Engraving Dynamics, both at the note level and the phrase level. Perhaps do this by allowing the user to define
+    - Attaching notations to the *instrument* (at the given time). `instrument.attach_notation`. This could use any
+    of the direction types, and use pymusicxml's directions with displacements. This way we could put stuff on during
+    rests.
+    - Have a dynamic_envelope for each instrument (by voice? global?), which is an Envelope to which we could append
+    a curve, or set its new value (in the case of a standard dynamic). Make it possible for the effect of a notation
+    like a dynamic to set the value of the dynamic_envelope. Have this toggleable with something like
+    `playback_settings.dynamic_playback_active`.
+    - Have an adjustment stack of some sort, to allow lines/spanners to add to the instrument's adjustment stack, and
+    then pop it off at the end of the line. E.g. 8va would add a pitch+12 to the adjustment stack and then pop it off
+    at the end.
+    - Engraving Dynamics at the phrase level. Perhaps do this by allowing the user to define
     dynamics notations along with their effect on playback. These would then affect both playback and notation. An
     other possibility might be to define DynamicEnvelope("fp<f") objects, in which a string is parsed into both a volume
     envelope and a notation.
