@@ -213,6 +213,12 @@ class PerformanceNote(SavesToJSON):
                     self.pitch = tuple(first_part_chord)
                     second_part.pitch = tuple(second_part_chord)
 
+                if isinstance(self.volume, Envelope):
+                    # if the volume is a envelope, then we split it appropriately
+                    volume_curve_start, volume_curve_end = self.volume.split_at(self.length_sum())
+                    self.volume = volume_curve_start
+                    second_part.volume = volume_curve_end
+
                 # also, if this isn't a rest, then we're going to need to keep track of ties that will be needed
                 self.properties["_starts_tie"] = True
                 second_part.properties["_ends_tie"] = True

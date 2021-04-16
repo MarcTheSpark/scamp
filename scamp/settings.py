@@ -542,6 +542,7 @@ class EngravingSettings(_ScampSettings):
         "show_music_xml_command_line": "auto",
         "show_microtonal_annotations": False,
         "microtonal_annotation_digits": 2,
+        "export_note_velocities_to_xml": False
     }
 
     _settings_name = "Engraving settings"
@@ -556,7 +557,7 @@ class EngravingSettings(_ScampSettings):
             self.default_spelling_policy = self.ignore_empty_parts = self.pad_incomplete_parts = \
             self.show_music_xml_command_line = self.show_microtonal_annotations = self.microtonal_annotation_digits = \
             self.allow_duple_tuplets_in_compound_time = self.clefs_by_instrument = self.clef_pitch_centers = \
-            self.clef_selection_policy = None
+            self.clef_selection_policy = self.export_note_velocities_to_xml = None
         self.glissandi: GlissandiSettings = None
         self.tempo: TempoSettings = None
         super().__init__(settings_dict, suppress_warnings)

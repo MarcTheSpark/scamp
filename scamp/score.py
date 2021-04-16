@@ -1966,13 +1966,14 @@ class Voice(ScoreComponent, ScoreContainer):
         if divisor is None:
             # if there's no beat divisor, then it should just be a note or rest of the full length of the beat
             assert len(beat_notes) == 1
-            pitch, length, properties = beat_notes[0].pitch, beat_notes[0].length, beat_notes[0].properties
+            pitch, volume, length, properties = beat_notes[0].pitch, beat_notes[0].volume, \
+                                                beat_notes[0].length, beat_notes[0].properties
 
             if _is_single_note_length(length):
-                return [NoteLike(pitch, length, properties)]
+                return [NoteLike(pitch, volume, length, properties)]
             else:
                 constituent_lengths = _length_to_undotted_constituents(length)
-                return [NoteLike(pitch, l, properties) for l in constituent_lengths]
+                return [NoteLike(pitch, volume, l, properties) for l in constituent_lengths]
 
         # otherwise, if the divisor requires a tuplet, we construct it
         tuplet = Tuplet.from_length_and_divisor(beat_quantization.length, divisor) if divisor is not None else None
@@ -2039,7 +2040,8 @@ class Voice(ScoreComponent, ScoreContainer):
                 else:
                     this_segment = split_note[0]
 
-                note_parts.append(NoteLike(this_segment.pitch, segment_length, this_segment.properties))
+                note_parts.append(NoteLike(this_segment.pitch, this_segment.volume,
+                                           segment_length, this_segment.properties))
 
             note_list.extend(note_parts)
 
@@ -2370,6 +2372,7 @@ class NoteLike(ScoreComponent):
     Represents a note, chord, or rest that can be notated without ties
 
     :param pitch: float if single pitch, Envelope if a glissando, tuple if a chord, None if a rest
+    :param volume: the volume of the note, sometimes an Envelope
     :param written_length: the notated length of the note, disregarding any tuplets it is part of
     :param properties: a properties dictionary, same as found in a PerformanceNote
     :ivar pitch: float if single pitch, Envelope if a glissando, tuple if a chord, None if a rest
@@ -2377,10 +2380,11 @@ class NoteLike(ScoreComponent):
     :ivar properties: a properties dictionary, same as found in a PerformanceNote
     """
 
-    def __init__(self, pitch: Union[Envelope, float, Tuple, None], written_length: float,
-                 properties: NoteProperties):
+    def __init__(self, pitch: Union[Envelope, float, Tuple, None], volume: Union[Envelope, float, None],
+                 written_length: float, properties: NoteProperties):
 
         self.pitch = pitch
+        self.volume = volume
         self.written_length = Fraction(written_length).limit_denominator()
         self.properties = properties if isinstance(properties, NoteProperties) \
             else NoteProperties.from_unknown_format(properties)
@@ -2782,7 +2786,8 @@ class NoteLike(ScoreComponent):
                             these_pitches, 0.5, stemless=True,
                             noteheads=tuple(get_xml_notehead(notehead) if notehead != "normal" else None
                                             for notehead in self.properties.noteheads),
-                            directions=self._get_xml_microtonal_annotation(pitch_values)
+                            directions=self._get_xml_microtonal_annotation(pitch_values),
+                            velocity=self._get_xml_velocity(t)
                         ))
 
         else:
@@ -2801,7 +2806,8 @@ class NoteLike(ScoreComponent):
                 self.written_length, ties=self._get_xml_tie_state(),
                 notehead=(get_xml_notehead(self.properties.noteheads[0])
                           if self.properties.noteheads[0] != "normal" else None),
-                directions=directions
+                directions=directions,
+                velocity=self._get_xml_velocity()
             )]
             if self.does_glissando():
                 grace_points = self._get_grace_points(engraving_settings.glissandi.max_inner_graces_music_xml)
@@ -2813,7 +2819,8 @@ class NoteLike(ScoreComponent):
                             this_pitch, 0.5, stemless=True,
                             notehead=(get_xml_notehead(self.properties.noteheads[0])
                                       if self.properties.noteheads[0] != "normal" else None),
-                            directions=self._get_xml_microtonal_annotation(self.pitch.value_at(t))
+                            directions=self._get_xml_microtonal_annotation(self.pitch.value_at(t)),
+                            velocity=self._get_xml_velocity(t)
                         ))
 
         self._attach_articulations_and_notations_to_xml_note_group(out)
@@ -2904,6 +2911,24 @@ class NoteLike(ScoreComponent):
             return "stop"
         else:
             return None
+
+    def _get_xml_velocity(self, t=0):
+        # default is None unless engraving_settings.export_note_velocities_to_xml is True
+        chord_velocity = None
+        if engraving_settings.export_note_velocities_to_xml:
+            if isinstance(self.volume, Envelope):
+                # if volume is an envelope, then we check to see if pitch is an envelope too
+                if self.does_glissando():
+                    # if so, then we actually care about how volume changes over time, since the grace notes in the
+                    # glissando mark out different moments in time
+                    chord_velocity = int(self.volume.value_at(t) * 127)
+                else:
+                    # otherwise, we just use the average volume
+                    chord_velocity = int(self.volume.average_level() * 127)
+            else:
+                # otherwise, it's just a simple scaling to 0-127
+                chord_velocity = int(self.volume * 127)
+        return chord_velocity
 
     def source_id(self) -> Optional[int]:
         """
