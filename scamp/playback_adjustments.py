@@ -21,8 +21,7 @@ Module containing classes for defining adjustments to the playback of note param
 import re
 from numbers import Real
 from .utilities import SavesToJSON, NoteProperty
-from ._engraving_translations import articulation_to_xml_element_name, notehead_name_to_xml_type, \
-    notations_to_xml_notations_element
+from ._engraving_translations import parse_note_property
 from expenvelope import Envelope
 from typing import Union, Sequence
 from collections import UserDict
@@ -118,7 +117,7 @@ class ParamPlaybackAdjustment(SavesToJSON):
                 multiply = eval(re.sub(r'\[.*\]', lambda match: "Envelope.from_list(" + match.group(0) + ")",
                                        multiply_string)) if multiply_string is not None else 1
                 return cls(add=add, multiply=multiply)
-        except AssertionError:
+        except (AssertionError, SyntaxError):
             raise ValueError("Bad parameter adjustment expression.")
 
     @classmethod
@@ -222,6 +221,8 @@ class NotePlaybackAdjustment(SavesToJSON, NoteProperty):
             for visual clarity.
         :return: a shiny new NotePlaybackAdjustment
         """
+        if "pitch" not in string and "volume" not in string and "length" not in string:
+            raise ValueError("String not parsable as NotePlaybackAdjustment")
         string = string.replace(" ", "").replace(";", "")
         pitch_adjustment = volume_adjustment = length_adjustment = None
         for adjustment_expression in NotePlaybackAdjustment._split_at_param_names(string):
@@ -347,109 +348,67 @@ class PlaybackAdjustmentsDictionary(UserDict, SavesToJSON):
     """
     Dictionary containing playback adjustments for different articulations, noteheads, and other notations.
     The instance of this at playback_settings.adjustments is consulted during playback. Essentially, this is
-    just a dictionary with some validation and a couple of convenience methods to set and get adjustments for
-    different properties.
-
-    :param articulations: dictionary mapping articulation names to playback adjustments. For example, to have
-        staccato notes be played at half length: `{"staccato": NotePlaybackAdjustment.scale_params(length=0.5)}`
-    :param noteheads: dictionary mapping notehead names to playback adjustments. For example, to have harmonic
-        noteheads be played up an octave: `{"harmonic": NotePlaybackAdjustment.add_to_params(pitch=12)}`
-    :param notations: dictionary mapping notation names to playback adjustments.
+    just a dictionary with a couple of convenience methods to set and get adjustments for different properties.
     """
 
-    #: list of all recognized articulations
-    all_articulations = list(articulation_to_xml_element_name.keys())
-    #: list of all recognized noteheads
-    all_noteheads = list(notehead_name_to_xml_type.keys())
-    all_noteheads.extend(["filled " + notehead_name for notehead_name in all_noteheads])
-    all_noteheads.extend(["open " + notehead_name for notehead_name in all_noteheads
-                          if not notehead_name.startswith("filled")])
-    #: list of all recognized notations
-    all_notations = list(notations_to_xml_notations_element.keys())
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
-    def __init__(self, articulations: dict = None, noteheads: dict = None, notations: dict = None):
-        # make sure there is an entry for every notehead, articulation, and notation
-        if articulations is None:
-            articulations = {x: None for x in PlaybackAdjustmentsDictionary.all_articulations}
-        else:
-            articulations = {x: articulations[x] if x in articulations else None
-                             for x in PlaybackAdjustmentsDictionary.all_articulations}
-        if noteheads is None:
-            noteheads = {x: None for x in PlaybackAdjustmentsDictionary.all_noteheads}
-        else:
-            noteheads = {x: noteheads[x] if x in noteheads else None
-                         for x in PlaybackAdjustmentsDictionary.all_noteheads}
-        if notations is None:
-            notations = {x: None for x in PlaybackAdjustmentsDictionary.all_notations}
-        else:
-            notations = {x: notations[x] if x in notations else None
-                         for x in PlaybackAdjustmentsDictionary.all_notations}
+    def set(self, note_property: str, adjustment: Union[str, NotePlaybackAdjustment]) -> None:
+        """
+        Set the given note_property to have the given :class:`NotePlaybackAdjustment`.
+        The note property can either be a key/value pair (e.g. "notehead: slash") or a value, from which we infer
+        the key (e.g. "staccato", from which it is inferred as an articulation)
 
-        super().__init__(articulations=articulations, noteheads=noteheads, notations=notations)
-
-    @property
-    def articulations(self) -> dict:
-        """
-        Dictionary mapping articulation names to corresponding playback adjustments
-        """
-        return self["articulations"]
-
-    @property
-    def noteheads(self) -> dict:
-        """
-        Dictionary mapping notehead names to corresponding playback adjustments
-        """
-        return self["noteheads"]
-
-    @property
-    def notations(self) -> dict:
-        """
-        Dictionary mapping notation names to corresponding playback adjustments
-        """
-        return self["notations"]
-
-    def set(self, notation_detail: str, adjustment: Union[str, NotePlaybackAdjustment]) -> None:
-        """
-        Set the given notation detail to have the given :class:`NotePlaybackAdjustment`.
-        Based on the name of the notation detail, it is automatically determined whether or not we are talking about
-        an articulation, a notehead, or another kind of notation.
-
-        :param notation_detail: name of the notation detail, e.g. "staccato" or "harmonic"
+        :param note_property: name of the notation detail, e.g. "staccato" or "harmonic"
         :param adjustment: the adjustment to make for that notation. Either a :class:`NotePlaybackAdjustment` or a
             string to be parsed to a :class:`NotePlaybackAdjustment` using :code:`NotePlaybackAdjustment.from_string`
         """
+        key, value = parse_note_property(note_property)
+
+        if key is None:
+            raise ValueError("Playback property not understood.")
+        elif key == "playback_adjustment":
+            raise ValueError("Cannot set a playback adjustment for a playback adjustment. That's just silly.")
+        elif isinstance(value, list):
+            if len(value) > 1:
+                raise ValueError("Cannot set adjustments for multiple properties.")
+            else:
+                value = value[0]
+
         if isinstance(adjustment, str):
             adjustment = NotePlaybackAdjustment.from_string(adjustment)
-        if "notehead" in notation_detail:
-            notation_detail = notation_detail.replace("notehead", "").replace(" ", "").lower()
-        if notation_detail in PlaybackAdjustmentsDictionary.all_noteheads:
-            self["noteheads"][notation_detail] = adjustment
-        elif notation_detail in PlaybackAdjustmentsDictionary.all_articulations:
-            self["articulations"][notation_detail] = adjustment
-        elif notation_detail in PlaybackAdjustmentsDictionary.all_notations:
-            self["notations"][notation_detail] = adjustment
-        else:
-            raise ValueError("Playback property not understood.")
 
-    def get(self, notation_detail: str) -> NotePlaybackAdjustment:
+        if key not in self:
+            self[key] = {}
+
+        self[key][value] = adjustment
+
+    def get(self, note_property: str) -> NotePlaybackAdjustment:
         """
-        Get the :class:`NotePlaybackAdjustment` for the given notation detail.
-        Based on the name of the notation detail, it is automatically determined whether or not we are talking about
-        an articulation, a notehead, or another kind of notation.
+        Get the :class:`NotePlaybackAdjustment` for the given note_property.
+        The note property can either be a key/value pair (e.g. "notehead: slash") or a value, from which we infer
+        the key (e.g. "staccato", from which it is inferred as an articulation)
 
-        :param notation_detail: name of the notation detail, e.g. "staccato" or "harmonic"
+        :param note_property: name of the note property, e.g. "staccato" or "harmonic"
         :return: the :class:`NotePlaybackAdjustment` for that detail
         """
-        if "notehead" in notation_detail:
-            notation_detail = notation_detail.replace("notehead", "").replace(" ", "").lower()
-        if notation_detail in PlaybackAdjustmentsDictionary.all_noteheads:
-            return self["noteheads"][notation_detail]
-        elif notation_detail in PlaybackAdjustmentsDictionary.all_articulations:
-            return self["articulations"][notation_detail]
-        elif notation_detail in PlaybackAdjustmentsDictionary.all_notations:
-            return self["notations"][notation_detail]
-        else:
-            raise ValueError("Playback property not found.")
+        key, value = parse_note_property(note_property)
+
+        if key is None:
+            return None
+        elif key == "playback_adjustment":
+            raise ValueError("Cannot set a playback adjustment for a playback adjustment. That's just silly.")
+        elif isinstance(value, list):
+            if len(value) > 1:
+                raise ValueError("Cannot get adjustments for multiple properties.")
+            else:
+                value = value[0]
+
+        try:
+            return self[key][value]
+        except KeyError:
+            return None
 
     def _to_dict(self):
         return {
@@ -469,6 +428,6 @@ class PlaybackAdjustmentsDictionary(UserDict, SavesToJSON):
         return cls(**json_dict)
 
     def __repr__(self):
-        return "PlaybackAdjustmentsDictionary(articulations={}, noteheads={}, notations={})".format(
-            self["articulations"], self["noteheads"], self["notations"]
+        return "PlaybackAdjustmentsDictionary({})".format(
+            ", ".join("{}={}".format(key, self[key]) for key in self.keys())
         )

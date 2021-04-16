@@ -154,19 +154,18 @@ class SpellingPolicy(SavesToJSON, NoteProperty):
             # most modes don't change anything about how spelling is done, since we default to flat-3, sharp-4,
             # flat-6, and flat-7. The only exceptions are phrygian and locrian, since they have a flat-2 instead of
             # a sharp-1. As a result, we have to use a different template for them.
-            string_initializer_processed = string_initializer.lower().replace(" ", "").replace("-", "").\
-                replace("_", "").replace("major", "").replace("minor", "").replace("ionian", "").\
-                replace("dorian", "").replace("lydian", "").replace("mixolydian", "").replace("aeolean", "")
+            string_initializer_processed = string_initializer.lower().replace(" ", "").replace("-", "").replace("_", "")
 
-            if "phrygian" in string_initializer_processed:
-                string_initializer_processed = string_initializer_processed.replace("phrygian", "")
+            if string_initializer_processed.endswith("phrygian"):
                 template = _c_phrygian_spellings
-            elif "locrian" in string_initializer_processed:
-                string_initializer_processed = string_initializer_processed.replace("phrygian", "")
+            elif string_initializer_processed.endswith("locrian"):
                 template = _flat_spellings
             else:
                 template = _c_standard_spellings
 
+            string_initializer_processed = string_initializer_processed.replace("major", "").replace("minor", "").\
+                replace("ionian", "").replace("dorian", "").replace("lydian", "").replace("mixolydian", "").\
+                replace("aeolean", "").replace("phrygian", "").replace("locrian", "")
             try:
                 num_sharps_or_flats = \
                     _step_circle_of_fifths_positions[_step_names.index(string_initializer_processed[0])]
@@ -174,10 +173,13 @@ class SpellingPolicy(SavesToJSON, NoteProperty):
                 raise ValueError("Bad spelling policy initialization string. Use only 'sharp', 'flat', "
                                  "or the name of the desired key center (e.g. 'G#' or 'Db') with optional mode.")
 
-            if string_initializer_processed[1:].startswith(("b", "flat", "f")):
+            if string_initializer_processed[1:] in ("b", "flat", "f"):
                 num_sharps_or_flats -= 7
-            elif string_initializer_processed[1:].startswith(("#", "sharp", "s")):
+            elif string_initializer_processed[1:] in ("#", "sharp", "s"):
                 num_sharps_or_flats += 7
+            elif len(string_initializer_processed) > 1:
+                raise ValueError("Bad spelling policy initialization string. Use only 'sharp', 'flat', "
+                                 "or the name of the desired key center (e.g. 'G#' or 'Db') with optional mode.")
             return SpellingPolicy.from_circle_of_fifths_position(num_sharps_or_flats, template=template)
 
     @classmethod

@@ -17,8 +17,8 @@ Module containing dictionaries and functions for translating between different s
 #  You should have received a copy of the GNU General Public License along with this program.    #
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
-
-from xml.etree import ElementTree
+import json
+from .spelling import SpellingPolicy
 import pymusicxml
 import logging
 
@@ -35,6 +35,7 @@ length_to_note_type = {
     1.0/32: "128th"
 }
 
+# ---------------------------------------------------- NOTEHEADS ----------------------------------------------------
 
 notehead_name_to_lilypond_type = {
     "normal": "#'default",
@@ -144,6 +145,15 @@ def get_xml_notehead(notehead_string: str):
     return out
 
 
+all_noteheads = list(notehead_name_to_xml_type.keys())
+all_noteheads.extend(["filled " + notehead_name for notehead_name in all_noteheads])
+all_noteheads.extend(["open " + notehead_name for notehead_name in all_noteheads
+                      if not notehead_name.startswith("filled")])
+
+
+# -------------------------------------------------- ARTICULATIONS --------------------------------------------------
+
+
 articulation_to_xml_element_name = {
     "staccato": "staccato",
     "staccatissimo": "staccatissimo",
@@ -151,6 +161,11 @@ articulation_to_xml_element_name = {
     "tenuto": "tenuto",
     "accent": "accent"
 }
+
+all_articulations = list(articulation_to_xml_element_name.keys())
+
+
+# ---------------------------------------------------- NOTATIONS ---------------------------------------------------
 
 
 notations_to_xml_notations_element = {
@@ -193,6 +208,8 @@ notations_to_lilypond_articulations = {
     "inverted mordent": "prall",
 }
 
+all_notations = list(notations_to_xml_notations_element.keys())
+
 
 def attach_abjad_notation_to_note(abjad_note, notation_string):
     from ._dependencies import abjad
@@ -230,3 +247,89 @@ xml_barline_to_lilypond = {
     "short": "'",  # this bar line type does not exist in LilyPond, it seems, so just do a tick
     "none": ""
 }
+
+
+# ---------------------------------------------------- UTILITIES ----------------------------------------------------
+
+def parse_note_property(note_property):
+    """
+    Parses a note property string, such as "staccato", or "noteheads: diamond/harmonic" into a key/value pair of
+    (notation category, notation name(s)). When there is a colon, it is assumed to separate the key and the value. When
+    there is no colon, it is assumed to be a value, from which we infer the key. Thus, "staccato" will return
+    ("articulations", "staccato") and "noteheads: diamond/harmonic" will return ("noteheads", ["diamond", "harmonic"]).
+    Single keys will be made plural as well; e.g. "notation: fermata" will return ("notations", "fermata")
+    """
+    # if there's a colon, it represents a key/value pair, e.g. "articulation: staccato"
+    if ":" in note_property:
+        colon_index = note_property.index(":")
+        key, value = note_property[:colon_index].replace(" ", "").lower(), \
+                     note_property[colon_index + 1:].strip().lower()
+    else:
+        # otherwise, leave the key undecided for now
+        key = None
+        value = note_property.strip().lower()
+
+    # split values into a list based on the slash delimiter
+    values = [x.strip() for x in value.split("/")]
+
+    if key is None:
+        # if we weren't given a key/value pair, try to find it now
+        if values[0] in all_articulations:
+            key = "articulations"
+        elif values[0] in all_noteheads:
+            key = "noteheads"
+        elif values[0] in all_notations:
+            key = "notations"
+        elif values[0] in pymusicxml.Dynamic.STANDARD_TYPES:
+            key = "dynamics"
+        else:
+            try:
+                value = SpellingPolicy.from_string(value)
+                return "spelling_policy", value
+            except ValueError:
+                # doesn't work as a spelling policy
+                pass
+
+            try:
+                # avoids circular import; a bit klugey, but couldn't find a better way to organize
+                from .playback_adjustments import NotePlaybackAdjustment
+                value = NotePlaybackAdjustment.from_string(value)
+                return "playback_adjustments", [value]
+            except ValueError:
+                # doesn't work as a spelling playback adjustment
+                pass
+
+            key = "text"
+
+    if key in "articulations":  # note that this allows the singular "articulation" too
+        return "articulations", values
+
+    elif key in "noteheads":  # note that this allows the singular "notehead" too
+        return "noteheads", values
+
+    elif key in "notations":  # note that this allows the singular "notation" too
+        return "notations", values
+
+    elif key in "playback_adjustments":  # note that this allows the singular "playback_adjustment" too
+        return "playback_adjustments", values
+
+    elif key in "dynamics":
+        return "dynamics", values
+
+    elif key in ("key", "spelling", "spellingpolicy", "spelling_policy"):
+        return "spelling_policy", value
+
+    elif key.startswith("param_"):
+        if not len(values) == 1:
+            raise ValueError("Cannot have multiple values for a parameter property.")
+        return key, json.loads(value)
+
+    elif key == "voice":
+        if not len(values) == 1:
+            raise ValueError("Cannot have multiple values for a voice property.")
+        return "voice", value
+
+    elif key in "texts":  # note that this allows the singular "text" too
+        return "texts", values
+
+    return None, None

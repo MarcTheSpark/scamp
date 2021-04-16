@@ -1143,7 +1143,7 @@ class Score(ScoreComponent, ScoreContainer):
 
         if self.final_bar_line is not None:
             abjad().attach(abjad().BarLine(xml_barline_to_lilypond[self.final_bar_line]),
-                           abjad().select(abjad_score).leaf(-1))
+                           abjad().select(abjad_score).leaf(-1),)
         return abjad_score
 
     @staticmethod
@@ -2641,7 +2641,7 @@ class NoteLike(ScoreComponent):
 
         self._attach_abjad_articulations(abjad_object, grace_container)
         self._attach_abjad_notations(abjad_object, grace_container)
-        self._attach_abjad_texts(abjad_object)
+        self._attach_abjad_texts_and_dynamics(abjad_object)
         return abjad_object
 
     def _attach_abjad_microtonal_annotation(self, note_object, pitch_or_pitches):
@@ -2740,10 +2740,12 @@ class NoteLike(ScoreComponent):
                 for notation in self._get_release_notations():
                     attach_abjad_notation_to_note(release_notehead, notation)
 
-    def _attach_abjad_texts(self, abjad_note_or_chord):
+    def _attach_abjad_texts_and_dynamics(self, abjad_note_or_chord):
         for text in self.properties.texts:
             assert isinstance(text, StaffText)
             abjad().attach(text.to_abjad(), abjad_note_or_chord)
+        for dynamic in self.properties.dynamics:
+            abjad().attach(abjad().Dynamic(dynamic), abjad_note_or_chord)
 
     def to_music_xml(self, source_id_dict=None) -> Sequence[_XMLNote]:
         if self.is_rest():
@@ -2755,13 +2757,17 @@ class NoteLike(ScoreComponent):
             # add text annotations from properties
             if len(self.properties.texts) > 0:
                 directions += tuple(text.to_pymusicxml() for text in self.properties.texts)
+            # ...and add dynamic text
+            if len(self.properties.dynamics) > 0:
+                directions += tuple(pymusicxml.Dynamic(dynamic_text) for dynamic_text in self.properties.dynamics)
 
             out = [pymusicxml.Chord(
                 tuple(self.properties.spelling_policy.resolve_music_xml_pitch(p) for p in start_pitches),
                 self.written_length, ties=self._get_xml_tie_state(),
                 noteheads=tuple(get_xml_notehead(notehead) if notehead != "normal" else None
                                 for notehead in self.properties.noteheads),
-                directions=directions
+                directions=directions,
+                velocity=self._get_xml_velocity()
             )]
             if self.does_glissando():
                 grace_points = self._get_grace_points(engraving_settings.glissandi.max_inner_graces_music_xml)
@@ -2786,6 +2792,9 @@ class NoteLike(ScoreComponent):
             # add text annotations from properties
             if len(self.properties.texts) > 0:
                 directions += tuple(text.to_pymusicxml() for text in self.properties.texts)
+            # ...and add dynamic text
+            if len(self.properties.dynamics) > 0:
+                directions += tuple(pymusicxml.Dynamic(dynamic_text) for dynamic_text in self.properties.dynamics)
 
             out = [pymusicxml.Note(
                 self.properties.spelling_policy.resolve_music_xml_pitch(start_pitch),

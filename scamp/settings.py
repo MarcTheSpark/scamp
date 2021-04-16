@@ -42,7 +42,7 @@ class _ScampSettings(SimpleNamespace, SavesToJSON):
     _json_path = None
     _is_root_setting = False
 
-    def __init__(self, settings_dict: dict = None):
+    def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
         rewrite_file = False
         if settings_dict is None:
             settings_arguments = self.factory_defaults
@@ -55,17 +55,19 @@ class _ScampSettings(SimpleNamespace, SavesToJSON):
                 elif key in settings_dict:
                     # there is no factory default for this key, which really shouldn't happen
                     # it suggests someone added something to the json file that shouldn't be there
-                    logging.warning("Removing unexpected key \"{}\" in {}.".format(
-                        key, self._json_path.split("/")[-1] if self._json_path is not None else "settings"
-                    ))
+                    if not suppress_warnings:
+                        logging.warning("Removing unexpected key \"{}\" in {}.".format(
+                            key, self._json_path.split("/")[-1] if self._json_path is not None else "settings"
+                        ))
                     rewrite_file = True
                     continue
                 else:
                     # no setting given in the settings_dict, so we fall back to the factory default
                     settings_arguments[key] = self.factory_defaults[key]
-                    logging.warning("Key \"{}\" was not found in {}, and will be added.".format(
-                        key, self._json_path.split("/")[-1] if self._json_path is not None else "settings"
-                    ))
+                    if not suppress_warnings:
+                        logging.warning("Key \"{}\" was not found in {}, and will be added.".format(
+                            key, self._json_path.split("/")[-1] if self._json_path is not None else "settings"
+                        ))
                     rewrite_file = True
                 settings_arguments[key] = self._validate_attribute(key, settings_arguments[key])
         super().__init__(**settings_arguments)
@@ -97,7 +99,7 @@ class _ScampSettings(SimpleNamespace, SavesToJSON):
         """
         Returns a factory default version of this settings object.
         """
-        return cls({})
+        return cls({}, suppress_warnings=True)
 
     def _to_dict(self):
         return {k: v for k, v in vars(self).items()}
@@ -214,7 +216,7 @@ class PlaybackSettings(_ScampSettings):
     _json_path = "%DATA/settings/playbackSettings.json"
     _is_root_setting = True
 
-    def __init__(self, settings_dict: dict = None):
+    def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
         # This is here to help with auto-completion so that the IDE knows what attributes are available
         self.named_soundfonts = self.default_soundfont = self.default_audio_driver = \
             self.default_midi_output_device = self.default_max_soundfont_pitch_bend = \
@@ -222,7 +224,7 @@ class PlaybackSettings(_ScampSettings):
             self.streaming_midi_volume_to_velocity_curve = self.osc_message_addresses = \
             self.adjustments = self.try_system_fluidsynth_first = self.soundfont_search_paths = \
             self.resize_parameter_envelopes = None
-        super().__init__(settings_dict)
+        super().__init__(settings_dict, suppress_warnings)
         assert isinstance(self.adjustments, PlaybackAdjustmentsDictionary)
 
     def register_named_soundfont(self, name: str, soundfont_path: str) -> None:
@@ -303,11 +305,11 @@ class QuantizationSettings(_ScampSettings):
     _json_path = "%DATA/settings/quantizationSettings.json"
     _is_root_setting = True
 
-    def __init__(self, settings_dict: dict = None):
+    def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
         # This is here to help with auto-completion so that the IDE knows what attributes are available
         self.onset_weighting = self.termination_weighting = self.inner_split_weighting = self.max_divisor = \
             self.max_divisor_indigestibility = self.simplicity_preference = self.default_time_signature = None
-        super().__init__(settings_dict)
+        super().__init__(settings_dict, suppress_warnings)
 
 
 class GlissandiSettings(_ScampSettings):
@@ -346,11 +348,11 @@ class GlissandiSettings(_ScampSettings):
     _json_path = "%DATA/settings/engravingSettings.json"
     _is_root_setting = False
 
-    def __init__(self, settings_dict: dict = None):
+    def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
         # This is here to help with auto-completion so that the IDE knows what attributes are available
         self.control_point_policy = self.consider_non_extrema_control_points = self.include_end_grace_note = \
             self.inner_grace_relevance_threshold = self.max_inner_graces_music_xml = None
-        super().__init__(settings_dict)
+        super().__init__(settings_dict, suppress_warnings)
 
     @staticmethod
     def _validate_attribute(key, value):
@@ -392,10 +394,10 @@ class TempoSettings(_ScampSettings):
     _json_path = "%DATA/settings/engravingSettings.json"
     _is_root_setting = False
 
-    def __init__(self, settings_dict: dict = None):
+    def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
         self.guide_mark_resolution = self.guide_mark_sensitivity = self.include_guide_marks = \
             self.parenthesize_guide_marks = None
-        super().__init__(settings_dict)
+        super().__init__(settings_dict, suppress_warnings)
 
 
 class EngravingSettings(_ScampSettings):
@@ -530,7 +532,7 @@ class EngravingSettings(_ScampSettings):
     _json_path = "%DATA/settings/engravingSettings.json"
     _is_root_setting = True
 
-    def __init__(self, settings_dict: dict = None):
+    def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
         # This is here to help with auto-completion so that the IDE knows what attributes are available
         self.max_voices_per_part = self.max_dots_allowed = self.beat_hierarchy_spacing = self.num_divisions_penalty = \
             self.rest_beat_hierarchy_spacing = self.rest_num_divisions_penalty = self.articulation_split_protocols = \
@@ -541,7 +543,7 @@ class EngravingSettings(_ScampSettings):
             self.clef_selection_policy = None
         self.glissandi: GlissandiSettings = None
         self.tempo: TempoSettings = None
-        super().__init__(settings_dict)
+        super().__init__(settings_dict, suppress_warnings)
         if self.show_music_xml_command_line is None or self.show_music_xml_command_line == "auto":
             # default to just a generic open command
             self.set_music_xml_application()

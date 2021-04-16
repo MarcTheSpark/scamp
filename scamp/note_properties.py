@@ -19,7 +19,8 @@ options that affect a given note.
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 from numbers import Real
-from .playback_adjustments import NotePlaybackAdjustment, PlaybackAdjustmentsDictionary
+from .playback_adjustments import NotePlaybackAdjustment
+from ._engraving_translations import all_articulations, all_noteheads, all_notations, parse_note_property
 from .utilities import SavesToJSON, NoteProperty
 from .settings import playback_settings, engraving_settings
 from .spelling import SpellingPolicy
@@ -67,8 +68,8 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
     A dictionary-style class that stores a variety of playback and notation options affecting a single note.
 
     :param kwargs: key value pairs that make up this dictionary. Recognized dictionary keys are "articulation(s)",
-        "notehead(s)", "notation(s)", "text(s)", "playback_adjustment(s)", "key"/"spelling_policy", "voice", and
-        "param_*" (for specifying arbitrary extra parameters).
+        "notehead(s)", "notation(s)", "text(s)", "dynamic(s)", "playback_adjustment(s)", "key"/"spelling_policy",
+        "voice", and "param_*" (for specifying arbitrary extra parameters).
     """
 
     def __init__(self, **kwargs):
@@ -86,6 +87,7 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
             dictionary["noteheads"] = ["normal"]
         NoteProperties._standardize_plural_key("notations", dictionary)
         NoteProperties._standardize_plural_key("texts", dictionary)
+        NoteProperties._standardize_plural_key("dynamics", dictionary)
         NoteProperties._standardize_plural_key("playback_adjustments", dictionary)
 
         for i, adjustment in enumerate(dictionary["playback_adjustments"]):
@@ -123,7 +125,7 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
     def _validate_values(self):
         validated_articulations = []
         for articulation in self["articulations"]:
-            if articulation in PlaybackAdjustmentsDictionary.all_articulations:
+            if articulation in all_articulations:
                 validated_articulations.append(articulation)
             else:
                 logging.warning("Articulation {} not understood".format(articulation))
@@ -131,7 +133,7 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
 
         validated_noteheads = []
         for notehead in self["noteheads"]:
-            if notehead in PlaybackAdjustmentsDictionary.all_noteheads:
+            if notehead in all_noteheads:
                 validated_noteheads.append(notehead)
             else:
                 logging.warning("Notehead {} not understood".format(notehead))
@@ -140,7 +142,7 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
 
         validated_notations = []
         for notation in self["notations"]:
-            if notation in PlaybackAdjustmentsDictionary.all_notations:
+            if notation in all_notations:
                 validated_notations.append(notation)
             else:
                 logging.warning("Notation {} not understood".format(notation))
@@ -174,6 +176,14 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
             else:
                 logging.warning("Staff text \"{}\" not understood".format(self["text"]))
         self["texts"] = validated_texts
+
+        validated_dynamics = []
+        for dynamic in self["dynamics"]:
+            if isinstance(dynamic, str):
+                validated_dynamics.append(dynamic)
+            else:
+                logging.warning("Staff text \"{}\" not understood".format(self["text"]))
+        self["dynamics"] = validated_dynamics
 
     def _merge_bundles(self):
         NoteProperties._standardize_plural_key("bundles", self)
@@ -254,63 +264,18 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
             elif isinstance(note_property, (dict, UserDict)):
                 NoteProperties.incorporate(properties_dict, note_property)
             elif isinstance(note_property, str):
-                # if there's a colon, it represents a key/value pair, e.g. "articulation: staccato"
-                if ":" in note_property:
-                    colon_index = note_property.index(":")
-                    key, value = note_property[:colon_index].replace(" ", "").lower(), \
-                                 note_property[colon_index+1:].strip().lower()
-                else:
-                    # otherwise, leave the key undecided for now
-                    key = None
-                    value = note_property.strip().lower()
+                key, value_or_values = parse_note_property(note_property)
 
-                # split values into a list based on the slash delimiter
-                values = [x.strip() for x in value.split("/")]
-
-                if key is None:
-                    # if we weren't given a key/value pair, try to find it now
-                    if values[0] in PlaybackAdjustmentsDictionary.all_articulations:
-                        key = "articulations"
-                    elif values[0] in PlaybackAdjustmentsDictionary.all_noteheads:
-                        key = "noteheads"
-                    elif values[0] in PlaybackAdjustmentsDictionary.all_notations:
-                        key = "notations"
-                    elif values[0] in ("#", "b", "sharps", "flats"):
-                        key = "spelling_policy"
-                    elif "volume" in values[0] or "pitch" in values[0] or "length" in values[0]:
-                        key = "playback_adjustments"
+                if isinstance(value_or_values, list):
+                    if key == "noteheads":
+                        # if we're given noteheads we set them all at once, overriding any existing ones
+                        properties_dict[key] = value_or_values
                     else:
-                        raise ValueError("Note property {} not understood".format(note_property))
-
-                if key in "articulations":  # note that this allows the singular "articulation" too
-                    properties_dict["articulations"].extend(values)
-
-                elif key in "noteheads":  # note that this allows the singular "notehead" too
-                    properties_dict["noteheads"] = values
-
-                elif key in "notations":  # note that this allows the singular "notation" too
-                    properties_dict["notations"].extend(values)
-
-                elif key in "playback_adjustments":  # note that this allows the singular "playback_adjustment" too
-                    properties_dict["playback_adjustments"].extend(values)
-
-                elif key in ("key", "spelling", "spellingpolicy", "spelling_policy"):
-                    properties_dict["spelling_policy"] = value
-
-                elif key.startswith("param_"):
-                    if not len(values) == 1:
-                        raise ValueError("Cannot have multiple values for a parameter property.")
-                    properties_dict[key] = json.loads(value)
-
-                elif key == "voice":
-                    if not len(values) == 1:
-                        raise ValueError("Cannot have multiple values for a voice property.")
-                    properties_dict["voice"] = value
-
-                elif key in "texts":  # note that this allows the singular "text" too
-                    # note that do .append(value), instead of .extend(values), because a text could have a
-                    # slash in it and we don't want it to be multiple texts.
-                    properties_dict["texts"].append(value)
+                        # otherwise, when there are multiple values, we extend
+                        properties_dict[key].extend(value_or_values)
+                else:
+                    # single value kind of property, e.g. spelling policy, voice, parameter value, so we just set it
+                    properties_dict[key] = value_or_values
 
         return cls(**properties_dict)
 
@@ -357,6 +322,15 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
     @texts.setter
     def texts(self, value):
         self["texts"] = value
+
+    @property
+    def dynamics(self) -> List[str]:
+        """List of dynamics associated with this NoteProperties."""
+        return self["dynamics"]
+
+    @dynamics.setter
+    def dynamics(self, value):
+        self["dynamics"] = value
 
     @property
     def playback_adjustments(self) -> List[NotePlaybackAdjustment]:
@@ -439,8 +413,13 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
             did_an_adjustment = True
 
         if include_notation_derived:
-            for notation_category in ["articulations", "noteheads", "notations"]:
+            # try all categories of playback adjustments that are sound in the adjustments dictionary and this dict
+            for notation_category in set(self.keys()).intersection(set(playback_settings.adjustments.keys())):
                 for applied_notation in self[notation_category]:
+                    if hasattr(applied_notation, "text"):
+                        # this covers the case of StaffText objects. Their playback adjustments are stored under the
+                        # relevant string, without formatting. All other types of notation are just stored as strings
+                        applied_notation = applied_notation.text
                     notation_derived_adjustment = playback_settings.adjustments.get(applied_notation)
                     if notation_derived_adjustment is not None:
                         assert isinstance(notation_derived_adjustment, NotePlaybackAdjustment)
@@ -478,6 +457,8 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
             del json_friendly_dict["texts"]
         if len(self.playback_adjustments) == 0:
             del json_friendly_dict["playback_adjustments"]
+        if len(self.dynamics) == 0:
+            del json_friendly_dict["dynamics"]
         if self["spelling_policy"] is None:
             del json_friendly_dict["spelling_policy"]
 
