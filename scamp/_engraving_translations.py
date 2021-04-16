@@ -180,17 +180,17 @@ notations_to_xml_notations_element = {
     "trill mark": pymusicxml.TrillMark(),
 }
 
-notations_to_lilypond_literals = {
-    "up-bow": r"\upbow",
-    "down-bow": r"\downbow",
-    "open-string": r"\open",
-    "harmonic": r"\flageolet",
-    "snap-pizzicato": r"\snappizzicato",
-    "trill mark": r"\trill",
-    "stopped": r"\stopped",
-    "turn": r"\turn",
-    "mordent": r"\mordent",
-    "inverted mordent": r"\prall",
+notations_to_lilypond_articulations = {
+    "up-bow": "upbow",
+    "down-bow": "downbow",
+    "open-string": "open",
+    "harmonic": "flageolet",
+    "snap-pizzicato": "snappizzicato",
+    "trill mark": "trill",
+    "stopped": "stopped",
+    "turn": "turn",
+    "mordent": "mordent",
+    "inverted mordent": "prall",
 }
 
 
@@ -200,8 +200,8 @@ def attach_abjad_notation_to_note(abjad_note, notation_string):
     # markup vs otherwise
     # fix tremolo to be consistent number of slashes
     to_attach = None
-    if notation_string in notations_to_lilypond_literals:
-        to_attach = abjad().LilyPondLiteral(notations_to_lilypond_literals[notation_string], format_slot="after")
+    if notation_string in notations_to_lilypond_articulations:
+        to_attach = abjad().Articulation(notations_to_lilypond_articulations[notation_string])
     elif "tremolo" in notation_string:
         num_slashes = int(notation_string[-1]) if len(notation_string) == 8 else 3
         to_attach = abjad().StemTremolo(2 ** (2 + abjad_note.written_duration.flag_count + num_slashes))
