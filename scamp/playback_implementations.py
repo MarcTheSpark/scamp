@@ -35,65 +35,14 @@ from .settings import playback_settings
 from .utilities import SavesToJSON, SavesToJSONMeta
 
 
-class _PlaybackImplementationMeta(SavesToJSONMeta):
-
-    def __call__(cls, *args, **kwargs):
-        instance = super().__call__(*args, **kwargs)
-        instance._try_to_bind_host_instrument()
-        return instance
+shared_playback_resources = {}
 
 
-class PlaybackImplementation(SavesToJSON, metaclass=_PlaybackImplementationMeta):
+class PlaybackImplementation(SavesToJSON):
 
     """
     Abstract base class for playback implementations, which do the actual work of playback, either by playing sounds or
     by sending messages to external synthesizers to play sounds.
-
-    :param host_instrument: The :class:`~scamp.instruments.ScampInstrument` that will use this playback implementation
-        for playback. When this PlaybackImplementation is constructed, it is automatically added to the list of
-        PlaybackImplementations that the host instrument uses.
-    """
-
-    def __init__(self, host_instrument: 'instruments_module.ScampInstrument'):
-        # this is a fallback: if the instrument does not belong to an ensemble, it does not have
-        # shared resources and so it will rely on its own privately held resources.
-        self._resources = None
-        self._host_instrument = host_instrument
-        # This are set when the host instrument is set
-        self._note_info_dict = None
-
-    def _try_to_bind_host_instrument(self):
-        if self._host_instrument is not None:
-            self.set_host_instrument(self._host_instrument)
-
-    def set_host_instrument(self, host_instrument: 'instruments_module.ScampInstrument'):
-        """
-        Sets the host instrument for this PlaybackImplementation. Ordinarily, the host instrument is supplied as an
-        argument to the `__init__` method, which then automatically calls this method. However, it is also possible
-        to pass the value None to the host instrument argument initially and later set it with this method.
-
-        :param host_instrument: The :class:`~scamp.instruments.ScampInstrument` that will use this playback
-            implementation for playback. This PlaybackImplementation will be added to the host instrument's
-            `playback_implementations` attribute.
-        """
-        # these get populated when the PlaybackImplementation is registered
-        self._host_instrument = host_instrument
-        self._note_info_dict = host_instrument._note_info_by_id
-        if self not in host_instrument.playback_implementations:
-            host_instrument.playback_implementations.append(self)
-        self._initialize_shared_resources()
-
-    def _initialize_shared_resources(self):
-        """
-        Called right after this PlaybackImplementation has been attached to a host instrument. Any initialization that
-        relies upon setting and accessing shared ensemble resources needs to happen here.
-        If a host instrument is passed to the constructor, this will happen at the end of the PlaybackImplementation
-        constructor; otherwise it will happen when :func:`set_host_instrument` is called.
-        """
-        pass
-
-    """
-    Methods for storing and accessing shared resources for the ensemble. 
     """
 
     @property
@@ -101,26 +50,15 @@ class PlaybackImplementation(SavesToJSON, metaclass=_PlaybackImplementationMeta)
         """
         Dictionary of shared resources for this type of playback implementation.
         For instance, SoundfontPlaybackImplementation uses this to store an instance of SoundfontHost. Only one
-        instance of fluidsynth (and therefore SoundfontHost) needs to be running for all instruments in the ensemble,
+        instance of fluidsynth (and therefore SoundfontHost) needs to be running for all instruments,
         so this is a way of pooling that resource.
         """
-        if self._host_instrument is None:
-            raise RuntimeError("PlaybackImplementation was never attached to a host instrument. "
-                               "Cannot access resources.")
-        if self._host_instrument.ensemble is None:
-            # if this instrument is not part of an ensemble, it can't really have shared resources
-            # instead, it creates a local resources dictionary and uses that
-            if self._resources is None:
-                self._resources = {}
-            return self._resources
-        else:
-            # if this instrument is part of an ensemble, that ensemble holds the shared resources for all the
-            # different playback implementations. Each playback implementation type has its own resource dictionary,
-            # stored with its type as a key in the ensemble's shared resources dictionary. This way there can't be
-            # name conflicts between different playback implementations
-            if type(self) not in self._host_instrument.ensemble.shared_resources:
-                self._host_instrument.ensemble.shared_resources[type(self)] = {}
-            return self._host_instrument.ensemble.shared_resources[type(self)]
+        # Each playback implementation type has its own resource dictionary within the shared_playback_resources
+        # dictionary, stored with its type as a key.
+        # This way there can't be name conflicts between different playback implementations
+        if type(self) not in shared_playback_resources:
+            shared_playback_resources[type(self)] = {}
+        return shared_playback_resources[type(self)]
 
     def has_shared_resource(self, key) -> bool:
         """
@@ -153,7 +91,7 @@ class PlaybackImplementation(SavesToJSON, metaclass=_PlaybackImplementationMeta)
 
     @abstractmethod
     def start_note(self, note_id: int, pitch: float, volume: float, properties: dict,
-                   other_parameter_values: dict = None) -> None:
+                   other_parameter_values: dict, note_info_dict: dict) -> None:
         """
         Method that implements the start of a note
 
@@ -163,6 +101,8 @@ class PlaybackImplementation(SavesToJSON, metaclass=_PlaybackImplementationMeta)
         :param properties: a NotePropertiesDictionary
         :param other_parameter_values: dictionary mapping parameter name to parameter value for parameters other than
             pitch and volume. (This information was extracted from the properties dictionary.)
+        :param note_info_dict: dictionary with auxiliary info about this note (e.g. the clock it's running on,
+            time stamp, various flags)
         """
         pass
 
@@ -225,9 +165,6 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
     one another, and that kind of thing, exposing the more basic note_on/note_off abstract methods
     to be overridden.
 
-    :param host_instrument: The ScampInstrument that will use this playback implementation for playback. When this
-        PlaybackImplementation is constructed, it is automatically added to the list of PlaybackImplementations that
-        the host instrument uses.
     :param num_channels: how many MIDI channels to use for this instrument. Where channel-wide messages (such as
         pitch-bend messages) are involved, it is essential to have several channels at our disposal.
     :param note_on_and_off_only: This enforces a rule of no dynamic pitch bends, expression (volume) changes, or other
@@ -237,12 +174,13 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
         the same MIDI channels, only using an extra one due to microtonality.
     """
 
-    def __init__(self, host_instrument: 'instruments_module.ScampInstrument' = None, num_channels: int = 8,
-                 note_on_and_off_only: bool = False):
-        super().__init__(host_instrument)
+    def __init__(self, num_channels: int = 8, note_on_and_off_only: bool = False):
+        super().__init__()
         self.note_on_and_off_only = note_on_and_off_only
         self.num_channels = num_channels
         self.ringing_notes = []
+        self._note_info_dict = {}
+
     # -------------------------- Abstract methods to be implemented by subclasses--------------
 
     @abstractmethod
@@ -308,10 +246,12 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
 
     # -------------------------------- Main Playback Methods --------------------------------
 
-    def start_note(self, note_id, pitch, volume, properties, other_parameter_values: dict = None):
+    def start_note(self, note_id, pitch, volume, properties, other_parameter_values, note_info_dict):
         other_parameter_cc_codes = [int(key) for key in other_parameter_values.keys()
                                     if key.isdigit() and 0 <= int(key) < 128]
-        this_note_info = self._note_info_dict[note_id]
+        # the note info dictionary was passed along via properties.temp
+        # store it under the note id number in the _note_info_dict
+        this_note_info = self._note_info_dict[note_id] = note_info_dict
         this_note_fixed = "fixed" in this_note_info["flags"] or self.note_on_and_off_only
         if this_note_fixed:
             this_note_info["max_volume"] = volume
@@ -453,7 +393,7 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
                     # this note is done ringing, so remove it from the ringing notes list
                     self.ringing_notes.remove(ringing_note_info)
 
-                    with self._host_instrument._note_info_lock:
+                    with this_note_info["note_info_lock"]:
                         # if there's another active note on this channel, don't reset the pitch and expression
                         for other_note_id, other_note_info in self._note_info_dict.items():
                             if self in other_note_info and other_note_info[self]["channel"] == ringing_note_info[0]:
@@ -525,9 +465,6 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
     """
     Playback implementation that does Soundfont playback, via the MIDI protocol.
 
-    :param host_instrument: The ScampInstrument that will use this playback implementation for playback. When this
-        PlaybackImplementation is constructed, it is automatically added to the list of PlaybackImplementations that
-        the host instrument uses.
     :param bank_and_preset: The bank and preset within the given soundfont to use for playback
     :param soundfont: String representing the soundfont to use for playback. Defaults to the one defined in
         playback_settings.default_soundfont
@@ -544,10 +481,9 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
         the same MIDI channels, only using an extra one due to microtonality.
     """
 
-    def __init__(self, host_instrument: 'instruments_module.ScampInstrument', bank_and_preset: Tuple[int, int] = (0, 0),
-                 soundfont: str = "default", num_channels: int = 8, audio_driver: str = "default",
-                 max_pitch_bend: int = "default", note_on_and_off_only: bool = False):
-        super().__init__(host_instrument, num_channels, note_on_and_off_only)
+    def __init__(self, bank_and_preset: Tuple[int, int] = (0, 0), soundfont: str = "default", num_channels: int = 8,
+                 audio_driver: str = "default", max_pitch_bend: int = "default", note_on_and_off_only: bool = False):
+        super().__init__(num_channels, note_on_and_off_only)
 
         # we hold onto these arguments for the purposes of json serialization
         # note that if the audio_driver said "default", then we save it as "default",
@@ -557,10 +493,8 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
 
         self.max_pitch_bend = max_pitch_bend
         self.soundfont = playback_settings.default_soundfont if soundfont == "default" else soundfont
-        # these are setup by the `_initialize_shared_resources` function
-        self.soundfont_host = self.soundfont_instrument = None
 
-    def _initialize_shared_resources(self):
+        # initialize the soundfont host
         audio_driver = playback_settings.default_audio_driver if self.audio_driver == "default" else self.audio_driver
         soundfont_host_resource_key = "{}_soundfont_host".format(audio_driver)
         if not self.has_shared_resource(soundfont_host_resource_key):
@@ -605,16 +539,13 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
 
     @classmethod
     def _from_dict(cls, json_dict):
-        return cls(**json_dict, host_instrument=None)
+        return cls(**json_dict)
 
 
 class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
     """
     Playback implementation that sends an outgoing MIDI stream to an external synthesizer / program
 
-    :param host_instrument: The ScampInstrument that will use this playback implementation for playback. When this
-        PlaybackImplementation is constructed, it is automatically added to the list of PlaybackImplementations that
-        the host instrument uses.
     :param midi_output_device: name or port number number of the midi output device to use. Defaults to
         playback_settings.default_midi_output_device
     :param num_channels: How many MIDI channels to use for this instrument. Where channel-wide messages (such as
@@ -629,10 +560,9 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
         the same MIDI channels, only using an extra one due to microtonality.
     """
 
-    def __init__(self, host_instrument: 'instruments_module.ScampInstrument', midi_output_device: str = "default",
-                 num_channels=8, midi_output_name: Optional[str] = None, max_pitch_bend: int = "default",
-                 note_on_and_off_only: bool = False, start_channel=0):
-        super().__init__(host_instrument, num_channels, note_on_and_off_only)
+    def __init__(self, midi_output_device: str = "default", num_channels=8, midi_output_name: Optional[str] = None,
+                 max_pitch_bend: int = "default", note_on_and_off_only: bool = False, start_channel=0):
+        super().__init__(num_channels, note_on_and_off_only)
 
         # we hold onto these arguments for the purposes of json serialization
         # note that if the midi_output_device or midi_output_name said "default",
@@ -644,10 +574,7 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
 
         midi_output_device = playback_settings.default_midi_output_device if midi_output_device == "default" \
             else midi_output_device
-        if midi_output_name is None:
-            # if no midi output name is given, fall back to the instrument name
-            # if the instrument has no name, fall back to "Unnamed"
-            midi_output_name = "Unnamed" if host_instrument.name is None else host_instrument.name
+        midi_output_name = "SCAMP" if midi_output_name is None else midi_output_name
 
         # since rtmidi can only have 16 output channels, we need to create several output devices if we are using more
         if start_channel + num_channels <= 16:
@@ -737,9 +664,6 @@ class OSCPlaybackImplementation(PlaybackImplementation):
     """
     Playback implementation that sends outgoing OSC messages to an external synthesizer / program
 
-    :param host_instrument: The ScampInstrument that will use this playback implementation for playback. When this
-        PlaybackImplementation is constructed, it is automatically added to the list of PlaybackImplementations that
-        the host instrument uses.
     :param port: OSC port to use for playback
     :param ip_address: ip_address to send OSC messages to
     :param message_prefix: prefix used in the address of all messages sent. Defaults to the name of the instrument
@@ -747,9 +671,9 @@ class OSCPlaybackImplementation(PlaybackImplementation):
          to playback_settings.osc_message_addresses
     """
 
-    def __init__(self, host_instrument: 'instruments_module.ScampInstrument', port: int, ip_address: str = "127.0.0.1",
-                 message_prefix: Optional[str] = None, osc_message_addresses: dict = "default"):
-        super().__init__(host_instrument)
+    def __init__(self, port: int, ip_address: str = "127.0.0.1", message_prefix: str = "scamp",
+                 osc_message_addresses: dict = "default"):
+        super().__init__()
         # the output client for OSC messages
         # by default the IP address is the local 127.0.0.1
         self.ip_address = ip_address
@@ -758,8 +682,7 @@ class OSCPlaybackImplementation(PlaybackImplementation):
         self.client = pythonosc.udp_client.SimpleUDPClient(ip_address, port)
         # the first part of the osc message; used to distinguish between instruments
         # by default uses the name of the instrument with spaces removed
-        self.message_prefix = message_prefix if message_prefix is not None \
-            else (self._host_instrument.name.replace(" ", "") if self._host_instrument.name is not None else "unnamed")
+        self.message_prefix = message_prefix
 
         self.osc_message_addresses = playback_settings.osc_message_addresses
         if osc_message_addresses != "default":
@@ -773,7 +696,7 @@ class OSCPlaybackImplementation(PlaybackImplementation):
         self._currently_playing = []
 
     def start_note(self, note_id: int, pitch: float, volume: float, properties: dict,
-                   other_parameter_values: dict = None) -> None:
+                   other_parameter_values: dict, note_info_dict: dict) -> None:
         self.client.send_message("/{}/{}".format(self.message_prefix, self.osc_message_addresses["start_note"]),
                                  [note_id, pitch, volume])
         self._currently_playing.append(note_id)

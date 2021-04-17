@@ -67,7 +67,6 @@ class Ensemble(SavesToJSON):
     :ivar default_midi_output_device: the midi output device that instruments in this ensemble will default to.
         If "default", then this defers to the scamp global playback_settings default.
     :ivar instruments: List of all of the ScampInstruments within the Ensemble.
-    :type instruments: list
     """
 
     def __init__(self, default_soundfont: str = "default", default_audio_driver: str = "default",
@@ -83,7 +82,6 @@ class Ensemble(SavesToJSON):
             if default_spelling_policy is not None else None
 
         self.instruments = list(instruments) if instruments is not None else []
-        self.shared_resources = {}
 
     def add_instrument(self, instrument: 'ScampInstrument') -> 'ScampInstrument':
         """
@@ -342,7 +340,6 @@ class ScampInstrument(SavesToJSON):
     def __init__(self, name: str = None, ensemble: Ensemble = None, default_spelling_policy: SpellingPolicy = None,
                  clef_preference="from_name"):
         super().__init__()
-
         self.name = name
         self._clef_preference = None
         self.clef_preference = clef_preference
@@ -372,7 +369,7 @@ class ScampInstrument(SavesToJSON):
     def set_ensemble(self, ensemble: 'Ensemble') -> None:
         """
         Sets the ensemble that this instrument belongs to. Generally this happens automatically.
-        
+
         :param ensemble: the :class:`Ensemble` that this instrument should belong to.
         """
         if self.ensemble == ensemble:
@@ -679,6 +676,7 @@ class ScampInstrument(SavesToJSON):
                 "parameter_values": dict(other_param_start_values, pitch=start_pitch, volume=start_volume),
                 "parameter_change_segments": {},
                 "segments_list_lock": Lock(),
+                "note_info_lock": self._note_info_lock,
                 "properties": properties,
                 "max_volume": max_volume,
                 "flags": [] if flags is None else flags
@@ -690,8 +688,10 @@ class ScampInstrument(SavesToJSON):
             if "silent" not in self._note_info_by_id[note_id]["flags"]:
                 # otherwise, call all the playback implementation!
                 for playback_implementation in self.playback_implementations:
-                    playback_implementation.start_note(note_id, start_pitch, start_volume,
-                                                       properties, other_param_start_values)
+                    playback_implementation.start_note(
+                        note_id, start_pitch, start_volume,
+                        properties, other_param_start_values, self._note_info_by_id[note_id]
+                    )
 
         # we now exit the lock, since otherwise the following calls will not be able to happen
         # create a handle for this note
@@ -1035,9 +1035,11 @@ class ScampInstrument(SavesToJSON):
             preset = Ensemble._resolve_preset_from_name(self.name if preset == "auto" else preset, soundfont)
         elif isinstance(preset, int):
             preset = (0, preset)
-        SoundfontPlaybackImplementation(self, bank_and_preset=preset, soundfont=soundfont, num_channels=num_channels,
-                                        audio_driver=audio_driver, max_pitch_bend=max_pitch_bend,
-                                        note_on_and_off_only=note_on_and_off_only)
+        self.playback_implementations.append(
+            SoundfontPlaybackImplementation(bank_and_preset=preset, soundfont=soundfont, num_channels=num_channels,
+                                            audio_driver=audio_driver, max_pitch_bend=max_pitch_bend,
+                                            note_on_and_off_only=note_on_and_off_only)
+        )
         return self
 
     def remove_soundfont_playback(self) -> 'ScampInstrument':
@@ -1072,9 +1074,11 @@ class ScampInstrument(SavesToJSON):
             up as channels 5-9 in your MIDI software.
         :return: self, for chaining purposes
         """
-        MIDIStreamPlaybackImplementation(self, midi_output_device=midi_output_device, num_channels=num_channels,
-                                         midi_output_name=midi_output_name, max_pitch_bend=max_pitch_bend,
-                                         note_on_and_off_only=note_on_and_off_only, start_channel=start_channel)
+        self.playback_implementations.append(
+            MIDIStreamPlaybackImplementation(midi_output_device=midi_output_device, num_channels=num_channels,
+                                             midi_output_name=midi_output_name, max_pitch_bend=max_pitch_bend,
+                                             note_on_and_off_only=note_on_and_off_only, start_channel=start_channel)
+        )
         return self
 
     def remove_streaming_midi_playback(self) -> 'ScampInstrument':
@@ -1102,8 +1106,11 @@ class ScampInstrument(SavesToJSON):
             defined in playback_settings
         :return: self, for chaining purposes
         """
-        OSCPlaybackImplementation(self, port=port, ip_address=ip_address, message_prefix=message_prefix,
-                                  osc_message_addresses=osc_message_addresses)
+        message_prefix = self.name.replace(" ", "") if message_prefix is None else message_prefix
+        self.playback_implementations.append(
+            OSCPlaybackImplementation(port=port, ip_address=ip_address, message_prefix=message_prefix,
+                                      osc_message_addresses=osc_message_addresses)
+        )
         return self
 
     def remove_osc_playback(self) -> 'ScampInstrument':

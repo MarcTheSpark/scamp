@@ -600,7 +600,7 @@ class PerformancePart(SavesToJSON):
 
     def set_instrument_from_ensemble(self, ensemble: Ensemble) -> 'PerformancePart':
         """
-        Set the default instrument to play back with based on the best fit in the given ensembel
+        Set the default instrument to play back with based on the best fit in the given ensemble
 
         :param ensemble: the ensemble to search in
         :return: self
