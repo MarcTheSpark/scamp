@@ -24,7 +24,6 @@ A :class:`~scamp.instruments.ScampInstrument` can have one or more :class:`Playb
 
 from ._midi import SimpleRtMidiOut
 from ._soundfont_host import SoundfontHost
-from . import instruments as instruments_module
 from clockblocks import fork_unsynchronized
 import time
 from abc import abstractmethod
@@ -32,7 +31,7 @@ from ._dependencies import pythonosc
 from typing import Tuple, Optional
 import logging
 from .settings import playback_settings
-from .utilities import SavesToJSON, SavesToJSONMeta
+from .utilities import SavesToJSON
 
 
 shared_playback_resources = {}

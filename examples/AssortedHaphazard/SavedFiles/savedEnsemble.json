@@ -7,6 +7,7 @@
     "instruments": [
         {
             "_type": "ScampInstrument",
+            "clef_preference": "from_name",
             "default_spelling_policy": null,
             "name": "piano",
             "playback_implementations": [
@@ -21,11 +22,11 @@
                     "num_channels": 8,
                     "soundfont": "general_midi"
                 }
-            ],
-            "standalone": false
+            ]
         },
         {
             "_type": "ScampInstrument",
+            "clef_preference": "from_name",
             "default_spelling_policy": null,
             "name": "flute",
             "playback_implementations": [
@@ -40,11 +41,11 @@
                     "num_channels": 8,
                     "soundfont": "general_midi"
                 }
-            ],
-            "standalone": false
+            ]
         },
         {
             "_type": "ScampInstrument",
+            "clef_preference": "from_name",
             "default_spelling_policy": null,
             "name": "strings",
             "playback_implementations": [
@@ -59,8 +60,7 @@
                     "num_channels": 8,
                     "soundfont": "general_midi"
                 }
-            ],
-            "standalone": false
+            ]
         }
     ]
 }

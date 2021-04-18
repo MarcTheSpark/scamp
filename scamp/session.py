@@ -382,13 +382,10 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
 
     @classmethod
     def _from_dict(cls, json_dict):
-        session = cls(**json_dict)
-        for instrument in session.instruments:
-            instrument.set_ensemble(session)
-        return session
+        return cls(**json_dict)
 
     def __str__(self):
-        return "Session(tempo={}, instruments={})".format(self.tempo, [inst.name for inst in self.instruments])
+        return "Session(tempo={}, instruments=[{}])".format(self.tempo, ", ".join(str(i) for i in self._instruments))
 
     def __repr__(self):
-        return "Session._from_dict({})".format(self._to_dict())
+        return "Session({})".format(", ".join("{}={}".format(k, repr(v)) for k, v in self._to_dict().items()))

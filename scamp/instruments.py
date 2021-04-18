@@ -28,8 +28,8 @@ from ._midi import get_available_midi_output_devices, print_available_midi_outpu
 from .utilities import SavesToJSON, NoteProperty
 from .spelling import SpellingPolicy
 from .note_properties import NoteProperties
-from .playback_implementations import SoundfontPlaybackImplementation, MIDIStreamPlaybackImplementation, \
-    OSCPlaybackImplementation
+from .playback_implementations import PlaybackImplementation, SoundfontPlaybackImplementation, \
+    MIDIStreamPlaybackImplementation,  OSCPlaybackImplementation
 from .settings import engraving_settings, playback_settings
 from clockblocks.utilities import wait
 from clockblocks.clock import current_clock, Clock, ClockKilledError, TimeStamp
@@ -81,24 +81,41 @@ class Ensemble(SavesToJSON):
         self._default_spelling_policy = SpellingPolicy.interpret(default_spelling_policy) \
             if default_spelling_policy is not None else None
 
-        self.instruments = list(instruments) if instruments is not None else []
+        self._instruments = list(instruments) if instruments is not None else []
+        for instrument in self._instruments:
+            instrument.set_ensemble(self)
+
+    @property
+    def instruments(self):
+        """
+        Returns a tuple of the instruments currently in this Ensemble.
+        """
+        return tuple(self._instruments)
 
     def add_instrument(self, instrument: 'ScampInstrument') -> 'ScampInstrument':
         """
-        Adds an instance of ScampInstrument to this Ensemble. Generally this will be done indirectly
-        by calling one of the "new_instrument" methods.
+        Adds an instance of :class:`ScampInstrument` to this Ensemble. Generally, creating of and instrument and adding
+        it to an ensemble are done simultaneously via one of the "new_instrument" methods.
 
         :param instrument: instrument to add to this ensemble
         :return: self
         """
         if not hasattr(instrument, "name") or instrument.name is None:
-            instrument.name = "Track " + str(len(self.instruments) + 1)
-        self.instruments.append(instrument)
-        for playback_implementation in instrument.playback_implementations:
-            # clear out any individual playback resources the instrument has been using
-            playback_implementation._resources = None
+            instrument.name = "Track " + str(len(self._instruments) + 1)
+        self._instruments.append(instrument)
         instrument.set_ensemble(self)
         return instrument
+
+    def pop_instrument(self, index):
+        """
+        Pops the instrument at the given index, severing its ties to the ensemble.
+
+        :param index: which instrument
+        """
+        inst = self._instruments.pop(index)
+        inst.ensemble = None
+        inst.name_count = 0
+        return inst
 
     def new_silent_part(self, name: str = None, default_spelling_policy: SpellingPolicy = None,
                         clef_preference="from_name") -> 'ScampInstrument':
@@ -166,7 +183,7 @@ class Ensemble(SavesToJSON):
         elif isinstance(preset, int):
             preset = (0, preset)
 
-        name = "Track " + str(len(self.instruments) + 1) if name is None else name
+        name = "Track " + str(len(self._instruments) + 1) if name is None else name
 
         instrument = self.new_silent_part(name, default_spelling_policy=default_spelling_policy,
                                           clef_preference=clef_preference)
@@ -205,7 +222,7 @@ class Ensemble(SavesToJSON):
         """
         midi_output_device = self.default_midi_output_device if midi_output_device == "default" else midi_output_device
 
-        name = "Track " + str(len(self.instruments) + 1) if name is None else name
+        name = "Track " + str(len(self._instruments) + 1) if name is None else name
 
         instrument = self.new_silent_part(name, default_spelling_policy=default_spelling_policy,
                                           clef_preference=clef_preference)
@@ -233,7 +250,7 @@ class Ensemble(SavesToJSON):
         :param clef_preference: the :attr:`~ScampInstrument.clef_preference` for the new part
         :return: the newly created ScampInstrument
         """
-        name = "Track " + str(len(self.instruments) + 1) if name is None else name
+        name = "Track " + str(len(self._instruments) + 1) if name is None else name
 
         instrument = self.new_silent_part(name, default_spelling_policy=default_spelling_policy,
                                           clef_preference=clef_preference)
@@ -243,7 +260,7 @@ class Ensemble(SavesToJSON):
         return instrument
 
     def _get_part_name_count(self, name):
-        return sum(i.name == name for i in self.instruments)
+        return sum(i.name == name for i in self._instruments)
 
     def get_instrument_by_name(self, name: str, which: int = 0):
         """
@@ -255,7 +272,7 @@ class Ensemble(SavesToJSON):
         """
         # if there are multiple instruments of the same name, which determines which one is chosen
         imperfect_match = None
-        for instrument in self.instruments:
+        for instrument in self._instruments:
             if name == instrument.name:
                 if which == instrument.name_count:
                     return instrument
@@ -300,21 +317,18 @@ class Ensemble(SavesToJSON):
             "default_audio_driver": self.default_audio_driver,
             "default_midi_output_device": self.default_midi_output_device,
             "default_spelling_policy": self.default_spelling_policy,
-            "instruments": self.instruments
+            "instruments": self._instruments
         }
 
     @classmethod
     def _from_dict(cls, json_dict):
-        ensemble = cls(**json_dict)
-        for instrument in ensemble.instruments:
-            instrument.set_ensemble(ensemble)
-        return ensemble
+        return cls(**json_dict)
 
     def __str__(self):
-        return "Ensemble({})".format(self.instruments)
+        return "Ensemble(instruments=[{}])".format(", ".join(str(i) for i in self._instruments))
 
     def __repr__(self):
-        return "Ensemble._from_dict({})".format(self._to_dict())
+        return "Ensemble({})".format(", ".join("{}={}".format(k, repr(v)) for k, v in self._to_dict().items()))
 
 
 class ScampInstrument(SavesToJSON):
@@ -327,6 +341,7 @@ class ScampInstrument(SavesToJSON):
     :param ensemble: Ensemble to which this instrument will belong.
     :param default_spelling_policy: sets :attr:`ScampInstrument.default_spelling_policy`
     :param clef_preference: sets :attr:`ScampInstrument.clef_preference`
+    :param playback_implementations: PlaybackImplementation(s) used to actually playback notes
     :ivar name: name of this instrument (e.g. when printed in a score)
     :ivar name_count: when there are multiple instruments of the same name within an Ensemble, this variable assigns
         each a unique index (starting with 0), to distinguish them
@@ -338,7 +353,7 @@ class ScampInstrument(SavesToJSON):
     _change_param_call_counter = itertools.count()
 
     def __init__(self, name: str = None, ensemble: Ensemble = None, default_spelling_policy: SpellingPolicy = None,
-                 clef_preference="from_name"):
+                 clef_preference="from_name", playback_implementations: Sequence[PlaybackImplementation] = None):
         super().__init__()
         self.name = name
         self._clef_preference = None
@@ -347,7 +362,7 @@ class ScampInstrument(SavesToJSON):
         self._transcribers_to_notify = []
 
         self._note_info_by_id = {}
-        self.playback_implementations = []
+        self.playback_implementations = [] if playback_implementations is None else playback_implementations
 
         # A policy for spelling notes used as the default for this instrument. Overrides any broader defaults.
         # (Has a getter and setter method allowing constructor strings to be passed.)
@@ -378,8 +393,6 @@ class ScampInstrument(SavesToJSON):
         self.ensemble = ensemble
         # used to help distinguish between identically named instruments in the same ensemble
         self.name_count = ensemble._get_part_name_count(self.name)
-        for playback_implementation in self.playback_implementations:
-            playback_implementation.set_host_instrument(self)
 
     def play_note(self, pitch, volume, length, properties: Union[str, dict, Sequence, NoteProperty] = None,
                   blocking: bool = True, clock: Clock = None, silent: bool = False, transcribe: bool = True) -> None:
@@ -1233,49 +1246,23 @@ class ScampInstrument(SavesToJSON):
     --------------------------------------------- To / from JSON -------------------------------------------------
     """
 
-    def save_to_json(self, file_path: str) -> None:
-        self._export_as_stand_alone = True
-        super().save_to_json(file_path)
-        self._export_as_stand_alone = False
-
-    def json_dumps(self) -> str:
-        self._export_as_stand_alone = True
-        out = super().json_dumps()
-        self._export_as_stand_alone = False
-        return out
-
     def _to_dict(self):
         return {
             "name": self.name,
             "playback_implementations": self.playback_implementations,
             "default_spelling_policy": self.default_spelling_policy,
-            "clef_preference": self.clef_preference,
-            "standalone": self._export_as_stand_alone
+            "clef_preference": self.clef_preference
         }
 
     @classmethod
     def _from_dict(cls, json_dict):
-        # "standalone" means that the instrument was not part of an ensemble. Check that key then delete it.
-        standalone = json_dict["standalone"]
-        del json_dict["standalone"]
-        playback_implementations = json_dict["playback_implementations"]
-        del json_dict["playback_implementations"]
-        # reconstruct the instrument
-        instrument = cls(**json_dict)
-        instrument.playback_implementations = playback_implementations
-
-        if standalone:
-            # if it was a standalone instrument, connect up its playback implementation now
-            for playback_implementation in instrument.playback_implementations:
-                playback_implementation.set_host_instrument(instrument)
-            # if not, this will happen in the ensemble's _from_dict method
-        return instrument
+        return cls(**json_dict)
 
     def __str__(self):
-        return "ScampInstrument({})".format(self.name)
+        return "ScampInstrument('{}')".format(self.name)
 
     def __repr__(self):
-        return "ScampInstrument._from_dict({})".format(self._to_dict())
+        return "ScampInstrument({})".format(", ".join("{}={}".format(k, repr(v)) for k, v in self._to_dict().items()))
 
 
 class NoteHandle:
