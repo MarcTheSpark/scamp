@@ -31,10 +31,7 @@ from ._dependencies import pythonosc
 from typing import Tuple, Optional
 import logging
 from .settings import playback_settings
-from .utilities import SavesToJSON
-
-
-shared_playback_resources = {}
+from .utilities import SavesToJSON, resolve_path
 
 
 class PlaybackImplementation(SavesToJSON):
@@ -42,50 +39,6 @@ class PlaybackImplementation(SavesToJSON):
     """
     Abstract base class for playback implementations, which do the actual work of playback, either by playing sounds or
     by sending messages to external synthesizers to play sounds.
-    """
-
-    @property
-    def resource_dictionary(self) -> dict:
-        """
-        Dictionary of shared resources for this type of playback implementation.
-        For instance, SoundfontPlaybackImplementation uses this to store an instance of SoundfontHost. Only one
-        instance of fluidsynth (and therefore SoundfontHost) needs to be running for all instruments,
-        so this is a way of pooling that resource.
-        """
-        # Each playback implementation type has its own resource dictionary within the shared_playback_resources
-        # dictionary, stored with its type as a key.
-        # This way there can't be name conflicts between different playback implementations
-        if type(self) not in shared_playback_resources:
-            shared_playback_resources[type(self)] = {}
-        return shared_playback_resources[type(self)]
-
-    def has_shared_resource(self, key) -> bool:
-        """
-        Checks whether there is a shared resource for this type of playback implementation under the given key.
-
-        :param key: key name for this resource
-        """
-        return key in self.resource_dictionary
-
-    def get_shared_resource(self, key):
-        """
-        Gets the shared resource for this type of playback implementation under the given key.
-
-        :param key: key name for this resource
-        """
-        return None if key not in self.resource_dictionary else self.resource_dictionary[key]
-
-    def set_shared_resource(self, key, value):
-        """
-        Sets a shared resource for this type of playback implementation under the given key.
-
-        :param key: key name for this resource
-        :param value: value to set for that key
-        """
-        self.resource_dictionary[key] = value
-
-    """
-    The actual abstract methods to override in creating a new PlaybackImplementation
     """
 
     @abstractmethod
@@ -480,6 +433,8 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
         the same MIDI channels, only using an extra one due to microtonality.
     """
 
+    soundfont_hosts = {}
+
     def __init__(self, bank_and_preset: Tuple[int, int] = (0, 0), soundfont: str = "default", num_channels: int = 8,
                  audio_driver: str = "default", max_pitch_bend: int = "default", note_on_and_off_only: bool = False):
         super().__init__(num_channels, note_on_and_off_only)
@@ -493,12 +448,22 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
         self.max_pitch_bend = max_pitch_bend
         self.soundfont = playback_settings.default_soundfont if soundfont == "default" else soundfont
 
-        # initialize the soundfont host
+        # The soundfont host is shared between all instances of SoundfontPlaybackImplementation sharing the same
+        # audio driver. (Theoretically, if you created two SoundfontPlaybackImplementations using different drivers
+        # we would have to create different underlying SoundfontHosts, so the SoundfontHost is stored in a dictionary
+        # indexed by audio driver.) We create it if needed.
         audio_driver = playback_settings.default_audio_driver if self.audio_driver == "default" else self.audio_driver
-        soundfont_host_resource_key = "{}_soundfont_host".format(audio_driver)
-        if not self.has_shared_resource(soundfont_host_resource_key):
-            self.set_shared_resource(soundfont_host_resource_key, SoundfontHost(self.soundfont, audio_driver))
-        self.soundfont_host = self.get_shared_resource(soundfont_host_resource_key)
+        if audio_driver in SoundfontPlaybackImplementation.soundfont_hosts:
+            self.soundfont_host = SoundfontPlaybackImplementation.soundfont_hosts[audio_driver]
+        else:
+            self.soundfont_host = SoundfontPlaybackImplementation.soundfont_hosts[audio_driver] = \
+                SoundfontHost(
+                    self.soundfont, audio_driver,
+                    recording_file_path=resolve_path(playback_settings.recording_file_path)
+                    if playback_settings.recording_file_path is not None else None,
+                    recording_time_range=(float(playback_settings.recording_time_range[0]),
+                                          float(playback_settings.recording_time_range[1]))
+                )
         if self.soundfont not in self.soundfont_host.soundfont_ids:
             self.soundfont_host.load_soundfont(self.soundfont)
         self.soundfont_instrument = self.soundfont_host.add_instrument(self.num_channels, self.bank_and_preset,

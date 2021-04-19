@@ -226,6 +226,8 @@ class PlaybackSettings(_ScampSettings):
         }),
         "try_system_fluidsynth_first": False,
         "resize_parameter_envelopes": "lists",
+        "recording_file_path": None,
+        "recording_time_range": [0, "inf"]
     }
 
     _settings_name = "Playback settings"
@@ -239,7 +241,7 @@ class PlaybackSettings(_ScampSettings):
             self.default_max_streaming_midi_pitch_bend = self.soundfont_volume_to_velocity_curve = \
             self.streaming_midi_volume_to_velocity_curve = self.osc_message_addresses = \
             self.adjustments = self.try_system_fluidsynth_first = self.soundfont_search_paths = \
-            self.resize_parameter_envelopes = None
+            self.resize_parameter_envelopes = self.recording_file_path = self.recording_time_range = None
         super().__init__(settings_dict, suppress_warnings)
         assert isinstance(self.adjustments, PlaybackAdjustmentsDictionary)
 
