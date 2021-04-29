@@ -49,6 +49,9 @@ class PlayAndRecSynth(fluidsynth.Synth):
     def __init__(self, recording_file_path, gain=0.2, samplerate=44100, channels=256, timer_func=time.time,
                  time_range=(0, float("inf")), **kwargs):
         super().__init__(gain, samplerate, channels, **kwargs)
+        # Note: this import is here because `fluidsynth.raw_audio_string` imports numpy after SCAMP has started
+        # playback, an expensive operation that disrupts playback. By importing here, we front-load that.
+        import numpy
         self.start_time = timer_func()
         self.timer_func = timer_func
         self.samplerate = samplerate
@@ -112,6 +115,9 @@ class PlayAndRecSynth(fluidsynth.Synth):
                 self.recording_thread.join()
 
 
+synth_lock = threading.Lock()
+
+
 def _record_as_well(f):
     """
     Decorator that is used to wrap the various Synth functions, which makes the same functions get called on the
@@ -120,15 +126,17 @@ def _record_as_well(f):
     """
     @functools.wraps(f)
     def wrapped_method(self, *args, **kwargs):
-        return_value = f(self, *args, **kwargs)
-        current_sample = int((self.timer_func() - self.start_time) * self.samplerate)
-        num_new_samples = current_sample - self.current_sample
-        self.current_sample = current_sample
-        if self.wave_file is not None:
-            new_samples = self.recording_synth.get_samples(num_new_samples)
-            if len(new_samples) > 0:
-                self.sample_queue.append(new_samples)
-            f(self.recording_synth, *args, **kwargs)
+        with synth_lock:
+            return_value = f(self, *args, **kwargs)
+            current_sample = int((self.timer_func() - self.start_time) * self.samplerate)
+            num_new_samples = current_sample - self.current_sample
+            self.current_sample = current_sample
+            if self.wave_file is not None:
+
+                if num_new_samples > 0:
+                    self.sample_queue.append(self.recording_synth.get_samples(num_new_samples))
+
+                f(self.recording_synth, *args, **kwargs)
         return return_value
     return wrapped_method
 
@@ -166,8 +174,18 @@ class SoundfontHost(SavesToJSON):
         self.audio_driver = playback_settings.default_audio_driver if audio_driver == "default" else audio_driver
 
         if recording_file_path:
+            clock = clockblocks.current_clock()
+
+            def _timer_func():
+                if clock is None:
+                    return time.time()
+                else:
+                    if hasattr(clock.master, 'unsynced_time'):
+                        return max(clock.master.unsynced_time, clock.time_in_master())
+                    else:
+                        return clock.time_in_master()
             self.synth = PlayAndRecSynth(recording_file_path,
-                                         timer_func=clockblocks.current_clock().time_in_master,
+                                         timer_func=_timer_func,
                                          time_range=recording_time_range)
         else:
             self.synth = fluidsynth.Synth()

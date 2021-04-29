@@ -73,8 +73,11 @@ def get_port_number_of_midi_device(device_name, input_or_output):
     if input_or_output not in ("input", "output"):
         raise ValueError("input_or_output must be either \"input\" or \"output\"")
 
+    device_list = get_available_midi_input_devices() if input_or_output == "input" \
+        else get_available_midi_output_devices()
+
     best_match, best_correlation = None, 0
-    for port, device in get_available_midi_input_devices():
+    for port, device in device_list:
         if device_name == device:
             return port
         else:

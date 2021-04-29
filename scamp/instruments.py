@@ -1554,12 +1554,18 @@ class _ParameterChangeSegment(EnvelopeSegment):
             # as unsynchronized parallel process so that it doesn't gum up the clocks with the overhead of
             # waking and sleeping rapidly
             beats_passed = 0
+            time_estimate = self.clock.master.time()
+            self.clock.master.unsynced_time = time_estimate
 
             while beats_passed < self.duration and self.running:
                 start = time.time()
                 if beats_passed > 0:  # no need to change the parameter the first time, before we had a chance to wait
                     self.do_change_parameter(self.value_at(beats_passed))
                 time.sleep(time_increment)
+                time_estimate += time_increment
+
+                self.clock.master.unsynced_time = max(time_estimate, self.clock.master.unsynced_time)
+
                 # TODO: Absolute_rate would be great, except that it doesn't update between synchronized clock events
                 # Is there a way of improving this??
                 beats_passed += (time.time() - start) * self.clock.absolute_rate()
