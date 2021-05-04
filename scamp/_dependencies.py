@@ -70,7 +70,7 @@ if fluidsynth is not None and playback_settings.default_audio_driver == "auto":
         logging.warning("No working audio driver was found; synth output will not be available.")
 
 try:
-    from sf2utils.sf2parse import Sf2File
+    from ._thirdparty.sf2or3utils.sf2parse import Sf2File
 except ImportError:
     Sf2File = None
     logging.warning("sf2utils was not found; info about soundfont presets will not be available.")

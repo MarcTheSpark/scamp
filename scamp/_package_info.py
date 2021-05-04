@@ -33,7 +33,9 @@ project_urls = {
     "Forum": "http://scampsters.marcevanstein.com"
 }
 
-install_requires = ['pymusicxml >= 0.5.3', 'expenvelope >= 0.6.7', 'clockblocks >= 0.6.2', 'sf2utils', 'python-osc']
+install_requires = ['pymusicxml >= 0.5.3', 'expenvelope >= 0.6.7', 'clockblocks >= 0.6.2', 'python-osc']
+# Note: pyfluidsynth and sf2utils are also dependencies, but needed to be tweaked,
+# so they have been copied into the _third_party package
 
 ABJAD_VERSION = "3.3"
 
@@ -46,7 +48,7 @@ extras_require = {
 extras_require['all'] = list(extras_require.values())
 
 package_data = {
-    'scamp': ['soundfonts/*', '_thirdparty/*.dll', '_thirdparty/*.dylib']
+    'scamp': ['soundfonts/*', '_thirdparty/mac_libs/*', '_thirdparty/windows_libs/*']
 }
 
 classifiers = [
