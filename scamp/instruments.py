@@ -422,6 +422,8 @@ class ScampInstrument(SavesToJSON):
                     "notation": "tremolo32",
                     # add this text to the score by the note
                     "text": "Hello there!",
+                    # attach a dynamic marking to this note
+                    "dynamic": "sfz",
                     # play an octave higher (could also use a NotePlaybackAdjustment object)
                     "playback_adjustment": "pitch + 12",
                     # notate accidentals consistent with the key of Bb major
@@ -480,6 +482,9 @@ class ScampInstrument(SavesToJSON):
             if blocking:
                 clock.wait(sum(length) if hasattr(length, '__len__') else length)
             return
+
+        if not (hasattr(length, "__len__") and all(x > 0 for x in length) or length > 0):
+            raise ValueError("Note length must be positive.")
 
         properties = self._standardize_properties(properties)
 

@@ -15,7 +15,7 @@
 #  You should have received a copy of the GNU General Public License along with this program.    #
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
-
+import logging
 import scamp
 import importlib.util
 import os
@@ -119,9 +119,7 @@ def test_example_result(python_file_path):
                     out.append("".join(processed_diff))
             return out
     else:
-        raise FileNotFoundError("Could not test example result for {}. No prior result has been saved.".format(
-            python_file_path
-        ))
+        return None
 
 
 failures = 0
@@ -137,6 +135,11 @@ for example_path in examples:
         test_results = test_example_result(example_path)
         if test_results is True:
             print("SUCCESS")
+        elif test_results is None:
+            logging.warning("Could not test example result for {}. No prior result has been saved.".format(
+                example_path
+            ))
+            failures += 1
         else:
             print('\033[91m' + "FAILURE")
             for i, item in enumerate(test_results):

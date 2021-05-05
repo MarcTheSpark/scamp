@@ -998,6 +998,8 @@ def _construct_quantization_record(beat_divisors, end_beat, quantization_scheme)
     for measure_scheme, t in quantization_scheme.measure_scheme_iterator():
         measure_start_beat = t
         beats = []
+        # min_duple_subdivision is used to figure out the tiniest duple slice we break the beats into
+        # We use it to calculate beat depths, i.e. how nested in the hierarchy the different time points are
         min_duple_subdivision = float("inf")
 
         for beat_scheme in measure_scheme.beat_schemes:
@@ -1006,12 +1008,20 @@ def _construct_quantization_record(beat_divisors, end_beat, quantization_scheme)
                 QuantizedBeat(t, t - measure_start_beat, beat_scheme.length, divisor)
             )
             if divisor is not None:
+                # look at the slices we cut the beat into
+                # if they're power of 2, make min_duple_subdivision at least that fine
                 subdivision_length = beat_scheme.length / divisor
                 if is_x_pow_of_y(subdivision_length, 2) and subdivision_length < min_duple_subdivision:
                     min_duple_subdivision = subdivision_length
+
+            # at bare minimum, min_duple_subdivision, must be as fine as the denominator of the beat length
+            # e.g. if the beat length is 0.75, we need min_duple_subdivision to be no bigger than 0.25
+            if 1 / beat_scheme.length_as_fraction.denominator < min_duple_subdivision:
+                min_duple_subdivision = 1 / beat_scheme.length_as_fraction.denominator
+
             t += beat_scheme.length
 
-        beat_depths = (0.5, measure_scheme.get_beat_hierarchies(0.5)) if min_duple_subdivision == float("inf") \
+        beat_depths = (0.5, measure_scheme.get_beat_hierarchies(0.5)) if min_duple_subdivision > 0.5 \
             else (min_duple_subdivision, measure_scheme.get_beat_hierarchies(min_duple_subdivision))
 
         quantized_measure = QuantizedMeasure(measure_start_beat, measure_scheme.length, beats,

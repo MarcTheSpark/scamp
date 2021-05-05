@@ -475,7 +475,7 @@ class EngravingSettings(_ScampSettings):
 
     #: Default engraving settings (from when SCAMP was installed)
     factory_defaults = {
-        "allow_duple_tuplets_in_compound_time": True,
+        "allow_duple_tuplets_in_compound_time": False,
         "max_voices_per_part": 4,
         "max_dots_allowed": 3,
         "beat_hierarchy_spacing": 2.4,
