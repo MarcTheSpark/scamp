@@ -131,20 +131,22 @@ class _ScampSettings(SimpleNamespace, SavesToJSON):
             logging.warning("Error loading {}; falling back to defaults.".format(cls._settings_name.lower()))
             return cls.factory_default()
 
-    def open_json_file(self):
-        platform_system = platform.system().lower()
+    def open_json_file(self, *command_and_flags):
+        """
+        Open the JSON file for these settings.
 
-        if platform_system == "linux":
-            # generic open command on linux is "xdg-open"
-            subprocess.call(["xdg-open", resolve_path(self._json_path)])
-        elif platform_system == "darwin":
-            # generic open command on mac is "open"
-            subprocess.call(["open", resolve_path(self._json_path)])
-        elif platform_system == "windows":
-            # generic open command on windows is "start"
-            subprocess.call(["start", resolve_path(self._json_path)])
-        else:
-            logging.warning("Cannot run \"open_json_file\" on unrecognized platform {}".format(platform_system))
+        :param command_and_flags: the command-line tool with which to open the file, and any associated flags.
+            Defaults to a platform-specific generic open command.
+        """
+        platform_system = platform.system().lower()
+        command_and_flags = list(command_and_flags) if len(command_and_flags) > 0 \
+            else ["xdg-open"] if platform_system == "linux" \
+            else ["open"] if platform_system == "darwin" \
+            else ["notepad"] if platform_system == "windows" \
+            else None
+        if command_and_flags is None:
+            raise ValueError("Unrecognized platform {}".format(platform_system))
+        subprocess.call(command_and_flags + [resolve_path(self._json_path)])
 
     @staticmethod
     def _validate_attribute(key, value):
@@ -231,7 +233,7 @@ class PlaybackSettings(_ScampSettings):
     }
 
     _settings_name = "Playback settings"
-    _json_path = "%DATA/settings/playbackSettings.json"
+    _json_path = "%DATA/playbackSettings.json"
     _is_root_setting = True
 
     def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
@@ -320,7 +322,7 @@ class QuantizationSettings(_ScampSettings):
     }
 
     _settings_name = "Quantization settings"
-    _json_path = "%DATA/settings/quantizationSettings.json"
+    _json_path = "%DATA/quantizationSettings.json"
     _is_root_setting = True
 
     def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
@@ -363,7 +365,7 @@ class GlissandiSettings(_ScampSettings):
     }
 
     _settings_name = "Glissandi settings"
-    _json_path = "%DATA/settings/engravingSettings.json"
+    _json_path = "%DATA/engravingSettings.json"
     _is_root_setting = False
 
     def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
@@ -409,7 +411,7 @@ class TempoSettings(_ScampSettings):
     }
 
     _settings_name = "Tempo settings"
-    _json_path = "%DATA/settings/engravingSettings.json"
+    _json_path = "%DATA/engravingSettings.json"
     _is_root_setting = False
 
     def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
@@ -548,7 +550,7 @@ class EngravingSettings(_ScampSettings):
     }
 
     _settings_name = "Engraving settings"
-    _json_path = "%DATA/settings/engravingSettings.json"
+    _json_path = "%DATA/engravingSettings.json"
     _is_root_setting = True
 
     def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
