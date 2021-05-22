@@ -30,7 +30,6 @@ Engraving:
 Assorted:
     - Consider cleaning out the playback implementation shit, so that all instruments -- in or outside an ensemble --
     can share module-level playback resources as far as soundfonts are concerned.
-    - Fluidsynth save to wave file!
 
 Extensions:
     - MIDI file to Performance
