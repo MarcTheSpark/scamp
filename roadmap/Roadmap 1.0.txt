@@ -4,6 +4,7 @@ Documentation:
     - Music made with SCAMP in the documentation!
     - Add last tutorial video to tutorial videos page
     - Make a documentation page for note properties, including tables of all the possible options.
+    - Add documentation for installing nicer soundfont
     - Maybe make a multi-tempo example that doesn't have nested tempi first.
 
 Testing:
