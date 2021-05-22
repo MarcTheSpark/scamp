@@ -170,7 +170,7 @@ For LilyPond output, you will need the [_abjad_](http://abjad.mbrsi.org/installa
 run the following:
 
 ```
-pip3 install abjad==3.1
+pip3 install abjad==3.3
 ```
 
 Note the '==' in the command, which specifies the exact version of abjad to install. This is the version that SCAMP 
