@@ -1,17 +1,16 @@
 # SCAMP (Suite for Computer-Assisted Music in Python)
 
 SCAMP is an computer-assisted composition framework in Python designed to act as a hub, flexibly connecting the 
-composer-programmer to a wide variety of resources for playback and notation. SCAMP provides functionality to 
-manage the flow of musical time, play back notes via [FluidSynth](http://www.fluidsynth.org/) or MIDI or OSC messages
-to an external synthesizer, and quantizes and exports the result to music notation in the form of MusicXML or Lilypond. 
-This framework is the distillation of years of practice composing algorithmic and computer-assisted music in Python 
-and aims to address pervasive technical challenges while imposing as little as possible on the aesthetic choices 
-of the user. 
+composer-programmer to a wide variety of resources for playback and notation. SCAMP allows the user to 
+manage the flow of musical time, play notes either using [FluidSynth](http://www.fluidsynth.org/) or via MIDI or OSC messages
+to an external synthesizer, and ultimately quantize and export the result to music notation in the form of MusicXML or Lilypond. 
+Overall, the framework aims to address pervasive technical challenges while imposing as little as possible on the aesthetic choices 
+of the composer-programmer. 
 
 ## Features
 
 - Flexible and extensible playback: Although SCAMP comes with a basic general MIDI soundfont, 
-any .sf2 soundfont can be used, and playback can also include MIDI or OSC messages to external 
+any .sf2 or .sf3 soundfont can be used, and playback can also include MIDI or OSC messages to external 
 programs or synthesizers, which effectively offers limitless sonic possibilities.
 
 - Note-based, but in a broad sense: Although SCAMP conceives of music in terms of notes, notes in
@@ -19,15 +18,15 @@ SCAMP are extremely flexible sound-objects that can include the continuous evolu
 playback parameters.
 
 - Effortless microtonality: to play the G above middle C 30 cents sharp, the user has only 
-to use the MIDI pitch 67.3. Behind the scenes, SCAMP manages all of the MIDI pitchbend 
-messages, placing notes on separate channels where necessary so that these pitch bends do 
+to use the MIDI pitch 67.3. Behind the scenes, SCAMP manages all the MIDI pitchbend 
+messages, placing notes on separate channels where necessary so that these messages do 
 not conflict.
 
 - Effortless playback of glissandi and dynamic envelopes. Both pitch and volume can follow 
 arbitrary curves defined using the [_expenvelope_](https://git.sr.ht/~marcevanstein/expenvelope) package.
 
 - Flexible and precise polyphonic tempo control using [_clockblocks_](https://git.sr.ht/~marcevanstein/clockblocks). 
-In SCAMP, different layers of music moving at different tempi can be interweaved with one 
+In SCAMP, different layers of music moving at different tempi can be interwoven with one 
 another while remaining coordinated. Smooth accelerandi and ritardandi are possible, and the 
 resulting music can be quantized according to the tempo of any layer.
 
@@ -51,7 +50,7 @@ Other key values underlying this framework are:
 - Playback first, notation second: SCAMP has been designed so that the user interacts with an 
 ensemble, not a score. This way, ideas can be quickly auditioned and iterated over based on the 
 sonic result. Once the result is deemed satisfactory, the user can then export it as music notation.
-- Compact and expressive code: Efforts have been made to make user code simple and but powerful. 
+- Compact and expressive code: Efforts have been made to make user code simple, yet powerful. 
 One of the ways this is accomplished is through sensible defaults; although there is a lot of 
 functionality under the hood, it shouldn't be encountered by the user until it is needed.
 - Modularity and adherence as much as possible to the [Unix Philosophy](https://en.wikipedia.org/wiki/Unix_philosophy). 
@@ -141,7 +140,7 @@ include the compiled FluidSynth library within the SCAMP package. For this reaso
 take the step of installing FluidSynth to use SCAMP on Mac or Windows.
 
 Since Linux distros have package managers, it makes more sense to have users take the extra
-step to install FluidSynth that way. On apt-based distros like Debian, Ubuntu or Trisquel, 
+step to install FluidSynth that way. On apt-based distros like Debian and Ubuntu, 
 it's as simple as running:
 
 `sudo apt install fluidsynth`
