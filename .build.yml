@@ -1,0 +1,12 @@
+image: debian/stable
+sources:
+ - https://git.sr.ht/~marcevanstein/scamp
+environment:
+ GIT_SSH_COMMAND: "ssh -o StrictHostKeyChecking=no"
+secrets:
+ - 9daf0a17-ac84-4185-8851-3464007a3615
+tasks:
+ - mirror: |
+     cd scamp
+     git remote add github git@github.com:MarcTheSpark/scamp.git
+     git push github --all --follow-tags
