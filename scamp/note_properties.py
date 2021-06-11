@@ -272,6 +272,8 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
                         properties_dict[key] = value_or_values
                     else:
                         # otherwise, when there are multiple values, we extend
+                        if key not in properties_dict:
+                            properties_dict[key] = []
                         properties_dict[key].extend(value_or_values)
                 else:
                     # single value kind of property, e.g. spelling policy, voice, parameter value, so we just set it

@@ -16,7 +16,7 @@
 
 name = "scamp"
 
-version = "0.8.8"
+version = "0.8.8-1"
 
 author = "Marc Evanstein"
 
@@ -33,7 +33,7 @@ project_urls = {
     "Forum": "http://scampsters.marcevanstein.com"
 }
 
-install_requires = ['pymusicxml >= 0.5.3', 'expenvelope >= 0.6.7', 'clockblocks >= 0.6.2', 'python-osc']
+install_requires = ['pymusicxml >= 0.5.3', 'expenvelope >= 0.6.8', 'clockblocks >= 0.6.3', 'python-osc']
 # Note: pyfluidsynth and sf2utils are also dependencies, but needed to be tweaked,
 # so they have been copied into the _third_party package
 

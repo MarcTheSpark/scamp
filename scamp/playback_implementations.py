@@ -409,7 +409,7 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
             assert self in this_note_info, "Note was never started by the SoundfontPlaybackImplementer; this is bad."
             this_note_implementation_info = this_note_info[self]
             if not this_note_implementation_info["prematurely_ended"]:
-                self.cc(this_note_implementation_info["channel"], cc_number, new_value / 127)
+                self.cc(this_note_implementation_info["channel"], cc_number, new_value)
 
 
 class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
