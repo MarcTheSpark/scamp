@@ -1719,7 +1719,7 @@ class Measure(ScoreComponent, ScoreContainer):
         Length of the part of this measure that has something in it. (i.e. the length not counting trailing rests that
         aren't part of a tuplet)
         """
-        return max(v.non_empty_length() for v in self.voices)
+        return max(v.non_empty_length() for v in self.voices if v is not None)
 
     @classmethod
     def empty_measure(cls, time_signature: TimeSignature, show_time_signature: bool = True) -> 'Measure':
