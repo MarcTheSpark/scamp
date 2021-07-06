@@ -37,7 +37,8 @@ install_requires = ['pymusicxml >= 0.5.3', 'expenvelope >= 0.6.8', 'clockblocks 
 # Note: pyfluidsynth and sf2utils are also dependencies, but needed to be tweaked,
 # so they have been copied into the _third_party package
 
-ABJAD_VERSION = "3.3"
+ABJAD_MIN_VERSION = "3.3"
+ABJAD_VERSION = "3.4"
 
 extras_require = {
     'lilypond': 'abjad==' + ABJAD_VERSION,

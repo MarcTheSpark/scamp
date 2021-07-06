@@ -15,7 +15,7 @@
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
 from .settings import playback_settings
-from ._package_info import ABJAD_VERSION
+from ._package_info import ABJAD_VERSION, ABJAD_MIN_VERSION
 import logging
 import os
 import platform
@@ -121,11 +121,14 @@ def abjad():
     except ImportError:
         raise ImportError("abjad was not found; LilyPond output is not available.")
 
-    if abjad_library.__version__ < ABJAD_VERSION:
+    if abjad_library.__version__ < ABJAD_MIN_VERSION:
         raise ImportError(
-            "abjad version {} found, but SCAMP is built for version {}. "
+            "abjad version {} found, but SCAMP is built for {}. "
             "Run `pip3 install abjad=={}` to upgrade."
-            .format(abjad_library.__version__, ABJAD_VERSION, ABJAD_VERSION)
+            .format(abjad_library.__version__,
+                    "version {}".format(ABJAD_VERSION) if ABJAD_MIN_VERSION == ABJAD_VERSION
+                    else "versions {}-{}".format(ABJAD_MIN_VERSION, ABJAD_VERSION), ABJAD_VERSION,
+                    ABJAD_VERSION)
         )
     elif abjad_library.__version__ > ABJAD_VERSION:
         if not _abjad_warning_given:
