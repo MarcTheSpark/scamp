@@ -46,7 +46,7 @@ def _try_to_load_local_fl_library():
     out = None
     try:
         if platform.system() == "Darwin":
-            out = CDLL(os.path.join(os.path.dirname(__file__), "mac_libs/libfluidsynth.2.3.8.dylib"))
+            out = CDLL(os.path.join(os.path.dirname(__file__), "mac_libs/libfluidsynth.3.0.1.dylib"))
         elif platform.system() == "Windows":
             try:
                 out = CDLL(os.path.join(os.path.dirname(__file__), "windows_libs/libfluidsynth64.dll"))
