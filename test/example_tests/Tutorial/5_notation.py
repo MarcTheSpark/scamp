@@ -37,6 +37,8 @@ for pitch in [60, 64, 67, 72]:
 # when and how notes were played back, in continuous time
 performance = s.stop_transcribing()
 
+s.kill()
+
 
 def test_results():
     return (

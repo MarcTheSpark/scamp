@@ -38,6 +38,8 @@ piano.play_chord([71.5, 74.3], 1.0, 1)
 
 performance = s.stop_transcribing()
 
+s.kill()
+
 
 def test_results():
     return (

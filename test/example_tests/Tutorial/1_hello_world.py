@@ -37,5 +37,8 @@ for pitch in [60, 64, 67, 72]:
     violin.play_note(pitch, 1, 0.5)
 
 
+s.kill()
+
+
 def test_results():
     return [True]

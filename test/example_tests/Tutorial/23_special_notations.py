@@ -54,6 +54,9 @@ violin.play_chord([60, 64, 67, 72], 1, 1, "fermata, arpeggiate up")
 
 performance = s.stop_transcribing()
 
+s.kill()
+
+
 def test_results():
     return (
         performance,

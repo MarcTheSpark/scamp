@@ -45,6 +45,8 @@ viola.play_note([[60, 70, 55], [2, 1], [-2, 0]], 1.0, 4)
 
 performance = s.stop_transcribing()
 
+s.kill()
+
 
 def test_results():
     return (

@@ -37,6 +37,8 @@ wait(1)
 # start playing a 2-beat E, blocking this time
 violin.play_note(64, 1, 2)
 
+s.kill()
+
 
 def test_results():
     return [True]

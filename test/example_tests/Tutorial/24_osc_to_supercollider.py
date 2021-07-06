@@ -58,6 +58,8 @@ while vib.num_notes_playing() > 0:
 
 performance = s.stop_transcribing()
 
+s.kill()
+
 
 def test_results():
     old_mvpp = engraving_settings.max_voices_per_part

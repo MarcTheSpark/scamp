@@ -92,6 +92,8 @@ piano.play_note(66, 0.5, 2, [wiggle, "accent"])
 
 performance = s.stop_transcribing()
 
+s.kill()
+
 
 def test_results():
     return (

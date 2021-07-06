@@ -18,6 +18,8 @@ for d in dur_list:
 s.wait_for_children_to_finish()
 performance = s.stop_transcribing()
 
+s.kill()
+
 
 def test_results():
     return (

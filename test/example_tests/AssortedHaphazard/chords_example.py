@@ -16,12 +16,12 @@
 
 from scamp import *
 
-session = Session()
-session.fast_forward_in_beats(float("inf"))
+s = Session()
+s.fast_forward_in_beats(float("inf"))
 
-piano = session.new_part("piano")
+piano = s.new_part("piano")
 
-session.start_transcribing()
+s.start_transcribing()
 
 # this makes the whole chord diamond noteheads
 handle = piano.start_chord(([60, 56], 64, 69), 0.5, "notehead: diamond")
@@ -44,8 +44,10 @@ piano.play_chord((64, 60, 69), 0.5, 2.0, "noteheads: diamond / normal / cross")
 # This line would throw an error, because the wrong number of noteheads is given for the chord
 # piano.play_chord((64, 60, 69), 0.5, 2.0, "noteheads: diamond / normal")
 
-session.wait(0)
-performance = session.stop_transcribing()
+s.wait(0)
+performance = s.stop_transcribing()
+
+s.kill()
 
 
 def test_results():

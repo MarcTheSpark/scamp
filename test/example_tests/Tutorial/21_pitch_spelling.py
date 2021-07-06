@@ -51,6 +51,8 @@ for pitch, dur in zip(pitches, durations):
 
 performance = s.stop_transcribing()
 
+s.kill()
+
 
 def test_results():
     return (

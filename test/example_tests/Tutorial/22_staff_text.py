@@ -51,6 +51,8 @@ violin.play_chord([62, 74], 1.0, 4.25, {
 
 performance = s.stop_transcribing()
 
+s.kill()
+
 
 def test_results():
     return (
