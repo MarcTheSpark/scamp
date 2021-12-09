@@ -2,7 +2,13 @@ Easy Setup for New Python Users
 ===============================
 
 If you're new to Python, the instructions below will help you get set up with SCAMP running in a simple Python editor
-called `Thonny <https://thonny.org/>`_.
+called `Thonny <https://thonny.org/>`_. These steps are largely the same for different operating systems, except as
+noted below. If you're on MacOS, you can also follow along with this video:
+
+.. raw:: html
+
+    <iframe class="youtube" frameborder=0 allowfullscreen="" src="https://www.youtube.com/embed/cghGKwWSdWI?rel=0&showinfo=0&listen=0"></iframe>
+
 
 Step 1: Install Thonny
 ----------------------

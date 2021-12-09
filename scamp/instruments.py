@@ -32,7 +32,7 @@ from .playback_implementations import PlaybackImplementation, SoundfontPlaybackI
     MIDIStreamPlaybackImplementation,  OSCPlaybackImplementation
 from .settings import engraving_settings, playback_settings
 from clockblocks.utilities import wait
-from clockblocks.clock import current_clock, Clock, ClockKilledError, TimeStamp
+from clockblocks.clock import current_clock, Clock, ClockKilledError, DeadClockError, TimeStamp
 from expenvelope import EnvelopeSegment
 import logging
 import time
@@ -401,7 +401,7 @@ class ScampInstrument(SavesToJSON):
 
         :param pitch: either a number, an Envelope, or a list used to create an Envelope. MIDI pitch values are used,
             with 60 representing middle C. However, microtones are allowed; for instance, a pitch of 64.7 produces an
-            F4 30 cents flat.
+            F4 30 cents flat. A pitch of `None` simply translates to a rest.
         :param volume: either a number, an Envelope, or a list used to create an Envelope. Volume is scaled from 0 to 1,
             with 0 representing silence and 1 representing max volume.
         :param length: either a number (of beats), or a tuple representing a set of tied segments
@@ -590,7 +590,7 @@ class ScampInstrument(SavesToJSON):
             else:
                 clock.wait(length)
             note_handle.end()
-        except ClockKilledError as e:
+        except (ClockKilledError, DeadClockError) as e:
             note_handle.end()
             raise e
 

@@ -58,3 +58,12 @@ music, glissandi, and polytempo music, as well as the thorny details of quantiza
 .. raw:: html
 
     <iframe class="youtube" frameborder=0 allowfullscreen="" src="https://www.youtube.com/embed/2XjX1-FXNWs?rel=0&showinfo=0&listen=0"></iframe>
+
+Building Tools using Classes
+----------------------------
+
+This video goes into the process of building your own compositional tools by defining custom classes.
+
+.. raw:: html
+
+    <iframe class="youtube" frameborder=0 allowfullscreen="" src="https://www.youtube.com/embed/gI8M-r83nwc?rel=0&showinfo=0&listen=0"></iframe>
