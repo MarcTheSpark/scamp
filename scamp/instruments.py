@@ -489,12 +489,12 @@ class ScampInstrument(SavesToJSON):
         properties = self._standardize_properties(properties)
 
         if hasattr(pitch, "__len__"):
-            properties.temp["parameters_that_came_from_lists"].add("pitch")
             pitch = Envelope.from_list(pitch)
+            pitch.parsed_from_list = True
 
         if hasattr(volume, "__len__"):
-            properties.temp["parameters_that_came_from_lists"].add("volume")
             volume = Envelope.from_list(volume)
+            volume.parsed_from_list = True
 
         ScampInstrument._normalize_envelopes(pitch, volume, length, properties)
 
@@ -537,16 +537,16 @@ class ScampInstrument(SavesToJSON):
         # normalize envelopes to the duration of the note if the setting say to do so
         if isinstance(pitch, Envelope) and (playback_settings.resize_parameter_envelopes == "always" or
                                             playback_settings.resize_parameter_envelopes == "lists" and
-                                            "pitch" in properties.temp["parameters_that_came_from_lists"]):
+                                            hasattr(pitch, "parsed_from_list")):
             pitch.normalize_to_duration(sum_length)
         if isinstance(volume, Envelope) and (playback_settings.resize_parameter_envelopes == "always" or
                                              playback_settings.resize_parameter_envelopes == "lists" and
-                                             "volume" in properties.temp["parameters_that_came_from_lists"]):
+                                             hasattr(volume, "parsed_from_list")):
             volume.normalize_to_duration(sum_length)
         for param, value in properties.iterate_extra_parameters_and_values():
             if isinstance(value, Envelope) and (playback_settings.resize_parameter_envelopes == "always" or
                                                 playback_settings.resize_parameter_envelopes == "lists" and
-                                                param in properties.temp["parameters_that_came_from_lists"]):
+                                                hasattr(value, "parsed_from_list")):
                 value.normalize_to_duration(sum_length)
 
     def _do_play_note(self, clock, pitch, volume, length, properties, silent=False, transcribe=True):

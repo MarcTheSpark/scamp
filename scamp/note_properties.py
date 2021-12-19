@@ -101,9 +101,6 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
             # this is a throwaway directory that is not kept when we save to json
             dictionary["temp"] = {}
 
-        # we use this to know which parameters initially were set from lists, so that we know whether to resize the
-        # Envelope to the length of the note, in the case that playback_settings.resize_parameter_envelopes == "lists"
-        dictionary["temp"]["parameters_that_came_from_lists"] = set()
         return dictionary
 
     @staticmethod
@@ -286,8 +283,9 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
         # this converts them all to Envelope objects
         for param, value in self.iterate_extra_parameters_and_values():
             if hasattr(value, '__len__'):
-                self["param_" + param] = Envelope.from_list(value)
-                self.temp["parameters_that_came_from_lists"].add(param)
+                env = Envelope.from_list(value)
+                env.parsed_from_list = True
+                self["param_" + param] = env
 
     @property
     def articulations(self) -> List[str]:
