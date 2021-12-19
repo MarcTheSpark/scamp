@@ -36,9 +36,7 @@ from .quantization import TimeSignature, QuantizationScheme, MeasureQuantization
 from .settings import playback_settings, quantization_settings, engraving_settings
 from ._midi import get_available_midi_input_devices, get_available_midi_output_devices, \
     print_available_midi_input_devices, print_available_midi_output_devices, get_port_number_of_midi_device
-from .playback_adjustments import NotePlaybackAdjustment, ParamPlaybackAdjustment, PlaybackAdjustmentsDictionary
+from .playback_adjustments import NotePlaybackAdjustment, ParamPlaybackAdjustment
 from .note_properties import NoteProperties
 from ._package_info import version as __version__
 from ._package_info import author as __author__
-
-assert isinstance(playback_settings.adjustments, PlaybackAdjustmentsDictionary)

@@ -97,7 +97,10 @@ class StaffText(SavesToJSON, NoteProperty):
     def __eq__(self, other):
         if not isinstance(other, StaffText):
             return False
-        return self._to_dict() == other._to_dict()
+        return hash(self) == hash(other)
+
+    def __hash__(self):
+        return hash((self.text, self.bold, self.italic, self.placement))
 
     def __repr__(self):
         return "StaffText({}{}{}{})".format(

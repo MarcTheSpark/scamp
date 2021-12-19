@@ -24,14 +24,15 @@ scamp package. These instances are part of the global scamp namespace, and conta
 import os
 from types import SimpleNamespace
 from .utilities import resolve_path, SavesToJSON
-from .playback_adjustments import PlaybackAdjustmentsDictionary, NotePlaybackAdjustment
+from .playback_adjustments import NotePlaybackAdjustment
 from expenvelope.envelope import Envelope
 from . import spelling
 import logging
 import json
 import platform
 import subprocess
-from typing import Optional
+from typing import Optional, Union
+from .parsing import parse_property_key_and_value, parse_note_playback_adjustment
 
 
 class _ScampSettings(SimpleNamespace, SavesToJSON):
@@ -188,8 +189,8 @@ class PlaybackSettings(_ScampSettings):
         prefixes we will use for them. For instance, if you want start note messages to use "note_on", set the
         osc_message_addresses["start_note"] = "note_on", and all OSC messages starting a note will come out as
         [instrument name]/note_on/
-    :ivar adjustments: a :class:`~scamp.playback_adjustments.PlaybackAdjustmentsDictionary` defining how playback should
-        be altered in response to different articulations/notations/etc.
+    :ivar adjustments: a dictionary defining how playback should be altered in response to different
+        articulations/notations/etc.
     :ivar try_system_fluidsynth_first: if True, always tries system copy of the fluidsynth libraries first before using
         the one embedded in the scamp package.
     :ivar resize_parameter_envelopes: one of "never", "lists", and "always". This determines whether or not parameter
@@ -219,13 +220,15 @@ class PlaybackSettings(_ScampSettings):
             "change_volume": "change_volume",
             "change_parameter": "change_parameter"
         },
-        "adjustments": PlaybackAdjustmentsDictionary(articulations={
-            "staccato": NotePlaybackAdjustment.scale_params(length=0.5),
-            "staccatissimo": NotePlaybackAdjustment.scale_params(length=0.3),
-            "tenuto": NotePlaybackAdjustment.scale_params(length=1.2),
-            "accent": NotePlaybackAdjustment.scale_params(volume=1.2),
-            "marcato": NotePlaybackAdjustment.scale_params(volume=1.5),
-        }),
+        "adjustments": {
+            "articulations": {
+                "staccato": NotePlaybackAdjustment.scale_params(length=0.5),
+                "staccatissimo": NotePlaybackAdjustment.scale_params(length=0.3),
+                "tenuto": NotePlaybackAdjustment.scale_params(length=1.2),
+                "accent": NotePlaybackAdjustment.scale_params(volume=1.2),
+                "marcato": NotePlaybackAdjustment.scale_params(volume=1.5),
+            }
+        },
         "try_system_fluidsynth_first": False,
         "resize_parameter_envelopes": "lists",
         "recording_file_path": None,
@@ -245,7 +248,6 @@ class PlaybackSettings(_ScampSettings):
             self.adjustments = self.try_system_fluidsynth_first = self.soundfont_search_paths = \
             self.resize_parameter_envelopes = self.recording_file_path = self.recording_time_range = None
         super().__init__(settings_dict, suppress_warnings)
-        assert isinstance(self.adjustments, PlaybackAdjustmentsDictionary)
 
     def register_named_soundfont(self, name: str, soundfont_path: str) -> None:
         """
@@ -274,6 +276,31 @@ class PlaybackSettings(_ScampSettings):
         """
         for a, b in self.named_soundfonts.items():
             print("{}: {}".format(a, b))
+
+    def set_playback_adjustment(self, note_property: str, adjustment: Union[str, NotePlaybackAdjustment]):
+        key, value = parse_property_key_and_value(note_property)
+
+        if key == "playback_adjustments":
+            raise ValueError("Cannot set a playback adjustment for a playback adjustment. That's just silly.")
+
+        if key not in self.adjustments:
+            self.adjustments[key] = {}
+
+        if isinstance(adjustment, NotePlaybackAdjustment):
+            self.adjustments[key][value] = adjustment
+        else:
+            self.adjustments[key][value] = parse_note_playback_adjustment(adjustment)
+
+    def get_playback_adjustment(self, note_property: str):
+        key, value = parse_property_key_and_value(note_property)
+
+        if key == "playback_adjustments":
+            raise ValueError("Cannot get a playback adjustment for a playback adjustment. That's just silly.")
+
+        try:
+            return self.adjustments[key][value]
+        except KeyError:
+            return None
 
     @staticmethod
     def _validate_attribute(key, value):

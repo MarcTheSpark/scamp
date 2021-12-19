@@ -63,7 +63,6 @@ class SpellingPolicy(SavesToJSON, NoteProperty):
     """
 
     def __init__(self, step_alteration_pairs: Sequence[Tuple[int, int]] = _c_standard_spellings):
-
         self.step_alteration_pairs = step_alteration_pairs
 
     """
@@ -177,10 +176,14 @@ class SpellingPolicy(SavesToJSON, NoteProperty):
                 num_sharps_or_flats -= 7
             elif string_initializer_processed[1:] in ("#", "sharp", "s"):
                 num_sharps_or_flats += 7
+            elif string_initializer_processed[1:] == "x":
+                num_sharps_or_flats += 14
+            elif string_initializer_processed[1:] == "bb":
+                num_sharps_or_flats -= 14
             elif len(string_initializer_processed) > 1:
                 raise ValueError("Bad spelling policy initialization string. Use only 'sharp', 'flat', "
                                  "or the name of the desired key center (e.g. 'G#' or 'Db') with optional mode.")
-            return SpellingPolicy.from_circle_of_fifths_position(num_sharps_or_flats, template=template)
+            return cls.from_circle_of_fifths_position(num_sharps_or_flats, template=template)
 
     @classmethod
     def interpret(cls, obj: Union['SpellingPolicy', str, tuple]) -> 'SpellingPolicy':
@@ -259,3 +262,11 @@ class SpellingPolicy(SavesToJSON, NoteProperty):
 
     def __repr__(self):
         return "SpellingPolicy({})".format(self.step_alteration_pairs)
+
+    def __hash__(self):
+        return hash(self.step_alteration_pairs)
+
+    def __eq__(self, other):
+        if isinstance(other, SpellingPolicy):
+            return hash(self) == hash(other)
+        return False

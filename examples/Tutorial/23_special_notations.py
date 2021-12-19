@@ -23,7 +23,7 @@ from scamp import *
 # these lines set an playback adjustment to occur on notes with the "turn" notation, bending the pitch up and down
 # a similar approach could be taken with other notations.
 turn_pitch_envelope = Envelope([0, 0, 1, 1, 0, 0, -1, -1, 0, 0], [0.07, 0, 0.07, 0, 0.07, 0, 0.07, 0, 0.07])
-playback_settings.adjustments.set("turn", NotePlaybackAdjustment.add_to_params(pitch=turn_pitch_envelope))
+playback_settings.set_playback_adjustment("turn", NotePlaybackAdjustment.add_to_params(pitch=turn_pitch_envelope))
 
 s = Session()
 violin = s.new_part("Violin")

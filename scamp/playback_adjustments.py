@@ -21,10 +21,8 @@ Module containing classes for defining adjustments to the playback of note param
 import re
 from numbers import Real
 from .utilities import SavesToJSON, NoteProperty
-from ._engraving_translations import parse_note_property
 from expenvelope import Envelope
 from typing import Union, Sequence
-from collections import UserDict
 
 
 def _split_string_at_outer_spaces(s):
@@ -178,9 +176,12 @@ class ParamPlaybackAdjustment(SavesToJSON):
         return cls(**json_dict)
 
     def __eq__(self, other):
-        if not isinstance(other, ParamPlaybackAdjustment):
-            return False
-        return self.multiply == other.multiply and self.add_amount == other.add_amount
+        if isinstance(other, ParamPlaybackAdjustment):
+            return hash(self) == hash(other)
+        return False
+
+    def __hash__(self):
+        return hash((self.multiply, self.add_amount))
 
     def __repr__(self):
         return "ParamPlaybackAdjustment({}, {})".format(self.multiply, self.add_amount)
@@ -333,101 +334,15 @@ class NotePlaybackAdjustment(SavesToJSON, NoteProperty):
         return cls(**json_dict)
 
     def __eq__(self, other):
-        if not isinstance(other, NotePlaybackAdjustment):
-            return False
-        return self._to_dict() == other._to_dict()
+        if isinstance(other, NotePlaybackAdjustment):
+            return hash(self) == hash(other)
+        return False
+
+    def __hash__(self):
+        return hash((self.pitch_adjustment, self.volume_adjustment, self.length_adjustment,
+                     self.scale_envelopes_to_length))
 
     def __repr__(self):
         return "NotePlaybackAdjustment({}, {}, {})".format(
             self.pitch_adjustment, self.volume_adjustment, self.length_adjustment
-        )
-
-
-class PlaybackAdjustmentsDictionary(UserDict, SavesToJSON):
-
-    """
-    Dictionary containing playback adjustments for different articulations, noteheads, and other notations.
-    The instance of this at playback_settings.adjustments is consulted during playback. Essentially, this is
-    just a dictionary with a couple of convenience methods to set and get adjustments for different properties.
-    """
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    def set(self, note_property: str, adjustment: Union[str, NotePlaybackAdjustment]) -> None:
-        """
-        Set the given note_property to have the given :class:`NotePlaybackAdjustment`.
-        The note property can either be a key/value pair (e.g. "notehead: slash") or a value, from which we infer
-        the key (e.g. "staccato", from which it is inferred as an articulation)
-
-        :param note_property: name of the notation detail, e.g. "staccato" or "harmonic"
-        :param adjustment: the adjustment to make for that notation. Either a :class:`NotePlaybackAdjustment` or a
-            string to be parsed to a :class:`NotePlaybackAdjustment` using :code:`NotePlaybackAdjustment.from_string`
-        """
-        key, value = parse_note_property(note_property)
-
-        if key is None:
-            raise ValueError("Playback property not understood.")
-        elif key == "playback_adjustment":
-            raise ValueError("Cannot set a playback adjustment for a playback adjustment. That's just silly.")
-        elif isinstance(value, list):
-            if len(value) > 1:
-                raise ValueError("Cannot set adjustments for multiple properties.")
-            else:
-                value = value[0]
-
-        if isinstance(adjustment, str):
-            adjustment = NotePlaybackAdjustment.from_string(adjustment)
-
-        if key not in self:
-            self[key] = {}
-
-        self[key][value] = adjustment
-
-    def get(self, note_property: str) -> NotePlaybackAdjustment:
-        """
-        Get the :class:`NotePlaybackAdjustment` for the given note_property.
-        The note property can either be a key/value pair (e.g. "notehead: slash") or a value, from which we infer
-        the key (e.g. "staccato", from which it is inferred as an articulation)
-
-        :param note_property: name of the note property, e.g. "staccato" or "harmonic"
-        :return: the :class:`NotePlaybackAdjustment` for that detail
-        """
-        key, value = parse_note_property(note_property)
-
-        if key is None:
-            return None
-        elif key == "playback_adjustment":
-            raise ValueError("Cannot set a playback adjustment for a playback adjustment. That's just silly.")
-        elif isinstance(value, list):
-            if len(value) > 1:
-                raise ValueError("Cannot get adjustments for multiple properties.")
-            else:
-                value = value[0]
-
-        try:
-            return self[key][value]
-        except KeyError:
-            return None
-
-    def _to_dict(self):
-        return {
-            key: value._to_dict() if hasattr(value, "_to_dict")
-            else PlaybackAdjustmentsDictionary._to_dict(value) if isinstance(value, dict)
-            else value for key, value in self.items() if value is not None
-        }
-
-    @classmethod
-    def _from_dict(cls, json_dict):
-        # convert all adjustments from dictionaries to NotePlaybackAdjustments
-        for notation_category in json_dict:
-            for notation_name in json_dict[notation_category]:
-                if json_dict[notation_category][notation_name] is not None:
-                    json_dict[notation_category][notation_name] = \
-                        NotePlaybackAdjustment._from_dict(json_dict[notation_category][notation_name])
-        return cls(**json_dict)
-
-    def __repr__(self):
-        return "PlaybackAdjustmentsDictionary({})".format(
-            ", ".join("{}={}".format(key, self[key]) for key in self.keys())
         )

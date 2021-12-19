@@ -418,11 +418,7 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
             # try all categories of playback adjustments that are sound in the adjustments dictionary and this dict
             for notation_category in set(self.keys()).intersection(set(playback_settings.adjustments.keys())):
                 for applied_notation in self[notation_category]:
-                    if hasattr(applied_notation, "text"):
-                        # this covers the case of StaffText objects. Their playback adjustments are stored under the
-                        # relevant string, without formatting. All other types of notation are just stored as strings
-                        applied_notation = applied_notation.text
-                    notation_derived_adjustment = playback_settings.adjustments.get(applied_notation)
+                    notation_derived_adjustment = playback_settings.get_playback_adjustment(applied_notation)
                     if notation_derived_adjustment is not None:
                         assert isinstance(notation_derived_adjustment, NotePlaybackAdjustment)
                         pitch, volume, length = notation_derived_adjustment.adjust_parameters(pitch, volume, length)
