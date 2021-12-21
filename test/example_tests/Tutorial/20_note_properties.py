@@ -67,7 +67,7 @@ piano.play_note(64, 0.5, 0.5, "voice: bottom_notes")
 
 # You can also use the properties argument for playback adjustments, which do not affect notation
 # This will cut the length of the note in half, and play it up an octave
-piano.play_note(65, 0.5, 1, "playback_adjustment: length * 0.5; pitch + 12")
+piano.play_note(65, 0.5, 1, "playback_adjustment: length * 0.5, pitch + 12")
 # Usually it's not necessary to specify that it's a playback adjustment.
 # This will play the note with a gliss up and down a half step
 piano.play_note(65, 0.5, 1, "pitch + [0, 2, 0]")
@@ -80,7 +80,7 @@ piano.play_note(65, 0.5, 1, NotePlaybackAdjustment.set_params(pitch=78, volume=0
 
 # Under the hood, everything we pass to the properties argument gets converted to a NoteProperties
 # object, we can use this to bundle playback and notation, such as in this wiggle ornament
-wiggle = NoteProperties.from_list([
+wiggle = NoteProperties.interpret([
     "text: ~",
     NotePlaybackAdjustment.add_to_params(pitch=Envelope([0, 1, 0], [0.1, 0.1]))
 ])

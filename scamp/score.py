@@ -2136,14 +2136,14 @@ class Voice(ScoreComponent, ScoreContainer):
                     is_combinable = False
 
                 if is_combinable:
-                    note.properties["temp"]["beat_index"] = int(round(t / duple_subdivision))
+                    note.properties.temp["beat_index"] = int(round(t / duple_subdivision))
                     current_group.append(note)
                 else:
                     hit_a_stopper()
                     # even though this note can't combine with previous, it could be part of a new group
                     if is_x_pow_of_y(note.written_length.denominator, 2) and not note.does_glissando() \
                             and (note.is_rest() or note.source_id() is not None):
-                        note.properties["temp"]["beat_index"] = int(round(t / duple_subdivision))
+                        note.properties.temp["beat_index"] = int(round(t / duple_subdivision))
                         current_group.append(note)
                     else:
                         # ... or not
@@ -2156,7 +2156,7 @@ class Voice(ScoreComponent, ScoreContainer):
         processed_contents = []
         for group in combinable_groups:
             if isinstance(group, list):
-                note_division_points = [x.properties["temp"]["beat_index"] for x in group]
+                note_division_points = [x.properties.temp["beat_index"] for x in group]
                 note_division_points.append(note_division_points[-1] +
                                             int(round(group[-1].written_length / duple_subdivision)))
 
@@ -2386,8 +2386,7 @@ class NoteLike(ScoreComponent):
         self.pitch = pitch
         self.volume = volume
         self.written_length = Fraction(written_length).limit_denominator()
-        self.properties = properties if isinstance(properties, NoteProperties) \
-            else NoteProperties.from_unknown_format(properties)
+        self.properties = properties if isinstance(properties, NoteProperties) else NoteProperties.interpret(properties)
 
     def is_rest(self) -> bool:
         """Returns whether or not this is a rest."""
@@ -2465,7 +2464,7 @@ class NoteLike(ScoreComponent):
         if self.is_rest() and other.is_rest() or other.source_id() == self.source_id() is not None:
             self.properties.articulations.extend(other.properties.articulations)
             self.written_length += other.written_length
-            self.properties["_starts_tie"] = other.properties.starts_tie()
+            self.properties.starts_tie = other.properties.starts_tie
         else:
             raise ValueError("Notes are not compatible for merger.")
 
@@ -2513,7 +2512,7 @@ class NoteLike(ScoreComponent):
 
         # if this note doesn't start a tie, then it's the last note of the glissando,
         # so if the settings say to do so, we include an end grace note
-        include_end_point = not self.properties.starts_tie() and engraving_settings.glissandi.include_end_grace_note
+        include_end_point = not self.properties.starts_tie and engraving_settings.glissandi.include_end_grace_note
         # in that case, it has to count towards the control point limit if there is one
         if control_point_limit is not None and include_end_point:
             control_point_limit -= 1
@@ -2650,7 +2649,7 @@ class NoteLike(ScoreComponent):
 
     def _attach_abjad_microtonal_annotation(self, note_object, pitch_or_pitches):
         if not engraving_settings.show_microtonal_annotations or \
-                self.properties.ends_tie() and not self.does_glissando():
+                self.properties.ends_tie and not self.does_glissando():
             # if this is not the first segment of the note, and it's not part of a gliss, don't do the annotations
             return
         if hasattr(pitch_or_pitches, '__len__'):
@@ -2699,8 +2698,8 @@ class NoteLike(ScoreComponent):
                 abjad().attach(abjad().Articulation(articulation), abjad_note_or_chord)
         else:
             # there's a gliss
-            attack_notehead = abjad_note_or_chord if not self.properties.ends_tie() else None
-            release_notehead = grace_container[-1] if not self.properties.starts_tie() else None
+            attack_notehead = abjad_note_or_chord if not self.properties.ends_tie else None
+            release_notehead = grace_container[-1] if not self.properties.starts_tie else None
             inner_noteheads = ([] if attack_notehead is not None else [abjad_note_or_chord]) + \
                               [grace for grace in grace_container[:-1]] + \
                               ([] if release_notehead is not None else [grace_container[-1]])
@@ -2725,8 +2724,8 @@ class NoteLike(ScoreComponent):
                 attach_abjad_notation_to_note(abjad_note_or_chord, notation)
         else:
             # there's a gliss
-            attack_notehead = abjad_note_or_chord if not self.properties.ends_tie() else None
-            release_notehead = grace_container[-1] if not self.properties.starts_tie() else None
+            attack_notehead = abjad_note_or_chord if not self.properties.ends_tie else None
+            release_notehead = grace_container[-1] if not self.properties.starts_tie else None
             inner_noteheads = ([] if attack_notehead is not None else [abjad_note_or_chord]) + \
                               [grace for grace in grace_container[:-1]] + \
                               ([] if release_notehead is not None else [grace_container[-1]])
@@ -2846,7 +2845,7 @@ class NoteLike(ScoreComponent):
 
     def _get_xml_microtonal_annotation(self, pitch_or_pitches):
         if not engraving_settings.show_microtonal_annotations or \
-                self.properties.ends_tie() and not self.does_glissando():
+                self.properties.ends_tie and not self.does_glissando():
             # if this is not the first segment of the note, and it's not part of a gliss, don't do the annotations
             return ()
         if hasattr(pitch_or_pitches, '__len__'):
@@ -2872,8 +2871,8 @@ class NoteLike(ScoreComponent):
     def _attach_articulations_and_notations_to_xml_note_group(self, xml_note_group):
         if len(xml_note_group) > 1:
             # there's a gliss, and xml_note_group contains the main note followed by grace notes
-            attack_notehead = xml_note_group[0] if not self.properties.ends_tie() else None
-            release_notehead = xml_note_group[-1] if not self.properties.starts_tie() else None
+            attack_notehead = xml_note_group[0] if not self.properties.ends_tie else None
+            release_notehead = xml_note_group[-1] if not self.properties.starts_tie else None
             inner_noteheads = xml_note_group[1 if attack_notehead is not None else 0:
                                              -1 if release_notehead is not None else None]
             # only attach attack articulations and notations to the main note
@@ -2903,11 +2902,11 @@ class NoteLike(ScoreComponent):
                 xml_note_group[0].notations.append(notations_to_xml_notations_element[notation])
 
     def _get_xml_tie_state(self):
-        if self.properties.starts_tie() and self.properties.ends_tie():
+        if self.properties.starts_tie and self.properties.ends_tie:
             return "continue"
-        elif self.properties.starts_tie():
+        elif self.properties.starts_tie:
             return "start"
-        elif self.properties.ends_tie():
+        elif self.properties.ends_tie:
             return "stop"
         else:
             return None

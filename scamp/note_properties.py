@@ -27,364 +27,229 @@ from .spelling import SpellingPolicy
 from .text import StaffText
 from expenvelope import Envelope
 from copy import deepcopy
-import logging
-import json
-from collections import UserDict
-from typing import Sequence, List, Union, Iterator, Tuple, MutableMapping, Optional
+from . import parsing
+import re
+from types import SimpleNamespace
+from typing import Sequence, Union, MutableMapping
 
 
-def _split_string_at_outer_commas(s):
-    """
-    Splits a string only at those commas that are not inside some sort of parentheses
-    e.g. "hello, [2, 5], {2: 7}" => ["hello", "[2, 5]", "{2: 7}"]
-    """
-    out = []
-    paren_count = square_count = curly_count = 0
-    last_split = i = 0
-    for character in s:
-        i += 1
-        if character == "(":
-            paren_count += 1
-        elif character == "[":
-            square_count += 1
-        elif character == "{":
-            curly_count += 1
-        elif character == ")":
-            paren_count -= 1
-        elif character == "]":
-            square_count -= 1
-        elif character == "}":
-            curly_count -= 1
-        elif character == "," and paren_count == square_count == curly_count == 0:
-            out.append(s[last_split:i-1].strip())
-            last_split = i
-    out.append(s[last_split:].strip())
-    return out
+def _is_non_str_sequence(x):
+    return isinstance(x, Sequence) and not isinstance(x, str)
 
 
-class NoteProperties(UserDict, SavesToJSON, NoteProperty):
+class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
+    # list of all valid kinds of NoteProperties and their attributes
+    PROPERTY_TYPES = (
+        # "key" is the name of the property as it appears in the NoteProperties namespace/dictionary
+        # "regex" is a regular expression, and input key matching this regex is considered to refer to this property
+        # "default" is the default value of this property if none is given. (list properties are treated specially:
+        #    if given a non-list, it gets wrapped as a list)
+        # "regularization_function" is a function to call when receiving an entry for this property, e.g. used to
+        #    parse a string into a StaffText object
+        # "custom_type" is a custom class associated with this property, such that if we are given one of these custom
+        #    classes, we know it's for this property
+        # "merger_function": defines what to do with this attribute when merging two NoteProperties
+        # "chord_merger_critical": whether this property has to match in order for two notes to merge into a chord
+        {
+            "key": "articulations",
+            "regex": r"^articulations?$",
+            "default": [],
+            "regularization_function": None,
+            "merger_function": lambda p1, p2: p1 + p2,
+            "chord_merger_critical": True
+        },
+        {
+            "key": "notations",
+            "regex": r"^notations?$",
+            "default": [],
+            "regularization_function": None,
+            "merger_function": lambda p1, p2: p1 + p2,
+            "chord_merger_critical": True
+        },
+        {
+            "key": "noteheads",
+            "regex": r"^noteheads?$",
+            "default": ["normal"],
+            "regularization_function": None,
+            "merger_function": lambda p1, p2: p1 if p2 == ["normal"] else p2,
+            "chord_merger_critical": False
+        },
+        {
+            "key": "dynamics",
+            "regex": r"^dynamics?$",
+            "default": [],
+            "regularization_function": None,
+            "merger_function": lambda p1, p2: p1 + p2,
+            "chord_merger_critical": True
+        },
+        {
+            "key": "texts",
+            "regex": r"^texts?$",
+            "default": [],
+            "regularization_function": lambda x: StaffText.from_string(x) if isinstance(x, str) else x,
+            "custom_type": StaffText,
+            "merger_function": lambda p1, p2: p1 + p2,
+            "chord_merger_critical": True
+        },
+        {
+            "key": "playback_adjustments",
+            "regex": r"^(playback_)?adjustments?$",
+            "default": [],
+            "regularization_function": lambda x: NotePlaybackAdjustment.from_string(x) if isinstance(x, str) else x,
+            "custom_type": NotePlaybackAdjustment,
+            "merger_function": lambda p1, p2: p1 + p2,
+            "chord_merger_critical": True
+        },
+        {
+            "key": r"spelling_policy",
+            "regex": r"^(spelling|spelling_policy|key)$",
+            "default": None,
+            "regularization_function": lambda x: SpellingPolicy.from_string(x) if isinstance(x, str) else x,
+            "custom_type": SpellingPolicy,
+            "merger_function": lambda p1, p2: p2,
+            "chord_merger_critical": False
+        },
+        {
+            "key": r"voice",
+            "regex": r"^voice$",
+            "default": None,
+            "regularization_function": None,
+            "merger_function": lambda p1, p2: p2,
+            "chord_merger_critical": True
+        },
+        {
+            "key": "extra_playback_parameters",
+            "regex": r"^extra_playback_parameters$",
+            "default": {},
+            "regularization_function": None,
+            "merger_function": lambda p1, p2: {**p1, **p2},
+            "chord_merger_critical": True
+        },
+        {
+            "key": "starts_tie",
+            "regex": r"^starts_tie$",
+            "default": False,
+            "regularization_function": None,
+            "merger_function": lambda p1, p2: p1,
+            "chord_merger_critical": True
+        },
+        {
+            "key": "ends_tie",
+            "regex": r"^ends_tie$",
+            "default": False,
+            "regularization_function": None,
+            "merger_function": lambda p1, p2: p2,
+            "chord_merger_critical": True
+        }
+    )
 
-    """
-    A dictionary-style class that stores a variety of playback and notation options affecting a single note.
-
-    :param kwargs: key value pairs that make up this dictionary. Recognized dictionary keys are "articulation(s)",
-        "notehead(s)", "notation(s)", "text(s)", "dynamic(s)", "playback_adjustment(s)", "key"/"spelling_policy",
-        "voice", and "param_*" (for specifying arbitrary extra parameters).
-    """
+    PROPERTY_TYPES_AS_DICT = {property_info["key"]: property_info for property_info in PROPERTY_TYPES}
 
     def __init__(self, **kwargs):
-        NoteProperties._normalize_dictionary_keys(kwargs)
-        super().__init__(**kwargs)
-        self._convert_params_to_envelopes_if_needed()
-        self._validate_values()
-        self._merge_bundles()
-
-    @staticmethod
-    def _normalize_dictionary_keys(dictionary):
-        NoteProperties._standardize_plural_key("articulations", dictionary)
-        NoteProperties._standardize_plural_key("noteheads", dictionary)
-        if len(dictionary["noteheads"]) == 0:
-            dictionary["noteheads"] = ["normal"]
-        NoteProperties._standardize_plural_key("notations", dictionary)
-        NoteProperties._standardize_plural_key("texts", dictionary)
-        NoteProperties._standardize_plural_key("dynamics", dictionary)
-        NoteProperties._standardize_plural_key("playback_adjustments", dictionary)
-
-        for i, adjustment in enumerate(dictionary["playback_adjustments"]):
-            if isinstance(adjustment, str):
-                dictionary["playback_adjustments"][i] = NotePlaybackAdjustment.from_string(adjustment)
-
-        if "spelling_policy" not in dictionary:
-            dictionary["spelling_policy"] = None
-
-        if "temp" not in dictionary:
-            # this is a throwaway directory that is not kept when we save to json
-            dictionary["temp"] = {}
-
-        return dictionary
-
-    @staticmethod
-    def _standardize_plural_key(key_name, dictionary):
-        """
-        Makes sure that the given entry exists in a plural form (e.g. "texts" instead of "text") and that
-        it points to a list of items.
-        """
-        if key_name not in dictionary:
-            if key_name[:-1] in dictionary:
-                # the non-plural version is there, so convert to the standard plural version
-                dictionary[key_name] = dictionary[key_name[:-1]]
-                del dictionary[key_name[:-1]]
-            else:
-                dictionary[key_name] = []
-        if not isinstance(dictionary[key_name], (list, tuple)):
-            dictionary[key_name] = [dictionary[key_name]]
-
-    def _validate_values(self):
-        validated_articulations = []
-        for articulation in self["articulations"]:
-            if articulation in all_articulations:
-                validated_articulations.append(articulation)
-            else:
-                logging.warning("Articulation {} not understood".format(articulation))
-        self["articulations"] = validated_articulations
-
-        validated_noteheads = []
-        for notehead in self["noteheads"]:
-            if notehead in all_noteheads:
-                validated_noteheads.append(notehead)
-            else:
-                logging.warning("Notehead {} not understood".format(notehead))
-                validated_noteheads.append("normal")
-        self["noteheads"] = validated_noteheads
-
-        validated_notations = []
-        for notation in self["notations"]:
-            if notation in all_notations:
-                validated_notations.append(notation)
-            else:
-                logging.warning("Notation {} not understood".format(notation))
-        self["notations"] = validated_notations
-
-        validated_playback_adjustments = []
-        for playback_adjustment in self["playback_adjustments"]:
-            if isinstance(playback_adjustment, NotePlaybackAdjustment):
-                validated_playback_adjustments.append(playback_adjustment)
-            elif isinstance(playback_adjustment, str):
-                validated_playback_adjustments.append(NotePlaybackAdjustment.from_string(playback_adjustment))
-            else:
-                logging.warning("Playback adjustment {} not understood".format(playback_adjustment))
-        self["playback_adjustments"] = validated_playback_adjustments
-
-        if self["spelling_policy"] is not None and not isinstance(self["spelling_policy"], SpellingPolicy):
-            try:
-                if not isinstance("spelling_policy", str):
-                    raise ValueError()
-                self["spelling_policy"] = SpellingPolicy.from_string(self["spelling_policy"])
-            except ValueError:
-                logging.warning("Spelling policy \"{}\" not understood".format(self["spelling_policy"]))
-                self["spelling_policy"] = None
-
-        validated_texts = []
-        for text in self["texts"]:
-            if isinstance(text, StaffText):
-                validated_texts.append(text)
-            elif isinstance(text, str):
-                validated_texts.append(StaffText.from_string(text))
-            else:
-                logging.warning("Staff text \"{}\" not understood".format(self["text"]))
-        self["texts"] = validated_texts
-
-        validated_dynamics = []
-        for dynamic in self["dynamics"]:
-            if isinstance(dynamic, str):
-                validated_dynamics.append(dynamic)
-            else:
-                logging.warning("Staff text \"{}\" not understood".format(self["text"]))
-        self["dynamics"] = validated_dynamics
-
-    def _merge_bundles(self):
-        NoteProperties._standardize_plural_key("bundles", self)
-        property_bundles = self["bundles"]
-        del self["bundles"]
-        for property_bundle in property_bundles:
-            if not isinstance(property_bundle, MutableMapping):
-                raise ValueError("Invalid bundle; must be a NoteProperties or dict-like object.")
-            self.incorporate(property_bundle)
-
-    @classmethod
-    def from_unknown_format(cls, properties) -> 'NoteProperties':
-        """
-        Interprets a number of data formats as a :class:`NoteProperties`
-
-        :param properties: Can be of several formats:
-
-            - a dictionary, using the standard format used by :class:`NoteProperties`
-            - a list, each of which is a string, a :class:`~scamp.playback_adjustments.NotePlaybackAdjustment`, a :class:`~scamp.spelling.SpellingPolicy`, or a :class:`scamp.text.StaffText`. Each string may be colon-separated key/value pair (e.g. "articulation: staccato"), or simply the value (e.g. "staccato"), in which case an attempt is made to infer the key.
-            - a string of comma-separated properties, which just gets split and treated like a list
-            - a :class:`~scamp.playback_adjustments.NotePlaybackAdjustment`, :class:`~scamp.spelling.SpellingPolicy`, or :class:`scamp.text.StaffText`, which just put in a list and treated like a list input
-        :return: a newly constructed NoteProperties dictionary
-        """
-        if isinstance(properties, str):
-            return NoteProperties.from_string(properties)
-        elif isinstance(properties, (SpellingPolicy, NotePlaybackAdjustment, StaffText)):
-            return NoteProperties.from_list([properties])
-        elif isinstance(properties, list):
-            return NoteProperties.from_list(properties)
-        elif properties is None:
-            return cls()
-        else:
-            if not isinstance(properties, dict):
-                raise ValueError("Properties argument wrongly formatted.")
-            return cls(**properties)
-
-    @classmethod
-    def from_string(cls, properties_string) -> 'NoteProperties':
-        """
-        Interprets an appropriately formatted string as a NoteProperties.
-
-        :param properties_string: Should be formatted something like this: "articulations: staccato/tenuto, harmonic, #,
-            volume * 0.7". The comma separates different properties, and the forward slash separates multiple entries
-            for the same property (with the exception of with the text property, since a slash could be part of the
-            text). Properties can either be given with explicit key/value pairs (separated by colon), or a value can
-            simply be given and the type of property will be inferred. In the above example, it is inferred that
-            "harmonic" is a notehead, that the "#" is a desired spelling, and that "volume * 0.7" is a string to be
-            parsed as a :class:`~scamp.playback_adjustments.NotePlaybackAdjustment` using its
-            :func:`~scamp.playback_adjustments.NotePlaybackAdjustment.from_string` method.
-        """
-        assert isinstance(properties_string, str)
-        return NoteProperties.from_list(_split_string_at_outer_commas(properties_string))
-
-    @classmethod
-    def from_list(cls, properties_list: Sequence) -> 'NoteProperties':
-        """
-        Interprets a lists of properties as a NoteProperties.
-
-        :param properties_list: A list of properties, each of which is one of:
-
-            - a :class:~scamp.playback_adjustments.NotePlaybackAdjustment`, :class:`~scamp.spelling.SpellingPolicy`, or
-                :class:`scamp.text.StaffText`
-            - a string featuring a key/value pair separated by a colon.
-                See :func:`~scamp.instruments.ScampInstrument.play_note` for a description of the possible properties.
-            - a string featuring just a value, from which the key is inferred. (E.g. "staccato", which is interpreted
-                as "articulation: staccato")
-        """
-        # this pre-populates the dict with all of the key/value pairs we need
-        properties_dict = NoteProperties._normalize_dictionary_keys({})
-
-        for note_property in properties_list:
-            if isinstance(note_property, NotePlaybackAdjustment):
-                properties_dict["playback_adjustments"].append(note_property)
-            elif isinstance(note_property, SpellingPolicy):
-                properties_dict["spelling_policy"] = note_property
-            elif isinstance(note_property, StaffText):
-                properties_dict["texts"].append(note_property)
-            elif isinstance(note_property, (dict, UserDict)):
-                NoteProperties.incorporate(properties_dict, note_property)
-            elif isinstance(note_property, str):
-                key, value_or_values = parse_note_property(note_property)
-
-                if isinstance(value_or_values, list):
-                    if key == "noteheads":
-                        # if we're given noteheads we set them all at once, overriding any existing ones
-                        properties_dict[key] = value_or_values
+        normalized_kwargs = {}
+        for property_info in NoteProperties.PROPERTY_TYPES:
+            for key in kwargs:
+                if re.match(property_info["regex"], key):
+                    # if there's a match in kwargs
+                    value = kwargs[key]
+                    if _is_non_str_sequence(property_info["default"]):
+                        # if it's a container property
+                        if not _is_non_str_sequence(kwargs[key]):
+                            # ... and we weren't given a container, then put it in a list
+                            value = [value]
+                        if property_info["regularization_function"] is not None:
+                            # If there's a regularization function to call, do it for each element of the list
+                            value = [property_info["regularization_function"](x) for x in value]
                     else:
-                        # otherwise, when there are multiple values, we extend
-                        if key not in properties_dict:
-                            properties_dict[key] = []
-                        properties_dict[key].extend(value_or_values)
-                else:
-                    # single value kind of property, e.g. spelling policy, voice, parameter value, so we just set it
-                    properties_dict[key] = value_or_values
+                        # not a container property
+                        if property_info["regularization_function"] is not None:
+                            # If there's a regularization function to call, do it
+                            value = property_info["regularization_function"](value)
+                    normalized_kwargs[property_info["key"]] = value
+                    break
+            else:
+                # no match in kwargs make a deep copy of the default (since it's often a list!)
+                normalized_kwargs[property_info["key"]] = deepcopy(property_info["default"])
 
-        return cls(**properties_dict)
-
-    def _convert_params_to_envelopes_if_needed(self):
-        # if we've been given extra parameters of playback, and their values are envelopes written as lists, etc.
-        # this converts them all to Envelope objects
-        for param, value in self.iterate_extra_parameters_and_values():
-            if hasattr(value, '__len__'):
-                env = Envelope.from_list(value)
-                env.parsed_from_list = True
-                self["param_" + param] = env
-
-    @property
-    def articulations(self) -> List[str]:
-        """List of articulations associated with this NoteProperties."""
-        return self["articulations"]
-
-    @articulations.setter
-    def articulations(self, value):
-        self["articulations"] = value
-
-    @property
-    def noteheads(self) -> List[str]:
-        """List of noteheads associated with this NoteProperties."""
-        return self["noteheads"]
-
-    @noteheads.setter
-    def noteheads(self, value):
-        self["noteheads"] = value
-
-    @property
-    def notations(self) -> List[str]:
-        """List of notations associated with this NoteProperties."""
-        return self["notations"]
-
-    @notations.setter
-    def notations(self, value):
-        self["notations"] = value
-
-    @property
-    def texts(self) -> List[StaffText]:
-        """List of texts associated with this NoteProperties."""
-        return self["texts"]
-
-    @texts.setter
-    def texts(self, value):
-        self["texts"] = value
-
-    @property
-    def dynamics(self) -> List[str]:
-        """List of dynamics associated with this NoteProperties."""
-        return self["dynamics"]
-
-    @dynamics.setter
-    def dynamics(self, value):
-        self["dynamics"] = value
-
-    @property
-    def playback_adjustments(self) -> List[NotePlaybackAdjustment]:
-        """List of playback adjustments associated with this NoteProperties."""
-        return self["playback_adjustments"]
-
-    @playback_adjustments.setter
-    def playback_adjustments(self, value):
-        self["playback_adjustments"] = value
-
-    @property
-    def spelling_policy(self) -> SpellingPolicy:
-        """Spelling policy associated with this NoteProperties."""
-        return self["spelling_policy"] if self["spelling_policy"] is not None \
-            else engraving_settings.default_spelling_policy
-
-    @spelling_policy.setter
-    def spelling_policy(self, value):
-        if isinstance(value, SpellingPolicy):
-            self["spelling_policy"] = value
-        elif isinstance(value, str):
-            self["spelling_policy"] = SpellingPolicy.from_string(value)
-        elif hasattr(value, "__len__") and len(value) == 12 and \
-                all(hasattr(x, "__len__") and len(x) == 2 for x in value):
-            self["spelling_policy"] = tuple(tuple(x) for x in value)
-        else:
-            raise ValueError("Spelling policy not understood.")
-
-    @property
-    def voice(self) -> Union[str, None]:
-        """Voice this note should appear in."""
-        if "voice" in self:
-            return self["voice"]
-        else:
-            return None
-
-    def iterate_extra_parameters_and_values(self) -> Iterator[Tuple[str, Union[Real, Envelope]]]:
-        """Iterates through additional parameters and their values."""
-        for key, value in self.items():
+        # pull out any "param_*" keys and store them in the extra playback parameters
+        for key in kwargs:
             if key.startswith("param_"):
-                yield key.replace("param_", ""), value
+                param_name, param_value = key[6:], kwargs[key]
+                if isinstance(param_value, (list, tuple)):
+                    param_value = Envelope.from_list(param_value)
+                    param_value.parsed_from_list = True
+                normalized_kwargs["extra_playback_parameters"][param_name] = param_value
 
-    def starts_tie(self) -> bool:
-        """Whether or not this note starts a tie."""
-        return "_starts_tie" in self and self["_starts_tie"]
+        super().__init__(**normalized_kwargs)
 
-    def ends_tie(self) -> bool:
-        """Whether or not this note ends a tie."""
-        return "_ends_tie" in self and self["_ends_tie"]
+        # the "bundles" keyword allows us to pass full NoteProperties, which just get incorporated
+        if "bundles" in kwargs:
+            for note_property in kwargs["properties"]:
+                self.incorporate(note_property)
 
-    @property
-    def temp(self) -> dict:
-        """Temporary properties; these are not saved to JSON when this is exported."""
-        return self["temp"]
+        self.temp = {}
+
+    @classmethod
+    def interpret(cls, properties_object) -> 'NoteProperties':
+        """
+        Interprets a properties_object of unknown type into a :class:`NoteProperties`.
+
+        :param properties_object: a :class:`NoteProperties` object, dict-like object, parseable
+            properties string, custom NoteProperties object or list of any of the above that get merged together
+        :return: a new :class:`NoteProperties`. Note that if a :class:`NoteProperties` is passed in, the function will
+            simply return the exact same object (not a duplicate)
+        """
+        if isinstance(properties_object, cls):
+            return properties_object
+        elif properties_object is None:
+            return cls()
+        elif isinstance(properties_object, MutableMapping):
+            return cls(**properties_object)
+        elif _is_non_str_sequence(properties_object):
+            properties = cls()
+            for item in properties_object:
+                properties.incorporate(cls.interpret(item))
+            return properties
+        elif isinstance(properties_object, str):
+            return cls(**parsing.parse_note_properties(properties_object))
+        else:
+            for property_info in NoteProperties.PROPERTY_TYPES:
+                if "custom_type" in property_info and isinstance(properties_object, property_info["custom_type"]):
+                    return cls(**{property_info["key"]: properties_object})
+            raise ValueError(f"{properties_object} not interpretable as NoteProperties.")
+
+    def incorporate(self, other_properties: Union[SimpleNamespace, MutableMapping, None]) -> 'NoteProperties':
+        """
+        Incorporates a different NoteProperties or dictionary into this one.
+
+        :param other_properties: A NoteProperties, or a dictionary-like object with similar structure
+        :return: self, for chaining purposes
+        """
+        if other_properties is None:
+            return self
+
+        if isinstance(other_properties, MutableMapping):
+            other_properties = NoteProperties(**other_properties)
+
+        for property_info in NoteProperties.PROPERTY_TYPES:
+            merged_property = property_info["merger_function"](
+                getattr(self, property_info["key"]),
+                getattr(other_properties, property_info["key"])
+            )
+            setattr(self, property_info["key"], merged_property)
+
+        return self
+
+    def chord_mergeable_with(self, other_properties: 'NoteProperties') -> bool:
+        """
+        Determines whether this NoteProperties is compatible with another for chord merger purposes.
+
+        :param other_properties: the NoteProperties object of another note
+        :return: whether the note with this NoteProperties is compatible with the note with the other NoteProperties
+            as far as combining them both into a chord is concerned.
+        """
+        return all(getattr(self, property_info["key"]) == getattr(other_properties, property_info["key"])
+                   for property_info in NoteProperties.PROPERTY_TYPES if property_info["chord_merger_critical"])
 
     def apply_playback_adjustments(self, pitch, volume, length, include_notation_derived=True):
         """
@@ -408,14 +273,13 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
         did_an_adjustment = False
         # first apply all of the explicit playback adjustments
         for adjustment in self.playback_adjustments:
-            assert isinstance(adjustment, NotePlaybackAdjustment)
             pitch, volume, length = adjustment.adjust_parameters(pitch, volume, length)
             did_an_adjustment = True
 
         if include_notation_derived:
-            # try all categories of playback adjustments that are sound in the adjustments dictionary and this dict
-            for notation_category in set(self.keys()).intersection(set(playback_settings.adjustments.keys())):
-                for applied_notation in self[notation_category]:
+            # try all categories of playback adjustments that are found in the adjustments dictionary and this dict
+            for notation_category in set(self.__dict__.keys()).intersection(set(playback_settings.adjustments.keys())):
+                for applied_notation in getattr(self, notation_category):
                     notation_derived_adjustment = playback_settings.get_playback_adjustment(applied_notation)
                     if notation_derived_adjustment is not None:
                         assert isinstance(notation_derived_adjustment, NotePlaybackAdjustment)
@@ -431,32 +295,13 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
 
         return pitch, volume, length, did_an_adjustment
 
-    def mergeable_with(self, other_properties_dict: 'NoteProperties') -> bool:
-        """Determines whether this NoteProperties is compatible with another for chord merger purposes."""
-        return self.articulations == other_properties_dict.articulations and \
-               self.notations == other_properties_dict.notations and \
-               self.playback_adjustments == other_properties_dict.playback_adjustments and \
-               self.texts == other_properties_dict.texts
-
     def _to_dict(self) -> dict:
-        json_friendly_dict = dict(deepcopy(self))
+        json_friendly_dict = dict(self.__dict__)
         del json_friendly_dict["temp"]
 
-        # remove entries that contain no information for conciseness. They will be reconstructed when reloading.
-        if len(self.articulations) == 0:
-            del json_friendly_dict["articulations"]
-        if len(self.noteheads) == 1 and self.noteheads[0] == "normal":
-            del json_friendly_dict["noteheads"]
-        if len(self.notations) == 0:
-            del json_friendly_dict["notations"]
-        if len(self.texts) == 0:
-            del json_friendly_dict["texts"]
-        if len(self.playback_adjustments) == 0:
-            del json_friendly_dict["playback_adjustments"]
-        if len(self.dynamics) == 0:
-            del json_friendly_dict["dynamics"]
-        if self["spelling_policy"] is None:
-            del json_friendly_dict["spelling_policy"]
+        for property_info in NoteProperties.PROPERTY_TYPES:
+            if json_friendly_dict[property_info["key"]] == property_info["default"]:
+                del json_friendly_dict[property_info["key"]]
 
         return json_friendly_dict
 
@@ -464,37 +309,11 @@ class NoteProperties(UserDict, SavesToJSON, NoteProperty):
     def _from_dict(cls, json_dict):
         return cls(**json_dict)
 
-    def incorporate(self, other_dict: Optional[MutableMapping]) -> 'NoteProperties':
-        """
-        Incorporates a different NoteProperties or dictionary into this one.
-
-        :param other_dict: A NoteProperties, or a dictionary-like object with similar structure
-        :return: self, for chaining purposes
-        """
-        if other_dict is None:
-            return self
-        for key in ("articulations", "noteheads", "notations", "texts", "playback_adjustments"):
-            for singular_or_plural_key in (key[:-1], key):  # accept, e.g.,  'text' as well as 'texts'
-                if singular_or_plural_key in other_dict:
-                    if key == "noteheads":
-                        if other_dict[singular_or_plural_key] != ["normal"]:
-                            # noteheads are just replaced by the new information
-                            self[key] = other_dict[singular_or_plural_key]
-                    elif hasattr(other_dict[singular_or_plural_key], '__len__'):
-                        # for all the others, we extend if they have a list...
-                        self[key].extend(other_dict[singular_or_plural_key])
-                    else:
-                        # ...and append if it's just one item
-                        self[key].append(other_dict[singular_or_plural_key])
-        if "spelling_policy" in other_dict and other_dict["spelling_policy"] is not None:
-            self["spelling_policy"] = other_dict["spelling_policy"]
-        if "voice" in other_dict and other_dict["voice"] is not None:
-            self["voice"] = other_dict["voice"]
-        return self
-
     def __add__(self, other):
         return self.copy().incorporate(other)
 
     def __repr__(self):
-        # this simplifies the properties dictionary to only the parts that deviate from the defaults
-        return repr(self._to_dict())
+        kwarg_string = ", ".join(f"{key}={value}" for key, value in self.__dict__.items()
+                                 if key != "temp"
+                                 and NoteProperties.PROPERTY_TYPES_AS_DICT[key]["default"] != value)
+        return f"NoteProperties({kwarg_string})"

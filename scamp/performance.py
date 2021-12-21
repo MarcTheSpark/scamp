@@ -68,7 +68,7 @@ class PerformanceNote(SavesToJSON):
         self.pitch = pitch
         self.volume = volume
         self.properties = properties if isinstance(properties, NoteProperties) \
-            else NoteProperties.from_unknown_format(properties)
+            else NoteProperties.interpret(properties)
 
     def length_sum(self) -> float:
         """
@@ -220,8 +220,8 @@ class PerformanceNote(SavesToJSON):
                     second_part.volume = volume_curve_end
 
                 # also, if this isn't a rest, then we're going to need to keep track of ties that will be needed
-                self.properties["_starts_tie"] = True
-                second_part.properties["_ends_tie"] = True
+                self.properties.starts_tie = True
+                second_part.properties.ends_tie = True
 
                 for articulation in reversed(self.properties.articulations):
                     split_protocol = engraving_settings.articulation_split_protocols[articulation] \
@@ -302,7 +302,7 @@ class PerformanceNote(SavesToJSON):
         assert isinstance(other, PerformanceNote)
         # to merge, the start time, length, and volume must match and the properties need to be compatible
         if self.start_beat != other.start_beat or self.length != other.length \
-                or self.volume != other.volume or not self.properties.mergeable_with(other.properties):
+                or self.volume != other.volume or not self.properties.chord_mergeable_with(other.properties):
             return False
 
         # since one or both of these notes might already be chords (i.e. have a tuple for pitch),
@@ -331,7 +331,7 @@ class PerformanceNote(SavesToJSON):
         )
         # now we can set this note's pitches and noteheads accordingly
         self.pitch = tuple(pitch for pitch, notehead in sorted_pitches_and_noteheads)
-        self.properties["noteheads"] = [notehead for pitch, notehead in sorted_pitches_and_noteheads]
+        self.properties.noteheads = [notehead for pitch, notehead in sorted_pitches_and_noteheads]
         # and return true because we succeeded
         return True
 

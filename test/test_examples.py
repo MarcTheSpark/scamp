@@ -32,6 +32,13 @@ else:
     SAVE_NEW = False
 
 
+# use this to list the types of results to not check. For example, this would pass all automatically:
+# autopass = [scamp.Performance, scamp.Score, "musicxml", "lilypond"]
+# and this will cause us not to check the scamp internal representations:
+# auto_pass = [scamp.Performance, scamp.Score]
+# and this will test everything:
+auto_pass = []
+
 # number of unaltered lines before and after it shows in the diff
 NUM_DIFF_CONTEXT_LINES = 2
 
@@ -62,15 +69,27 @@ def get_example_result(python_file_path):
         if isinstance(result, scamp.Score):
             result.composer = None
             result.title = None
-            results.append(str(result))
-            results.append(re.sub(
-                r"\n.*<encoding-date>.*</encoding-date>",
-                "",
-                str(result.to_music_xml().to_xml(pretty_print=True))
-            ))
-            results.append(str(result.to_lilypond()))
+            if scamp.Score in auto_pass:
+                results.append("autopass")
+            else:
+                results.append(str(result))
+            if "musicxml" in auto_pass:
+                results.append("autopass")
+            else:
+                results.append(re.sub(
+                    r"\n.*<encoding-date>.*</encoding-date>",
+                    "",
+                    str(result.to_music_xml().to_xml(pretty_print=True))
+                ))
+            if "lilypond" in auto_pass:
+                results.append("autopass")
+            else:
+                results.append(str(result.to_lilypond()))
         else:
-            results.append(str(result))
+            if type(result) in auto_pass:
+                results.append("autopass")
+            else:
+                results.append(str(result))
     return results
 
 
@@ -86,37 +105,37 @@ def test_example_result(python_file_path):
         with open(json_path, 'r') as fp:
             saved_results = json.load(fp)
         new_results = get_example_result(python_file_path)
-        if saved_results == new_results:
+        out = []
+        for a, b in zip(saved_results, new_results):
+            if b == "autopass" or a == b:
+                out.append(True)
+            else:
+                diff = Differ().compare(a.splitlines(True), b.splitlines(True))
+                processed_diff = []
+                normal_buffer = []  # buffer of unchanged lines (don't want to print them all)
+                for line in diff:
+                    if line.startswith(" "):  # normal line
+                        normal_buffer.append(line)
+                    else:
+                        if len(normal_buffer) > 2 * NUM_DIFF_CONTEXT_LINES + 1:
+                            if len(processed_diff) > 0:
+                                processed_diff.append(normal_buffer[0])
+                            processed_diff.append("...\n")
+                            processed_diff.extend(normal_buffer[-NUM_DIFF_CONTEXT_LINES:])
+                        else:
+                            processed_diff.extend(normal_buffer)
+                        normal_buffer.clear()
+                        processed_diff.append(line)
+
+                if len(normal_buffer) > NUM_DIFF_CONTEXT_LINES:
+                    processed_diff.extend(normal_buffer[:NUM_DIFF_CONTEXT_LINES])
+                    processed_diff.append("...\n")
+                else:
+                    processed_diff.extend(normal_buffer)
+                out.append("".join(processed_diff))
+        if all(x is True for x in out):
             return True
         else:
-            out = []
-            for a, b in zip(saved_results, new_results):
-                if a == b:
-                    out.append(True)
-                else:
-                    diff = Differ().compare(a.splitlines(True), b.splitlines(True))
-                    processed_diff = []
-                    normal_buffer = []  # buffer of unchanged lines (don't want to print them all)
-                    for line in diff:
-                        if line.startswith(" "):  # normal line
-                            normal_buffer.append(line)
-                        else:
-                            if len(normal_buffer) > 2 * NUM_DIFF_CONTEXT_LINES + 1:
-                                if len(processed_diff) > 0:
-                                    processed_diff.append(normal_buffer[0])
-                                processed_diff.append("...\n")
-                                processed_diff.extend(normal_buffer[-NUM_DIFF_CONTEXT_LINES:])
-                            else:
-                                processed_diff.extend(normal_buffer)
-                            normal_buffer.clear()
-                            processed_diff.append(line)
-
-                    if len(normal_buffer) > NUM_DIFF_CONTEXT_LINES:
-                        processed_diff.extend(normal_buffer[:NUM_DIFF_CONTEXT_LINES])
-                        processed_diff.append("...\n")
-                    else:
-                        processed_diff.extend(normal_buffer)
-                    out.append("".join(processed_diff))
             return out
     else:
         return None

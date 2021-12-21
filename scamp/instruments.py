@@ -486,7 +486,8 @@ class ScampInstrument(SavesToJSON):
         if not (hasattr(length, "__len__") and all(x > 0 for x in length) or length > 0):
             raise ValueError("Note length must be positive.")
 
-        properties = self._standardize_properties(properties)
+        properties = NoteProperties.interpret(properties)
+        self._resolve_spelling_policy(properties)
 
         if hasattr(pitch, "__len__"):
             pitch = Envelope.from_list(pitch)
@@ -543,7 +544,7 @@ class ScampInstrument(SavesToJSON):
                                              playback_settings.resize_parameter_envelopes == "lists" and
                                              hasattr(volume, "parsed_from_list")):
             volume.normalize_to_duration(sum_length)
-        for param, value in properties.iterate_extra_parameters_and_values():
+        for param, value in properties.extra_playback_parameters.items():
             if isinstance(value, Envelope) and (playback_settings.resize_parameter_envelopes == "always" or
                                                 playback_settings.resize_parameter_envelopes == "lists" and
                                                 hasattr(value, "parsed_from_list")):
@@ -614,7 +615,8 @@ class ScampInstrument(SavesToJSON):
         if not hasattr(pitches, "__len__"):
             raise ValueError("'pitches' must be a list of pitches.")
 
-        properties = self._standardize_properties(properties)
+        properties = NoteProperties.interpret(properties)
+        self._resolve_spelling_policy(properties)
 
         # we should either be given a number of noteheads equal to the number of pitches or just one notehead for all
         if not (len(properties.noteheads) == len(pitches) or len(properties.noteheads) == 1):
@@ -623,7 +625,7 @@ class ScampInstrument(SavesToJSON):
         for i, pitch in enumerate(pitches[:-1]):
             # for all but the last pitch, play it without blocking, so we can start all the others
             # also copy the properties dictionary, and pick out the correct notehead if we've been given several
-            properties_copy = deepcopy(properties)
+            properties_copy = properties.duplicate()
             if len(properties.noteheads) > 1:
                 properties_copy.noteheads = [properties_copy.noteheads[i]]
             self.play_note(pitch, volume, length, properties=properties_copy, blocking=False, clock=clock,
@@ -672,7 +674,8 @@ class ScampInstrument(SavesToJSON):
                     clock = Clock()
 
         # standardize properties if necessary, turn pitch and volume into lists if necessary
-        properties = self._standardize_properties(properties)
+        properties = NoteProperties.interpret(properties)
+        self._resolve_spelling_policy(properties)
         pitch = Envelope.from_list(pitch) if hasattr(pitch, "__len__") else pitch
         volume = Envelope.from_list(volume) if hasattr(volume, "__len__") else volume
 
@@ -680,7 +683,7 @@ class ScampInstrument(SavesToJSON):
         start_pitch = pitch.start_level() if isinstance(pitch, Envelope) else pitch
         start_volume = volume.start_level() if isinstance(volume, Envelope) else volume
         other_param_start_values = {param: value.start_level() if isinstance(value, Envelope) else value
-                                    for param, value in properties.iterate_extra_parameters_and_values()}
+                                    for param, value in properties.extra_playback_parameters.items()}
 
         with self._note_info_lock:
             # generate a new id for this note, and set up all of its info
@@ -722,7 +725,7 @@ class ScampInstrument(SavesToJSON):
             handle.change_pitch(pitch.levels[1:], pitch.durations, pitch.curve_shapes, clock)
         if isinstance(volume, Envelope):
             handle.change_volume(volume.levels[1:], volume.durations, volume.curve_shapes, clock)
-        for param, value in properties.iterate_extra_parameters_and_values():
+        for param, value in properties.extra_playback_parameters.items():
             if isinstance(value, Envelope):
                 handle.change_parameter(param, value.levels[1:], value.durations, value.curve_shapes, clock)
 
@@ -746,7 +749,8 @@ class ScampInstrument(SavesToJSON):
         """
         assert hasattr(pitches, "__len__")
 
-        properties = self._standardize_properties(properties)
+        properties = NoteProperties.interpret(properties)
+        self._resolve_spelling_policy(properties)
 
         # we should either be given a number of noteheads equal to the number of pitches or just one notehead for all
         assert len(properties.noteheads) == len(pitches) or len(properties.noteheads) == 1, \
@@ -771,29 +775,21 @@ class ScampInstrument(SavesToJSON):
 
         return ChordHandle(note_handles, intervals)
 
-    def _standardize_properties(self, raw_properties) -> NoteProperties:
+    def _resolve_spelling_policy(self, properties: NoteProperties):
         """
-        Turns the properties given into the standard form of a NotePropertiesDictionary
-
-        :param raw_properties: can be None, a string, a list, or a dict
-        :return: a NotePropertiesDictionary
+        Resolves the spelling policy for the NoteProperties, based on instrument or ensemble defaults, if applicable
         """
-        if isinstance(raw_properties, NoteProperties):
-            return raw_properties
-
-        properties = NoteProperties.from_unknown_format(raw_properties) \
-            if not isinstance(raw_properties, NoteProperties) else raw_properties
-
         # resolve the spelling policy based on defaults (local first, then more global)
-        if properties["spelling_policy"] is None:
+        if properties.spelling_policy is None:
             # if the note doesn't say how to be spelled, check the instrument
             if self.default_spelling_policy is not None:
                 properties.spelling_policy = self.default_spelling_policy
             # if the instrument doesn't have a default spelling policy check the host (probably a Session)
             elif self.ensemble is not None and self.ensemble.default_spelling_policy is not None:
                 properties.spelling_policy = self.ensemble.default_spelling_policy
-            # if the host doesn't have a default, then don't do anything and it will fall back to playback_settings
-        return properties
+            # if the host doesn't have a default, then fall back to engraving_settings
+            else:
+                properties.spelling_policy = engraving_settings.default_spelling_policy
 
     def change_note_parameter(self, note_id: Union[int, 'NoteHandle'], param_name: str,
                               target_value_or_values: Union[float, Sequence],

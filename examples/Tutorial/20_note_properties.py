@@ -66,7 +66,7 @@ piano.play_note(64, 0.5, 0.5, "voice: bottom_notes")
 
 # You can also use the properties argument for playback adjustments, which do not affect notation
 # This will cut the length of the note in half, and play it up an octave
-piano.play_note(65, 0.5, 1, "playback_adjustment: length * 0.5; pitch + 12")
+piano.play_note(65, 0.5, 1, "playback_adjustment: length * 0.5, pitch + 12")
 # Usually it's not necessary to specify that it's a playback adjustment.
 # This will play the note with a gliss up and down a half step
 piano.play_note(65, 0.5, 1, "pitch + [0, 2, 0]")
