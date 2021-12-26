@@ -128,8 +128,9 @@ class _ScampSettings(SimpleNamespace, SavesToJSON):
             factory_defaults = cls.factory_default()
             factory_defaults.make_persistent()
             return factory_defaults
-        except (TypeError, json.decoder.JSONDecodeError):
-            logging.warning("Error loading {}; falling back to defaults.".format(cls._settings_name.lower()))
+        except (TypeError, ValueError, json.decoder.JSONDecodeError):
+            logging.warning(f"Error loading {cls._settings_name.lower()}; falling back to defaults. (This could be due "
+                            f"to a change in SCAMP version.)")
             return cls.factory_default()
 
     def open_json_file(self, *command_and_flags):
