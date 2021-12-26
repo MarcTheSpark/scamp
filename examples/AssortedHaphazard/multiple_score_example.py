@@ -13,47 +13,27 @@
 #  You should have received a copy of the GNU General Public License along with this program.    #
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
+import random
+import time
+from scamp import *
 
-name = "scamp"
+s = Session().run_as_server()
 
-version = "0.8.9.6"
+piano = s.new_part("piano")
 
-author = "Marc Evanstein"
 
-author_email = "marc@marcevanstein.com"
+def some_music():
+    for _ in range(6):
+        piano.play_note(random.randint(60, 70), 1.0, random.choice([0.5, 1.0, 1.5]))
 
-description = "A computer-assisted composition framework that manages the flow of musical time, plays back notes via "\
-              "SoundFonts, MIDI or OSC, and quantizes and saves the result to music notation."
 
-url = "http://scamp.marcevanstein.com"
+while True:
+    # wait some random length of time
+    time.sleep(random.uniform(1, 3))
+    s.start_transcribing()
+    s.fork(some_music)
+    time.sleep(8)
+    performance = s.stop_transcribing()
+    performance.to_score().show()
 
-project_urls = {
-    "Source Code": "https://sr.ht/~marcevanstein/scamp/",
-    "Documentation": "http://scamp.marcevanstein.com",
-    "Forum": "http://scampsters.marcevanstein.com"
-}
 
-install_requires = ['pymusicxml >= 0.5.4', 'expenvelope >= 0.6.8', 'clockblocks >= 0.6.5', 'python-osc', 'arpeggio']
-# Note: pyfluidsynth and sf2utils are also dependencies, but needed to be tweaked,
-# so they have been copied into the _third_party package
-
-ABJAD_MIN_VERSION = "3.3"
-ABJAD_VERSION = "3.4"
-
-extras_require = {
-    'lilypond': 'abjad==' + ABJAD_VERSION,
-    'midistream': 'python-rtmidi',
-    'HID': 'pynput',
-}
-
-extras_require['all'] = list(extras_require.values())
-
-package_data = {
-    'scamp': ['soundfonts/*', '_thirdparty/mac_libs/*', '_thirdparty/windows_libs/*']
-}
-
-classifiers = [
-    "Programming Language :: Python :: 3.6",
-    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
-    "Operating System :: OS Independent",
-]

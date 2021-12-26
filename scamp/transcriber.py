@@ -68,9 +68,11 @@ class Transcriber:
             if self not in instrument._transcribers_to_notify:
                 instrument._transcribers_to_notify.append(self)
 
+        clock.rouse_and_hold()  # ensures that the call to clock.beat() is up-to-date, e.g. when session runs as server
         self._transcriptions_in_progress.append(
             (performance, clock, clock.beat(), units)
         )
+        clock.release_from_suspension()  # releases
 
         return performance
 
