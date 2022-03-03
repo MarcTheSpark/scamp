@@ -163,7 +163,7 @@ class SpellingPolicy(SavesToJSON, NoteProperty):
                 template = _c_standard_spellings
 
             string_initializer_processed = string_initializer_processed.replace("major", "").replace("minor", "").\
-                replace("ionian", "").replace("dorian", "").replace("lydian", "").replace("mixolydian", "").\
+                replace("ionian", "").replace("dorian", "").replace("mixolydian", "").replace("lydian", "").\
                 replace("aeolean", "").replace("phrygian", "").replace("locrian", "")
             try:
                 num_sharps_or_flats = \

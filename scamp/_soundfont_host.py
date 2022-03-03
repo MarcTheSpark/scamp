@@ -303,13 +303,10 @@ class SoundfontInstrument:
 
         self.max_pitch_bend = max_bend_in_semitones
 
-    def cc(self, chan, cc_number, expression_from_0_to_1):
-        expression_val = max(0, min(127, int(expression_from_0_to_1 * 127)))
+    def cc(self, chan, cc_number, value_from_0_to_1):
+        value = max(0, min(127, int(value_from_0_to_1 * 127)))
         absolute_channel = self.channels[chan]
-        self.soundfont_host.synth.cc(absolute_channel, cc_number, expression_val)
-
-    def expression(self, chan, expression_from_0_to_1):
-        self.cc(chan, 11, expression_from_0_to_1)
+        self.soundfont_host.synth.cc(absolute_channel, cc_number, value)
 
 
 # ------------------------------------------- Utilities ------------------------------------------------

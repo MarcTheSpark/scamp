@@ -195,6 +195,7 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
         :param cc_number: number representing the type of the control change message
         :param value_from_0_to_1: value to send (NB: scaled from 0 to 1)
         """
+        pass
 
     # -------------------------------- Main Playback Methods --------------------------------
 
@@ -487,7 +488,7 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
         self.max_pitch_bend = semitones
 
     def expression(self, chan: int, expression_from_0_to_1: float):
-        self.soundfont_instrument.expression(chan, expression_from_0_to_1)
+        self.soundfont_instrument.cc(chan, 11, expression_from_0_to_1)
 
     def cc(self, chan: int, cc_number: int, value_from_0_to_1: float):
         self.soundfont_instrument.cc(chan, cc_number, value_from_0_to_1)
@@ -599,9 +600,7 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
         self.max_pitch_bend = max_bend_in_semitones
 
     def expression(self, chan: int, expression_from_0_to_1: float):
-        rt_simple_out, chan = self._get_rt_simple_out_and_channel(chan)
-        expression_val = max(0, min(127, int(expression_from_0_to_1 * 127)))
-        rt_simple_out.expression(chan, expression_val)
+        self.cc(chan, 11, expression_from_0_to_1)
 
     def cc(self, chan: int, cc_number: int, value_from_0_to_1: float):
         rt_simple_out, chan = self._get_rt_simple_out_and_channel(chan)

@@ -1260,6 +1260,10 @@ class ScampInstrument(SavesToJSON):
     def __repr__(self):
         return "ScampInstrument({})".format(", ".join("{}={}".format(k, repr(v)) for k, v in self._to_dict().items()))
 
+    @property
+    def note_info_by_id(self):
+        return self._note_info_by_id
+
 
 class NoteHandle:
     """
