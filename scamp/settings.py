@@ -173,7 +173,6 @@ class PlaybackSettings(_ScampSettings):
     :ivar default_soundfont: Soundfont (by name or path) to default to in playback
     :ivar default_audio_driver: Name of the audio driver use for soundfont playback by default. If "auto", we test to
         see what audio driver will work, and replace this value with that driver.
-    :ivar default_midi_output_device: Name or number of the midi output device to default to
     :ivar default_max_soundfont_pitch_bend: When playing back with soundfonts, instruments will be immediately set
         to use this value for the maximum pitch bend. (Makes sense to set this to a large value for maximum flexibility)
     :ivar default_max_streaming_midi_pitch_bend: When playing back with a midi stream to an external
@@ -209,7 +208,6 @@ class PlaybackSettings(_ScampSettings):
         ],
         "default_soundfont": "general_midi",
         "default_audio_driver": "auto",
-        "default_midi_output_device": None,
         "default_max_soundfont_pitch_bend": 48,
         "default_max_streaming_midi_pitch_bend": 2,
         "soundfont_volume_to_velocity_curve": Envelope.from_points((0, 0), (0.1, 40), (1, 127)),
@@ -243,11 +241,11 @@ class PlaybackSettings(_ScampSettings):
     def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
         # This is here to help with auto-completion so that the IDE knows what attributes are available
         self.named_soundfonts = self.default_soundfont = self.default_audio_driver = \
-            self.default_midi_output_device = self.default_max_soundfont_pitch_bend = \
-            self.default_max_streaming_midi_pitch_bend = self.soundfont_volume_to_velocity_curve = \
-            self.streaming_midi_volume_to_velocity_curve = self.osc_message_addresses = \
-            self.adjustments = self.try_system_fluidsynth_first = self.soundfont_search_paths = \
-            self.resize_parameter_envelopes = self.recording_file_path = self.recording_time_range = None
+            self.default_max_soundfont_pitch_bend = self.default_max_streaming_midi_pitch_bend = \
+            self.soundfont_volume_to_velocity_curve = self.streaming_midi_volume_to_velocity_curve = \
+            self.osc_message_addresses = self.adjustments = self.try_system_fluidsynth_first = \
+            self.soundfont_search_paths = self.resize_parameter_envelopes = self.recording_file_path = \
+            self.recording_time_range = None
         super().__init__(settings_dict, suppress_warnings)
 
     def register_named_soundfont(self, name: str, soundfont_path: str) -> None:

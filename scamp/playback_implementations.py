@@ -510,8 +510,7 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
     """
     Playback implementation that sends an outgoing MIDI stream to an external synthesizer / program
 
-    :param midi_output_device: name or port number number of the midi output device to use. Defaults to
-        playback_settings.default_midi_output_device
+    :param midi_output_device: name or port number of the midi output device to use.
     :param num_channels: How many MIDI channels to use for this instrument. Where channel-wide messages (such as
         pitch-bend messages) are involved, it is essential to have several channels at our disposal.
     :param midi_output_name: name to use when sending messages
@@ -536,8 +535,6 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
         self.midi_output_device = midi_output_device
         self.midi_output_name = midi_output_name
 
-        midi_output_device = playback_settings.default_midi_output_device if midi_output_device == "default" \
-            else midi_output_device
         midi_output_name = "SCAMP" if midi_output_name is None else midi_output_name
 
         # since rtmidi can only have 16 output channels, we need to create several output devices if we are using more

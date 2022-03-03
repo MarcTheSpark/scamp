@@ -52,31 +52,25 @@ class Ensemble(SavesToJSON):
 
     :param default_audio_driver: value to initialize default_audio_driver instance variable to
     :param default_soundfont: value to initialize default_soundfont instance variable to
-    :param default_midi_output_device: value to initialize default_midi_output_device instance variable to
     :param default_spelling_policy: a :class:`~scamp.spelling.SpellingPolicy` (or a string or tuple interpretable as
         such) to use for all instruments in this ensemble, overriding scamp defaults.
     :param instruments: list of instruments to populate this ensemble with. NOTE: generally it is not a good idea
         to initialize an Ensemble with this argument, but better to use the new_part methods after the fact. This is
         because instrument playback implementations look to share ensemble resources when they are created, and this
         is not possible if they are not already part of an ensemble.
-
     :ivar default_audio_driver: the audio driver instruments in this ensemble will default to. If "default", then
         this defers to the scamp global playback_settings default.
     :ivar default_soundfont: the soundfont that instruments in this ensemble will default to. If "default", then
         this defers to the scamp global playback_settings default.
-    :ivar default_midi_output_device: the midi output device that instruments in this ensemble will default to.
-        If "default", then this defers to the scamp global playback_settings default.
     :ivar instruments: List of all of the ScampInstruments within the Ensemble.
     """
 
     def __init__(self, default_soundfont: str = "default", default_audio_driver: str = "default",
-                 default_midi_output_device: str = "default",
                  default_spelling_policy: Union[SpellingPolicy, str, tuple] = None,
                  instruments: Sequence['ScampInstrument'] = None):
 
         self.default_soundfont = default_soundfont
         self.default_audio_driver = default_audio_driver
-        self.default_midi_output_device = default_midi_output_device
 
         self._default_spelling_policy = SpellingPolicy.interpret(default_spelling_policy) \
             if default_spelling_policy is not None else None
@@ -193,7 +187,7 @@ class Ensemble(SavesToJSON):
 
         return instrument
 
-    def new_midi_part(self, name: str = None, midi_output_device: Union[int, str] = "default",
+    def new_midi_part(self, name: str = None, midi_output_device: Union[int, str] = None,
                       num_channels: int = 8, midi_output_name: str = None, max_pitch_bend: int = "default",
                       note_on_and_off_only: bool = False, default_spelling_policy: SpellingPolicy = None,
                       clef_preference="from_name", start_channel: int = 0) -> 'ScampInstrument':
@@ -220,9 +214,11 @@ class Ensemble(SavesToJSON):
             up as channels 5-9 in your MIDI software.
         :return: the newly created ScampInstrument
         """
-        midi_output_device = self.default_midi_output_device if midi_output_device == "default" else midi_output_device
 
         name = "Track " + str(len(self._instruments) + 1) if name is None else name
+
+        midi_output_device = name if midi_output_device is None else midi_output_device
+
 
         instrument = self.new_silent_part(name, default_spelling_policy=default_spelling_policy,
                                           clef_preference=clef_preference)
@@ -315,7 +311,6 @@ class Ensemble(SavesToJSON):
         return {
             "default_soundfont": self.default_soundfont,
             "default_audio_driver": self.default_audio_driver,
-            "default_midi_output_device": self.default_midi_output_device,
             "default_spelling_policy": self.default_spelling_policy,
             "instruments": self._instruments
         }
