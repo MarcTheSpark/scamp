@@ -80,7 +80,7 @@ piano.play_note(65, 0.5, 1, NotePlaybackAdjustment.set_params(pitch=78, volume=0
 
 # Under the hood, everything we pass to the properties argument gets converted to a NoteProperties
 # object, we can use this to bundle playback and notation, such as in this wiggle ornament
-wiggle = NoteProperties.interpret([
+wiggle = NoteProperties([
     "text: ~",
     NotePlaybackAdjustment.add_to_params(pitch=Envelope([0, 1, 0], [0.1, 0.1]))
 ])

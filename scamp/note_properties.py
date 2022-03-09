@@ -145,7 +145,14 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
 
     PROPERTY_TYPES_AS_DICT = {property_info["key"]: property_info for property_info in PROPERTY_TYPES}
 
-    def __init__(self, **kwargs):
+    def __init__(self, *args, **kwargs):
+        if len(args) > 0:
+            arg_properties = NoteProperties.interpret(args)
+            if "bundles" in kwargs:
+                kwargs.append(arg_properties)
+            else:
+                kwargs["bundles"] = [arg_properties]
+
         normalized_kwargs = {}
         for property_info in NoteProperties.PROPERTY_TYPES:
             for key in kwargs:
@@ -184,7 +191,7 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
 
         # the "bundles" keyword allows us to pass full NoteProperties, which just get incorporated
         if "bundles" in kwargs:
-            for note_property in kwargs["properties"]:
+            for note_property in kwargs["bundles"]:
                 self.incorporate(note_property)
 
         self.temp = {}

@@ -633,13 +633,13 @@ class ScampInstrument(SavesToJSON):
         self.play_note(pitches[-1], volume, length, properties=properties, blocking=blocking, clock=clock,
                        silent=silent, transcribe=transcribe)
 
-    def start_note(self, pitch: float, volume: float, properties: Union[str, dict, Sequence, NoteProperty] = None,
+    def start_note(self, pitch, volume, properties: Union[str, dict, Sequence, NoteProperty] = None,
                    clock: Clock = None, max_volume: float = 1, flags: Sequence[str] = None) -> 'NoteHandle':
         """
         Start a note with the given pitch, volume, and properties
 
-        :param pitch: the pitch / starting pitch of the note (not an Envelope)
-        :param volume: the volume / starting volume of the note (not an Envelope)
+        :param pitch: the pitch / starting pitch of the note
+        :param volume: the volume / starting volume of the note
         :param properties: see :func:`play_note`
         :param clock: the clock on which to run any animation of pitch, volume, etc. If None, captures the clock from
             context.
@@ -726,13 +726,12 @@ class ScampInstrument(SavesToJSON):
 
         return handle
 
-    def start_chord(self, pitches: Sequence[float], volume: float,
-                    properties: Union[str, dict, Sequence, NoteProperty] = None,
+    def start_chord(self, pitches, volume, properties: Union[str, dict, Sequence, NoteProperty] = None,
                     clock: Clock = None, max_volume: float = 1, flags: Sequence[str] = None) -> 'ChordHandle':
         """
         Simple utility for starting chords without starting each note individually.
 
-        :param pitches: a list of pitches (not Envelopes)
+        :param pitches: a list of pitches
         :param volume: see :func:`start_note`
         :param properties: see :func:`play_note`. In general, properties are cloned to all members of the chord.
             However, noteheads can be separately defined using this syntax: "noteheads: diamond / normal / cross"

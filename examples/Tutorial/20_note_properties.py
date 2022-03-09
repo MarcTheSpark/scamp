@@ -81,7 +81,7 @@ piano.play_note(65, 0.5, 1, NotePlaybackAdjustment.set_params(pitch=78, volume=0
 # We can actually create our own NoteProperties objects, which bundle together several properties, perhaps with
 # a specified playback adjustment. Then, we can pass this to the properties argument of play_note. Here, we create
 # the wiggle property, which puts a mordent and the italic word "ZIG" on a note, and makes it bend up and down.
-wiggle = NoteProperties.from_list([
+wiggle = NoteProperties([
     "text: *ZIG*",
     "notation: inverted mordent",
     NotePlaybackAdjustment.add_to_params(pitch=Envelope([0, 1, 0], [0.1, 0.1]))
