@@ -1977,6 +1977,9 @@ class Voice(ScoreComponent, ScoreContainer):
 
         # otherwise, if the divisor requires a tuplet, we construct it
         tuplet = Tuplet.from_length_and_divisor(beat_quantization.length, divisor) if divisor is not None else None
+        # this line comes into play if we're dividing a 1.5 beat into 8 or something like that
+        # instead of dividing by 8, which gives us 3/16, we want to divide by 24 to get 1/16
+        divisor *= Fraction(beat_quantization.length / divisor).limit_denominator().numerator
 
         dilation_factor = 1 if tuplet is None else tuplet.dilation_factor()
         written_division_length = beat_quantization.length / divisor * dilation_factor

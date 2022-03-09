@@ -1009,8 +1009,12 @@ def _construct_quantization_record(beat_divisors, end_beat, quantization_scheme)
             )
             if divisor is not None:
                 # look at the slices we cut the beat into
-                # if they're power of 2, make min_duple_subdivision at least that fine
                 subdivision_length = beat_scheme.length / divisor
+                # in case the subdivision length is 3/16 or something like that, turn it into 1/16. (This can happen
+                # if we're in a compound time signature, dividing 1.5 into 8 or something, and not allowing that to
+                # be expressed as a tuplet.)
+                subdivision_length /= Fraction(subdivision_length).limit_denominator().numerator
+                # if the subdivision length is a power of 2, make min_duple_subdivision at least that fine
                 if is_x_pow_of_y(subdivision_length, 2) and subdivision_length < min_duple_subdivision:
                     min_duple_subdivision = subdivision_length
 
