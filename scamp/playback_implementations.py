@@ -22,7 +22,7 @@ A :class:`~scamp.instruments.ScampInstrument` can have one or more :class:`Playb
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
-from ._midi import SimpleRtMidiOut
+from ._midi import SimpleRtMidiOut, MIDIChannelManager, NoFreeChannelError
 from ._soundfont_host import SoundfontHost
 from clockblocks import fork_unsynchronized
 import time
@@ -32,6 +32,7 @@ from typing import Tuple, Optional
 import logging
 from .settings import playback_settings
 from .utilities import SavesToJSON, resolve_path
+import math
 
 
 class PlaybackImplementation(SavesToJSON):
@@ -130,8 +131,8 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
         super().__init__()
         self.note_on_and_off_only = note_on_and_off_only
         self.num_channels = num_channels
-        self.ringing_notes = []
-        self._note_info_dict = {}
+        self.midi_channel_manager = MIDIChannelManager(num_channels)
+        self._note_info = {}
 
     # -------------------------- Abstract methods to be implemented by subclasses--------------
 
@@ -200,217 +201,83 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
     # -------------------------------- Main Playback Methods --------------------------------
 
     def start_note(self, note_id, pitch, volume, properties, other_parameter_values, note_info_dict):
-        other_parameter_cc_codes = [int(key) for key in other_parameter_values.keys()
-                                    if key.isdigit() and 0 <= int(key) < 128]
         # the note info dictionary was passed along via properties.temp
         # store it under the note id number in the _note_info_dict
-        this_note_info = self._note_info_dict[note_id] = note_info_dict
+        this_note_info = note_info_dict
+
         this_note_fixed = "fixed" in this_note_info["flags"] or self.note_on_and_off_only
-        if this_note_fixed:
-            this_note_info["max_volume"] = volume
-        int_pitch = int(round(pitch))
 
-        # make a list of available channels to add this note to that won't cause pitch bend / expression conflicts
-        available_channels = list(range(self.num_channels))
-        oldest_note_id = None
+        # this insures that we always round down when at the 0.5 mark. Otherwise, python sometimes rounds up and
+        # sometimes rounds down, which needlessly puts notes on different channels
+        int_pitch = int(pitch) if pitch % 1 <= 0.5 else math.ceil(pitch)
+        pitch_bend = round(pitch - int_pitch, 10)
+        cc_values = {k: round(v, 10) for k, v in other_parameter_values.items() if k.isdigit() and 0 <= int(k) < 128}
 
-        # go through all currently active notes
-        for other_note_id, other_note_info in self._note_info_dict.items():
-            # check that this other note has been handled by this playback implementation (for instance, a silent
-            # note will be skipped, since it was never passed to the playback implementations). Also check that it
-            # hasn't been prematurely ended.
-            if self in other_note_info and not other_note_info[self]["prematurely_ended"]:
-                other_note_channel = other_note_info[self]["channel"]
-                other_note_fixed = "fixed" in other_note_info["flags"]
-                other_note_pitch = other_note_info["parameter_values"]["pitch"]
-                other_note_int_pitch = other_note_info[self]["midi_note"]
-                # this new note only share a midi channel with the old note if:
-                #   1) both notes are fixed (i.e. will not do a pitch or expression change, which is channel-wide)
-                #   2) the notes aren't on the same midi key (since a note off in one would affect the other)
-                #   3) the notes don't have conflicting microtonality (i.e. one or both need a pitch bend, and it's
-                # not the exact same pitch bend.)
-                conflicting_microtonality = (pitch != int_pitch or other_note_pitch != other_note_int_pitch) and \
-                                            (round(pitch - int_pitch, 5) !=  # round to fix float error
-                                             round(other_note_pitch - other_note_int_pitch, 5))
+        try:
+            chan = self.midi_channel_manager.assign_note_to_channel(
+                note_id, int_pitch, pitch_bend if this_note_fixed else "variable",
+                cc_values if this_note_fixed else "variable"
+            )
+        except NoFreeChannelError as e:
+            channel_to_free = e.best_channel_to_free
+            for note in e.notes_to_free:
+                self.note_off(channel_to_free, note.pitch)
+                self.midi_channel_manager.end_note(note.note_id)
+                self._note_info[note.note_id]["prematurely_ended"] = True
+            chan = self.midi_channel_manager.assign_note_to_channel(
+                note_id, int_pitch, pitch_bend if this_note_fixed else "variable",
+                cc_values if this_note_fixed else "variable"
+            )
 
-                # now we check if there are any conflicting cc messages, since these are also channel-wide
-                conflicting_cc_codes = False
-                # first figure out which, if any, cc codes the other note is using, and then which both are using
-                other_note_used_cc_codes = [int(key) for key in other_note_info["parameter_values"].keys()
-                                            if key.isdigit() and 0 <= int(key) < 128]
-                if len(other_parameter_cc_codes) + len(other_parameter_cc_codes) > 0:
-                    # if either note is using a cc code, we need to check that they are compatible
-                    if set(other_parameter_cc_codes) == set(other_note_used_cc_codes):
-                        # it's only possible to be compatible if both notes use the exact same cc numbers and have the
-                        # same values for those cc numbers. Otherwise there may be unwanted side effects
-                        for cc_code in other_parameter_cc_codes:
-                            param = str(cc_code)
-                            if other_note_info["parameter_values"][param] != other_parameter_values[param]:
-                                conflicting_cc_codes = True
-                                break
-                    else:
-                        conflicting_cc_codes = True
-
-                channel_compatible = this_note_fixed and other_note_fixed and not conflicting_microtonality \
-                                     and int_pitch != other_note_int_pitch and not conflicting_cc_codes
-                if not channel_compatible:
-                    if other_note_channel in available_channels:
-                        available_channels.remove(other_note_channel)
-                    # keep track of the oldest note that's holding onto a channel
-                    if oldest_note_id is None or other_note_id < oldest_note_id:
-                        oldest_note_id = other_note_id
-
-        # go through all ringing notes, and remove those channels if not compatible
-        # this means a note that has ended, which was microtonal, and which may still be ringing
-        for ringing_channel, ringing_midi_note, ringing_pitch in self.ringing_notes:
-            conflicting_microtonality = (pitch != int_pitch or ringing_midi_note != ringing_pitch) and \
-                                        (round(pitch - int_pitch, 5) !=  # round to fix float error
-                                         round(ringing_pitch - ringing_midi_note, 5))
-            # Note that here, unlike above, there's no need to check if the other note is fixed, since it's done
-            # and just ringing. Also, it's okay if the other note is of the same pitch, since the note_off message
-            # has already been sent.
-            channel_compatible = this_note_fixed and not conflicting_microtonality
-            if not channel_compatible and ringing_channel in available_channels:
-                available_channels.remove(ringing_channel)
-
-        # pick the first free channel, or free one up if there are no free channels
-        if len(available_channels) > 0:
-            # if there's a free channel, return the lowest number available
-            channel = available_channels[0]
-        elif len(self.ringing_notes) > 0:
-            # if we avoided any channels because they have ringing microtonal pitches, we turn to those first
-            channel, _, _ = self.ringing_notes.pop(0)
-        else:
-            # otherwise, we'll have to kill an old note to find a free channel
-            # get the info we stored on this note, related to this specific playback implementation
-            # (see end of start_note method for explanation)
-            oldest_note_info = self._note_info_dict[oldest_note_id][self]
-            self.note_off(oldest_note_info["channel"], oldest_note_info["midi_note"])
-            # flag it as prematurely ended so that we send no further midi commands
-            oldest_note_info["prematurely_ended"] = True
-            # if every channel is playing this pitch, we will end the oldest note so we can
-            channel = oldest_note_info["channel"]
-
-        self._prep_channel(
-            channel, pitch, volume / this_note_info["max_volume"] if this_note_info["max_volume"] > 0 else 0,
-            other_parameter_cc_codes, other_parameter_values
-        )
-        self.note_on(channel, int_pitch, this_note_info["max_volume"])
-
-        # store the midi note that we pressed for this note, the channel we pressed it on, and make an entry
-        # initially false) for whether or not we ended this note prematurely (to free up a channel for a newer
-        # note). Note that we're creating here a dictionary within the note_info dictionary, using this
-        # PlaybackImplementation instance as the key. This way, there can never be conflict between data
-        # stored by this PlaybackImplementation and data stored by other PlaybackImplementations
-        this_note_info[self] = {
-            "midi_note": int_pitch,
-            "channel": channel,
-            "prematurely_ended": False
-        }
-
-    def _prep_channel(self, channel, pitch, expression, other_parameter_cc_codes, other_parameter_values):
-        """
-        Preps the channel before a note_on call by setting the appropriate pitch, expression, cc codes.
-        """
-        int_pitch = int(round(pitch))
-        # start the note on that channel by first setting pitch bend and expression and then sending a note on
-        if pitch != int_pitch:
-            self.pitch_bend(channel, pitch - int_pitch)
-        else:
-            self.pitch_bend(channel, 0)
+        self.pitch_bend(chan, pitch_bend)
 
         if not self.note_on_and_off_only:
             # start it at the max volume that it will ever reach, and use expression to get to the start volume
-            self.expression(channel, expression)
-            for cc_code in other_parameter_cc_codes:
-                self.cc(channel, cc_code, other_parameter_values[str(cc_code)])
+            self.expression(chan, volume / this_note_info["max_volume"] if this_note_info["max_volume"] > 0 else 0)
+            for cc_num, cc_value in cc_values.items():
+                self.cc(chan, cc_num, cc_value)
+
+        self.note_on(chan, int_pitch, this_note_info["max_volume"])
+
+        self._note_info[note_id] = {
+            "midi_note": int_pitch,
+            "velocity": this_note_info["max_volume"],
+            "channel": chan,
+            "prematurely_ended": False
+        }
 
     def end_note(self, note_id):
-        this_note_info = self._note_info_dict[note_id]
-        assert self in this_note_info, "Note was never started by the SoundfontPlaybackImplementer; this is bad."
-        this_note_implementation_info = this_note_info[self]
-        if not this_note_implementation_info["prematurely_ended"]:
-            self.note_off(this_note_implementation_info["channel"], this_note_implementation_info["midi_note"])
-            ringing_note_info = (this_note_implementation_info["channel"],
-                                 this_note_implementation_info["midi_note"],
-                                 this_note_info["parameter_values"]["pitch"])
-
-            # we need to consider this note as potentially still ringing for some period
-            # after it finished. We don't want to  accidentally pitch-shift the release trail
-            self.ringing_notes.append(ringing_note_info)
-
-            def delete_after_pause():
-                time.sleep(0.5)
-                # make sure this note is still in self.ringing_notes. If not, it's channel was probably reused
-                if ringing_note_info in self.ringing_notes:
-                    # this note is done ringing, so remove it from the ringing notes list
-                    self.ringing_notes.remove(ringing_note_info)
-
-                    with this_note_info["note_info_lock"]:
-                        # if there's another active note on this channel, don't reset the pitch and expression
-                        for other_note_id, other_note_info in self._note_info_dict.items():
-                            if self in other_note_info and other_note_info[self]["channel"] == ringing_note_info[0]:
-                                return
-
-                    # likewise if there's another ringing note on this channel
-                    for other_ringing_note in self.ringing_notes:
-                        if other_ringing_note[0] == ringing_note_info[0]:
-                            return
-
-                    self.pitch_bend(ringing_note_info[0], 0)
-                    self.expression(ringing_note_info[0], 1)
-
-            fork_unsynchronized(delete_after_pause)
+        this_note_info = self._note_info[note_id]
+        if not this_note_info["prematurely_ended"]:
+            self.note_off(this_note_info["channel"], this_note_info["midi_note"])
+            self.midi_channel_manager.end_note(note_id)
 
     def change_note_pitch(self, note_id, new_pitch):
         if self.note_on_and_off_only:
-            logging.warning("Change of pitch being called on a {} with the "
-                            "note_on_and_off_only flag set".format(type(self)))
-        if note_id not in self._note_info_dict:
-            # theoretically could happen if the end_note call happens right before this is called in the
-            # asynchronous animation function. We don't want to cause a KeyError, so this avoids that possibility
-            return
-        this_note_info = self._note_info_dict[note_id]
-        assert self in this_note_info, "Note was never started by the SoundfontPlaybackImplementer; this is bad."
-        this_note_implementation_info = this_note_info[self]
-        if not this_note_implementation_info["prematurely_ended"]:
-            self.pitch_bend(this_note_implementation_info["channel"],
-                            new_pitch - this_note_implementation_info["midi_note"])
+            raise RuntimeError(f"Change of pitch being called on with the `note_on_and_off_only` flag set")
+        if note_id in self._note_info:  # make sure the note is active
+            this_note_info = self._note_info[note_id]
+            if not this_note_info["prematurely_ended"]:
+                self.pitch_bend(this_note_info["channel"], new_pitch - this_note_info["midi_note"])
 
     def change_note_volume(self, note_id, new_volume):
         if self.note_on_and_off_only:
-            logging.warning("Change of volume being called on a {} with the "
-                            "note_on_and_off_only flag set".format(type(self)))
-        if note_id not in self._note_info_dict:
-            # theoretically could happen if the end_note call happens right before this is called in the
-            # asynchronous animation function. We don't want to cause a KeyError, so this avoids that possibility
-            return
-        this_note_info = self._note_info_dict[note_id]
-        assert self in this_note_info, "Note was never started by the SoundfontPlaybackImplementer; this is bad."
-        this_note_implementation_info = this_note_info[self]
-        if not this_note_implementation_info["prematurely_ended"]:
-            self.expression(this_note_implementation_info["channel"], new_volume / this_note_info["max_volume"])
+            raise RuntimeError(f"Change of pitch being called on with the `note_on_and_off_only` flag set")
+        if note_id in self._note_info:  # make sure the note is active
+            this_note_info = self._note_info[note_id]
+            if not this_note_info["prematurely_ended"]:
+                self.expression(this_note_info["channel"], new_volume / this_note_info["velocity"])
 
     def change_note_parameter(self, note_id, parameter_name, new_value):
         if self.note_on_and_off_only:
-            logging.warning("Change of parameter being called on a {} with the "
-                            "note_on_and_off_only flag set".format(type(self)))
-        if note_id not in self._note_info_dict:
-            # theoretically could happen if the end_note call happens right before this is called in the
-            # asynchronous animation function. We don't want to cause a KeyError, so this avoids that possibility
-            return
-
-        try:
-            cc_number = int(parameter_name)
-        except ValueError:
-            cc_number = None
-
-        if cc_number is not None:
-            this_note_info = self._note_info_dict[note_id]
-            assert self in this_note_info, "Note was never started by the SoundfontPlaybackImplementer; this is bad."
-            this_note_implementation_info = this_note_info[self]
-            if not this_note_implementation_info["prematurely_ended"]:
-                self.cc(this_note_implementation_info["channel"], cc_number, new_value)
+            raise RuntimeError(f"Change of pitch being called on with the `note_on_and_off_only` flag set")
+        if note_id in self._note_info:  # make sure the note is active
+            this_note_info = self._note_info[note_id]
+            if not this_note_info["prematurely_ended"]:
+                if not parameter_name.isdigit() and 0 <= int(parameter_name) < 128:
+                    return
+                cc_number = int(parameter_name)
+                self.cc(this_note_info["channel"], cc_number, new_value)
 
 
 class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):

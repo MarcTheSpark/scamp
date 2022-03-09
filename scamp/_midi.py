@@ -14,14 +14,14 @@
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 import atexit
-
 from clockblocks import Clock
 import inspect
-
 from ._dependencies import rtmidi
 import threading
 from .utilities import get_average_square_correlation
 import functools
+from collections import namedtuple
+import time
 
 
 def get_available_midi_input_devices():
@@ -200,3 +200,141 @@ class SimpleRtMidiOut:
     def cc(self, chan, cc_number, value):
         if rtmidi is not None:
             self.midiout.send_message([0xB0 + chan, cc_number, value])
+
+
+# -------------------------------------------- MIDI Channel Manager ----------------------------------------------
+
+
+class NoFreeChannelError(Exception):
+
+    def __init__(self, best_channel_to_free, notes_to_free):
+        self.best_channel_to_free = best_channel_to_free
+        self.notes_to_free = notes_to_free
+        super().__init__()
+
+
+# for each note in a MIDI channel, we want to keep track of its id, midi pitch, and start time
+NoteInfo = namedtuple("NoteInfo", "note_id pitch start_time")
+
+
+class MIDIChannelManager:
+
+    """
+    Keeps track of the states of a set of midi channels, and which notes are using them.
+
+    :param num_channels: number of channels to manage
+    :param ring_time: Duration after a note has finished during which we try not to treat the channel as free, since
+        there may still be reverb, etc.
+    :param time_func: function for determining the current time
+    """
+
+    def __init__(self, num_channels, ring_time=0.5, time_func=time.time):
+
+        self.channels_info = [
+            {
+                "active_notes": [],  # contains (note_id, pitch, start_time)
+                "last_note_end_time": float("-inf"),
+                "pitch_bend": 0,
+                "cc_values": {},
+            }
+            for _ in range(num_channels)
+        ]
+        self.time_func = time_func
+        self.ring_time = ring_time
+
+    @staticmethod
+    def _cc_matches(channel_cc_values: dict, note_cc_values: dict):
+        return channel_cc_values.keys() == note_cc_values.keys() and \
+               all(note_cc_values[i] == channel_cc_values[i] for i in channel_cc_values.keys())
+
+    def _get_best_channel_for_fixed_note(self, midi_pitch, pitch_bend, cc_values):
+        # pick out the channels that:
+        #   1) match all pitch_bend and cc_values
+        #   2) does not currently have a note using this MIDI pitch slot
+        matching_channels = [
+            (i, channel_info) for i, channel_info in enumerate(self.channels_info)
+            if pitch_bend == channel_info["pitch_bend"] and cc_values == channel_info["cc_values"]
+            and not any(midi_pitch == note.pitch for note in channel_info["active_notes"])
+        ]
+        if len(matching_channels) > 0:
+            # 3) preferentially, has a note already on it, since that reduces channel usage
+            # (note that False values for the key get sorted before True values. So the first ones will be
+            # the ones where len(index_and_channel_info[1]["active_notes"]) != 0)
+            matching_channels.sort(
+                key=lambda index_and_channel_info: len(index_and_channel_info[1]["active_notes"]) == 0
+            )
+            return matching_channels[0]
+        else:
+            return None
+
+    def _get_free_channel(self):
+        # in case we don't find any free channels that have been free for the full ring interval,
+        # keep track of which ringing-only channel has the oldest finished note
+        oldest_ringing_channel, oldest_finished_note_time = None, float("inf")
+        for i, channel_info in enumerate(self.channels_info):
+            if len(channel_info["active_notes"]) == 0:
+                if self.time_func() > channel_info["last_note_end_time"] + self.ring_time:
+                    # free channel with no notes recently finished during the ring interval. Go for it!
+                    return i, channel_info
+                else:
+                    # free channel, but a recently finished note is still within the ring interval
+                    if channel_info["last_note_end_time"] < oldest_finished_note_time:
+                        oldest_ringing_channel = i, channel_info
+                        oldest_finished_note_time = channel_info["last_note_end_time"]
+        # see if there's a channel that was free, but still ringing
+        if oldest_ringing_channel is not None:
+            return oldest_ringing_channel
+        # no free channel!
+        return None
+
+    def _get_best_channel_to_free(self):
+        # there's no free channel, so we have to pick the least bad option
+        channels_to_consider = [(i, channel_info) for i, channel_info in enumerate(self.channels_info)]
+        # sort the options according to the channel that started a note least recently
+        channels_to_consider.sort(
+            key=lambda channel_num_and_info: max(note.start_time for note in channel_num_and_info[1]["active_notes"]))
+        return channels_to_consider[0]
+
+    def assign_note_to_channel(self, note_id, midi_pitch, pitch_bend, cc_values):
+        """
+        Assigns the given note to an appropriate channel, or raises a NoFreeChannelError if no free channel can be
+        found. (The NoFreeChannelError contains a suggestion for what channel to free; this way the process using this
+        channel manager can free the channel itself and try again to assign a note.)
+
+        :param note_id: The id of the note so that we can remove it later
+        :param midi_pitch: The (integer) midi pitch of the note
+        :param pitch_bend: the pitch bend needed for this note, or "dynamic" if it is subject to change
+        :param cc_values: a dictionary mapping cc_numbers to values. The values can either be a number from 0 to 1, in
+            which case it is assumed they will never change over the course of the note, or the string "dynamic", which
+            means that they will change over the course of the note.
+        """
+        if pitch_bend == "variable" or cc_values == "variable":
+            # this is a note that will change pitch or cc in a dynamic way; it needs its own channel
+            channel = self._get_free_channel()
+        else:
+            # this is a fixed note, so we try to stick it on a channel that is already being used
+            channel = self._get_best_channel_for_fixed_note(midi_pitch, pitch_bend, cc_values)
+            if channel is None:
+                # no good option that matches; just pick a free channel
+                channel = self._get_free_channel()
+
+        if channel is None:
+            # there's not even a free channel, so throw an error
+            channel_to_free, channel_info = self._get_best_channel_to_free()
+            notes_to_free = list(self.channels_info[channel_to_free]["active_notes"])
+            raise NoFreeChannelError(channel_to_free, notes_to_free)
+
+        channel_num, channel_info = channel
+        channel_info["active_notes"].append(NoteInfo(note_id, midi_pitch, self.time_func()))
+        channel_info["pitch_bend"] = pitch_bend
+        channel_info["cc_values"] = cc_values
+        return channel_num
+
+    def end_note(self, note_id):
+        for channel_info in self.channels_info:
+            for note in channel_info["active_notes"]:
+                if note.note_id == note_id:
+                    channel_info["active_notes"].remove(note)
+                    channel_info["last_note_end_time"] = self.time_func()
+                    return
+        raise ValueError(f"Cannot find note id {note_id} to end it.")
