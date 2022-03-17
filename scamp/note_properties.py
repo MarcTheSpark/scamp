@@ -70,6 +70,7 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
             "key": "noteheads",
             "regex": r"^noteheads?$",
             "default": ["normal"],
+            "is_default_function": lambda noteheads: all(x == "normal" for x in noteheads),
             "regularization_function": None,
             "merger_function": lambda p1, p2: p1 if p2 == ["normal"] else p2,
             "chord_merger_critical": False
@@ -104,6 +105,7 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
             "key": r"spelling_policy",
             "regex": r"^(spelling|spelling_policy|key)$",
             "default": None,
+            "is_default_function": lambda sp: sp == SpellingPolicy.from_circle_of_fifths_position(0),
             "regularization_function": lambda x: SpellingPolicy.from_string(x) if isinstance(x, str) else x,
             "custom_type": SpellingPolicy,
             "merger_function": lambda p1, p2: p2,
@@ -320,7 +322,10 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
         return self.copy().incorporate(other)
 
     def __repr__(self):
-        kwarg_string = ", ".join(f"{key}={value}" for key, value in self.__dict__.items()
-                                 if key != "temp"
-                                 and NoteProperties.PROPERTY_TYPES_AS_DICT[key]["default"] != value)
+        kwarg_string = ", ".join(
+            f"{key}={value}" for key, value in self.__dict__.items()
+            if key != "temp" and NoteProperties.PROPERTY_TYPES_AS_DICT[key]["default"] != value
+            and ("is_default_function" not in NoteProperties.PROPERTY_TYPES_AS_DICT[key]
+                 or not NoteProperties.PROPERTY_TYPES_AS_DICT[key]["is_default_function"](value))
+        )
         return f"NoteProperties({kwarg_string})"
