@@ -362,6 +362,8 @@ class PerformanceNote(SavesToJSON):
 
     @classmethod
     def _from_dict(cls, json_dict):
+        if hasattr(json_dict["pitch"], '__len__'):
+            json_dict["pitch"] = tuple(json_dict["pitch"])
         return PerformanceNote(**json_dict)
 
     def __repr__(self):
