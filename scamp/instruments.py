@@ -350,7 +350,7 @@ class ScampInstrument(SavesToJSON):
     def __init__(self, name: str = None, ensemble: Ensemble = None, default_spelling_policy: SpellingPolicy = None,
                  clef_preference="from_name", playback_implementations: Sequence[PlaybackImplementation] = None):
         super().__init__()
-        self.name = name
+        self.name = "" if name is None else name
         self._clef_preference = None
         self.clef_preference = clef_preference
 

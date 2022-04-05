@@ -214,7 +214,7 @@ class PerformanceNote(SavesToJSON):
                     second_part.pitch = tuple(second_part_chord)
 
                 if isinstance(self.volume, Envelope):
-                    # if the volume is a envelope, then we split it appropriately
+                    # if the volume is an envelope, then we split it appropriately
                     volume_curve_start, volume_curve_end = self.volume.split_at(self.length_sum())
                     self.volume = volume_curve_start
                     second_part.volume = volume_curve_end
@@ -262,6 +262,9 @@ class PerformanceNote(SavesToJSON):
                             second_part.properties.notations.remove(notation)
                     elif split_protocol == "all":
                         pass
+
+                second_part.properties.texts.clear()
+                second_part.properties.dynamics.clear()
 
                 # clear all of the text for the second part, since we only need it at the start of the note
                 second_part.properties.texts.clear()

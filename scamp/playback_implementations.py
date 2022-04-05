@@ -206,6 +206,8 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
         this_note_info = note_info_dict
 
         this_note_fixed = "fixed" in this_note_info["flags"] or self.note_on_and_off_only
+        if this_note_fixed:
+            this_note_info["max_volume"] = volume
 
         # this insures that we always round down when at the 0.5 mark. Otherwise, python sometimes rounds up and
         # sometimes rounds down, which needlessly puts notes on different channels
