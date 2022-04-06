@@ -924,6 +924,32 @@ class Performance(SavesToJSON):
         self.apply_note_filter(_note_filter, start_beat, stop_beat, selected_voices)
         return self
 
+    def remap_to_tempo(self, tempo: Union[TempoEnvelope, float]):
+        """
+        Remaps this performance to use the given tempo or tempo envelope. All notes will happen at the same time, but
+        on different beats.
+
+        :param tempo: the new tempo envelope to use
+        :return: self, for chaining purposes
+        """
+        tempo_envelope = tempo if isinstance(tempo, TempoEnvelope) else TempoEnvelope(tempo)
+        for part in self.parts:
+            for voice in part.voices:
+                for note in part.voices[voice]:
+                    original_start_beat = note.start_beat
+                    note.start_beat = tempo_envelope.beat_at_time(self.tempo_envelope.time_at_beat(note.start_beat))
+                    if isinstance(note.length, tuple):
+                        division_points = [original_start_beat  + x for x in itertools.accumulate(note.length)]
+                        note.length = tuple(
+                            tempo_envelope.beat_at_time(self.tempo_envelope.time_at_beat(x)) - note.start_beat
+                            for x in division_points
+                        )
+                    else:
+                        note.length = tempo_envelope.beat_at_time(self.tempo_envelope.time_at_beat(
+                            original_start_beat + note.length)) - note.start_beat
+        self.tempo_envelope = tempo_envelope
+        return self
+
     def play(self, start_beat: float = 0, stop_beat: float = None, ensemble: Ensemble = "auto",
              clock: Clock = "auto", blocking: bool = True, tempo_envelope: TempoEnvelope = "auto",
              note_filter: Callable[[PerformanceNote], PerformanceNote] = None) -> Clock:
