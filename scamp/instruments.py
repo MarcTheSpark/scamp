@@ -455,22 +455,7 @@ class ScampInstrument(SavesToJSON):
         :param transcribe: if False, note is not transcribed even when a :class:`~scamp.transcriber.Transcriber` is
             active. (Generally ignored by end user.)
         """
-        if clock is None:
-            # first try to just get the clock operating on the current thread
-            clock = current_clock()
-            if clock is None:
-                # if there's no clock operating on the current thread,,,
-                if isinstance(self.ensemble, Clock):
-                    # ...but this instrument belongs to a Session (i.e. an ensemble that's also a clock),
-                    # then we use that session as our clock
-                    clock = self.ensemble
-                    # we're also going to not want to block execution, since that will involve a call to wait
-                    # on the session that's probably running as a server (and therefore doing its own wait calls)
-                    # on a parallel thread
-                    blocking = False
-                else:
-                    # otherwise, just create a clock to run this all on
-                    clock = Clock()
+        clock, blocking = self._resolve_clock(clock, blocking)
 
         # A convenience: passing "None" to the pitch just causes a wait call
         if pitch is None:
@@ -519,6 +504,40 @@ class ScampInstrument(SavesToJSON):
                 clock.fork(self._do_play_note, name="DO_PLAY_NOTE",
                            args=(pitch, volume, length, properties),
                            kwargs={"silent": clock.is_fast_forwarding() or silent, "transcribe": transcribe})
+
+    def _resolve_spelling_policy(self, properties: NoteProperties):
+        """
+        Resolves the spelling policy for the NoteProperties, based on instrument or ensemble defaults, if applicable
+        """
+        # resolve the spelling policy based on defaults (local first, then more global)
+        if properties.spelling_policy is None:
+            # if the note doesn't say how to be spelled, check the instrument
+            if self.default_spelling_policy is not None:
+                properties.spelling_policy = self.default_spelling_policy
+            # if the instrument doesn't have a default spelling policy check the host (probably a Session)
+            elif self.ensemble is not None and self.ensemble.default_spelling_policy is not None:
+                properties.spelling_policy = self.ensemble.default_spelling_policy
+            # if the host doesn't have a default, then fall back to engraving_settings
+            else:
+                properties.spelling_policy = engraving_settings.default_spelling_policy
+
+    def _resolve_clock(self, clock, blocking):
+        """
+        Resolves the clock argument, as well as the blocking state, given to several functions.
+        """
+        if clock is not None:
+            # if the clock is given explicitly, go with that
+            return clock, blocking
+        elif current_clock() is not None:
+            # otherwise, try to get the clock active on the current thread
+            return current_clock(), blocking
+        elif isinstance(self.ensemble, Clock):
+            # If there is none, but the ensemble is a clock (meaning it's a Session probably), use that.
+            # Note that, in this case, we shouldn't block, because it causes issues with multiple threads
+            # calling wait on the same clock at the same time. This would happen when the Session is run as a server.
+            return self.ensemble, False
+        else:
+            return Clock(), blocking
 
     @staticmethod
     def _normalize_envelopes(pitch, volume, length, properties):
@@ -651,18 +670,7 @@ class ScampInstrument(SavesToJSON):
             ignored by a normal user.
         :return: a NoteHandle with which to later manipulate the note
         """
-        if clock is None:
-            # first try to just get the clock operating on the current thread
-            clock = current_clock()
-            if clock is None:
-                # if there's no clock operating on the current thread,,,
-                if isinstance(self.ensemble, Clock):
-                    # ...but this instrument belongs to a Session (i.e. an ensemble that's also a clock),
-                    # then we use that session as our clock
-                    clock = self.ensemble
-                else:
-                    # otherwise, just create a clock to run this all on
-                    clock = Clock()
+        clock, _ = self._resolve_clock(clock, None)
 
         # standardize properties if necessary, turn pitch and volume into lists if necessary
         properties = NoteProperties.interpret(properties)
@@ -764,22 +772,6 @@ class ScampInstrument(SavesToJSON):
                                                 max_volume=max_volume, flags=flags))
 
         return ChordHandle(note_handles, intervals)
-
-    def _resolve_spelling_policy(self, properties: NoteProperties):
-        """
-        Resolves the spelling policy for the NoteProperties, based on instrument or ensemble defaults, if applicable
-        """
-        # resolve the spelling policy based on defaults (local first, then more global)
-        if properties.spelling_policy is None:
-            # if the note doesn't say how to be spelled, check the instrument
-            if self.default_spelling_policy is not None:
-                properties.spelling_policy = self.default_spelling_policy
-            # if the instrument doesn't have a default spelling policy check the host (probably a Session)
-            elif self.ensemble is not None and self.ensemble.default_spelling_policy is not None:
-                properties.spelling_policy = self.ensemble.default_spelling_policy
-            # if the host doesn't have a default, then fall back to engraving_settings
-            else:
-                properties.spelling_policy = engraving_settings.default_spelling_policy
 
     def change_note_parameter(self, note_id: Union[int, 'NoteHandle'], param_name: str,
                               target_value_or_values: Union[float, Sequence],
