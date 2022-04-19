@@ -18,7 +18,6 @@ Module containing utilities for representing text in SCAMP, currently containing
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
-from ._dependencies import abjad
 from .utilities import SavesToJSON, NoteProperty
 import pymusicxml
 
@@ -72,6 +71,7 @@ class StaffText(SavesToJSON, NoteProperty):
 
     def to_abjad(self) -> 'abjad.Markup':
         """Converts this to an abjad Markup object."""
+        from ._dependencies import abjad
         markup_string = r"\markup " + \
                         (r"\bold " if self.bold else "") + \
                         (r"\italic " if self.italic else "") + \

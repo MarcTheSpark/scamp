@@ -18,11 +18,8 @@ options that affect a given note.
 #  You should have received a copy of the GNU General Public License along with this program.    #
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
-from numbers import Real
 from .playback_adjustments import NotePlaybackAdjustment
-from ._engraving_translations import all_articulations, all_noteheads, all_notations, parse_note_property
 from .utilities import SavesToJSON, NoteProperty
-from .settings import playback_settings, engraving_settings
 from .spelling import SpellingPolicy
 from .text import StaffText
 from expenvelope import Envelope
@@ -286,6 +283,7 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
             did_an_adjustment = True
 
         if include_notation_derived:
+            from . import playback_settings
             # try all categories of playback adjustments that are found in the adjustments dictionary and this dict
             for notation_category in set(self.__dict__.keys()).intersection(set(playback_settings.adjustments.keys())):
                 for applied_notation in getattr(self, notation_category):

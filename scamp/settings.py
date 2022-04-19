@@ -32,7 +32,6 @@ import json
 import platform
 import subprocess
 from typing import Optional, Union
-from .parsing import parse_property_key_and_value, parse_note_playback_adjustment
 
 
 class _ScampSettings(SimpleNamespace, SavesToJSON):
@@ -277,6 +276,8 @@ class PlaybackSettings(_ScampSettings):
             print("{}: {}".format(a, b))
 
     def set_playback_adjustment(self, note_property: str, adjustment: Union[str, NotePlaybackAdjustment]):
+        from .parsing import parse_property_key_and_value, parse_note_playback_adjustment
+
         key, value = parse_property_key_and_value(note_property)
 
         if key == "playback_adjustments":
@@ -291,6 +292,8 @@ class PlaybackSettings(_ScampSettings):
             self.adjustments[key][value] = parse_note_playback_adjustment(adjustment)
 
     def get_playback_adjustment(self, note_property: str):
+        from .parsing import parse_property_key_and_value
+
         key, value = parse_property_key_and_value(note_property)
 
         if key == "playback_adjustments":
