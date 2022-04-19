@@ -22,6 +22,7 @@ scamp package. These instances are part of the global scamp namespace, and conta
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 import os
+import shutil
 from types import SimpleNamespace
 from .utilities import resolve_path, SavesToJSON
 from .playback_adjustments import NotePlaybackAdjustment
@@ -657,6 +658,14 @@ class EngravingSettings(_ScampSettings):
                             "Falling back to defaults.")
             return EngravingSettings.factory_defaults["clef_selection_policy"]
         return value
+
+
+_factory_lilypond_template_path = resolve_path("%PKG/lilypond/scamp_template.ly")
+lilypond_template_path = resolve_path("%DATA/scamp_lilypond_template.ly")
+
+if not os.path.exists(resolve_path(lilypond_template_path)):
+    logging.warning(f"Installing lilypond template file at {lilypond_template_path}. (This is normal on first import.)")
+    shutil.copy(_factory_lilypond_template_path, lilypond_template_path)
 
 
 #: Instance of :class:`~scamp.settings.PlaybackSettings` containing the actual playback defaults to be consulted

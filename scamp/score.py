@@ -21,6 +21,7 @@ provide export functionality to both MusicXML and LilyPond.
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
 from numbers import Real
+from . import settings
 from .settings import quantization_settings, engraving_settings
 from expenvelope import Envelope
 from .quantization import QuantizationRecord, QuantizationScheme, QuantizedMeasure, TimeSignature
@@ -457,49 +458,6 @@ class ScoreComponent(ABC):
     for wrapping any object up as a Score and converting to LilyPond and MusicXML output.
     """
 
-    #: LilyPond code to define stemless notes when we're rendering a full score (goes outside the lilypond context)
-    _outer_stemless_def = r"""% Definition to improve score readability
-stemless = {
-    \once \override Beam.stencil = ##f
-    \once \override Flag.stencil = ##f
-    \once \override Stem.stencil = ##f
-}"""
-
-    #: LilyPond code to define stemless notes when we're rendering only part of a score (goes inside lilypond context)
-    _inner_stemless_def = r"""% Definition to improve score readability
-    #(define stemless 
-        (define-music-function (parser location)
-            ()
-            #{
-                \once \override Beam.stencil = ##f
-                \once \override Flag.stencil = ##f
-                \once \override Stem.stencil = ##f
-            #})
-        )
-    """
-
-    #: LilyPond code to customize glissando appearance
-    _gliss_overrides = [
-        r"% Make the glisses a little thicker, make sure they have at least a little length, and allow line breaks",
-        r"\override Score.Glissando.minimum-length = #4",
-        r"\override Score.Glissando.springs-and-rods = #ly:spanner::set-spacing-rods",
-        r"\override Score.Glissando.thickness = #2",
-        r"\override Score.Glissando #'breakable = ##t",
-        "\n"
-    ]
-
-    #: LilyPond markup function for microtonal pitch annotations
-    _pitch_annotation_function = r"""
-#(define-markup-command (pitch-annotation layout props text) (markup?)
-  "Command for creating a microtonal pitch annotation."
-  (interpret-markup layout props
-    (markup 
-     (#:smaller #:italic (string-append "(" text ")"))
-     )
-    )
-  )
-    """
-
     @abstractmethod
     def _to_abjad(self) -> 'abjad().Component':
         """
@@ -565,17 +523,8 @@ stemless = {
             return self._to_abjad_lilypond_file(non_score_blocks=non_score_blocks, **lilypond_file_args)
         else:
             abjad_object = self._to_abjad()
-            lilypond_code = abjad().lilypond(abjad_object)
-            if r"\glissando" in lilypond_code:
-                for gliss_override in ScoreComponent._gliss_overrides:
-                    abjad().attach(abjad().LilyPondLiteral(gliss_override), abjad_object, "opening")
-
-            if r"\stemless" in lilypond_code:
-                abjad().attach(abjad().LilyPondLiteral(ScoreComponent._inner_stemless_def), abjad_object, "opening")
-
-            if r"\pitch-annotation" in lilypond_code:
-                abjad().attach(abjad().LilyPondLiteral(ScoreComponent._pitch_annotation_function),
-                               abjad_object, "opening")
+            logging.warning(f"abjad representation may require inclusion of SCAMP lilypond template at "
+                            f"{settings.lilypond_template_path} to compile correctly.")
             return abjad_object
 
     def _to_abjad_lilypond_file(self, non_score_blocks: Sequence = None,
@@ -595,11 +544,6 @@ stemless = {
         title = self.title if hasattr(self, "title") else None
         composer = self.composer if hasattr(self, "composer") else None
         abjad_object = self._to_abjad()
-        lilypond_code = abjad().lilypond(abjad_object)
-
-        if r"\glissando" in lilypond_code:
-            for gliss_override in ScoreComponent._gliss_overrides:
-                abjad().attach(abjad().LilyPondLiteral(gliss_override), abjad_object, "opening")
 
         if non_score_blocks is None:
             non_score_blocks = []
@@ -622,15 +566,9 @@ stemless = {
         score_block = abjad().Block(name="score")
         score_block.items.append(abjad_object)
 
+        non_score_blocks.insert(0, rf'\include "{settings.lilypond_template_path}"')
+
         abjad_lilypond_file = abjad().LilyPondFile(items=non_score_blocks + [score_block], **lilypond_file_args)
-
-        # if we're actually producing the lilypond file itself, then we put the simpler
-        # definition of stemless outside of the main score object.
-        if r"\stemless" in lilypond_code:
-            abjad_lilypond_file.items.insert(-1, ScoreComponent._outer_stemless_def)
-
-        if r"\pitch-annotation" in lilypond_code:
-            abjad_lilypond_file.items.insert(-1, ScoreComponent._pitch_annotation_function)
 
         return abjad_lilypond_file
 

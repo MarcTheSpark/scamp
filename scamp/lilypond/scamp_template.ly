@@ -1,0 +1,165 @@
+% Shortcut for creating stemless noteheads
+stemless = {
+    \once \override Beam.stencil = ##f
+    \once \override Flag.stencil = ##f
+    \once \override Stem.stencil = ##f
+}
+
+% Markup command for creating italicized, parenthesized pitch annotations
+#(define-markup-command (pitch-annotation layout props text) (markup?)
+  "Command for creating a microtonal pitch annotation."
+  (interpret-markup layout props
+    (markup
+     (#:smaller #:italic (string-append "(" text ")"))
+     )
+    )
+  )
+
+% Makes the glisses a little thicker, make sure they have at least a little length, and allow line breaks
+\layout {
+  \context {
+    \Voice
+    \override Glissando.minimum-length = #4
+    \override Glissando.springs-and-rods = #ly:spanner::set-spacing-rods
+    \override Glissando.thickness = #2
+    \override Glissando #'breakable = ##t
+  }
+  \context {
+    \Staff
+    pedalSustainStyle = #'mixed
+  }
+}
+
+%%% ABJAD TEXT SPANNER LINE STYLES %%%
+
+abjad-dashed-line-with-arrow = #(
+    define-music-function
+    (parser location music)
+    (ly:music?)
+    #{
+    - \tweak arrow-width 0.25
+    - \tweak dash-fraction 0.25
+    - \tweak dash-period 1.5
+    - \tweak bound-details.left.stencil-align-dir-y #center
+    - \tweak bound-details.left-broken.text ##f
+    - \tweak bound-details.right.arrow ##t
+    - \tweak bound-details.right.padding 0.5
+    - \tweak bound-details.right.stencil-align-dir-y #center
+    - \tweak bound-details.right-broken.arrow ##t
+    - \tweak bound-details.right-broken.padding 0
+    - \tweak bound-details.right-broken.text ##f
+    $music
+    #}
+    )
+
+abjad-dashed-line-with-hook = #(
+    define-music-function
+    (parser location music)
+    (ly:music?)
+    #{
+    - \tweak dash-fraction 0.25
+    - \tweak dash-period 1.5
+    - \tweak bound-details.left.stencil-align-dir-y #center
+    - \tweak bound-details.left-broken.text ##f
+    % right padding to avoid last leaf in spanner:
+    %%%- \tweak bound-details.right.padding 1.25
+    - \tweak bound-details.right.stencil-align-dir-y #up
+    - \tweak bound-details.right.text \markup { \draw-line #'(0 . -1) }
+    - \tweak bound-details.right-broken.arrow ##f
+    - \tweak bound-details.right-broken.padding 0
+    - \tweak bound-details.right-broken.text ##f
+    $music
+    #}
+    )
+
+abjad-dashed-line-with-up-hook = #(
+    define-music-function
+    (parser location music)
+    (ly:music?)
+    #{
+    - \tweak dash-fraction 0.25
+    - \tweak dash-period 1.5
+    - \tweak bound-details.left.stencil-align-dir-y #center
+    - \tweak bound-details.left-broken.text ##f
+    % right padding to avoid last leaf in spanner:
+    %%%- \tweak bound-details.right.padding 1.25
+    - \tweak bound-details.right.stencil-align-dir-y #down
+    - \tweak bound-details.right.text \markup { \draw-line #'(0 . -1) }
+    - \tweak bound-details.right-broken.arrow ##f
+    - \tweak bound-details.right-broken.padding 0
+    - \tweak bound-details.right-broken.text ##f
+    $music
+    #}
+    )
+
+abjad-invisible-line = #(
+    define-music-function
+    (parser location music)
+    (ly:music?)
+    #{
+    - \tweak dash-period 0
+    - \tweak bound-details.left.stencil-align-dir-y #center
+    - \tweak bound-details.left-broken.text ##f
+    - \tweak bound-details.right.padding 0.5
+    - \tweak bound-details.right.stencil-align-dir-y #center
+    - \tweak bound-details.right-broken.padding 0
+    - \tweak bound-details.right-broken.text ##f
+    $music
+    #}
+    )
+
+abjad-solid-line-with-arrow = #(
+    define-music-function
+    (parser location music)
+    (ly:music?)
+    #{
+    - \tweak arrow-width 0.25
+    - \tweak dash-fraction 1
+    - \tweak bound-details.left.stencil-align-dir-y #center
+    - \tweak bound-details.left-broken.text ##f
+    - \tweak bound-details.right.arrow ##t
+    - \tweak bound-details.right.padding 0.5
+    - \tweak bound-details.right.stencil-align-dir-y #center
+    - \tweak bound-details.right-broken.padding 0
+    - \tweak bound-details.right-broken.text ##f
+    $music
+    #}
+    )
+
+abjad-solid-line-with-hook = #(
+    define-music-function
+    (parser location music)
+    (ly:music?)
+    #{
+    - \tweak dash-fraction 1
+    - \tweak bound-details.left.stencil-align-dir-y #center
+    - \tweak bound-details.left-broken.text ##f
+    % right padding to avoid last leaf in spanner:
+    - \tweak bound-details.right.padding 1.25
+    - \tweak bound-details.right.stencil-align-dir-y #up
+    - \tweak bound-details.right.text \markup { \draw-line #'(0 . -1) }
+    - \tweak bound-details.right-broken.arrow ##f
+    - \tweak bound-details.right-broken.padding 0
+    - \tweak bound-details.right-broken.text ##f
+    $music
+    #}
+    )
+
+abjad-solid-line-with-up-hook = #(
+    define-music-function
+    (parser location music)
+    (ly:music?)
+    #{
+    - \tweak dash-fraction 1
+    - \tweak bound-details.left.stencil-align-dir-y #center
+    - \tweak bound-details.left-broken.text ##f
+    % right padding to avoid last leaf in spanner:
+    - \tweak bound-details.right.padding 1.25
+    - \tweak bound-details.right.stencil-align-dir-y #down
+    - \tweak bound-details.right.text \markup { \draw-line #'(0 . -1) }
+    - \tweak bound-details.right-broken.arrow ##f
+    - \tweak bound-details.right-broken.padding 0
+    - \tweak bound-details.right-broken.text ##f
+    $music
+    #}
+    )
