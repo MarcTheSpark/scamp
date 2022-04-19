@@ -27,7 +27,7 @@ try:
         logging.debug("Trying to load system copy of pyfluidsynth.")
         import fluidsynth
     else:
-        # first choice: use the use the local, tweaked copy of pyfluidsynth (which will also try to
+        # first choice: use the local, tweaked copy of pyfluidsynth (which will also try to
         # load up a local copy of the fluidsynth dll on Windows or dylib on MacOS)
         logging.debug("Trying to load copy of pyfluidsynth from within SCAMP package.")
         from ._thirdparty import fluidsynth

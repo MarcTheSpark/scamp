@@ -498,10 +498,6 @@ class ScampInstrument(SavesToJSON):
             properties.apply_playback_adjustments(pitch, volume, length)
 
         if did_an_adjustment:
-            adjusted_pitch = Envelope.from_list(adjusted_pitch) \
-                if hasattr(adjusted_pitch, "__len__") else adjusted_pitch
-            adjusted_volume = Envelope.from_list(adjusted_volume) \
-                if hasattr(adjusted_volume, "__len__") else adjusted_volume
             # play, but don't transcribe the modified version (though only if the clock is not fast-forwarding)
             if not clock.is_fast_forwarding():
                 clock.fork(self._do_play_note, name="DO_PLAY_NOTE",
@@ -1479,11 +1475,10 @@ class _ParameterChangeSegment(EnvelopeSegment):
     :param transition_curve_shape: curve shape of the transition
     :param clock: the clock that all of this happens in reference to
     :param call_priority: this is used to determine which call to change_parameter happened first, since once these
-    things get spawned in threads, the order gets indeterminate.
-    :param temporal_resolution: time resolution of the unsynchronized process. One of the following:
-     - just a number (in seconds)
-     - the string "pitch-based", in which case we derive it based on trying to get a smooth pitch change
-     - the string "volume-based", in which case we derive it based on trying to get a smooth volume change.
+        things get spawned in threads, the order gets indeterminate.
+    :param temporal_resolution: time resolution of the unsynchronized process. One of: just a number (in seconds); the
+        string "pitch-based", in which case we derive it based on trying to get a smooth pitch change; the string
+        "volume-based", in which case we derive it based on trying to get a smooth volume change.
     """
 
     def __init__(self, parameter_change_function, start_value, target_value, transition_length, transition_curve_shape,

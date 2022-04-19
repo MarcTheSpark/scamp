@@ -108,7 +108,7 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
             "is_default_function": lambda sp: sp == SpellingPolicy.from_circle_of_fifths_position(0),
             "regularization_function": lambda x: SpellingPolicy.from_string(x) if isinstance(x, str) else x,
             "custom_type": SpellingPolicy,
-            "merger_function": lambda p1, p2: p2,
+            "merger_function": lambda p1, p2: p2 if p2 is not None else p1,
             "chord_merger_critical": False
         },
         {

@@ -55,7 +55,7 @@ texts_key = r'texts?' ":"
 text_expression = r'\'.*\'' / r'\".*\"' / r'[^,:]+'
 texts = texts_key? text_expression ("/" text_expression)*
 
-accidental = r'sharp|flat|[#bsf]'
+accidental = r'sharp|flat|[#b]'
 white_key = r'[a-fA-F]'
 mode = "major" / "minor" / "ionian" / "dorian" / "phrygian" / "lydian" / "mixolydian" / "aeolean" / "locrian"
 spelling_policy_key = ("spelling" / "spelling_policy" / "key") ":"
