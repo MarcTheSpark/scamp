@@ -391,7 +391,8 @@ class GlissandiSettings(_ScampSettings):
         "consider_non_extrema_control_points": True,
         "include_end_grace_note": True,
         "inner_grace_relevance_threshold": 1.5,
-        "max_inner_graces_music_xml": 1
+        "max_inner_graces_music_xml": 1,
+        "slur_glisses": True
     }
 
     _settings_name = "Glissandi settings"
@@ -401,7 +402,7 @@ class GlissandiSettings(_ScampSettings):
     def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
         # This is here to help with auto-completion so that the IDE knows what attributes are available
         self.control_point_policy = self.consider_non_extrema_control_points = self.include_end_grace_note = \
-            self.inner_grace_relevance_threshold = self.max_inner_graces_music_xml = None
+            self.inner_grace_relevance_threshold = self.max_inner_graces_music_xml = self.slur_glisses = None
         super().__init__(settings_dict, suppress_warnings)
 
     @staticmethod

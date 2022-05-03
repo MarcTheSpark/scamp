@@ -316,10 +316,9 @@ def _join_same_source_abjad_note_group(same_source_group):
             # abjad().attach(abjad().Glissando(), abjad().Selection(note_pair))
             gliss_present = True
 
-    if gliss_present:
+    if gliss_present and engraving_settings.glissandi.slur_glisses:
         # if any of the segments gliss, we might attach a slur
         abjad().slur(abjad().Selection(same_source_group))
-        # abjad().attach(abjad().Slur(), abjad().Selection(same_source_group))
 
 
 # generates unique ids for gliss slurs that won't conflict with manual slurs
@@ -419,7 +418,7 @@ def _join_same_source_xml_note_group(same_source_group):
                             pass
                         gliss_present = True
 
-    if gliss_present:
+    if gliss_present and engraving_settings.glissandi.slur_glisses:
         # this unique id will get intelligently converted to a number from 1 to 6 by pymusicxml
         slur_id = "glissSlur{}".format(next(_xml_gliss_slur_id_counter))
         # add slur notation to the very first note and last note
@@ -1077,7 +1076,6 @@ class Score(ScoreComponent, ScoreContainer):
                 abjad().attach(abjad().LilyPondLiteral(guide_mark_override, "opening"), this_point_skip_object)
 
             measure_start += score_measure.length
-
 
         if self.final_bar_line is not None:
             abjad().attach(abjad().BarLine(xml_barline_to_lilypond[self.final_bar_line]),
