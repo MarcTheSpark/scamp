@@ -598,7 +598,6 @@ class EngravingSettings(_ScampSettings):
         if self.show_music_xml_command_line is None or self.show_music_xml_command_line == "auto":
             # default to just a generic open command
             self.set_music_xml_application()
-            self.make_persistent()
 
     def set_music_xml_application(self, application_name: str = None) -> None:
         """

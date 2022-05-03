@@ -1,7 +1,6 @@
 {
     "_type": "Session",
     "default_audio_driver": "default",
-    "default_midi_output_device": "default",
     "default_soundfont": "default",
     "default_spelling_policy": null,
     "instruments": [
@@ -22,8 +21,7 @@
                     "num_channels": 8,
                     "soundfont": "general_midi"
                 }
-            ],
-            "standalone": false
+            ]
         },
         {
             "_type": "ScampInstrument",
@@ -42,8 +40,7 @@
                     "num_channels": 8,
                     "soundfont": "general_midi"
                 }
-            ],
-            "standalone": false
+            ]
         }
     ],
     "tempo": 60.0

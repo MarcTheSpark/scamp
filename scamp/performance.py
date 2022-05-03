@@ -238,9 +238,9 @@ class PerformanceNote(SavesToJSON):
                     elif split_protocol == "both":
                         # this articulation is about the attack and release, but it doesn't really make
                         # sense to play it on a note the middle of a tied group
-                        if self.properties.starts_tie() and self.properties.ends_tie():
+                        if self.properties.starts_tie and self.properties.ends_tie:
                             self.properties.articulations.remove(articulation)
-                        if second_part.properties.starts_tie() and second_part.properties.ends_tie():
+                        if second_part.properties.starts_tie and second_part.properties.ends_tie:
                             second_part.properties.articulations.remove(articulation)
                     elif split_protocol == "all":
                         # note, if the split protocol is "all", we simply keep the articulation on everything
@@ -256,9 +256,9 @@ class PerformanceNote(SavesToJSON):
                     elif split_protocol == "last":
                         self.properties.notations.remove(notation)
                     elif split_protocol == "both":
-                        if self.properties.starts_tie() and self.properties.ends_tie():
+                        if self.properties.starts_tie and self.properties.ends_tie:
                             self.properties.notations.remove(notation)
-                        if second_part.properties.starts_tie() and second_part.properties.ends_tie():
+                        if second_part.properties.starts_tie and second_part.properties.ends_tie:
                             second_part.properties.notations.remove(notation)
                     elif split_protocol == "all":
                         pass

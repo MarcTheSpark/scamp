@@ -18,11 +18,15 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 2.5,
-                        "pitch": 78,
+                        "pitch": 75,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
-                        "start_beat": -1.5,
+                        "start_beat": -1.3048876818993662,
                         "volume": {
                             "_type": "Envelope",
                             "curve_shapes": [
@@ -31,9 +35,9 @@
                                 0
                             ],
                             "durations": [
-                                0.32608695652173836,
-                                1.8478260869565215,
-                                0.32608695652174013
+                                0.15000000000000036,
+                                0.8499999999999996,
+                                0.15000000000000036
                             ],
                             "levels": [
                                 1.0,
@@ -45,42 +49,72 @@
                     },
                     {
                         "_type": "PerformanceNote",
-                        "length": 0.24387339219967785,
-                        "pitch": 75,
+                        "length": 0.2216685335211359,
+                        "pitch": 73,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
-                        "start_beat": 2.0,
+                        "start_beat": 2.195112318100634,
                         "volume": 1.0
                     },
                     {
                         "_type": "PerformanceNote",
-                        "length": 0.2407533927200447,
+                        "length": 0.24064439659041525,
                         "pitch": 90,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
-                        "start_beat": 5.243873392199678,
+                        "start_beat": 3.4167808516217697,
                         "volume": 1.0
                     },
                     {
                         "_type": "PerformanceNote",
-                        "length": 0.25502174695263236,
-                        "pitch": 75,
+                        "length": 0.24906386138509617,
+                        "pitch": 94,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
-                        "start_beat": 8.484626784919723,
+                        "start_beat": 5.657425248212185,
+                        "volume": 1.0
+                    },
+                    {
+                        "_type": "PerformanceNote",
+                        "length": 0.24866906866448346,
+                        "pitch": 78,
+                        "properties": {
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
+                        },
+                        "start_beat": 6.906489109597281,
                         "volume": 1.0
                     },
                     {
                         "_type": "PerformanceNote",
                         "length": 2.5,
-                        "pitch": 82,
+                        "pitch": 66,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
-                        "start_beat": 11.739648531872355,
+                        "start_beat": 8.155158178261765,
                         "volume": {
                             "_type": "Envelope",
                             "curve_shapes": [
@@ -89,9 +123,9 @@
                                 0
                             ],
                             "durations": [
-                                0.32608695652173836,
-                                1.8478260869565233,
-                                0.32608695652173836
+                                0.14999999999999858,
+                                0.8500000000000014,
+                                0.14999999999999858
                             ],
                             "levels": [
                                 1.0,
@@ -100,6 +134,52 @@
                                 1.0
                             ]
                         }
+                    },
+                    {
+                        "_type": "PerformanceNote",
+                        "length": 2.5,
+                        "pitch": 68,
+                        "properties": {
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
+                        },
+                        "start_beat": 11.155158178261765,
+                        "volume": {
+                            "_type": "Envelope",
+                            "curve_shapes": [
+                                0,
+                                2,
+                                0
+                            ],
+                            "durations": [
+                                0.14999999999999858,
+                                0.8500000000000014,
+                                0.14999999999999858
+                            ],
+                            "levels": [
+                                1.0,
+                                0.2,
+                                1.0,
+                                1.0
+                            ]
+                        }
+                    },
+                    {
+                        "_type": "PerformanceNote",
+                        "length": 0.22964958033074367,
+                        "pitch": 97,
+                        "properties": {
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
+                        },
+                        "start_beat": 14.155158178261765,
+                        "volume": 1.0
                     }
                 ]
             }
@@ -120,9 +200,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 91.3038444434774,
+                        "pitch": 92.28546869923899,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 0.0,
                         "volume": 0.4
@@ -130,9 +214,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 95.79917730350867,
+                        "pitch": 95.03509421076078,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 0.25,
                         "volume": 0.4
@@ -140,9 +228,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 92.14279772379633,
+                        "pitch": 96.28841227208987,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 0.5,
                         "volume": 0.4
@@ -150,9 +242,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 96.49587887101615,
+                        "pitch": 96.43411562204257,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 0.75,
                         "volume": 0.4
@@ -160,9 +256,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 93.84142522222916,
+                        "pitch": 93.67257279147513,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 1.0,
                         "volume": 0.4
@@ -170,9 +270,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 95.99775888820244,
+                        "pitch": 93.37810387056162,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 1.25,
                         "volume": 0.4
@@ -180,9 +284,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 92.87514752655116,
+                        "pitch": 90.36312857355585,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 1.5,
                         "volume": 0.4
@@ -190,9 +298,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 91.99570917747788,
+                        "pitch": 93.95917475918743,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 1.75,
                         "volume": 0.4
@@ -200,9 +312,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 91.81410830053355,
+                        "pitch": 92.99937511891602,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 2.0,
                         "volume": 0.4
@@ -210,9 +326,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 95.6612565390926,
+                        "pitch": 96.38018656788556,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 2.25,
                         "volume": 0.4
@@ -220,9 +340,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 92.99889113829742,
+                        "pitch": 96.09610365702187,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 2.5,
                         "volume": 0.4
@@ -230,9 +354,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 93.80916080778951,
+                        "pitch": 95.66591717552059,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 2.75,
                         "volume": 0.4
@@ -240,9 +368,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 92.25396483852933,
+                        "pitch": 90.86589977386706,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 3.0,
                         "volume": 0.4
@@ -250,9 +382,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 94.49250441123928,
+                        "pitch": 91.94109909027543,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 3.25,
                         "volume": 0.4
@@ -260,9 +396,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 93.5272618951359,
+                        "pitch": 91.6225348444518,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 3.5,
                         "volume": 0.4
@@ -270,9 +410,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 92.88625019984384,
+                        "pitch": 93.45544711356833,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 3.75,
                         "volume": 0.4
@@ -280,9 +424,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 93.06329739264622,
+                        "pitch": 95.37693167632364,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 4.0,
                         "volume": 0.4
@@ -290,9 +438,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 93.75904888757603,
+                        "pitch": 94.48845578863349,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 4.25,
                         "volume": 0.4
@@ -300,9 +452,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 90.47640635708649,
+                        "pitch": 95.11103175939706,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 4.5,
                         "volume": 0.4
@@ -310,9 +466,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 89.85169359973005,
+                        "pitch": 90.93253066772192,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 4.75,
                         "volume": 0.4
@@ -320,9 +480,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 95.09792340354551,
+                        "pitch": 89.95162784579081,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 5.0,
                         "volume": 0.4
@@ -330,9 +494,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 93.96844937714384,
+                        "pitch": 89.58985997100578,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 5.25,
                         "volume": 0.4
@@ -340,9 +508,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 89.28255236043624,
+                        "pitch": 94.39905868374628,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 5.5,
                         "volume": 0.4
@@ -350,9 +522,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 94.37010266603792,
+                        "pitch": 89.6417234307888,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 5.75,
                         "volume": 0.4
@@ -360,9 +536,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 89.83835382666913,
+                        "pitch": 94.14696850208497,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 6.0,
                         "volume": 0.4
@@ -370,9 +550,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 90.43500382287702,
+                        "pitch": 87.80920648941068,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 6.25,
                         "volume": 0.4
@@ -380,9 +564,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 93.31927539078971,
+                        "pitch": 88.1284824424063,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 6.5,
                         "volume": 0.4
@@ -390,9 +578,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 91.22408538820616,
+                        "pitch": 89.07440484418447,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 6.75,
                         "volume": 0.4
@@ -400,9 +592,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 91.73024194963659,
+                        "pitch": 93.15746612369561,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 7.0,
                         "volume": 0.4
@@ -410,9 +606,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 93.7235655982194,
+                        "pitch": 90.36249383055411,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 7.25,
                         "volume": 0.4
@@ -420,9 +620,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 90.9475001487866,
+                        "pitch": 88.46443982344549,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 7.5,
                         "volume": 0.4
@@ -430,9 +634,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 88.17883902003737,
+                        "pitch": 87.76263673963118,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 7.75,
                         "volume": 0.4
@@ -440,9 +648,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 86.60700717638383,
+                        "pitch": 90.05340757767276,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 8.0,
                         "volume": 0.4
@@ -450,9 +662,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 92.19678031611511,
+                        "pitch": 91.04319304585465,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 8.25,
                         "volume": 0.4
@@ -460,9 +676,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 90.92248427724478,
+                        "pitch": 88.14858342623025,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 8.5,
                         "volume": 0.4
@@ -470,9 +690,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 86.72772521942441,
+                        "pitch": 89.24149123873991,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 8.75,
                         "volume": 0.4
@@ -480,9 +704,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 88.13250147568115,
+                        "pitch": 85.8195641365571,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 9.0,
                         "volume": 0.4
@@ -490,9 +718,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 86.89363225317213,
+                        "pitch": 87.83738222249357,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 9.25,
                         "volume": 0.4
@@ -500,9 +732,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 88.03956928758265,
+                        "pitch": 86.39311848585072,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 9.5,
                         "volume": 0.4
@@ -510,9 +746,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 84.97848718996576,
+                        "pitch": 90.49637049402249,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 9.75,
                         "volume": 0.4
@@ -520,9 +760,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 89.21664406958594,
+                        "pitch": 90.24655194031806,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 10.0,
                         "volume": 0.4
@@ -530,9 +774,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 89.04294810779557,
+                        "pitch": 89.60933053258864,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 10.25,
                         "volume": 0.4
@@ -540,9 +788,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 87.56169390512093,
+                        "pitch": 88.32235379016086,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 10.5,
                         "volume": 0.4
@@ -550,9 +802,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 84.02598656817392,
+                        "pitch": 86.74901159513445,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 10.75,
                         "volume": 0.4
@@ -560,9 +816,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 88.5595990716313,
+                        "pitch": 87.45787076246879,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 11.0,
                         "volume": 0.4
@@ -570,9 +830,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 87.94499108701311,
+                        "pitch": 83.16069564250996,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 11.25,
                         "volume": 0.4
@@ -580,9 +844,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 82.43169529970606,
+                        "pitch": 86.26651962709816,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 11.5,
                         "volume": 0.4
@@ -590,9 +858,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 84.17854149016239,
+                        "pitch": 87.02831810224312,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 11.75,
                         "volume": 0.4
@@ -600,9 +872,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 87.53217826489197,
+                        "pitch": 87.42306101086218,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 12.0,
                         "volume": 0.4
@@ -610,9 +886,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 84.99665130910775,
+                        "pitch": 85.12219201498779,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 12.25,
                         "volume": 0.4
@@ -620,9 +900,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 81.68476326295334,
+                        "pitch": 85.98258865088673,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 12.5,
                         "volume": 0.4
@@ -630,9 +914,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 83.99962046209848,
+                        "pitch": 87.33072807702179,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 12.75,
                         "volume": 0.4
@@ -640,9 +928,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 85.1825399701302,
+                        "pitch": 86.5963892375319,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 13.0,
                         "volume": 0.4
@@ -650,9 +942,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 79.96800429875242,
+                        "pitch": 80.57313574752543,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 13.25,
                         "volume": 0.4
@@ -660,9 +956,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 80.29888085236205,
+                        "pitch": 85.28624203502432,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 13.5,
                         "volume": 0.4
@@ -670,9 +970,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 79.55632235671989,
+                        "pitch": 84.78682456727738,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 13.75,
                         "volume": 0.4
@@ -680,9 +984,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 81.37502769336147,
+                        "pitch": 81.89124029476562,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 14.0,
                         "volume": 0.4
@@ -690,9 +998,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 84.7103780575992,
+                        "pitch": 84.79162849269721,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 14.25,
                         "volume": 0.4
@@ -700,9 +1012,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 80.25289490210044,
+                        "pitch": 79.56779457701694,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 14.5,
                         "volume": 0.4
@@ -710,9 +1026,13 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 80.12844641115355,
+                        "pitch": 82.28707571683364,
                         "properties": {
-                            "_type": "NotePropertiesDictionary"
+                            "_type": "NoteProperties",
+                            "spelling_policy": {
+                                "_type": "SpellingPolicy",
+                                "key": "C"
+                            }
                         },
                         "start_beat": 14.75,
                         "volume": 0.4
