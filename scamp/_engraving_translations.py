@@ -248,6 +248,13 @@ xml_barline_to_lilypond = {
     "none": ""
 }
 
+xml_accidental_name_to_lilypond = {
+    "flat-flat": r"\doubleflat",
+    "flat": r"\flat",
+    "natural": r"\natural",
+    "sharp": r"\sharp",
+    "double-sharp": r"\doublesharp"
+}
 
 # ---------------------------------------------------- UTILITIES ----------------------------------------------------
 

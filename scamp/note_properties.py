@@ -22,6 +22,7 @@ from .playback_adjustments import NotePlaybackAdjustment
 from .utilities import SavesToJSON, NoteProperty
 from .spelling import SpellingPolicy
 from .text import StaffText
+from .spanners import Spanner
 from expenvelope import Envelope
 from copy import deepcopy
 from . import parsing
@@ -60,6 +61,15 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
             "regex": r"^notations?$",
             "default": [],
             "regularization_function": None,
+            "merger_function": lambda p1, p2: p1 + p2,
+            "chord_merger_critical": True
+        },
+        {
+            "key": "spanners",
+            "regex": r"^spanners?$",
+            "default": [],
+            "regularization_function": None,
+            "custom_type": Spanner,
             "merger_function": lambda p1, p2: p1 + p2,
             "chord_merger_critical": True
         },

@@ -15,6 +15,7 @@
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
 from . import _engraving_translations
+from . import spanners
 from expenvelope import Envelope
 from arpeggio.cleanpeg import ParserPEG
 from arpeggio import visit_parse_tree, PTNodeVisitor, NoMatch
@@ -51,6 +52,20 @@ dynamics_key = r'dynamics?' ":"
 dynamics_value = ({all_dynamics}) &("," / EOF)
 dynamics = dynamics_key? dynamics_value ("/" dynamics_value)*
 
+spanners_key = r'spanners?' ":"
+spanner_label = "#" r'[0-9a-zA-Z]+'
+spanner_placement = "above"/"below"
+spanner_hairpin_type = ">o"/"o<"/"<"/">"
+spanner_line_end = "hook up"/"hook down"/"hook both"/"arrow"/"no hook"
+spanner_is_dashed = "dashed"
+spanner_accidental = "flat-flat"/"flat"/"natural"/"sharp"/"double-sharp"
+spanner_pedal = "line"/"sign"
+spanner_text = r'\'.*?\'' / r'\".*?\"'
+spanner_attributes = (spanner_label? spanner_placement? spanner_hairpin_type? spanner_line_end? 
+                      spanner_is_dashed? spanner_accidental? spanner_pedal? spanner_text?)#
+spanner_expression = ("start" / "stop" / "change") ("slur" / "hairpin" / "phrasing slur" / "bracket" / "dashes" / "trill" / "pedal") spanner_attributes &("," / EOF)
+spanners = spanners_key? spanner_expression ("/" spanner_expression)*
+
 texts_key = r'texts?' ":"
 text_expression = r'\'.*\'' / r'\".*\"' / r'[^,:]+'
 texts = texts_key? text_expression ("/" text_expression)*
@@ -66,8 +81,8 @@ voice = "voice" ":" r'[^,]*' &("," / EOF)
 
 extra_playback_parameter = r'param_\w+' ":" number_or_list
 
-property = articulations / notations / noteheads / playback_adjustments / spelling_policy / 
-           dynamics / extra_playback_parameter / voice / texts
+property = articulations / notations / noteheads / playback_adjustments / dynamics / 
+           spelling_policy / extra_playback_parameter / voice / spanners / texts
 properties = property ("," property)* EOF
 """.format(
     # Note: we reverse the lists of articulations, notations, and noteheads so that items like "tremolo3" are searched
@@ -80,6 +95,30 @@ properties = property ("," property)* EOF
 
 
 class PropertiesVisitor(PTNodeVisitor):
+
+    spanner_names_to_types = {
+        "start": {
+            "slur": spanners.StartSlur,
+            "phrasing slur": spanners.StartPhrasingSlur,
+            "hairpin": spanners.StartHairpin,
+            "bracket": spanners.StartBracket,
+            "dashes": spanners.StartDashes,
+            "trill": spanners.StartTrill,
+            "pedal": spanners.StartPedal
+        },
+        "change": {
+            "pedal": spanners.ChangePedal,
+        },
+        "stop": {
+            "slur": spanners.StopSlur,
+            "phrasing slur": spanners.StopPhrasingSlur,
+            "hairpin": spanners.StopHairpin,
+            "bracket": spanners.StopBracket,
+            "dashes": spanners.StopDashes,
+            "trill": spanners.StopTrill,
+            "pedal": spanners.StopPedal
+        }
+    }
 
     def visit_number(self, node, children):
         return eval(str(node))
@@ -107,6 +146,8 @@ class PropertiesVisitor(PTNodeVisitor):
 
     def visit_spelling_policy_key(self, node, children): return None
 
+    def visit_spanners_key(self, node, children): return None
+
     def visit_texts_key(self, node, children): return None
 
     def visit_articulations(self, node, children): return {"articulations": list(children)}
@@ -117,7 +158,65 @@ class PropertiesVisitor(PTNodeVisitor):
 
     def visit_dynamics(self, node, children): return {"dynamics": list(children)}
 
+    def visit_spanners(self, node, children): return {"spanners": list(children)}
+
     def visit_extra_playback_parameter(self, node, children): return {children[0]: children[-1]}
+
+    def visit_spanner_label(self, node, children):
+        return {"label": children[0]}
+
+    def visit_spanner_placement(self, node, children):
+        return {"placement": children[0]}
+
+    def visit_spanner_hairpin_type(self, node, children):
+        if "o" in children[0]:
+            return {"niente": True, "hairpin_type": "crescendo" if "<" in children[0] else "diminuendo"}
+        else:
+            return {"hairpin_type": "crescendo" if "<" in children[0] else "diminuendo"}
+
+    def visit_spanner_line_end(self, node, children):
+        line_end = children[0]
+        if line_end == "no hook":
+            line_end = "none"
+        else:
+            line_end = line_end.replace("hook", "").strip()
+        return {"line_end": line_end}
+
+    def visit_spanner_is_dashed(self, node, children):
+        return {"line_type": "dashed"}
+
+    def visit_spanner_accidental(self, node, children):
+        return {"accidental": children[0]}
+
+    def visit_spanner_pedal(self, node, children):
+        if children[0] == "sign":
+            return {"line": False, "sign": True}
+        else:
+            return {"line": True, "sign": False}
+
+    def visit_spanner_text(self, node, children):
+        return {"text": children[0][1:-1]}
+
+    def visit_spanner_attributes(self, node, children):
+        return {} if len(children) == 0 \
+            else {k: v for attribute_dict in children for (k, v) in attribute_dict.items()}
+
+    def visit_spanner_expression(self, node, children):
+
+        if len(children) > 2:
+            start_or_stop, spanner_type, attributes = children
+        else:
+            start_or_stop, spanner_type = children
+            attributes = {}
+
+        try:
+            cls = PropertiesVisitor.spanner_names_to_types[start_or_stop][spanner_type]
+        except KeyError:
+            raise ValueError(f"Spanner type {spanner_type} not understood.")
+
+        if start_or_stop == "start" and spanner_type == "hairpin" and "hairpin_type" not in attributes:
+            attributes["hairpin_type"] = "crescendo"
+        return cls(**attributes)
 
     def visit_texts(self, node, children):
         from .text import StaffText

@@ -263,6 +263,12 @@ class PerformanceNote(SavesToJSON):
                     elif split_protocol == "all":
                         pass
 
+                for spanner in reversed(self.properties.spanners):
+                    if spanner.START_MID_OR_STOP == "stop":
+                        self.properties.spanners.remove(spanner)
+                    else:
+                        second_part.properties.spanners.remove(spanner)
+
                 second_part.properties.texts.clear()
                 second_part.properties.dynamics.clear()
 

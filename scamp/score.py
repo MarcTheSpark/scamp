@@ -2393,6 +2393,12 @@ class NoteLike(ScoreComponent):
             if notation in engraving_settings.notation_split_protocols \
             else engraving_settings.notation_split_protocols["default"]
 
+    def _get_start_and_mid_spanners(self):
+        return [x for x in self.properties.spanners if x.START_MID_OR_STOP != "stop"]
+
+    def _get_stop_spanners(self):
+        return [x for x in self.properties.spanners if x.START_MID_OR_STOP == "stop"]
+
     def merge_with(self, other: 'NoteLike') -> 'NoteLike':
         """
         Merges other into this note, adding its length and combining its articulations
@@ -2401,7 +2407,12 @@ class NoteLike(ScoreComponent):
         :return: self, having been merged with other
         """
         if self.is_rest() and other.is_rest() or other.source_id() == self.source_id() is not None:
-            self.properties.articulations.extend(other.properties.articulations)
+            self.properties.articulations.extend(articulation for articulation in other.properties.articulations
+                                                 if articulation not in self.properties.articulations)
+            self.properties.notations.extend(notation for notation in other.properties.notations
+                                             if notation not in self.properties.notations)
+            self.properties.spanners.extend(spanner for spanner in other.properties.spanners
+                                            if spanner not in self.properties.spanners)
             self.written_length += other.written_length
             self.properties.starts_tie = other.properties.starts_tie
         else:
@@ -2583,6 +2594,7 @@ class NoteLike(ScoreComponent):
 
         self._attach_abjad_articulations(abjad_object, grace_container)
         self._attach_abjad_notations(abjad_object, grace_container)
+        self._attach_abjad_spanners(abjad_object, grace_container)
         self._attach_abjad_texts_and_dynamics(abjad_object)
         return abjad_object
 
@@ -2682,6 +2694,31 @@ class NoteLike(ScoreComponent):
                 for notation in self._get_release_notations():
                     attach_abjad_notation_to_note(release_notehead, notation)
 
+    def _attach_abjad_spanners(self, abjad_note_or_chord, grace_container):
+        if grace_container is None:
+            # just a single notehead, so attach all notations
+            for spanner in self.properties.spanners:
+                NoteLike._abjad_attach_maybe_list(spanner.to_abjad(), abjad_note_or_chord)
+        else:
+            # there's a gliss
+            attack_notehead = abjad_note_or_chord if not self.properties.ends_tie else None
+            release_notehead = grace_container[-1] if not self.properties.starts_tie else None
+
+            if attack_notehead is not None:
+                for spanner in self._get_start_and_mid_spanners():
+                    NoteLike._abjad_attach_maybe_list(spanner.to_abjad(), attack_notehead)
+            if release_notehead is not None:
+                for spanner in self._get_stop_spanners():
+                    NoteLike._abjad_attach_maybe_list(spanner.to_abjad(), release_notehead)
+
+    @staticmethod
+    def _abjad_attach_maybe_list(attachments, target):
+        # Substitute for attach that allows a list of attachments
+        if not isinstance(attachments, (list, tuple)):
+            attachments = (attachments, )
+        for attachment in attachments:
+            abjad().attach(attachment, target)
+
     def _attach_abjad_texts_and_dynamics(self, abjad_note_or_chord):
         for text in self.properties.texts:
             assert isinstance(text, StaffText)
@@ -2761,7 +2798,7 @@ class NoteLike(ScoreComponent):
                             velocity=self._get_xml_velocity(t)
                         ))
 
-        self._attach_articulations_and_notations_to_xml_note_group(out)
+        self._attach_articulations_notations_and_spanners_to_xml_note_group(out)
 
         if source_id_dict is not None and self.does_glissando():
             # this is where we populate the source_id_dict passed down to us from the top level "to_music_xml()" call
@@ -2807,19 +2844,25 @@ class NoteLike(ScoreComponent):
             else:
                 return ()
 
-    def _attach_articulations_and_notations_to_xml_note_group(self, xml_note_group):
+    def _attach_articulations_notations_and_spanners_to_xml_note_group(self, xml_note_group):
         if len(xml_note_group) > 1:
             # there's a gliss, and xml_note_group contains the main note followed by grace notes
             attack_notehead = xml_note_group[0] if not self.properties.ends_tie else None
             release_notehead = xml_note_group[-1] if not self.properties.starts_tie else None
             inner_noteheads = xml_note_group[1 if attack_notehead is not None else 0:
                                              -1 if release_notehead is not None else None]
-            # only attach attack articulations and notations to the main note
+            # only attach attack articulations and notations and start spanners to the main note
             if attack_notehead is not None:
                 for articulation in self._get_attack_articulations():
                     attack_notehead.articulations.append(articulation_to_xml_element_name[articulation])
                 for notation in self._get_attack_notations():
                     attack_notehead.notations.append(notations_to_xml_notations_element[notation])
+                for spanner in self._get_start_and_mid_spanners():
+                    spanner_xml = spanner.to_pymusicxml()
+                    if isinstance(spanner_xml, pymusicxml.Direction):
+                        attack_notehead.directions.append(spanner_xml)
+                    elif isinstance(spanner_xml, pymusicxml.Notation):
+                        attack_notehead.notations.append(spanner_xml)
             # attach inner articulations and notations to inner grace notes
             for articulation in self._get_inner_articulations():
                 for inner_grace_note in inner_noteheads:
@@ -2833,12 +2876,24 @@ class NoteLike(ScoreComponent):
                     release_notehead.articulations.append(articulation_to_xml_element_name[articulation])
                 for notation in self._get_release_notations():
                     release_notehead.notations.append(notations_to_xml_notations_element[notation])
+                for spanner in self._get_stop_spanners():
+                    spanner_xml = spanner.to_pymusicxml()
+                    if isinstance(spanner_xml, pymusicxml.Direction):
+                        release_notehead.directions.append(spanner_xml)
+                    elif isinstance(spanner_xml, pymusicxml.Notation):
+                        release_notehead.notations.append(spanner_xml)
         else:
             # just a single notehead, so attach all articulations and notations
             for articulation in self.properties.articulations:
                 xml_note_group[0].articulations.append(articulation_to_xml_element_name[articulation])
             for notation in self.properties.notations:
                 xml_note_group[0].notations.append(notations_to_xml_notations_element[notation])
+            for spanner in self.properties.spanners:
+                spanner_xml = spanner.to_pymusicxml()
+                if isinstance(spanner_xml, pymusicxml.Direction):
+                    xml_note_group[0].directions.append(spanner_xml)
+                elif isinstance(spanner_xml, pymusicxml.Notation):
+                    xml_note_group[0].notations.append(spanner_xml)
 
     def _get_xml_tie_state(self):
         if self.properties.starts_tie and self.properties.ends_tie:
