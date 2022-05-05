@@ -121,8 +121,6 @@ class _ScampSettings(SimpleNamespace, SavesToJSON):
         try:
             return cls.load_from_json(resolve_path(cls._json_path))
         except FileNotFoundError:
-            if not os.path.exists(resolve_path("%DATA/settings")):
-                os.mkdir(resolve_path("%DATA/settings"))
             logging.warning("{} not found; generating defaults. "
                             "(This is normal on first import.)".format(cls._settings_name))
             factory_defaults = cls.factory_default()
