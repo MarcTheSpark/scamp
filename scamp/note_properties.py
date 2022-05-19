@@ -36,6 +36,15 @@ def _is_non_str_sequence(x):
 
 
 class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
+    """
+    Class that holds information about any and all playback or notational details for a note or chord aside
+    from its pitch, volume and duration. See :ref:`The Note Properties Argument` for more information.
+
+    :param args: Any number of things that are interpretable as note properties via
+        :function:`NoteProperties.interpret`, which are merged together into a single object.
+    :param kwargs: individual note properties can be given as keyword arguments, e.g. `articulation=staccato`
+    """
+
     # list of all valid kinds of NoteProperties and their attributes
     PROPERTY_TYPES = (
         # "key" is the name of the property as it appears in the NoteProperties namespace/dictionary
@@ -211,7 +220,8 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
         Interprets a properties_object of unknown type into a :class:`NoteProperties`.
 
         :param properties_object: a :class:`NoteProperties` object, dict-like object, parseable
-            properties string, custom NoteProperties object or list of any of the above that get merged together
+            properties string, custom NoteProperties object or list of any of the above that get merged together.
+            See :ref:`The Note Properties Argument` for more info.
         :return: a new :class:`NoteProperties`. Note that if a :class:`NoteProperties` is passed in, the function will
             simply return the exact same object (not a duplicate)
         """

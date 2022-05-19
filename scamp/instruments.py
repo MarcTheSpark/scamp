@@ -401,53 +401,7 @@ class ScampInstrument(SavesToJSON):
             with 0 representing silence and 1 representing max volume.
         :param length: either a number (of beats), or a tuple representing a set of tied segments
         :param properties: Catch-all for a wide range of other playback and notation details that we may want to convey
-            about a note. These details can either be given in a dictionary or a string (for greater brevity).
-            Recognized dictionary keys are "articulation(s)", "notehead(s)", "notation(s)", "text(s)",
-            "playback_adjustment(s)", "key"/"spelling_policy", "voice", and "param_*" (for specifying arbitrary
-            extra parameters). For example:
-
-            .. code-block:: python3
-
-                properties={
-                     # add  staccato and tenuto articulations
-                    "articulations": ["staccato", "tenuto"],
-                    # change to an "x" notehead
-                    "notehead": "x",
-                    # add a 32-note tremolo
-                    "notation": "tremolo32",
-                    # add this text to the score by the note
-                    "text": "Hello there!",
-                    # attach a dynamic marking to this note
-                    "dynamic": "sfz",
-                    # play an octave higher (could also use a NotePlaybackAdjustment object)
-                    "playback_adjustment": "pitch + 12",
-                    # notate accidentals consistent with the key of Bb major
-                    "key": "Bb major",
-                    # place the note in voice two (named voices are also allowed)
-                    "voice": 2,
-                    # sets the "vibrato" parameter to an envelope going from 2 to 6 to 1
-                    # (note that extra parameters only effect playback when used with
-                    # a playback implementation that recognizes them)
-                    "param_vibrato": [2, 6, 1]
-                }
-
-            Since this dictionary format can be quite cumbersome, it is also possible to pass a string containing
-            shorthand, which gets parsed into a dictionary. For example:
-
-            .. code-block:: python3
-
-                properties="articulations: staccato/tenuto, harmonic, #, volume * 0.7"
-
-            The comma separates different properties, and the forward slash separates multiple entries for the same
-            property (with the exception of with the text property, since a slash could be part of the text). Properties
-            can either be given with explicit key/value pairs (separated by colon), or a value can simply be given and
-            the type of property will be inferred. In the above example, it is inferred that "harmonic" is a notehead,
-            that the "#" is a desired spelling, and that "volume * 0.7" is a string to be parsed as a
-            :class:`~scamp.playback_adjustments.NotePlaybackAdjustment` using its
-            :func:`~scamp.playback_adjustments.NotePlaybackAdjustment.from_string` method.
-
-            Finally, it is also possible to directly pass a :class:`~scamp.spelling.SpellingPolicy`,
-            :class:`~scamp.text.StaffText`, or :class:`~scamp.playback_adjustments.NotePlaybackAdjustment`.
+            about a note. See :ref:`The Note Properties Argument`
         :param blocking: if True, don't return until the note is done playing; if False, return immediately
         :param clock: which clock to use. If None, capture the clock from context.
         :param silent: if True, note is not played back, but is still transcribed when a
@@ -614,9 +568,7 @@ class ScampInstrument(SavesToJSON):
         :param pitches: a list of pitches for the notes of this chord
         :param volume: see :func:`play_note`
         :param length: see :func:`play_note`
-        :param properties: see :func:`play_note`. One extra wrinkle to note with chords: if one value is
-            given for the "notehead" property then all noteheads are set to that value. If multiple values are given,
-            they will be assigned to individual noteheads, and there should be the same number as notes in the chord.
+        :param properties: see :ref:`The Note Properties Argument`
         :param blocking: see description for "play_note"
         :param clock: see description for "play_note"
         :param silent: see description for "play_note"
@@ -655,7 +607,7 @@ class ScampInstrument(SavesToJSON):
 
         :param pitch: the pitch / starting pitch of the note
         :param volume: the volume / starting volume of the note
-        :param properties: see :func:`play_note`
+        :param properties: see :ref:`The Note Properties Argument`
         :param clock: the clock on which to run any animation of pitch, volume, etc. If None, captures the clock from
             context.
         :param max_volume: This is a bit of a pain, but since midi playback requires us to set the velocity at the
@@ -737,8 +689,7 @@ class ScampInstrument(SavesToJSON):
 
         :param pitches: a list of pitches
         :param volume: see :func:`start_note`
-        :param properties: see :func:`play_note`. In general, properties are cloned to all members of the chord.
-            However, noteheads can be separately defined using this syntax: "noteheads: diamond / normal / cross"
+        :param properties: see :ref:`The Note Properties Argument`
         :param clock: see start_note
         :param max_volume: see start_note
         :param flags: see start_note
