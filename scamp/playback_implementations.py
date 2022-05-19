@@ -213,7 +213,8 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
         # sometimes rounds down, which needlessly puts notes on different channels
         int_pitch = int(pitch) if pitch % 1 <= 0.5 else math.ceil(pitch)
         pitch_bend = round(pitch - int_pitch, 10)
-        cc_values = {k: round(v, 10) for k, v in other_parameter_values.items() if k.isdigit() and 0 <= int(k) < 128}
+        cc_values = {int(k): round(v, 10) for k, v in other_parameter_values.items()
+                     if k.isdigit() and 0 <= int(k) < 128}
 
         try:
             chan = self.midi_channel_manager.assign_note_to_channel(
@@ -275,9 +276,7 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
             raise RuntimeError(f"Change of pitch being called on with the `note_on_and_off_only` flag set")
         if note_id in self._note_info:  # make sure the note is active
             this_note_info = self._note_info[note_id]
-            if not this_note_info["prematurely_ended"]:
-                if not parameter_name.isdigit() and 0 <= int(parameter_name) < 128:
-                    return
+            if not this_note_info["prematurely_ended"] and parameter_name.isdigit() and 0 <= int(parameter_name) < 128:
                 cc_number = int(parameter_name)
                 self.cc(this_note_info["channel"], cc_number, new_value)
 

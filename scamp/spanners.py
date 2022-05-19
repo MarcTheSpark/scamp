@@ -371,12 +371,12 @@ class StopTrill(Spanner):
 
 class StartPedal(Spanner):
 
-    """
+    r"""
     Start piano pedal spanner.
 
     :param label: See :class:`Spanner`.
     :param formatting: See :class:`Spanner`. Formatting can consist of {"placement": "above"/"below",
-        "line": True/False, "sign": True/False}. Line and sign control whether or not the pedal is done with "Ped./*"
+        "line": True/False, "sign": True/False}. Line and sign control whether or not the pedal is done with "Ped./\*"
         markings, brackets, or a mixture of both. Note that this only works for MusicXML output. For lilypond output,
         you will need manually add a formatting block that declares which style is being used globally.
     """

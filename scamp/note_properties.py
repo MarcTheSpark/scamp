@@ -25,7 +25,7 @@ from .text import StaffText
 from .spanners import Spanner
 from expenvelope import Envelope
 from copy import deepcopy
-from . import parsing
+from . import _parsing
 import re
 from types import SimpleNamespace
 from typing import Sequence, Union, MutableMapping
@@ -237,7 +237,7 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
                 properties.incorporate(cls.interpret(item))
             return properties
         elif isinstance(properties_object, str):
-            return cls(**parsing.parse_note_properties(properties_object))
+            return cls(**_parsing.parse_note_properties(properties_object))
         else:
             for property_info in NoteProperties.PROPERTY_TYPES:
                 if "custom_type" in property_info and isinstance(properties_object, property_info["custom_type"]):
