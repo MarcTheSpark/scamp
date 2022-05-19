@@ -5,7 +5,12 @@ SCAMP (Suite for Computer-Assisted Music in Python) |release|
 `PyPI <https://pypi.org/project/scamp>`_ |
 `Paper <http://marcevanstein.com/Writings/Evanstein_MAT_Thesis_SCAMP.pdf>`_ |
 `Forum <https://scampsters.marcevanstein.com>`_ |
-`Donate <https://liberapay.com/marcevanstein/donate>`_
+`Patreon`_ |
+`Liberapay`_
+
+.. _Patreon: https://www.patreon.com/marcevanstein
+
+.. _Liberapay: https://liberapay.com/marcevanstein/donate
 
 SCAMP is a computer-assisted composition framework in Python designed to act as a hub, flexibly connecting the
 composer-programmer to a variety of resources for playback and notation. SCAMP provides functionality to manage the
@@ -33,30 +38,22 @@ and check out the "tutorial" examples found `here <https://git.sr.ht/~marcevanst
 
 .. toctree::
    :maxdepth: 2
-   :caption: Narrative Documentation:
+   :caption: Learning Resources:
 
+   narrative/kadenze
    narrative/tutorial_videos
+   narrative/note_properties
 
 
-Community
----------
+.. toctree::
+   :maxdepth: 2
+   :caption: Community
 
-Consider joining the forum at https://scampsters.marcevanstein.com/, where you can ask questions, share your creations,
-make suggestions for the development of the framework, and generally take part in the wider SCAMP community. The forum
-is open-registration, and runs on `Discourse <https://www.discourse.org/>`_, an open-source discussion platform.
+   narrative/music
+   narrative/forum
+   narrative/youtube
+   narrative/support
 
-Support SCAMP!
---------------
-
-Although SCAMP will always be free to use and completely open source, a great deal of time and energy has gone into its
-development. If you'd like to support that development, consider donating via Liberapay:
-
-.. raw:: html
-
-    <div style="margin: 0px auto 30px auto">
-        <script src="https://liberapay.com/marcevanstein/widgets/button.js"></script>
-        <noscript><a href="https://liberapay.com/marcevanstein/donate"><img alt="Donate using Liberapay" src="https://liberapay.com/assets/widgets/donate.svg"></a></noscript>
-    </div>
 
 .. toctree::
    :maxdepth: 2

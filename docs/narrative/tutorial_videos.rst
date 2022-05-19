@@ -67,3 +67,13 @@ This video goes into the process of building your own compositional tools by def
 .. raw:: html
 
     <iframe class="youtube" frameborder=0 allowfullscreen="" src="https://www.youtube.com/embed/gI8M-r83nwc?rel=0&showinfo=0&listen=0"></iframe>
+
+Connecting SCAMP to SuperCollider
+---------------------------------
+
+If you're a SuperCollider user, you can use SCAMP to control SynthDefs, spawning new synths with each `play_note` call.
+This video explains how to install the SuperCollider Quark, and connect the two.
+
+.. raw:: html
+
+    <iframe class="youtube" frameborder=0 allowfullscreen="" src="https://www.youtube.com/embed/K2jZOdWegL8?rel=0&showinfo=0&listen=0"></iframe>

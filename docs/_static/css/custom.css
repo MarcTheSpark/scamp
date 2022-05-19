@@ -12,3 +12,12 @@
     max-height: 39.375vw;
     display: block;
 }
+
+.soundcloud {
+    margin: 0px auto 20px auto;
+    width: 640px;
+    max-width: 70vw;
+    height: 166px;
+    max-height: 39.375vw;
+    display: block;
+}
