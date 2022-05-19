@@ -275,7 +275,7 @@ class PlaybackSettings(_ScampSettings):
             print("{}: {}".format(a, b))
 
     def set_playback_adjustment(self, note_property: str, adjustment: Union[str, NotePlaybackAdjustment]):
-        from .parsing import parse_property_key_and_value, parse_note_playback_adjustment
+        from ._parsing import parse_property_key_and_value, parse_note_playback_adjustment
 
         key, value = parse_property_key_and_value(note_property)
 
@@ -291,7 +291,7 @@ class PlaybackSettings(_ScampSettings):
             self.adjustments[key][value] = parse_note_playback_adjustment(adjustment)
 
     def get_playback_adjustment(self, note_property: str):
-        from .parsing import parse_property_key_and_value
+        from ._parsing import parse_property_key_and_value
 
         key, value = parse_property_key_and_value(note_property)
 
@@ -658,7 +658,7 @@ class EngravingSettings(_ScampSettings):
         return value
 
 
-_factory_lilypond_template_path = resolve_path("%PKG/lilypond/scamp_template.ly")
+_factory_lilypond_template_path = os.path.join(resolve_path("%PKG/lilypond"), "scamp_template.ly")
 lilypond_template_path = resolve_path("%DATA/scamp_lilypond_template.ly")
 
 if not os.path.exists(resolve_path(lilypond_template_path)):

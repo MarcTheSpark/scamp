@@ -49,7 +49,7 @@ extras_require = {
 extras_require['all'] = list(extras_require.values())
 
 package_data = {
-    'scamp': ['soundfonts/*', '_thirdparty/mac_libs/*', '_thirdparty/windows_libs/*']
+    'scamp': ['soundfonts/*', 'lilypond/*', '_thirdparty/mac_libs/*', '_thirdparty/windows_libs/*']
 }
 
 classifiers = [
