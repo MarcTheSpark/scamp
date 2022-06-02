@@ -31,123 +31,127 @@ import wave
 
 # ------------------------------------------ Synth that records output -----------------------------------------------
 
-class PlayAndRecSynth(fluidsynth.Synth):
+if fluidsynth is not None:
 
-    """
-    A subclass of :class:`fluidsynth.Synth` that create an additional Synth object to which every call is mirrored,
-    and pulls out the samples to save to a wave file. The idea is that it is a drop-in replacement for Synth that
-    has the side effect of saving to a file.
+    class PlayAndRecSynth(fluidsynth.Synth):
 
-    :param recording_file_path: the file to save recorded output to
-    :param gain: see :class:`fluidsynth.Synth`
-    :param samplerate: see :class:`fluidsynth.Synth`
-    :param channels: see :class:`fluidsynth.Synth`
-    :param timer_func: function used to measure what time it is
-    :param time_range: the time range that we want to record of the output
-    """
+        """
+        A subclass of :class:`fluidsynth.Synth` that create an additional Synth object to which every call is mirrored,
+        and pulls out the samples to save to a wave file. The idea is that it is a drop-in replacement for Synth that
+        has the side effect of saving to a file.
 
-    def __init__(self, recording_file_path, gain=0.2, samplerate=44100, channels=256, timer_func=time.time,
-                 time_range=(0, float("inf")), **kwargs):
-        super().__init__(gain, samplerate, channels, **kwargs)
-        # Note: this import is here because `fluidsynth.raw_audio_string` imports numpy after SCAMP has started
-        # playback, an expensive operation that disrupts playback. By importing here, we front-load that.
-        import numpy
-        self.start_time = timer_func()
-        self.timer_func = timer_func
-        self.samplerate = samplerate
-        self.sample_range = int(time_range[0] * samplerate), \
-                            int(time_range[1] * samplerate) if time_range[1] != float("inf") else float("inf")
-        # This is the parallel Synth object used for drawing out samples and saving them to a file
-        self.recording_synth = fluidsynth.Synth(gain, samplerate, channels, **kwargs)
-        self.current_sample = 0
-        self.sample_queue = []
-        self.wave_file = None
-        self.recording = False
-        self.recording_thread = None
-        self.start_recording(recording_file_path)
+        :param recording_file_path: the file to save recorded output to
+        :param gain: see :class:`fluidsynth.Synth`
+        :param samplerate: see :class:`fluidsynth.Synth`
+        :param channels: see :class:`fluidsynth.Synth`
+        :param timer_func: function used to measure what time it is
+        :param time_range: the time range that we want to record of the output
+        """
 
-    def start_recording(self, file_path):
-        self.wave_file = wave.open(file_path, 'wb')
-        self.wave_file.setnchannels(2)
-        self.wave_file.setsampwidth(2)
-        self.wave_file.setframerate(44100)
-        self.recording = True
-        self.recording_thread = threading.Thread(target=self.record_thread, daemon=True)
-        self.recording_thread.start()
-        atexit.register(self.stop_recording)
-
-    def record_thread(self):
-        sample_num = 0
-        while self.recording or len(self.sample_queue):
-            while len(self.sample_queue) > 0:
-                new_samps = self.sample_queue.pop(0).reshape(-1, 2)
-                end_sample_num = sample_num + len(new_samps)
-                num_beginning_samples_to_skip = self.sample_range[0] - sample_num \
-                    if self.sample_range[0] > sample_num else 0
-                num_ending_samples_to_skip = end_sample_num - self.sample_range[1] \
-                    if end_sample_num > self.sample_range[1] else 0
-                if num_beginning_samples_to_skip + num_ending_samples_to_skip < len(new_samps):
-                    self.wave_file.writeframes(
-                        new_samps[num_beginning_samples_to_skip:len(new_samps) - num_ending_samples_to_skip].tobytes())
-                if end_sample_num > self.sample_range[1]:
-                    self.sample_queue.clear()
-                    self.stop_recording()
-                    break
-                sample_num = end_sample_num
-            if self.recording:
-                time.sleep(0.1)
-        self.wave_file.close()
-
-    def stop_recording(self):
-        if self.recording:
-            # add some blank samples at the end (for reverb tails and such)
-            if self.current_sample < self.sample_range[1]:
-                # if we're stopping but the sample range says keep going (probably because we exited the script before
-                # reaching that sample) then we append extra samples up to the top of the sample range, or just an extra
-                # second of samples (self.samplerate) in the case that the upper bound was set to infinite
-                extra_samples = self.sample_range[1] - self.current_sample if self.sample_range[1] != float("inf") \
-                    else self.samplerate
-                self.sample_queue.append(self.recording_synth.get_samples(extra_samples))
+        def __init__(self, recording_file_path, gain=0.2, samplerate=44100, channels=256, timer_func=time.time,
+                     time_range=(0, float("inf")), **kwargs):
+            super().__init__(gain, samplerate, channels, **kwargs)
+            # Note: this import is here because `fluidsynth.raw_audio_string` imports numpy after SCAMP has started
+            # playback, an expensive operation that disrupts playback. By importing here, we front-load that.
+            import numpy
+            self.start_time = timer_func()
+            self.timer_func = timer_func
+            self.samplerate = samplerate
+            self.sample_range = int(time_range[0] * samplerate), \
+                                int(time_range[1] * samplerate) if time_range[1] != float("inf") else float("inf")
+            # This is the parallel Synth object used for drawing out samples and saving them to a file
+            self.recording_synth = fluidsynth.Synth(gain, samplerate, channels, **kwargs)
+            self.current_sample = 0
+            self.sample_queue = []
+            self.wave_file = None
             self.recording = False
-            if threading.current_thread() is not self.recording_thread:
-                # sometimes this is called at the end by atexit and we want to make sure we finish writing all
-                # the samples. When it's called from record_thread, this is irrelevant since it's on the same thread
-                self.recording_thread.join()
+            self.recording_thread = None
+            self.start_recording(recording_file_path)
+
+        def start_recording(self, file_path):
+            self.wave_file = wave.open(file_path, 'wb')
+            self.wave_file.setnchannels(2)
+            self.wave_file.setsampwidth(2)
+            self.wave_file.setframerate(44100)
+            self.recording = True
+            self.recording_thread = threading.Thread(target=self.record_thread, daemon=True)
+            self.recording_thread.start()
+            atexit.register(self.stop_recording)
+
+        def record_thread(self):
+            sample_num = 0
+            while self.recording or len(self.sample_queue):
+                while len(self.sample_queue) > 0:
+                    new_samps = self.sample_queue.pop(0).reshape(-1, 2)
+                    end_sample_num = sample_num + len(new_samps)
+                    num_beginning_samples_to_skip = self.sample_range[0] - sample_num \
+                        if self.sample_range[0] > sample_num else 0
+                    num_ending_samples_to_skip = end_sample_num - self.sample_range[1] \
+                        if end_sample_num > self.sample_range[1] else 0
+                    if num_beginning_samples_to_skip + num_ending_samples_to_skip < len(new_samps):
+                        self.wave_file.writeframes(
+                            new_samps[num_beginning_samples_to_skip:len(new_samps) - num_ending_samples_to_skip].tobytes())
+                    if end_sample_num > self.sample_range[1]:
+                        self.sample_queue.clear()
+                        self.stop_recording()
+                        break
+                    sample_num = end_sample_num
+                if self.recording:
+                    time.sleep(0.1)
+            self.wave_file.close()
+
+        def stop_recording(self):
+            if self.recording:
+                # add some blank samples at the end (for reverb tails and such)
+                if self.current_sample < self.sample_range[1]:
+                    # if we're stopping but the sample range says keep going (probably because we exited the script before
+                    # reaching that sample) then we append extra samples up to the top of the sample range, or just an extra
+                    # second of samples (self.samplerate) in the case that the upper bound was set to infinite
+                    extra_samples = self.sample_range[1] - self.current_sample if self.sample_range[1] != float("inf") \
+                        else self.samplerate
+                    self.sample_queue.append(self.recording_synth.get_samples(extra_samples))
+                self.recording = False
+                if threading.current_thread() is not self.recording_thread:
+                    # sometimes this is called at the end by atexit and we want to make sure we finish writing all
+                    # the samples. When it's called from record_thread, this is irrelevant since it's on the same thread
+                    self.recording_thread.join()
 
 
-synth_lock = threading.Lock()
+    synth_lock = threading.Lock()
 
 
-def _record_as_well(f):
-    """
-    Decorator that is used to wrap the various Synth functions, which makes the same functions get called on the
-    recording synth. Also draws out the new samples from the recording synth and adds them them to self.sample_queue.
-    (The "record_thread" above then reads from this sample queue on a separate thread and writes to a file.)
-    """
-    @functools.wraps(f)
-    def wrapped_method(self, *args, **kwargs):
-        with synth_lock:
-            return_value = f(self, *args, **kwargs)
-            current_sample = int((self.timer_func() - self.start_time) * self.samplerate)
-            num_new_samples = current_sample - self.current_sample
-            self.current_sample = current_sample
-            if self.wave_file is not None:
+    def _record_as_well(f):
+        """
+        Decorator that is used to wrap the various Synth functions, which makes the same functions get called on the
+        recording synth. Also draws out the new samples from the recording synth and adds them them to self.sample_queue.
+        (The "record_thread" above then reads from this sample queue on a separate thread and writes to a file.)
+        """
+        @functools.wraps(f)
+        def wrapped_method(self, *args, **kwargs):
+            with synth_lock:
+                return_value = f(self, *args, **kwargs)
+                current_sample = int((self.timer_func() - self.start_time) * self.samplerate)
+                num_new_samples = current_sample - self.current_sample
+                self.current_sample = current_sample
+                if self.wave_file is not None:
 
-                if num_new_samples > 0:
-                    self.sample_queue.append(self.recording_synth.get_samples(num_new_samples))
+                    if num_new_samples > 0:
+                        self.sample_queue.append(self.recording_synth.get_samples(num_new_samples))
 
-                f(self.recording_synth, *args, **kwargs)
-        return return_value
-    return wrapped_method
+                    f(self.recording_synth, *args, **kwargs)
+            return return_value
+        return wrapped_method
 
 
-PlayAndRecSynth.sfload = _record_as_well(PlayAndRecSynth.sfload)
-PlayAndRecSynth.program_select = _record_as_well(PlayAndRecSynth.program_select)
-PlayAndRecSynth.noteon = _record_as_well(PlayAndRecSynth.noteon)
-PlayAndRecSynth.noteoff = _record_as_well(PlayAndRecSynth.noteoff)
-PlayAndRecSynth.cc = _record_as_well(PlayAndRecSynth.cc)
-PlayAndRecSynth.pitch_bend = _record_as_well(PlayAndRecSynth.pitch_bend)
+    PlayAndRecSynth.sfload = _record_as_well(PlayAndRecSynth.sfload)
+    PlayAndRecSynth.program_select = _record_as_well(PlayAndRecSynth.program_select)
+    PlayAndRecSynth.noteon = _record_as_well(PlayAndRecSynth.noteon)
+    PlayAndRecSynth.noteoff = _record_as_well(PlayAndRecSynth.noteoff)
+    PlayAndRecSynth.cc = _record_as_well(PlayAndRecSynth.cc)
+    PlayAndRecSynth.pitch_bend = _record_as_well(PlayAndRecSynth.pitch_bend)
 
+else:
+    PlayAndRecSynth = None
 
 # ------------------------------------------ Main SoundfontHost classes ----------------------------------------------
 

@@ -219,7 +219,6 @@ class Ensemble(SavesToJSON):
 
         midi_output_device = name if midi_output_device is None else midi_output_device
 
-
         instrument = self.new_silent_part(name, default_spelling_policy=default_spelling_policy,
                                           clef_preference=clef_preference)
         instrument.add_streaming_midi_playback(midi_output_device=midi_output_device, num_channels=num_channels,

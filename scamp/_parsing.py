@@ -49,8 +49,8 @@ notehead_value = {all_noteheads}
 noteheads = noteheads_key? notehead_value ("/" notehead_value)*
 
 dynamics_key = r'dynamics?' ":"
-dynamics_value = ({all_dynamics}) &("," / EOF)
-dynamics = dynamics_key? dynamics_value ("/" dynamics_value)*
+dynamics_value = ({all_dynamics})
+dynamics = dynamics_key? dynamics_value ("/" dynamics_value)*  &("," / EOF)
 
 spanners_key = r'spanners?' ":"
 spanner_label = "#" r'[0-9a-zA-Z]+'
