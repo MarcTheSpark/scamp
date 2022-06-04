@@ -420,7 +420,7 @@ class ScampInstrument(SavesToJSON):
             raise ValueError("Note length must be positive.")
 
         properties = NoteProperties.interpret(properties)
-        self._resolve_spelling_policy(properties)
+        self._resolve_spelling_policies(properties)
 
         if hasattr(pitch, "__len__"):
             pitch = Envelope.from_list(pitch)
@@ -458,21 +458,21 @@ class ScampInstrument(SavesToJSON):
                            args=(pitch, volume, length, properties),
                            kwargs={"silent": clock.is_fast_forwarding() or silent, "transcribe": transcribe})
 
-    def _resolve_spelling_policy(self, properties: NoteProperties):
+    def _resolve_spelling_policies(self, properties: NoteProperties):
         """
-        Resolves the spelling policy for the NoteProperties, based on instrument or ensemble defaults, if applicable
+        Resolves the spelling policies for the NoteProperties, based on instrument or ensemble defaults, if applicable
         """
         # resolve the spelling policy based on defaults (local first, then more global)
-        if properties.spelling_policy is None:
+        if len(properties.spelling_policies) == 0:
             # if the note doesn't say how to be spelled, check the instrument
             if self.default_spelling_policy is not None:
-                properties.spelling_policy = self.default_spelling_policy
+                properties.spelling_policies = [self.default_spelling_policy]
             # if the instrument doesn't have a default spelling policy check the host (probably a Session)
             elif self.ensemble is not None and self.ensemble.default_spelling_policy is not None:
-                properties.spelling_policy = self.ensemble.default_spelling_policy
+                properties.spelling_policies = [self.ensemble.default_spelling_policy]
             # if the host doesn't have a default, then fall back to engraving_settings
             else:
-                properties.spelling_policy = engraving_settings.default_spelling_policy
+                properties.spelling_policies = [engraving_settings.default_spelling_policy]
 
     def _resolve_clock(self, clock, blocking):
         """
@@ -577,27 +577,25 @@ class ScampInstrument(SavesToJSON):
             raise ValueError("'pitches' must be a list of pitches.")
 
         properties = NoteProperties.interpret(properties)
-        self._resolve_spelling_policy(properties)
+        self._resolve_spelling_policies(properties)
 
-        # we should either be given a number of noteheads equal to the number of pitches or just one notehead for all
-        if not (len(properties.noteheads) == len(pitches) or len(properties.noteheads) == 1):
-            raise ValueError("Wrong number of noteheads for chord.")
-
-        for i, pitch in enumerate(pitches[:-1]):
-            # for all but the last pitch, play it without blocking, so we can start all the others
-            # also copy the properties dictionary, and pick out the correct notehead if we've been given several
+        for i, pitch in enumerate(pitches):
+            # play the pitches individually, duplicating the properties dictionary for each.
+            # (note that individual noteheads and spellings need to be separated out)
             properties_copy = properties.duplicate()
             if len(properties.noteheads) > 1:
-                properties_copy.noteheads = [properties_copy.noteheads[i]]
-            self.play_note(pitch, volume, length, properties=properties_copy, blocking=False, clock=clock,
-                           silent=silent, transcribe=transcribe)
-
-        # for the last pitch, block or not based on the blocking parameter
-        # also, if we've been given a list of noteheads, pick out the last one
-        if len(properties.noteheads) > 1:
-            properties.noteheads = [properties.noteheads[-1]]
-        self.play_note(pitches[-1], volume, length, properties=properties, blocking=blocking, clock=clock,
-                       silent=silent, transcribe=transcribe)
+                # if we've been given multiple noteheads, assign them note by
+                # (if given too few, just repeat the last notehead)
+                properties_copy.noteheads = [properties_copy.noteheads[i]
+                                             if i < len(properties_copy.noteheads)
+                                             else properties_copy.noteheads[-1]]
+            if len(properties.spelling_policies) > 1:
+                # same with spelling policies
+                properties_copy.spelling_policies = [properties_copy.spelling_policies[i]
+                                                     if i < len(properties_copy.spelling_policies)
+                                                     else properties_copy.spelling_policies[-1]]
+            self.play_note(pitch, volume, length, properties=properties_copy, blocking=(i == len(pitches) - 1),
+                           clock=clock, silent=silent, transcribe=transcribe)
 
     def start_note(self, pitch, volume, properties: Union[str, dict, Sequence, NoteProperty] = None,
                    clock: Clock = None, max_volume: float = 1, flags: Sequence[str] = None) -> 'NoteHandle':
@@ -625,7 +623,7 @@ class ScampInstrument(SavesToJSON):
 
         # standardize properties if necessary, turn pitch and volume into lists if necessary
         properties = NoteProperties.interpret(properties)
-        self._resolve_spelling_policy(properties)
+        self._resolve_spelling_policies(properties)
         pitch = Envelope.from_list(pitch) if hasattr(pitch, "__len__") else pitch
         volume = Envelope.from_list(volume) if hasattr(volume, "__len__") else volume
 
@@ -698,7 +696,7 @@ class ScampInstrument(SavesToJSON):
         assert hasattr(pitches, "__len__")
 
         properties = NoteProperties.interpret(properties)
-        self._resolve_spelling_policy(properties)
+        self._resolve_spelling_policies(properties)
 
         # we should either be given a number of noteheads equal to the number of pitches or just one notehead for all
         assert len(properties.noteheads) == len(pitches) or len(properties.noteheads) == 1, \

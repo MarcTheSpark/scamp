@@ -75,14 +75,15 @@ white_key = r'[a-fA-F]'
 mode = "major" / "minor" / "ionian" / "dorian" / "phrygian" / "lydian" / "mixolydian" / "aeolean" / "locrian"
 spelling_policy_key = ("spelling" / "spelling_policy" / "key") ":"
 tonality = (white_key r'[-_]*' accidental? r'[-_]*' mode?)
-spelling_policy = spelling_policy_key? ("flats" / "sharps" / accidental / tonality) &("," / EOF)
+spelling_policy = "flats" / "sharps" / accidental / tonality
+spelling_policies = spelling_policy_key? spelling_policy ("/" spelling_policy)*  &("," / EOF)
 
 voice = "voice" ":" r'[^,]*' &("," / EOF)
 
 extra_playback_parameter = r'param_\w+' ":" number_or_list
 
 property = articulations / notations / noteheads / playback_adjustments / dynamics / 
-           spelling_policy / extra_playback_parameter / voice / spanners / texts
+           spelling_policies / extra_playback_parameter / voice / spanners / texts
 properties = property ("," property)* EOF
 """.format(
     # Note: we reverse the lists of articulations, notations, and noteheads so that items like "tremolo3" are searched
@@ -262,7 +263,10 @@ class PropertiesVisitor(PTNodeVisitor):
 
     def visit_spelling_policy(self, node, children):
         from .spelling import SpellingPolicy
-        return {"spelling_policy": SpellingPolicy.from_string(children[0])}
+        return SpellingPolicy.from_string(children[0])
+
+    def visit_spelling_policies(self, node, children):
+        return {"spelling_policies": list(children)}
 
     def visit_voice(self, node, children):
         return {"voice": children[-1]}

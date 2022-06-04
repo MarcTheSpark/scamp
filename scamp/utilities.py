@@ -427,3 +427,7 @@ def get_standard_indispensability_array(rhythmic_strata: Sequence, normalize: bo
     :return: a list of integer indispensabilities, or float if normalize is set to true
     """
     return _get_indispensability_array(_standardize_strata(rhythmic_strata), normalize)
+
+
+def _is_non_str_sequence(x):
+    return isinstance(x, Sequence) and not isinstance(x, str)

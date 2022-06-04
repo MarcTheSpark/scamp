@@ -46,4 +46,14 @@ for pitch, dur in zip(pitches, durations):
 for pitch, dur in zip(pitches, durations):
     piano.play_note(pitch, 1.0, dur, "key: B major")
 
+# a single spelling policy applies to each note of a chord
+piano.play_chord([61, 66], 1.0, 1.0, "#")
+piano.play_chord([61, 66], 1.0, 1.0, "b")
+# different spelling policies can be given to different notes of a chord, separated by slashes
+piano.play_chord([61, 66], 1.0, 1.0, "b/#")
+# although it's a little weird to do so, if the pitches are out of order, spellings are mapped in the order given
+piano.play_chord([66, 61], 1.0, 1.0, "#/b")
+# if too few individual spellings are given, the last one is repeated for additional notes
+piano.play_chord([61, 66, 70, 73], 1.0, 1.0, "#/b")
+
 s.stop_transcribing().to_score().show()

@@ -27,7 +27,7 @@ from numbers import Real
 from expenvelope import Envelope
 from .note_properties import NoteProperties
 from .settings import engraving_settings
-from .quantization import quantize_performance_part, QuantizationRecord, QuantizationScheme
+from .quantization import quantize_performance_part, QuantizationScheme
 from .settings import quantization_settings
 from clockblocks import Clock, TempoEnvelope, current_clock
 from .instruments import Ensemble, ScampInstrument
@@ -333,14 +333,17 @@ class PerformanceNote(SavesToJSON):
         # if we've made it to here, then the notes are fit to be merged
         # the one wrinkle is that the notes may not be in pitch order. Let's put them in pitch order,
         # and sort the noteheads at the same time so that they match up
-        all_noteheads_together = self.properties.noteheads + other.properties.noteheads
-        sorted_pitches_and_noteheads = sorted(
-            zip(all_pitches_together, all_noteheads_together),
-            key=lambda pair: pair[0].start_level() if isinstance(pair[0], Envelope) else pair[0]
-        )
-        # now we can set this note's pitches and noteheads accordingly
-        self.pitch = tuple(pitch for pitch, notehead in sorted_pitches_and_noteheads)
-        self.properties.noteheads = [notehead for pitch, notehead in sorted_pitches_and_noteheads]
+        
+        all_start_pitches = [pitch.start_level() if isinstance(pitch, Envelope) else pitch
+                             for pitch in all_pitches_together]
+        self.properties.noteheads = [
+            x for _, x in sorted(zip(all_start_pitches, self.properties.noteheads + other.properties.noteheads))
+        ]
+        self.properties.spelling_policies = [
+            x for _, x in
+            sorted(zip(all_start_pitches, self.properties.spelling_policies + other.properties.spelling_policies))
+        ]
+        self.pitch = tuple(x for _, x in sorted(zip(all_start_pitches, all_pitches_together)))
         # and return true because we succeeded
         return True
 

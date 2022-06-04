@@ -18,6 +18,7 @@ options that affect a given note.
 #  You should have received a copy of the GNU General Public License along with this program.    #
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
+from .utilities import _is_non_str_sequence
 from .playback_adjustments import NotePlaybackAdjustment
 from .utilities import SavesToJSON, NoteProperty
 from .spelling import SpellingPolicy
@@ -28,11 +29,7 @@ from copy import deepcopy
 from . import _parsing
 import re
 from types import SimpleNamespace
-from typing import Sequence, Union, MutableMapping
-
-
-def _is_non_str_sequence(x):
-    return isinstance(x, Sequence) and not isinstance(x, str)
+from typing import Union, MutableMapping
 
 
 class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
@@ -41,7 +38,7 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
     from its pitch, volume and duration. See :ref:`The Note Properties Argument` for more information.
 
     :param args: Any number of things that are interpretable as note properties via
-        :function:`NoteProperties.interpret`, which are merged together into a single object.
+        :func:`NoteProperties.interpret`, which are merged together into a single object.
     :param kwargs: individual note properties can be given as keyword arguments, e.g. `articulation=staccato`
     """
 
@@ -118,13 +115,13 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
             "chord_merger_critical": True
         },
         {
-            "key": r"spelling_policy",
-            "regex": r"^(spelling|spelling_policy|key)$",
-            "default": None,
-            "is_default_function": lambda sp: sp == SpellingPolicy.from_circle_of_fifths_position(0),
+            "key": r"spelling_policies",
+            "regex": r"^(spelling|spelling_policy|spelling_policies|key)$",
+            "default": [],
+            "is_default_function": lambda sp: all(x == SpellingPolicy() for x in sp),
             "regularization_function": lambda x: SpellingPolicy.from_string(x) if isinstance(x, str) else x,
             "custom_type": SpellingPolicy,
-            "merger_function": lambda p1, p2: p2 if p2 is not None else p1,
+            "merger_function": lambda p1, p2: p1 + p2,
             "chord_merger_critical": False
         },
         {
@@ -332,12 +329,16 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
 
         return json_friendly_dict
 
+    def get_spelling_policy(self, which_note=0):
+        return self.spelling_policies[which_note] if which_note < len(self.spelling_policies) \
+            else self.spelling_policies[-1]
+
     @classmethod
     def _from_dict(cls, json_dict):
         return cls(**json_dict)
 
     def __add__(self, other):
-        return self.copy().incorporate(other)
+        return self.duplicate().incorporate(other)
 
     def __repr__(self):
         kwarg_string = ", ".join(

@@ -2498,8 +2498,8 @@ class NoteLike(ScoreComponent):
 
             if self.does_glissando():
                 # if it's a glissing chord, its noteheads are based on the start level
-                abjad_object.note_heads = [self.properties.spelling_policy.resolve_abjad_pitch(x.start_level())
-                                           for x in self.pitch]
+                abjad_object.note_heads = [self.properties.get_spelling_policy(i).resolve_abjad_pitch(x.start_level())
+                                           for i, x in enumerate(self.pitch)]
                 # Set the notehead
                 self._set_abjad_note_head_styles(abjad_object)
                 self._attach_abjad_microtonal_annotation(abjad_object, [p.start_level() for p in self.pitch])
@@ -2511,8 +2511,8 @@ class NoteLike(ScoreComponent):
                 for t in grace_points:
                     grace_chord = abjad().Chord()
                     grace_chord.written_duration = 1/16
-                    grace_chord.note_heads = [self.properties.spelling_policy.resolve_abjad_pitch(x.value_at(t))
-                                              for x in self.pitch]
+                    grace_chord.note_heads = [self.properties.get_spelling_policy(i).resolve_abjad_pitch(x.value_at(t))
+                                              for i, x in enumerate(self.pitch)]
                     # Set the notehead
                     self._set_abjad_note_head_styles(grace_chord)
                     self._attach_abjad_microtonal_annotation(grace_chord, [p.value_at(t) for p in self.pitch])
@@ -2522,7 +2522,8 @@ class NoteLike(ScoreComponent):
                         last_pitches = grace_chord.written_pitches
             else:
                 # if not, our job is simple
-                abjad_object.note_heads = [self.properties.spelling_policy.resolve_abjad_pitch(x) for x in self.pitch]
+                abjad_object.note_heads = [self.properties.get_spelling_policy(i).resolve_abjad_pitch(x)
+                                           for i, x in enumerate(self.pitch)]
                 # Set the noteheads
                 self._set_abjad_note_head_styles(abjad_object)
                 # attach any microtonal annotations (if setting is flipped)
@@ -2530,8 +2531,9 @@ class NoteLike(ScoreComponent):
 
         elif self.does_glissando():
             # This is a note doing a glissando
-            abjad_object = abjad().Note(self.properties.spelling_policy.resolve_abjad_pitch(self.pitch.start_level()),
-                                        duration)
+            abjad_object = abjad().Note(
+                self.properties.get_spelling_policy().resolve_abjad_pitch(self.pitch.start_level()), duration
+            )
             # Set the notehead
             self._set_abjad_note_head_styles(abjad_object)
             # attach any microtonal annotations (if setting is flipped)
@@ -2542,7 +2544,9 @@ class NoteLike(ScoreComponent):
             grace_points = self._get_grace_points()
 
             for t in grace_points:
-                grace = abjad().Note(self.properties.spelling_policy.resolve_abjad_pitch(self.pitch.value_at(t)), 1 / 16)
+                grace = abjad().Note(
+                    self.properties.get_spelling_policy().resolve_abjad_pitch(self.pitch.value_at(t)), 1 / 16
+                )
 
                 # Set the notehead
                 self._set_abjad_note_head_styles(grace)
@@ -2554,7 +2558,7 @@ class NoteLike(ScoreComponent):
                     last_pitch = grace.written_pitch
         else:
             # This is a simple note
-            abjad_object = abjad().Note(self.properties.spelling_policy.resolve_abjad_pitch(self.pitch), duration)
+            abjad_object = abjad().Note(self.properties.get_spelling_policy().resolve_abjad_pitch(self.pitch), duration)
             # Set the notehead
             self._set_abjad_note_head_styles(abjad_object)
             self._attach_abjad_microtonal_annotation(abjad_object, self.pitch)
@@ -2741,7 +2745,8 @@ class NoteLike(ScoreComponent):
                 directions += tuple(pymusicxml.Dynamic(dynamic_text) for dynamic_text in self.properties.dynamics)
 
             out = [pymusicxml.Chord(
-                tuple(self.properties.spelling_policy.resolve_music_xml_pitch(p) for p in start_pitches),
+                tuple(self.properties.get_spelling_policy(i).resolve_music_xml_pitch(p)
+                      for i, p in enumerate(start_pitches)),
                 self.written_length, ties=self._get_xml_tie_state(),
                 noteheads=tuple(get_xml_notehead(notehead) if notehead != "normal" else None
                                 for notehead in self.properties.noteheads),
@@ -2752,8 +2757,8 @@ class NoteLike(ScoreComponent):
                 grace_points = self._get_grace_points(engraving_settings.glissandi.max_inner_graces_music_xml)
                 for t in grace_points:
                     pitch_values = [p.value_at(t) if isinstance(p, Envelope) else p for p in self.pitch]
-                    these_pitches = tuple(self.properties.spelling_policy.resolve_music_xml_pitch(p)
-                                          for p in pitch_values)
+                    these_pitches = tuple(self.properties.get_spelling_policy(i).resolve_music_xml_pitch(p)
+                                          for i, p in enumerate(pitch_values))
 
                     # only add a grace chord if it differs in pitch from the last chord / grace chord
                     if these_pitches[0] != out[-1].pitches[0]:
@@ -2777,7 +2782,7 @@ class NoteLike(ScoreComponent):
                 directions += tuple(pymusicxml.Dynamic(dynamic_text) for dynamic_text in self.properties.dynamics)
 
             out = [pymusicxml.Note(
-                self.properties.spelling_policy.resolve_music_xml_pitch(start_pitch),
+                self.properties.get_spelling_policy().resolve_music_xml_pitch(start_pitch),
                 self.written_length, ties=self._get_xml_tie_state(),
                 notehead=(get_xml_notehead(self.properties.noteheads[0])
                           if self.properties.noteheads[0] != "normal" else None),
@@ -2787,7 +2792,7 @@ class NoteLike(ScoreComponent):
             if self.does_glissando():
                 grace_points = self._get_grace_points(engraving_settings.glissandi.max_inner_graces_music_xml)
                 for t in grace_points:
-                    this_pitch = self.properties.spelling_policy.resolve_music_xml_pitch(self.pitch.value_at(t))
+                    this_pitch = self.properties.get_spelling_policy().resolve_music_xml_pitch(self.pitch.value_at(t))
                     # only add a grace note if it differs in pitch from the last note / grace note
                     if this_pitch != out[-1].pitch:
                         out.append(pymusicxml.GraceNote(
