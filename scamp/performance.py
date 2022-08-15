@@ -381,7 +381,76 @@ class PerformanceNote(SavesToJSON):
         )
 
 
-class PerformancePart(SavesToJSON):
+class _NoteFiltersMixin:
+
+    def apply_note_filter(self, filter_function: Callable[['PerformanceNote'], None],
+                          start_beat: float = 0, stop_beat: float = None,
+                          selected_voices: Sequence[str] = None):
+        """
+        Applies a filter function to every note in this Performance. This can be used to apply a transformation to
+        the entire Performance on a note-by-note basis.
+
+        :param filter_function: function taking a PerformanceNote object and modifying it in place
+        :param start_beat: beat to start on
+        :param stop_beat: beat to stop on (None keeps going until the end of the part)
+        :param selected_voices: which voices to take notes from (defaults to all if None)
+        :return: self, for chaining purposes
+        """
+        for note in self.get_note_iterator(start_beat, stop_beat, selected_voices):
+            filter_function(note)
+        return self
+
+    def apply_pitch_filter(self, filter_function: Callable[[Union[Envelope, float]], Union[Envelope, float]],
+                           start_beat: float = 0, stop_beat: float = None,
+                           selected_voices: Sequence[str] = None):
+        """
+        Applies a filter function to transform the pitch of every note in this Performance.
+
+        :param filter_function: function taking a pitch (can be envelope, float, or even a chord tuple) and returning
+            another pitch-like object. If the performance hasn't been quantized and you're not using any glissandi,
+            though, you can assume the pitch is a float.
+        :param start_beat: beat to start on
+        :param stop_beat: beat to stop on (None keeps going until the end of the part)
+        :param selected_voices: which voices to take notes from (defaults to all if None)
+        :return: self, for chaining purposes
+        """
+        def _note_filter(performance_note):
+            performance_note.pitch = filter_function(performance_note.pitch)
+
+        self.apply_note_filter(_note_filter, start_beat, stop_beat, selected_voices)
+        return self
+
+    def transpose(self, interval: float):
+        """
+        Transposes all notes in this Performance up or down by the desired interval. For greater flexibility, use the
+        :code:`apply_pitch_filter` and :code:`apply_note_filter` methods.
+
+        :param interval: the interval by which to transpose this Performance
+        :return: self, for chaining purposes
+        """
+        return self.apply_pitch_filter(lambda p: p + interval)
+
+    def apply_volume_filter(self, filter_function: Callable[[Union[Envelope, float]], Union[Envelope, float]],
+                            start_beat: float = 0, stop_beat: float = None,
+                            selected_voices: Sequence[str] = None):
+        """
+        Applies a filter function to transform the volume of every note in this Performance.
+
+        :param filter_function: function taking a volume (can be envelope or float) and returning
+            another volume-like object. If you haven't used any envelopes, though, you can assume the pitch is a float.
+        :param start_beat: beat to start on
+        :param stop_beat: beat to stop on (None keeps going until the end of the part)
+        :param selected_voices: which voices to take notes from (defaults to all if None)
+        :return: self, for chaining purposes
+        """
+        def _note_filter(performance_note):
+            performance_note.volume = filter_function(performance_note.volume)
+
+        self.apply_note_filter(_note_filter, start_beat, stop_beat, selected_voices)
+        return self
+
+
+class PerformancePart(SavesToJSON, _NoteFiltersMixin):
 
     """
     Transcription of the notes played by a single :class:`~scamp.instruments.ScampInstrument`.
@@ -755,7 +824,7 @@ class PerformancePart(SavesToJSON):
         )
 
 
-class Performance(SavesToJSON):
+class Performance(SavesToJSON, _NoteFiltersMixin):
 
     """
     Representation of note playback events, usually a transcription of the notes played by an
@@ -861,77 +930,11 @@ class Performance(SavesToJSON):
         while not all(x is None for x in next_notes):
             note_to_pop = min(range(len(next_notes)),
                               key=lambda i: next_notes[i].start_beat if next_notes[i] is not None else float("inf"))
-            yield(next_notes[note_to_pop])
+            yield next_notes[note_to_pop]
             try:
                 next_notes[note_to_pop] = next(part_note_iterators[note_to_pop])
             except StopIteration:
                 next_notes[note_to_pop] = None
-
-    def apply_note_filter(self, filter_function: Callable[['PerformanceNote'], None],
-                          start_beat: float = 0, stop_beat: float = None,
-                          selected_voices: Sequence[str] = None) -> 'Performance':
-        """
-        Applies a filter function to every note in this Performance. This can be used to apply a transformation to
-        the entire Performance on a note-by-note basis.
-
-        :param filter_function: function taking a PerformanceNote object and modifying it in place
-        :param start_beat: beat to start on
-        :param stop_beat: beat to stop on (None keeps going until the end of the part)
-        :param selected_voices: which voices to take notes from (defaults to all if None)
-        :return: self, for chaining purposes
-        """
-        for note in self.get_note_iterator(start_beat, stop_beat, selected_voices):
-            filter_function(note)
-        return self
-
-    def apply_pitch_filter(self, filter_function: Callable[[Union[Envelope, float]], Union[Envelope, float]],
-                           start_beat: float = 0, stop_beat: float = None,
-                           selected_voices: Sequence[str] = None) -> 'Performance':
-        """
-        Applies a filter function to transform the pitch of every note in this Performance.
-
-        :param filter_function: function taking a pitch (can be envelope, float, or even a chord tuple) and returning
-            another pitch-like object. If the performance hasn't been quantized and you're not using any glissandi,
-            though, you can assume the pitch is a float.
-        :param start_beat: beat to start on
-        :param stop_beat: beat to stop on (None keeps going until the end of the part)
-        :param selected_voices: which voices to take notes from (defaults to all if None)
-        :return: self, for chaining purposes
-        """
-        def _note_filter(performance_note):
-            performance_note.pitch = filter_function(performance_note.pitch)
-
-        self.apply_note_filter(_note_filter, start_beat, stop_beat, selected_voices)
-        return self
-
-    def transpose(self, interval: float) -> 'Performance':
-        """
-        Transposes all notes in this Performance up or down by the desired interval. For greater flexibility, use the
-        :code:`apply_pitch_filter` and :code:`apply_note_filter` methods.
-
-        :param interval: the interval by which to transpose this Performance
-        :return: self, for chaining purposes
-        """
-        return self.apply_pitch_filter(lambda p: p + interval)
-
-    def apply_volume_filter(self, filter_function: Callable[[Union[Envelope, float]], Union[Envelope, float]],
-                            start_beat: float = 0, stop_beat: float = None,
-                            selected_voices: Sequence[str] = None) -> 'Performance':
-        """
-        Applies a filter function to transform the volume of every note in this Performance.
-
-        :param filter_function: function taking a volume (can be envelope or float) and returning
-            another volume-like object. If you haven't used any envelopes, though, you can assume the pitch is a float.
-        :param start_beat: beat to start on
-        :param stop_beat: beat to stop on (None keeps going until the end of the part)
-        :param selected_voices: which voices to take notes from (defaults to all if None)
-        :return: self, for chaining purposes
-        """
-        def _note_filter(performance_note):
-            performance_note.volume = filter_function(performance_note.volume)
-
-        self.apply_note_filter(_note_filter, start_beat, stop_beat, selected_voices)
-        return self
 
     def remap_to_tempo(self, tempo: Union[TempoEnvelope, float]):
         """

@@ -26,6 +26,7 @@ Engraving:
 
 Assorted:
     - Clean up dependency tree so that it's not such a goddamn nigntmare
+    - Make it so that text output can be controlled better
 
 Extensions:
     - MIDI file to Performance

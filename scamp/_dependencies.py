@@ -121,7 +121,14 @@ def abjad():
     except ImportError:
         raise ImportError("abjad was not found; LilyPond output is not available.")
 
-    if abjad_library.__version__ < ABJAD_MIN_VERSION:
+    if not hasattr(abjad_library, '__version__'):
+        if not _abjad_warning_given:
+            logging.warning(
+                f"abjad library is present, but its version could not be identified. Note that scamp requires abjad "
+                f"version {ABJAD_MIN_VERSION}{ABJAD_VERSION}"
+            )
+            _abjad_warning_given = True
+    elif abjad_library.__version__ < ABJAD_MIN_VERSION:
         raise ImportError(
             "abjad version {} found, but SCAMP is built for {}. "
             "Run `pip3 install abjad=={}` to upgrade."
