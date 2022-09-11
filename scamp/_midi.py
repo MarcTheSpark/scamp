@@ -303,10 +303,9 @@ class MIDIChannelManager:
 
         :param note_id: The id of the note so that we can remove it later
         :param midi_pitch: The (integer) midi pitch of the note
-        :param pitch_bend: the pitch bend needed for this note, or "dynamic" if it is subject to change
-        :param cc_values: a dictionary mapping cc_numbers to values. The values can either be a number from 0 to 1, in
-            which case it is assumed they will never change over the course of the note, or the string "dynamic", which
-            means that they will change over the course of the note.
+        :param pitch_bend: the pitch bend needed for this note, or "variable" if it is subject to change
+        :param cc_values: a dictionary mapping cc_numbers to values (ranging from 0 to 1), or the string "variable" if
+            any of the cc values change over the course of the note.
         """
         if pitch_bend == "variable" or cc_values == "variable":
             # this is a note that will change pitch or cc in a dynamic way; it needs its own channel

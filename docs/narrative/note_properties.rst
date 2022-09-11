@@ -53,7 +53,7 @@ We then pass this object as part of a list of other note properties to the notes
     harmonic = NoteProperties("notehead: harmonic", "pitch + 12")
     for i, pitch in enumerate(range(70, 79)):
         if i % 3 == 0:
-            inst.play_note(pitch, 1, 1/3, [harmonic, "staccato,", StartSlur()])
+            inst.play_note(pitch, 1, 1/3, [harmonic, "staccato", StartSlur()])
         elif i % 3 == 2:
             inst.play_note(pitch, 1, 1 / 3, [harmonic, "staccato", StopSlur()])
         else:

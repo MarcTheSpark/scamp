@@ -959,6 +959,13 @@ class Performance(SavesToJSON, _NoteFiltersMixin):
                     else:
                         note.length = tempo_envelope.beat_at_time(self.tempo_envelope.time_at_beat(
                             original_start_beat + note.length)) - note.start_beat
+                    if isinstance(note.pitch, Envelope):
+                        note.pitch.normalize_to_duration(note.length_sum())
+                    if isinstance(note.volume, Envelope):
+                        note.volume.normalize_to_duration(note.length_sum())
+                    for param, value in note.properties.extra_playback_parameters.items():
+                        if isinstance(param, Envelope):
+                            value.normalize_to_duration(note.length_sum())
         self.tempo_envelope = tempo_envelope
         return self
 

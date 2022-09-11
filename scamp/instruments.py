@@ -530,7 +530,8 @@ class ScampInstrument(SavesToJSON):
         """
 
         # if we know ahead of time that neither pitch nor volume changes, we can pass
-        fixed = not isinstance(pitch, Envelope) and not isinstance(volume, Envelope)
+        fixed = not isinstance(pitch, Envelope) and not isinstance(volume, Envelope) and \
+                not any(isinstance(param_val, Envelope) for param_val in properties.extra_playback_parameters.values())
 
         # start the note. (Note that this will also start the animation of pitch, volume,
         # and any other parameters if they are envelopes.)
@@ -584,7 +585,7 @@ class ScampInstrument(SavesToJSON):
             # (note that individual noteheads and spellings need to be separated out)
             properties_copy = properties.duplicate()
             if len(properties.noteheads) > 1:
-                # if we've been given multiple noteheads, assign them note by
+                # if we've been given multiple noteheads, assign them note by note
                 # (if given too few, just repeat the last notehead)
                 properties_copy.noteheads = [properties_copy.noteheads[i]
                                              if i < len(properties_copy.noteheads)
@@ -594,7 +595,8 @@ class ScampInstrument(SavesToJSON):
                 properties_copy.spelling_policies = [properties_copy.spelling_policies[i]
                                                      if i < len(properties_copy.spelling_policies)
                                                      else properties_copy.spelling_policies[-1]]
-            self.play_note(pitch, volume, length, properties=properties_copy, blocking=(i == len(pitches) - 1),
+            self.play_note(pitch, volume, length, properties=properties_copy,
+                           blocking=(i == len(pitches) - 1) if blocking else False,
                            clock=clock, silent=silent, transcribe=transcribe)
 
     def start_note(self, pitch, volume, properties: Union[str, dict, Sequence, NoteProperty] = None,

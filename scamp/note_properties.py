@@ -333,6 +333,25 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
         return self.spelling_policies[which_note] if which_note < len(self.spelling_policies) \
             else self.spelling_policies[-1]
 
+    def get_midi_cc_params(self):
+        return {
+            int(k): v
+            for k, v in self.extra_playback_parameters.items()
+            if k.isdigit() and 0 <= int(k) < 128
+        }
+
+    def get_midi_cc_start_values(self, digits_to_round_to=10):
+        return {
+            k: round(v.start_level() if isinstance(v, Envelope) else v, digits_to_round_to)
+            for k, v in self.get_midi_cc_params().items()
+        }
+
+    def get_extra_parameter_start_values(self):
+        return {
+            k: v.start_level() if isinstance(v, Envelope) else v
+            for k, v in self.extra_playback_parameters.items()
+        }
+
     @classmethod
     def _from_dict(cls, json_dict):
         return cls(**json_dict)

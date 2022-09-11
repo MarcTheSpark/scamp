@@ -24,8 +24,7 @@ A :class:`~scamp.instruments.ScampInstrument` can have one or more :class:`Playb
 
 from ._midi import SimpleRtMidiOut, MIDIChannelManager, NoFreeChannelError
 from ._soundfont_host import SoundfontHost
-from clockblocks import fork_unsynchronized
-import time
+from .note_properties import NoteProperties
 from abc import abstractmethod
 from ._dependencies import pythonosc
 from typing import Tuple, Optional
@@ -43,8 +42,8 @@ class PlaybackImplementation(SavesToJSON):
     """
 
     @abstractmethod
-    def start_note(self, note_id: int, pitch: float, volume: float, properties: dict,
-                   other_parameter_values: dict, note_info_dict: dict) -> None:
+    def start_note(self, note_id: int, pitch: float, volume: float, properties: NoteProperties,
+                   note_info_dict: dict) -> None:
         """
         Method that implements the start of a note
 
@@ -200,7 +199,7 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
 
     # -------------------------------- Main Playback Methods --------------------------------
 
-    def start_note(self, note_id, pitch, volume, properties, other_parameter_values, note_info_dict):
+    def start_note(self, note_id, pitch, volume, properties, note_info_dict):
         # the note info dictionary was passed along via properties.temp
         # store it under the note id number in the _note_info_dict
         this_note_info = note_info_dict
@@ -213,8 +212,7 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
         # sometimes rounds down, which needlessly puts notes on different channels
         int_pitch = int(pitch) if pitch % 1 <= 0.5 else math.ceil(pitch)
         pitch_bend = round(pitch - int_pitch, 10)
-        cc_values = {int(k): round(v, 10) for k, v in other_parameter_values.items()
-                     if k.isdigit() and 0 <= int(k) < 128}
+        cc_values = properties.get_midi_cc_start_values()
 
         try:
             chan = self.midi_channel_manager.assign_note_to_channel(
@@ -523,12 +521,12 @@ class OSCPlaybackImplementation(PlaybackImplementation):
 
         self._currently_playing = []
 
-    def start_note(self, note_id: int, pitch: float, volume: float, properties: dict,
-                   other_parameter_values: dict, note_info_dict: dict) -> None:
+    def start_note(self, note_id: int, pitch: float, volume: float, properties: NoteProperties,
+                   note_info_dict: dict) -> None:
         self.client.send_message("/{}/{}".format(self.message_prefix, self.osc_message_addresses["start_note"]),
                                  [note_id, pitch, volume])
         self._currently_playing.append(note_id)
-        for param, value in other_parameter_values.items():
+        for param, value in properties.extra_playback_parameters.items():
             self.change_note_parameter(note_id, param, value)
 
     def end_note(self, note_id: int) -> None:

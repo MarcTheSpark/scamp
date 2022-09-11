@@ -28,7 +28,7 @@ from .instruments import Ensemble, ScampInstrument, NoteHandle, ChordHandle
 from .playback_implementations import PlaybackImplementation, OSCPlaybackImplementation, \
     MIDIStreamPlaybackImplementation, SoundfontPlaybackImplementation
 from .transcriber import Transcriber
-from .performance import Performance, PerformancePart
+from .performance import Performance, PerformancePart, PerformanceNote
 from .spelling import SpellingPolicy
 from .score import Score, StaffGroup, Staff, Measure, Voice, Tuplet, NoteLike
 from .text import StaffText
