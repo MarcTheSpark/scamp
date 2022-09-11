@@ -38,6 +38,8 @@ from copy import deepcopy
 import itertools
 import textwrap
 from typing import Union, Sequence, Tuple, Iterator, Callable
+from midiutil import MIDIFile
+from ._midi import MIDIChannelManager
 
 
 @total_ordering
@@ -693,6 +695,113 @@ class PerformancePart(SavesToJSON, _NoteFiltersMixin):
             logging.warning("No matching instrument could be found for part {}.".format(self.name))
         return self
 
+    def write_to_midi_file_track(self, midi_file: MIDIFile, track_num: int, max_channels=16, ring_time=0.5,
+                                 pitch_bend_range=2, envelope_precision=0.01) -> None:
+        """
+        Writes the contents of this part to a track of a midiutil.MIDIFile. Used by
+        :func:`Performance.export_to_midi_file`.
+
+        :param midi_file: a midiutil.MIDIFile
+        :param track_num: which track to write to
+        :param max_channels: maximum number of channels to use for different notes. By default, notes with different
+            pitch bends and cc messages will be placed on different channels to avoid interference.
+        :param ring_time: When multiple channels are used for juggling different pitch bends and cc messages, channels
+            are reused when the notes on them have finished. However, if they're reused right away, this can cause
+            the note that just finished and is perhaps ringing/reverberating to get altered undesirably. ring_time is
+            the amount of time that we wait before reassigning a channel.
+        :param pitch_bend_range: By default +- 2 semitones. If a greater pitch bend is needed, this parameter will
+            scale all pitch bend messages accordingly. It will also attempt to send RPN messages to let the synthesizer
+            know, though in practice many softsynths ignore this and will need to have their pitch bend range set
+            manually.
+        :param envelope_precision: For glissandi, volume curves, and any other parameter that is being given an
+            :class:`~expenvelope.envelope.Envelope`, this is the temporal precision of the corresponding midi events.
+        """
+        t = 0
+        note_id_generator = itertools.count()
+        mcm = MIDIChannelManager(max_channels, time_func=lambda: t, ring_time=ring_time)
+
+        if pitch_bend_range != 2:
+            for chan in range(16):
+                midi_file.addControllerEvent(track_num, chan, 0, 101, 0)
+                midi_file.addControllerEvent(track_num, chan, 0, 100, 0)
+                midi_file.addControllerEvent(track_num, chan, 0, 6, pitch_bend_range)
+                midi_file.addControllerEvent(track_num, chan, 0, 100, 127)
+
+        event_cue = []
+        for note_or_chord in self.get_note_iterator():
+            while len(event_cue) > 0 and event_cue[0][0] <= note_or_chord.start_beat:
+                event = event_cue.pop(0)
+                t = event[0]
+                event[1]()
+
+            chord_members = [note_or_chord] if not hasattr(note_or_chord.pitch, '__len__') \
+                else [PerformanceNote(note_or_chord.start_beat, note_or_chord.length, note_or_chord.pitch[i],
+                                      note_or_chord.volume, note_or_chord.properties)
+                      for i in range(len(note_or_chord.pitch))]
+
+            for note in chord_members:
+                note_id = next(note_id_generator)
+                t = note.start_beat
+
+                cc_start_values = note.properties.get_midi_cc_start_values()
+                starting_pitch = note.pitch.start_level() if isinstance(note.pitch, Envelope) else note.pitch
+                int_pitch = int(starting_pitch)
+                pitch_bend = "variable" if isinstance(note.pitch, Envelope) else starting_pitch - int_pitch
+
+                channel = mcm.assign_note_to_channel(
+                    note_id, int_pitch, pitch_bend,
+                    "variable" if any(isinstance(x, Envelope) for x in note.properties.get_midi_cc_params().values())
+                    else cc_start_values
+                )
+                # Go through all of cc_start_values and send the appropriate midi messages to get it started
+                # If it's an envelope, then schedule all of the cc messages
+
+                if isinstance(note.pitch, Envelope):
+                    for i in range(int(note.length_sum() / envelope_precision)):
+                        midi_file.addPitchWheelEvent(
+                            track_num, channel, t + i * envelope_precision,
+                            int(max(-8192, min(8191, (note.pitch.value_at(
+                                i * envelope_precision) - int_pitch) * 8192 / pitch_bend_range)))
+                        )
+                else:
+                    midi_file.addPitchWheelEvent(
+                        track_num, channel, t, int(max(-8192, min(8192, pitch_bend * 8192 / pitch_bend_range))))
+
+                if isinstance(note.volume, Envelope):
+                    start_volume = note.volume.max_level()
+                    for i in range(int(note.length_sum() / envelope_precision)):
+                        midi_file.addControllerEvent(
+                            track_num, channel, t + i * envelope_precision, 11,
+                            int(max(0, min(127, (note.volume.value_at(i * envelope_precision) / start_volume) * 127)))
+                        )
+                else:
+                    start_volume = note.volume
+
+                for cc_num, cc_value in note.properties.get_midi_cc_params().items():
+                    if isinstance(cc_value, Envelope):
+                        for i in range(int(note.length_sum() / envelope_precision)):
+                            midi_file.addControllerEvent(
+                                track_num, channel, t + i * envelope_precision, cc_num,
+                                int(max(0, min(127, (cc_value.value_at(i * envelope_precision) * 127))))
+                            )
+                    else:
+                        midi_file.addControllerEvent(
+                            track_num, channel, t, cc_num,
+                            int(max(0, min(127, cc_value * 127)))
+                        )
+
+                midi_file.addNote(track_num, channel, int_pitch, t, note.length_sum(), int(start_volume * 127))
+
+                def cutoff_note(which=note_id):
+                    mcm.end_note(which)
+
+                event_cue.append((t + note.length_sum(), cutoff_note))
+                event_cue.sort(key=lambda cue_event: cue_event[0])
+        while len(event_cue) > 0:
+            event = event_cue.pop(0)
+            t = event[0]
+            event[1]()
+
     def quantize(self, quantization_scheme: QuantizationScheme = "default",
                  onset_weighting: float = "default",
                  termination_weighting: float = "default") -> 'PerformancePart':
@@ -1099,11 +1208,52 @@ class Performance(SavesToJSON, _NoteFiltersMixin):
         """
         return max(part.num_measures() for part in self.parts)
 
-    def warp_to_tempo_curve(self, tempo_curve):
+    def export_to_midi_file(self, output_file, flatten_tempo_changes=False, max_channels: int = 16,
+                            ring_time: float = 0.5,  pitch_bend_range: float = 2, envelope_precision: float = 0.01,
+                            tempo_precision: float = 0.1):
         """
-        (Not yet implemented)
+        Exports the Performance to a MIDI file.
+
+        :param output_file: path of the MIDI file to create and write to.
+        :param flatten_tempo_changes: If True, then everything is flattened to a tempo of 60bpm, and notes at a faster
+            tempo are simply made shorter. If False, tempo changes are exported as part of the MIDI file.
+        :param max_channels: maximum number of channels to use for different notes. By default, notes with different
+            pitch bends and cc messages will be placed on different channels to avoid interference.
+        :param ring_time: When multiple channels are used for juggling different pitch bends and cc messages, channels
+            are reused when the notes on them have finished. However, if they're reused right away, this can cause
+            the note that just finished and is perhaps ringing/reverberating to get altered undesirably. ring_time is
+            the amount of time that we wait before reassigning a channel.
+        :param pitch_bend_range: By default +- 2 semitones. If a greater pitch bend is needed, this parameter will
+            scale all pitch bend messages accordingly. It will also attempt to send RPN messages to let the synthesizer
+            know, though in practice many softsynths ignore this and will need to have their pitch bend range set
+            manually.
+        :param envelope_precision: For glissandi, volume curves, and any other parameter that is being given an
+            :class:`~expenvelope.envelope.Envelope`, this is the temporal precision of the corresponding midi events.
+        :param tempo_precision: if flatten_tempo_changes is False, then this determines the precision of tempo change
+            MIDI events during gradual accelerandi/ritardandi.
         """
-        raise NotImplementedError()
+        midi_file = MIDIFile(len(self.parts))
+        if flatten_tempo_changes:
+            self.remap_to_tempo(60)
+            midi_file.addTempo(0, 0, 60)
+        else:
+            for segment in self.tempo_envelope.segments:
+                if segment.start_level == segment.end_level:
+                    midi_file.addTempo(0, segment.start_time, self.tempo_envelope.tempo_at(segment.start_time))
+                else:
+                    for i in range(int(segment.duration / tempo_precision)):
+                        t = segment.start_time + i * tempo_precision
+                        midi_file.addTempo(0, t, self.tempo_envelope.tempo_at(t))
+            midi_file.addTempo(0, self.tempo_envelope.end_time(),
+                               self.tempo_envelope.tempo_at(self.tempo_envelope.end_time()))
+        for i, part in enumerate(self.parts):
+            part.write_to_midi_file_track(midi_file, i, max_channels=max_channels, ring_time=ring_time,
+                                          pitch_bend_range=pitch_bend_range, envelope_precision=envelope_precision)
+        if hasattr(output_file, 'write'):
+            midi_file.writeFile(output_file)
+        else:
+            with open(output_file, "wb") as output_file:
+                midi_file.writeFile(output_file)
 
     def to_score(self, quantization_scheme: QuantizationScheme = None, time_signature: Union[str, Sequence] = None,
                  bar_line_locations: Sequence[float] = None, max_divisor: int = None,

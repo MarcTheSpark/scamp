@@ -15,7 +15,8 @@
 #  You should have received a copy of the GNU General Public License along with this program.    #
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
-import logging
+
+from io import BytesIO
 import scamp
 import importlib.util
 import os
@@ -24,20 +25,15 @@ import sys
 import re
 import random
 from difflib import Differ
-
+from collections import namedtuple, defaultdict
 
 if len(sys.argv) > 1 and sys.argv[1] == "-s":
     SAVE_NEW = True
 else:
     SAVE_NEW = False
 
-
-# use this to list the types of results to not check. For example, this would pass all automatically:
-# autopass = [scamp.Performance, scamp.Score, "musicxml", "lilypond"]
-# and this will cause us not to check the scamp internal representations:
-# auto_pass = [scamp.Performance, scamp.Score]
-# and this will test everything:
-auto_pass = []
+START_RED_TEXT = '\033[91m'
+STOP_RED_TEXT = '\033[0m'
 
 # number of unaltered lines before and after it shows in the diff
 NUM_DIFF_CONTEXT_LINES = 2
@@ -59,44 +55,97 @@ def import_module(python_file_path):
     return mod
 
 
+def diff_comparison(a, b, num_context_lines=NUM_DIFF_CONTEXT_LINES):
+    if a == b:
+        return True
+    diff = Differ().compare(a.splitlines(True), b.splitlines(True))
+    processed_diff = []
+    normal_buffer = []  # buffer of unchanged lines (don't want to print them all)
+    for line in diff:
+        if line.startswith(" "):  # normal line
+            normal_buffer.append(line)
+        else:
+            if len(normal_buffer) > 2 * num_context_lines + 1:
+                if len(processed_diff) > 0:
+                    processed_diff.append(normal_buffer[0])
+                processed_diff.append("...\n")
+                processed_diff.extend(normal_buffer[-num_context_lines:])
+            else:
+                processed_diff.extend(normal_buffer)
+            normal_buffer.clear()
+            processed_diff.append(line)
+
+    if len(normal_buffer) > num_context_lines:
+        processed_diff.extend(normal_buffer[:num_context_lines])
+        processed_diff.append("...\n")
+    else:
+        processed_diff.extend(normal_buffer)
+    return f"Differences found:\n" + "".join(processed_diff)
+
+
+def check_equal_comparison(a, b):
+    if a == b:
+        return True
+    return "Differences found."
+
+
+ComparisonProtocol = namedtuple("ComparisonProtocol", "name prep_function comparison")
+
+
+def _performance_to_midi_byte_stream(perf):
+    with BytesIO() as byte_stream:
+        perf.export_to_midi_file(byte_stream)
+        byte_stream.seek(0)
+        return byte_stream.read()
+
+
+def _prep_score(scr):
+    scr.title = scr.composer = None
+    return scr
+
+
+result_type_to_comparison_protocols = defaultdict(
+    lambda: (ComparisonProtocol(None, str, diff_comparison), ),
+    {
+        scamp.Score: (
+            ComparisonProtocol("Score", lambda x: str(_prep_score(x)), diff_comparison),
+            ComparisonProtocol(
+                "Score->MusicXML",
+                lambda x: re.sub(r"\n.*<encoding-date>.*</encoding-date>", "",
+                                 _prep_score(x).to_music_xml().to_xml(pretty_print=True)),
+                diff_comparison
+            ),
+            ComparisonProtocol("Score->LilyPond", lambda x: _prep_score(x).to_lilypond(), diff_comparison)
+        ),
+        scamp.Performance: (
+            ComparisonProtocol("Performance", str, diff_comparison),
+            ComparisonProtocol("Performance->MIDIFile", lambda x: str(_performance_to_midi_byte_stream(x)),
+                               check_equal_comparison)
+        )
+    }
+)
+
+
 def get_example_result(python_file_path):
     # restore state
     scamp.engraving_settings.restore_factory_defaults()
     random.seed(0)
     mod = import_module(python_file_path)
-    results = []
-    for result in mod.test_results():
-        if isinstance(result, scamp.Score):
-            result.composer = None
-            result.title = None
-            if scamp.Score in auto_pass:
-                results.append("autopass")
-            else:
-                results.append(str(result))
-            if "musicxml" in auto_pass:
-                results.append("autopass")
-            else:
-                results.append(re.sub(
-                    r"\n.*<encoding-date>.*</encoding-date>",
-                    "",
-                    str(result.to_music_xml().to_xml(pretty_print=True))
-                ))
-            if "lilypond" in auto_pass:
-                results.append("autopass")
-            else:
-                results.append(str(result.to_lilypond()))
-        else:
-            if type(result) in auto_pass:
-                results.append("autopass")
-            else:
-                results.append(str(result))
-    return results
+    protocols_and_prepped_results = [
+        (comparison_protocol._replace(name=type(raw_result).__name__ )
+         if comparison_protocol.name is None else comparison_protocol, comparison_protocol.prep_function(raw_result))
+        for raw_result in mod.test_results()
+        for comparison_protocol in result_type_to_comparison_protocols[type(raw_result)]
+    ]
+    # return (list of comparison protocols, list of prepped results)
+    return tuple(zip(*protocols_and_prepped_results))
 
 
 def save_example_result(python_file_path):
     json_path = python_file_path.replace(".py", ".json")
     with open(json_path, 'w') as fp:
-        json.dump(get_example_result(python_file_path), fp, sort_keys=True, indent=4)
+        protocols, results = get_example_result(python_file_path)
+        json.dump(results, fp, sort_keys=True, indent=4)
 
 
 def test_example_result(python_file_path):
@@ -104,70 +153,44 @@ def test_example_result(python_file_path):
     if os.path.exists(json_path):
         with open(json_path, 'r') as fp:
             saved_results = json.load(fp)
-        new_results = get_example_result(python_file_path)
-        out = []
-        for a, b in zip(saved_results, new_results):
-            if b == "autopass" or a == b:
-                out.append(True)
-            else:
-                diff = Differ().compare(a.splitlines(True), b.splitlines(True))
-                processed_diff = []
-                normal_buffer = []  # buffer of unchanged lines (don't want to print them all)
-                for line in diff:
-                    if line.startswith(" "):  # normal line
-                        normal_buffer.append(line)
-                    else:
-                        if len(normal_buffer) > 2 * NUM_DIFF_CONTEXT_LINES + 1:
-                            if len(processed_diff) > 0:
-                                processed_diff.append(normal_buffer[0])
-                            processed_diff.append("...\n")
-                            processed_diff.extend(normal_buffer[-NUM_DIFF_CONTEXT_LINES:])
-                        else:
-                            processed_diff.extend(normal_buffer)
-                        normal_buffer.clear()
-                        processed_diff.append(line)
+        new_protocols, new_results = get_example_result(python_file_path)
+        if len(new_results) != len(saved_results):
+            return f"{START_RED_TEXT}Mismatched number of results: {len(saved_results)} saved, " \
+                   f"but {len(new_results)} new.{STOP_RED_TEXT}"
 
-                if len(normal_buffer) > NUM_DIFF_CONTEXT_LINES:
-                    processed_diff.extend(normal_buffer[:NUM_DIFF_CONTEXT_LINES])
-                    processed_diff.append("...\n")
-                else:
-                    processed_diff.extend(normal_buffer)
-                out.append("".join(processed_diff))
-        if all(x is True for x in out):
+        result_comparisons = [
+            protocol.comparison(saved_result, new_result)
+            for protocol, saved_result, new_result in zip(new_protocols, saved_results, new_results)
+        ]
+
+        if all(x is True for x in result_comparisons):
             return True
         else:
-            return out
+            return START_RED_TEXT + "\n".join(
+                f"FAILED result {i + 1} ({new_protocols[i].name}): \n{result_comparison}"
+                for i, result_comparison in enumerate(result_comparisons)
+                if result_comparison is not True
+            ) + STOP_RED_TEXT
     else:
-        return None
+        return START_RED_TEXT + "FAILED: No saved result" + STOP_RED_TEXT
 
 
-failures = 0
-total = 0
-
-for example_path in examples:
-    if SAVE_NEW:
+if SAVE_NEW:
+    for example_path in examples:
         print("Saving result for {}...".format(example_path))
         save_example_result(example_path)
         print("DONE")
-    else:
+else:
+    total = 0
+    successes = 0
+    for example_path in examples:
         print("Testing result for {}...".format(example_path))
-        test_results = test_example_result(example_path)
-        if test_results is True:
+        example_test_result = test_example_result(example_path)
+        if example_test_result is True:
+            successes += 1
             print("SUCCESS")
-        elif test_results is None:
-            logging.warning("Could not test example result for {}. No prior result has been saved.".format(
-                example_path
-            ))
-            failures += 1
         else:
-            print('\033[91m' + "FAILURE")
-            for i, item in enumerate(test_results):
-                if item is not True:
-                    print("Failed result {} with diff:".format(i + 1))
-                    print(item)
-            print('\033[0m')
-            failures += 1
+            print(example_test_result)
         total += 1
-
-if not SAVE_NEW:
-    print('\033[1m' + "{}/{} scripts tested successfully".format(total - failures, total) + '\033[0m')
+        print()
+    print('\033[1m' + "{}/{} scripts tested successfully".format(successes, total) + '\033[0m')

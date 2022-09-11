@@ -632,8 +632,7 @@ class ScampInstrument(SavesToJSON):
         # get the starting values for all the parameters to pass to the playback implementations
         start_pitch = pitch.start_level() if isinstance(pitch, Envelope) else pitch
         start_volume = volume.start_level() if isinstance(volume, Envelope) else volume
-        other_param_start_values = {param: value.start_level() if isinstance(value, Envelope) else value
-                                    for param, value in properties.extra_playback_parameters.items()}
+        other_param_start_values = properties.get_extra_parameter_start_values()
 
         with self._note_info_lock:
             # generate a new id for this note, and set up all of its info
@@ -661,7 +660,7 @@ class ScampInstrument(SavesToJSON):
                 for playback_implementation in self.playback_implementations:
                     playback_implementation.start_note(
                         note_id, start_pitch, start_volume,
-                        properties, other_param_start_values, self._note_info_by_id[note_id]
+                        properties, self._note_info_by_id[note_id]
                     )
 
         # we now exit the lock, since otherwise the following calls will not be able to happen

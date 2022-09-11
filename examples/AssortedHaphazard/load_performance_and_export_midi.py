@@ -1,3 +1,7 @@
+"""
+To be run after "load_and_play_performance.py", since this loads up that performance as well as the Ensemble.
+"""
+
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 #  This file is part of SCAMP (Suite for Computer-Assisted Music in Python)                      #
 #  Copyright © 2020 Marc Evanstein <marc@marcevanstein.com>.                                     #
@@ -14,47 +18,29 @@
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
-name = "scamp"
+import random
+from scamp import *
 
-version = "0.9.1"
 
-author = "Marc Evanstein"
+random.seed(0)
+s = Session()
+s.set_rate_target(2, 10, duration_units="time")
+s.fast_forward_to_beat(float("inf"))
+clar = s.new_part("clarinet")
+piano = s.new_part("piano")
 
-author_email = "marc@marcevanstein.com"
+performance = s.start_transcribing()
 
-description = "A computer-assisted composition framework that manages the flow of musical time, plays back notes via "\
-              "SoundFonts, MIDI or OSC, and quantizes and saves the result to music notation."
 
-url = "http://scamp.marcevanstein.com"
+def piano_part():
+    while True:
+        piano.play_note(random.randint(40, 58), random.uniform(0.3, 0.8), 0.5, "staccato")
 
-project_urls = {
-    "Source Code": "https://sr.ht/~marcevanstein/scamp/",
-    "Documentation": "http://scamp.marcevanstein.com",
-    "Forum": "http://scampsters.marcevanstein.com"
-}
 
-install_requires = ['pymusicxml >= 0.5.5', 'expenvelope >= 0.7.0', 'clockblocks >= 0.6.7', 'python-osc', 'arpeggio',
-                    'midiutil']
-# Note: pyfluidsynth and sf2utils are also dependencies, but needed to be tweaked,
-# so they have been copied into the _third_party package
+fork(piano_part)
 
-ABJAD_MIN_VERSION = "3.3"
-ABJAD_VERSION = "3.4"
+for p in [random.randint(50, 80) for _ in range(30)]:
+    clar.play_note([p, p + 1, p - 2], Envelope([0.8, 0.1, 1.0], [0.1, 1.0]), random.uniform(0.1, 2),
+                   f"param_10: {random.uniform(0, 1)}" if random.random() < 0.5 else "param_10: [0, 1]")
 
-extras_require = {
-    'lilypond': 'abjad==' + ABJAD_VERSION,
-    'midistream': 'python-rtmidi',
-    'HID': 'pynput',
-}
-
-extras_require['all'] = list(extras_require.values())
-
-package_data = {
-    'scamp': ['soundfonts/*', 'lilypond/*', '_thirdparty/mac_libs/*', '_thirdparty/windows_libs/*']
-}
-
-classifiers = [
-    "Programming Language :: Python :: 3.6",
-    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
-    "Operating System :: OS Independent",
-]
+s.stop_transcribing().export_to_midi_file("midi_export.mid")
