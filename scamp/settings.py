@@ -663,8 +663,10 @@ lilypond_template_path = resolve_path("%DATA/scamp_lilypond_template.ly")
 
 if not os.path.exists(resolve_path(lilypond_template_path)):
     logging.warning(f"Installing lilypond template file at {lilypond_template_path}. (This is normal on first import.)")
-    shutil.copy(_factory_lilypond_template_path, lilypond_template_path)
-
+    try:
+        shutil.copy(_factory_lilypond_template_path, lilypond_template_path)
+    except FileNotFoundError:
+        logging.warning(f"Could not find internal lilypond template file. LilyPond output may cause errors.")
 
 #: Instance of :class:`~scamp.settings.PlaybackSettings` containing the actual playback defaults to be consulted
 playback_settings: PlaybackSettings = PlaybackSettings.load()
