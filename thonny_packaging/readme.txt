@@ -1,1 +1,0 @@
-Here are the scripts for making Thonny builds on different platforms
