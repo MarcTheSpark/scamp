@@ -31,12 +31,15 @@ try:
         # load up a local copy of the fluidsynth dll on Windows or dylib on MacOS)
         logging.debug("Trying to load copy of pyfluidsynth from within SCAMP package.")
         from ._thirdparty import fluidsynth
+    # Sometimes fluidsynth seems to load, but it's empty and doesn't have the Synth attribute.
+    # this line will cause an AttributeError to be thrown and handled in that case
+    fluidsynth.Synth
     logging.debug("Loading of pyfluidsynth succeeded.")
 except (ImportError, AttributeError):
     logging.debug("Loading of pyfluidsynth failed.")
     try:
         if playback_settings.try_system_fluidsynth_first:
-            # second choice: use the use the local, tweaked copy of pyfluidsynth (which will also try to
+            # second choice: use the local, tweaked copy of pyfluidsynth (which will also try to
             # load up a local copy of the fluidsynth dll on Windows or dylib on MacOS)
             logging.debug("Trying to copy of pyfluidsynth from within SCAMP package.")
             from ._thirdparty import fluidsynth
@@ -44,6 +47,7 @@ except (ImportError, AttributeError):
             # second choice: import using an installed version of pyfluidsynth
             logging.debug("Trying to load system copy of pyfluidsynth.")
             import fluidsynth
+        fluidsynth.Synth  # See note above
         logging.debug("Loading of pyfluidsynth succeeded.")
     except (ImportError, AttributeError):
         # if we're here, it's probably because fluidsynth wasn't installed

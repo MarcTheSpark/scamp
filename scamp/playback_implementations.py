@@ -527,7 +527,7 @@ class OSCPlaybackImplementation(PlaybackImplementation):
                                  [note_id, pitch, volume])
         self._currently_playing.append(note_id)
         for param, value in properties.extra_playback_parameters.items():
-            self.change_note_parameter(note_id, param, value)
+            self.change_note_parameter(note_id, param, value.start_level() if hasattr(value, 'start_level') else value)
 
     def end_note(self, note_id: int) -> None:
         self.client.send_message("/{}/{}".format(self.message_prefix,
