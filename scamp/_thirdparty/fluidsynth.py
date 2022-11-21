@@ -29,6 +29,7 @@ import os
 import platform
 from ..settings import playback_settings
 import logging
+import pathlib
 
 
 # DLL search method changed in Python 3.8
@@ -68,11 +69,25 @@ def _try_to_load_local_fl_library():
 
 def _try_to_load_system_fl_library():
     logging.debug("Trying to load system copy of fluidsynth DLL/DYLIB.")
-    lib = find_library('fluidsynth') or \
-          find_library('libfluidsynth') or \
-          find_library('libfluidsynth-2') or \
-          find_library('libfluidsynth-1')
+
+    lib = None
+
+    # first, in case we're using a homebrew install on an arm mac, find_library doesn't work. So let's manually search
+    # for a libfluidsynth in /opt/homebrew/Cellar, which is where homebrew is installed on the arm macs
+    for p in pathlib.Path("/opt/homebrew/Cellar").rglob("libfluidsynth*.dylib"):
+        # just take the first one found; seems like they are aliases anyway
+        lib = p
+        break
+
+    # if lib is still None, then let's try to find the library in the normal way
+    if lib is None:
+        lib = find_library('fluidsynth') or \
+              find_library('libfluidsynth') or \
+              find_library('libfluidsynth-2') or \
+              find_library('libfluidsynth-1')
+
     if lib is not None:
+        # success
         logging.debug("Found a system copy at '{}'".format(lib))
         try:
             out = CDLL(lib)
@@ -82,6 +97,7 @@ def _try_to_load_system_fl_library():
         logging.debug("System copy of fluidsynth DLL/DYLIB loaded successfully.")
         return out
     else:
+        # failure
         logging.debug("Could not find system copy of fluidsynth DLL/DYLIB.")
         return None
 
