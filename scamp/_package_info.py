@@ -16,7 +16,7 @@
 
 name = "scamp"
 
-version = "0.9.1.post5"
+version = "0.9.1.post8"
 
 author = "Marc Evanstein"
 

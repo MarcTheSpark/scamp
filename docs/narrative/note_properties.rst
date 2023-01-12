@@ -137,9 +137,9 @@ following:
 
 .. code-block:: python3
 
-    inst.play_chord([60, 65], 1, 1, "regular/x")
-    inst.play_chord([60, 65], 1, 1, "notehead: regular/x")
-    inst.play_chord([60, 65], 1, 1, {"noteheads": ["regular", "x"]})
+    inst.play_chord([60, 65], 1, 1, "normal/x")
+    inst.play_chord([60, 65], 1, 1, "notehead: normal/x")
+    inst.play_chord([60, 65], 1, 1, {"noteheads": ["normal", "x"]})
 
 Available noteheads (based on the MusicXML standard) are:
 "normal", "diamond", "harmonic", "harmonic-black", "harmonic-mixed", "triangle",

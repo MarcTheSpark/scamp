@@ -74,7 +74,7 @@ def _try_to_load_system_fl_library():
 
     # first, in case we're using a homebrew install on an arm mac, find_library doesn't work. So let's manually search
     # for a libfluidsynth in /opt/homebrew/Cellar, which is where homebrew is installed on the arm macs
-    for p in pathlib.Path("/opt/homebrew/Cellar").rglob("libfluidsynth*.dylib"):
+    for p in pathlib.Path("/opt/homebrew/lib").rglob("libfluidsynth*.dylib"):
         # just take the first one found; seems like they are aliases anyway
         lib = p
         break

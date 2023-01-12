@@ -14,12 +14,12 @@
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
-from .settings import playback_settings
+from .settings import playback_settings, engraving_settings
 from ._package_info import ABJAD_VERSION, ABJAD_MIN_VERSION
 import logging
 import os
 import platform
-
+from pathlib import Path
 
 try:
     if playback_settings.try_system_fluidsynth_first:
@@ -95,22 +95,22 @@ except ImportError:
     logging.warning("python-rtmidi was not found; streaming midi input / output will not be available.")
 
 
-# On Mac and Windows, try to add LilyPond to PATH, if it is installed, so that abjad can just work.
-# This is hardly fool-proof, but should work if the user just installed LilyPond in the standard way
-if platform.system() == "Darwin":
-    if "/usr/local/bin" not in os.environ["PATH"]:
-        os.environ["PATH"] += ":/usr/local/bin"
-    if os.path.exists("/Applications/LilyPond.app/Contents/Resources/bin"):
-        os.environ["PATH"] += ":/Applications/LilyPond.app/Contents/Resources/bin"
-elif platform.system() == "Windows":
-    if os.path.exists(r"C:\Program Files (x86)\LilyPond\usr\bin"):
-        if not os.environ["PATH"].endswith(";"):
-            os.environ["PATH"] += ";"
-        os.environ["PATH"] += r"C:\Program Files (x86)\LilyPond\usr\bin;"
-    elif os.path.exists(r"C:\Program Files\LilyPond\usr\bin"):
-        if not os.environ["PATH"].endswith(";"):
-            os.environ["PATH"] += ";"
-        os.environ["PATH"] += r"C:\Program Files\LilyPond\usr\bin;"
+def find_lilypond():
+    # Look for the lilypond binary and return the directory in which it resides
+    # searches in the platform-specific paths defined in engraving_settings.lilypond_search_paths, and returns
+    # the first match
+    if platform.system() not in engraving_settings.lilypond_search_paths:
+        return None
+    logging.warning("Searching for LilyPond binary (this may take a while and is normal on first run)")
+    for lilypond_search_path in engraving_settings.lilypond_search_paths[platform.system()]:
+        lsp = Path(lilypond_search_path).expanduser()
+        if not lsp.exists():
+            continue
+        for potential_lp_binary in lsp.rglob("lilypond.exe" if platform.system() == "Windows" else "lilypond"):
+            if not potential_lp_binary.is_file():
+                continue
+            logging.warning(f"LilyPond binary found at {str(potential_lp_binary.parent.resolve())}")
+            return str(potential_lp_binary.parent.resolve())
 
 
 _abjad_warning_given = False
@@ -149,6 +149,27 @@ def abjad():
                 .format(abjad_library.__version__, ABJAD_VERSION, ABJAD_VERSION)
             )
             _abjad_warning_given = True
+
+    # add lilypond to PATH if needed
+    if engraving_settings.lilypond_dir is None and platform.system() in ("Darwin", "Windows") \
+            or engraving_settings.lilypond_dir is not None and not (
+            Path(engraving_settings.lilypond_dir) / "lilypond").exists():
+        # Search for a lilypond binary if:
+        # - there's no record of where lilypond should be found and we're on mac or windows (needs to be explicitly
+        # added, unlike in Linux)
+        # - there is a record, but the binary doesn't seem to be there
+        engraving_settings.lilypond_dir = find_lilypond()
+        engraving_settings.make_persistent()
+
+    if engraving_settings.lilypond_dir is not None:
+        # There's a lilypond binary to add to PATH
+        if platform.system() == "Windows":
+            if not os.environ["PATH"].endswith(";"):
+                os.environ["PATH"] += ";"
+            os.environ["PATH"] += f"{engraving_settings.lilypond_dir}"
+        else:
+            os.environ["PATH"] += f":{engraving_settings.lilypond_dir}"
+
     return abjad_library
 
 

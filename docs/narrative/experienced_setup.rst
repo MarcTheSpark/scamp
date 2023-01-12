@@ -58,7 +58,7 @@ that SCAMP has been built to be compatible with. You are free to use a newer ver
 there will be unexpected errors due to changes in the abjad API.
 
 After installing `abjad`, you will also need to `download and install LilyPond <https://lilypond.org/>`_,
-since `abjad` relies upon it.
+since `abjad` relies upon it. You may run into security issues, which are further explained in :doc:`easy_setup`.
 
 Installing scamp_extensions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

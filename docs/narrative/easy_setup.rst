@@ -85,46 +85,60 @@ Choose 3.4, and click install.
 Step 3: Install FluidSynth
 --------------------------
 
-`FluidSynth <https://www.fluidsynth.org/>`_ is the synthesizer that SCAMP uses behind the scenes to play notes. On Mac
-and Windows, it comes bundled with SCAMP, and so does not need to be separately installed.
+`FluidSynth <https://www.fluidsynth.org/>`_ is the synthesizer that SCAMP uses behind the scenes to play notes. On
+intel-based Macs and Windows, it comes bundled with SCAMP, and so does not need to be separately installed.
 
-..  note::
-
-    On new Apple Silicon Macs, you will need to install Rosetta 2 in order for the bundled Intel-based copy of
-    FluidSynth to work. You can do this by opening a terminal and running ``softwareupdate --install-rosetta``. (See
-    `this link <https://osxdaily.com/2020/12/04/how-install-rosetta-2-apple-silicon-mac/>`_ for more details.)
-
+On the new Apple Silicon Macs, the bundled intel-based copy of of FluidSynth will not work. I'm working on bundling a
+version that will work, but in the meantime, you can install FluidSynth via `homebrew <https://brew.sh/>`_. Simply
+install homebrew via the script on the website, and then run ``brew install fluid-synth`` from a terminal.
 
 On Linux, the easiest way to install FluidSynth is through your distro's package manager. On Debian-based distros,
-simply open a terminal and type:
-
-.. code::
-
-    sudo apt install fluidsynth
+simply open a terminal and type ``sudo apt install fluidsynth``.
 
 
 Step 4: Install LilyPond
 ------------------------
 
 LilyPond is a program for engraving music notation that SCAMP uses to generate PDFs of the music you create. You can
-download and install it `here <http://lilypond.org/download.html>`_. If you're on a Mac, after you download and unpack
-the application, be sure to drag it into the Applications folder, since this is where SCAMP expects to find it.
+download it from `here <http://lilypond.org/download.html>`_. If you're on a Mac, after unzipping the download, place it
+in the Applications folder so that SCAMP can find it.
 
-..  note::
+Having done this, however, you may need to reassure your computer that LilyPond is not malicious.
 
-    If you are running MacOS 10.15 (Catalina) or later, the current official release of LilyPond will not work
-    for you, since it is a 32-bit application, and Catalina abandons 32-bit support. However, you can download an
-    unofficial 64-bit build `here <https://gitlab.com/marnen/lilypond-mac-builder/-/package_files/9872804/download>`__.
+On Windows, you may see an unnerving dialog about allowing an "unknown publisher to make changes". Just click yes
+and proceed with the installation:
 
+.. image:: WindowsLilypondUnnerving.png
+   :width: 70%
+   :align: center
 
-.. note::
+On a Mac, when you first try to generate notation using LilyPond, you may see a dialog come up saying that lilypond
+cannot be opened because of an unidentified developer (first image below). You have two options: reverse course and
+install lilypond via homebrew (``brew install lilypond``, similar to fluidsynth above), or go through an irritating
+sequence of steps to convince your computer that LilyPond is okay.
 
-    On Windows, you may see an unnerving dialog about allowing an "unknown publisher to make changes". Just click yes
-    and proceed with the installation:
+If you choose the latter, click "cancel", and then open up your security and privacy settings (second image).
+You should see an option to "allow" lilypond to run. Then, the next time you try to generate notation using LilyPond,
+you should get a different dialog with the option of opening it (third image).
 
-    .. image:: WindowsLilypondUnnerving.png
-       :width: 70%
-       :align: center
++--------+--------+--------+
+||pic1c| | |pic2c|| |pic3c||
++--------+--------+--------+
+
+.. |pic1c| image:: LilyWarning.png
+   :width: 100%
+
+.. |pic2c| image:: SecuritySettings.png
+   :width: 100%
+
+.. |pic3c| image:: OpenLilyPondAnyway.png
+   :width: 100%
+
+You will then probably have to follow this sequence one more time for a program called `gs`, which LilyPond depends on.
+
+Note that this whole irritating sequence is Apple's fault: in order to become an "identified developer" you have no
+choice but to pay Apple money, and the developers of LilyPond are volunteers who understandably don't want to pay
+Apple to offer you free software.
 
 
 Testing it Out

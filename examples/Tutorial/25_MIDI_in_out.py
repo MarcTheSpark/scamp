@@ -39,6 +39,7 @@ def midi_callback(midi_message):
         notes_started[pitch] = piano.start_note(pitch + 7, volume/127)
     elif (volume == 0 and 144 <= code <= 159 or 128 <= code <= 143) and pitch in notes_started:
         notes_started[pitch].end()
+        del notes_started[pitch]
 
 
 s.register_midi_listener(0, midi_callback)

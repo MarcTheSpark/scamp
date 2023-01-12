@@ -900,14 +900,14 @@ class ScampInstrument(SavesToJSON):
             if note_id is not None:
                 # as specific note_id has been given, so it had better belong to a currently playing note!
                 if note_id not in self._note_info_by_id:
-                    logging.warning("Tried to end a note that was never started!")
+                    logging.warning("Tried to end a note that was never started (or already ended)!")
                     return
             elif len(self._note_info_by_id) > 0:
                 # no specific id was given, so end the oldest note
                 # (note that ids just count up, so the lowest active id is the oldest)
                 note_id = min(self._note_info_by_id.keys())
             else:
-                logging.warning("Tried to end a note that was never started!")
+                logging.warning("Tried to end a note that was never started (or already ended)!")
                 return
 
             note_info = self._note_info_by_id[note_id]
