@@ -101,21 +101,16 @@ Step 4: Install LilyPond
 
 LilyPond is a program for engraving music notation that SCAMP uses to generate PDFs of the music you create. You can
 download it from `here <http://lilypond.org/download.html>`_. If you're on a Mac, after unzipping the download, place it
-in the Applications folder so that SCAMP can find it.
+in the Applications folder so that SCAMP can find it. If you're on Windows, place it in the Program Files folder
+(e.g. ``C:\Program Files (x86)``). On Linux, the easiest thing is to install LilyPond via your package manager.
 
-Having done this, however, you may need to reassure your computer that LilyPond is not malicious.
+When you first try to generate a LilyPond score using SCAMP, SCAMP will search for LilyPond and post a message
+informing you that it (hopefully) found it.
 
-On Windows, you may see an unnerving dialog about allowing an "unknown publisher to make changes". Just click yes
-and proceed with the installation:
-
-.. image:: WindowsLilypondUnnerving.png
-   :width: 70%
-   :align: center
-
-On a Mac, when you first try to generate notation using LilyPond, you may see a dialog come up saying that lilypond
-cannot be opened because of an unidentified developer (first image below). You have two options: reverse course and
-install lilypond via homebrew (``brew install lilypond``, similar to fluidsynth above), or go through an irritating
-sequence of steps to convince your computer that LilyPond is okay.
+If you're on a Mac, when you first try to generate notation using LilyPond, you will likely see a dialog come up
+saying that LilyPond cannot be opened because it's from an unidentified developer (first image below). You have two options:
+reverse course and install lilypond via homebrew (``brew install lilypond``, similar to fluidsynth above), or go through
+an irritating sequence of steps to convince your computer that LilyPond is okay.
 
 If you choose the latter, click "cancel", and then open up your security and privacy settings (second image).
 You should see an option to "allow" lilypond to run. Then, the next time you try to generate notation using LilyPond,

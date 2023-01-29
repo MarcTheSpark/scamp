@@ -113,13 +113,23 @@ def find_lilypond():
             return str(potential_lp_binary.parent.resolve())
 
 
+# The first time we see that abjad is the wrong version, show a warning, but then set this flag and don't show it again
 _abjad_warning_given = False
+
+# Will need to search for lilypond binary if:
+# - On Mac or Windows and we don't have a saved engraving_settings.lilypond_dir
+# - We're on Windows and there is a saved engraving_settings.lilypond_dir, but no lilypond.exe is found there
+# - We're on Mac and there is a saved engraving_settings.lilypond_dir, but no lilypond binary is found there
+_perform_lilypond_search = \
+    platform.system() in ("Darwin", "Windows") and engraving_settings.lilypond_dir is None or \
+    platform.system() == "Windows" and not (Path(engraving_settings.lilypond_dir) / "lilypond.exe").exists() or \
+    platform.system() == "Darwin" and not (Path(engraving_settings.lilypond_dir) / "lilypond").exists()
 
 
 def abjad():
-    global _abjad_warning_given
     # we make this a function that returns the abjad module so that we don't have to load it unless we need it
     # (since it's kinda slow to load)
+    global _abjad_warning_given, _perform_lilypond_search
     try:
         import abjad as abjad_library
     except ImportError:
@@ -150,19 +160,16 @@ def abjad():
             )
             _abjad_warning_given = True
 
-    # add lilypond to PATH if needed
-    if engraving_settings.lilypond_dir is None and platform.system() in ("Darwin", "Windows") \
-            or engraving_settings.lilypond_dir is not None and not (
-            Path(engraving_settings.lilypond_dir) / "lilypond").exists():
-        # Search for a lilypond binary if:
-        # - there's no record of where lilypond should be found and we're on mac or windows (needs to be explicitly
-        # added, unlike in Linux)
-        # - there is a record, but the binary doesn't seem to be there
+
+    if _perform_lilypond_search:
+        # need to perform a lilypond search
         engraving_settings.lilypond_dir = find_lilypond()
         engraving_settings.make_persistent()
+        # don't search again, since we already searched
+        _perform_lilypond_search = False
 
+    # add lilypond to PATH if needed
     if engraving_settings.lilypond_dir is not None:
-        # There's a lilypond binary to add to PATH
         if platform.system() == "Windows":
             if not os.environ["PATH"].endswith(";"):
                 os.environ["PATH"] += ";"
