@@ -574,6 +574,13 @@ class ScampInstrument(SavesToJSON):
         :param silent: see description for "play_note"
         :param transcribe: see description for "play_note"
         """
+        
+        # A convenience: passing "None" to the pitch just causes a wait call
+        if pitches is None:
+            if blocking:
+                clock.wait(sum(length) if hasattr(length, '__len__') else length)
+            return
+        
         if not hasattr(pitches, "__len__"):
             raise ValueError("'pitches' must be a list of pitches.")
 
@@ -1481,8 +1488,8 @@ class _ParameterChangeSegment(EnvelopeSegment):
             time_increment = self._get_good_volume_temporal_resolution()
         else:
             time_increment = self.temporal_resolution
-        # don't animate faster than 4ms though
-        time_increment = max(0.004, time_increment)
+        # don't animate faster than 4ms though, and don't go slower than half the duration
+        time_increment = min(self.duration / 2, max(0.004, time_increment))
 
         def _animation_function():
             # does the intermediate changing of values; since it's sleeping in small time increments, we fork it

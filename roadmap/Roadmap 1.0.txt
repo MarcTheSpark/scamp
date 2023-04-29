@@ -11,6 +11,11 @@ Testing:
     - Look into unittests
 
 Playback:
+    - Make SCUtils receive start values for arbitrary parameters as well, and send those at note creation,
+    not just afterwards. Then alter play_note to put the expected duration in properties.temp, add that to the
+    note info dict, and have that get sent in the osc message as an extra parameter from the very beginning.
+    - Also, alter ScampUtils so that the SynthDef doesn't need to have pitch, volume, or gate and just ignores it
+    if it doesn't.
     - Can we put chords on the same clock??
     - Have pitch and volume playback adjustments affect start_notes?
     - Add a soundfile playback implementation

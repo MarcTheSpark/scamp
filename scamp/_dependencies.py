@@ -160,7 +160,6 @@ def abjad():
             )
             _abjad_warning_given = True
 
-
     if _perform_lilypond_search:
         # need to perform a lilypond search
         engraving_settings.lilypond_dir = find_lilypond()
@@ -170,12 +169,7 @@ def abjad():
 
     # add lilypond to PATH if needed
     if engraving_settings.lilypond_dir is not None:
-        if platform.system() == "Windows":
-            if not os.environ["PATH"].endswith(";"):
-                os.environ["PATH"] += ";"
-            os.environ["PATH"] += f"{engraving_settings.lilypond_dir}"
-        else:
-            os.environ["PATH"] += f":{engraving_settings.lilypond_dir}"
+        os.environ["PATH"] += os.pathsep + engraving_settings.lilypond_dir
 
     return abjad_library
 
