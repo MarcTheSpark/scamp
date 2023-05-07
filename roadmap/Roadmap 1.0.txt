@@ -28,6 +28,8 @@ Engraving:
     in such a way that they would fit into the same voice. e.g. 0 to 0.7, 0.65 - 1.0, quantized into a triplet.
     - Two eighth note rests in a triplet shouldn't combine
     - Key signatures?
+    - abjad: maybe try to implement outside-staff-priority on any situation with multiple attached notations, articulation,
+    texts, etc. so that the first one attached comes closest in the score.
     - MusicXML <part-abbreviation> tag
     - MusicXML "accidental" tag
 

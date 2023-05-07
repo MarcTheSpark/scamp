@@ -76,9 +76,7 @@ class StaffText(SavesToJSON, NoteProperty):
                         (r"\bold " if self.bold else "") + \
                         (r"\italic " if self.italic else "") + \
                         r"{ " + self.text + " }"
-        out = abjad().Markup(markup_string, direction=abjad().Up if self.placement == "above" else abjad().Down,
-                             literal=True)
-        return out
+        return abjad().Markup(markup_string)
 
     def _to_dict(self) -> dict:
         json_dict = {"text": self.text}

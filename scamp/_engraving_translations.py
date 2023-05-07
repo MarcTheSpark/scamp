@@ -224,8 +224,8 @@ def attach_abjad_notation_to_note(abjad_note, notation_string):
         to_attach = abjad().StemTremolo(2 ** (2 + abjad_note.written_duration.flag_count + num_slashes))
     elif "arpeggiate" in notation_string:
         to_attach = abjad().Arpeggio() if notation_string == "arpeggiate" \
-            else abjad().Arpeggio(direction=abjad().Up) if notation_string == "arpeggiate up" \
-            else abjad().Arpeggio(direction=abjad().Down) if notation_string == "arpeggiate down" \
+            else abjad().Arpeggio(direction=abjad().UP) if notation_string == "arpeggiate up" \
+            else abjad().Arpeggio(direction=abjad().DOWN) if notation_string == "arpeggiate down" \
             else None
     elif notation_string == "fermata":
         to_attach = abjad().Fermata()

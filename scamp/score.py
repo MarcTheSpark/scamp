@@ -307,7 +307,7 @@ def _join_same_source_abjad_note_group(same_source_group):
     for note_pair in zip(same_source_group[:-1], same_source_group[1:]):
         if isinstance(note_pair[0], abjad().Note) and note_pair[0].written_pitch == note_pair[1].written_pitch or \
                 isinstance(note_pair[0], abjad().Chord) and note_pair[0].written_pitches == note_pair[1].written_pitches:
-            abjad().tie(abjad().Selection(note_pair))
+            abjad().tie(note_pair)
             # abjad().attach(abjad().Tie(), abjad().Selection(note_pair))
         else:
             # abjad().glissando(abjad().Selection(note_pair))
@@ -318,7 +318,7 @@ def _join_same_source_abjad_note_group(same_source_group):
 
     if gliss_present and engraving_settings.glissandi.slur_glisses:
         # if any of the segments gliss, we might attach a slur
-        abjad().slur(abjad().Selection(same_source_group))
+        abjad().slur(same_source_group)
 
 
 # generates unique ids for gliss slurs that won't conflict with manual slurs
@@ -558,9 +558,9 @@ class ScoreComponent(ABC):
             non_score_blocks.insert(0, header_block)
 
         if title is not None and not hasattr(header_block, "title"):
-            header_block.title = abjad().Markup(r'\markup { ' + title + ' }', literal=True)
+            header_block.title = abjad().Markup(r'\markup { ' + title + ' }')
         if composer is not None and not hasattr(header_block, "composer"):
-            header_block.composer = abjad().Markup(r'\markup { ' + composer + ' }', literal=True)
+            header_block.composer = abjad().Markup(r'\markup { ' + composer + ' }')
 
         score_block = abjad().Block(name="score")
         score_block.items.append(abjad_object)
@@ -1055,9 +1055,10 @@ class Score(ScoreComponent, ScoreContainer):
 
                 # start the accel or rit spanner if needed
                 if change_indicator is not None:
-                    markup = abjad().Markup(change_indicator)
+                    left_text = r"- \tweak bound-details.left.text \markup \concat { " + \
+                                change_indicator + r" \hspace #0.5 }"
                     # to construct it later, we need to the StartTextSpan object and the skip object where it starts
-                    rit_or_accel_spanner_start = abjad().StartTextSpan(left_text=markup), \
+                    rit_or_accel_spanner_start = abjad().StartTextSpan(left_text=left_text), \
                                                  this_point_skip_object, change_indicator
 
             # loop through the guide marks until there are none left or there are none left in this measure
@@ -1079,7 +1080,7 @@ class Score(ScoreComponent, ScoreContainer):
 
         if self.final_bar_line is not None:
             abjad().attach(abjad().BarLine(xml_barline_to_lilypond[self.final_bar_line]),
-                           abjad().select(abjad_score).leaf(-1),)
+                           abjad().select.leaf(abjad_score, -1),)
         return abjad_score
 
     @staticmethod
@@ -1744,7 +1745,7 @@ class Measure(ScoreComponent, ScoreContainer):
 
         if self.clef is not None:
             # attach the clef to the first note of the first voice
-            abjad().attach(abjad().Clef(self.clef), abjad().select(abjad_measure).leaf(0))
+            abjad().attach(abjad().Clef(self.clef), abjad().select.leaf(abjad_measure, 0))
 
         return abjad_measure
 
@@ -2613,18 +2614,15 @@ class NoteLike(ScoreComponent):
                     r'\markup { \pitch-annotation "' +
                     "; ".join(str(round(p, engraving_settings.microtonal_annotation_digits))
                               for p in pitch_or_pitches) +
-                    '" }',
-                    literal=True,
-                    direction=abjad().Up
-                ), note_object)
+                    '" }'), note_object, direction=abjad().UP
+                )
         else:
             if round(pitch_or_pitches, engraving_settings.microtonal_annotation_digits) != round(pitch_or_pitches):
                 abjad().attach(abjad().Markup(
                         r'\markup { \pitch-annotation "' +
                         str(round(pitch_or_pitches, engraving_settings.microtonal_annotation_digits)) + '" }',
-                        literal=True,
-                        direction=abjad().Up
-                    ), note_object)
+                    ), note_object, direction=abjad().UP
+                )
 
     def _set_abjad_note_head_styles(self, abjad_note_or_chord):
         if isinstance(abjad_note_or_chord, abjad().Note):
@@ -2633,14 +2631,16 @@ class NoteLike(ScoreComponent):
                 lilypond_style = get_lilypond_notehead_name(note_head_style)
                 # the pipe separates out a bit of comment text, which is used when the
                 # desired notehead can't be displayed
-                abjad().tweak(abjad_note_or_chord.note_head).style = lilypond_style.split("|")[0]
+                abjad().tweak(abjad_note_or_chord.note_head,
+                              rf"\tweak style {lilypond_style.split('|')[0]}")
                 if len(lilypond_style.split("|")) > 1:
                     abjad().attach(abjad().LilyPondComment(lilypond_style.split("|")[1]), abjad_note_or_chord)
         elif isinstance(abjad_note_or_chord, abjad().Chord):
             for chord_member, note_head_style in enumerate(self.properties.noteheads):
                 if note_head_style != "normal":
                     lilypond_style = get_lilypond_notehead_name(note_head_style)
-                    abjad().tweak(abjad_note_or_chord.note_heads[chord_member]).style = lilypond_style.split("|")[0]
+                    abjad().tweak(abjad_note_or_chord.note_heads[chord_member],
+                                  rf"\tweak style {lilypond_style.split('|')[0]}")
                     if len(lilypond_style.split("|")) > 1:
                         abjad().attach(abjad().LilyPondComment(lilypond_style.split("|")[1]), abjad_note_or_chord)
         else:
@@ -2702,7 +2702,7 @@ class NoteLike(ScoreComponent):
         if grace_container is None:
             # just a single notehead, so attach all notations
             for spanner in self.properties.spanners:
-                NoteLike._abjad_attach_maybe_list(spanner.to_abjad(), abjad_note_or_chord)
+                NoteLike._abjad_attach_spanner(spanner, abjad_note_or_chord)
         else:
             # there's a gliss
             attack_notehead = abjad_note_or_chord if not self.properties.ends_tie else None
@@ -2710,23 +2710,33 @@ class NoteLike(ScoreComponent):
 
             if attack_notehead is not None:
                 for spanner in self._get_start_and_mid_spanners():
-                    NoteLike._abjad_attach_maybe_list(spanner.to_abjad(), attack_notehead)
+                    NoteLike._abjad_attach_spanner(spanner, attack_notehead)
             if release_notehead is not None:
                 for spanner in self._get_stop_spanners():
-                    NoteLike._abjad_attach_maybe_list(spanner.to_abjad(), release_notehead)
+                    NoteLike._abjad_attach_spanner(spanner, release_notehead)
 
     @staticmethod
-    def _abjad_attach_maybe_list(attachments, target):
-        # Substitute for attach that allows a list of attachments
-        if not isinstance(attachments, (list, tuple)):
-            attachments = (attachments, )
-        for attachment in attachments:
-            abjad().attach(attachment, target)
+    def _abjad_attach_spanner(spanner, target):
+        for spanner_abjad_object in spanner.to_abjad():
+            abjad().attach(
+                spanner_abjad_object, target,
+                direction=spanner.get_abjad_direction()
+            )
 
     def _attach_abjad_texts_and_dynamics(self, abjad_note_or_chord):
-        for text in self.properties.texts:
+        for i, text in enumerate(self.properties.texts):
             assert isinstance(text, StaffText)
-            abjad().attach(text.to_abjad(), abjad_note_or_chord)
+            if len(self.properties.texts) > 1:
+                # we want texts to appear in the order that they have been added to the note, but since 3.9,
+                # abjad alphabetizes everything. So we need to set outside-staff-priority explicitly
+                # 450 is the default outside-staff-priority
+                text_object = abjad().bundle(text.to_abjad(), rf'\tweak outside-staff-priority #{450 + i}')
+            else:
+                text_object = text.to_abjad()
+            abjad().attach(
+                text_object, abjad_note_or_chord,
+                direction=abjad().UP if text.placement == "above" else abjad().DOWN
+            )
         for dynamic in self.properties.dynamics:
             abjad().attach(abjad().Dynamic(dynamic), abjad_note_or_chord)
 
