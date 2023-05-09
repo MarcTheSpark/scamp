@@ -126,6 +126,10 @@ _perform_lilypond_search = \
     platform.system() == "Darwin" and not (Path(engraving_settings.lilypond_dir) / "lilypond").exists()
 
 
+def _abjad_version_to_tuple(version):
+    return tuple(int(x) for x in version.split("."))
+
+
 def abjad():
     # we make this a function that returns the abjad module so that we don't have to load it unless we need it
     # (since it's kinda slow to load)
@@ -142,7 +146,7 @@ def abjad():
                 f"version {ABJAD_MIN_VERSION}{ABJAD_VERSION}"
             )
             _abjad_warning_given = True
-    elif abjad_library.__version__ < ABJAD_MIN_VERSION:
+    elif _abjad_version_to_tuple(abjad_library.__version__) < _abjad_version_to_tuple(ABJAD_MIN_VERSION):
         raise ImportError(
             "abjad version {} found, but SCAMP is built for {}. "
             "Run `pip3 install abjad=={}` to upgrade."
@@ -151,7 +155,7 @@ def abjad():
                     else "versions {}-{}".format(ABJAD_MIN_VERSION, ABJAD_VERSION), ABJAD_VERSION,
                     ABJAD_VERSION)
         )
-    elif abjad_library.__version__ > ABJAD_VERSION:
+    elif _abjad_version_to_tuple(abjad_library.__version__) > _abjad_version_to_tuple(ABJAD_VERSION):
         if not _abjad_warning_given:
             logging.warning(
                 "abjad version {} found, but SCAMP is built for earlier version {}. The newer version may not be "

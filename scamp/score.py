@@ -308,12 +308,8 @@ def _join_same_source_abjad_note_group(same_source_group):
         if isinstance(note_pair[0], abjad().Note) and note_pair[0].written_pitch == note_pair[1].written_pitch or \
                 isinstance(note_pair[0], abjad().Chord) and note_pair[0].written_pitches == note_pair[1].written_pitches:
             abjad().tie(note_pair)
-            # abjad().attach(abjad().Tie(), abjad().Selection(note_pair))
         else:
-            # abjad().glissando(abjad().Selection(note_pair))
-            abjad().attach(abjad().LilyPondLiteral("\glissando", "after"), note_pair[0])
-
-            # abjad().attach(abjad().Glissando(), abjad().Selection(note_pair))
+            abjad().glissando(note_pair)
             gliss_present = True
 
     if gliss_present and engraving_settings.glissandi.slur_glisses:
@@ -1026,12 +1022,6 @@ class Score(ScoreComponent, ScoreContainer):
                     start_text_span, span_start_skip_object, markup_text = rit_or_accel_spanner_start
                     abjad().text_spanner([span_start_skip_object, this_point_skip_object],
                                          start_text_span=start_text_span)
-
-                    tempo_spanner_override = r"""\once \override TextSpanner.bound-details.left-broken.text = "({})"
-\once \override TextSpanner.bound-details.right.attach-dir = #-2""".format(markup_text)
-
-                    abjad().attach(abjad().LilyPondLiteral(tempo_spanner_override, "opening"), span_start_skip_object)
-
                     rit_or_accel_spanner_start = None
 
                 # figure out the tempo we're at, and the tempo we're going to next
@@ -1055,11 +1045,12 @@ class Score(ScoreComponent, ScoreContainer):
 
                 # start the accel or rit spanner if needed
                 if change_indicator is not None:
-                    left_text = r"- \tweak bound-details.left.text \markup \concat { " + \
-                                change_indicator + r" \hspace #0.5 }"
                     # to construct it later, we need to the StartTextSpan object and the skip object where it starts
-                    rit_or_accel_spanner_start = abjad().StartTextSpan(left_text=left_text), \
-                                                 this_point_skip_object, change_indicator
+                    rit_or_accel_spanner_start = abjad().StartTextSpan(
+                        left_text=abjad().Markup(f"\"{change_indicator}\""),
+                        left_broken_text=abjad().Markup(rf'\markup \concat {{ "({change_indicator})" \hspace #0.5 }}'),
+                        right_padding=2,
+                    ), this_point_skip_object, change_indicator
 
             # loop through the guide marks until there are none left or there are none left in this measure
             while len(guide_marks) > 0 and guide_marks[0][0] - measure_start < score_measure.length:
@@ -1070,11 +1061,12 @@ class Score(ScoreComponent, ScoreContainer):
                     abjad().MetronomeMark(
                         abjad().Duration(0.25 * metronome_mark_beat_length),
                         round(guide_mark_tempo / metronome_mark_beat_length),
-                        textual_indication=" "  # this results in parentheses, though the space is unfortunate
+                        textual_indication="\"\""  # this results in parentheses
                     ),
                     this_point_skip_object
                 )
-                abjad().attach(abjad().LilyPondLiteral(guide_mark_override, "opening"), this_point_skip_object)
+                abjad().attach(abjad().LilyPondLiteral(guide_mark_override, site="absolute_before"),
+                               this_point_skip_object)
 
             measure_start += score_measure.length
 
@@ -1613,7 +1605,6 @@ class Staff(ScoreComponent, ScoreContainer):
 
 
 _voice_names = [r'voiceOne', r'voiceTwo', r'voiceThree', r'voiceFour']
-_voice_literals = [r'\voiceOne', r'\voiceTwo', r'\voiceThree', r'\voiceFour']
 
 
 class Measure(ScoreComponent, ScoreContainer):
@@ -1731,10 +1722,11 @@ class Measure(ScoreComponent, ScoreContainer):
             if i == 0 and self.show_time_signature:
                 # TODO: this seems to break in abjad when the measure starts with a tuplet, so for now, a klugey fix
                 # abjad().attach(self.time_signature.to_abjad(), abjad_voice[0])
-                abjad().attach(abjad().LilyPondLiteral(r"\time {}".format(self.time_signature.as_string()), "opening"),
+                abjad().attach(abjad().LilyPondLiteral(r"\time {}".format(self.time_signature.as_string()),
+                                                       site="opening"),
                                abjad_voice)
             if len(self.voices) > 1:
-                abjad().attach(abjad().LilyPondLiteral(_voice_literals[i]), abjad_voice)
+                abjad().attach(abjad().VoiceNumber(n=i+1), abjad_voice[0])
             abjad_voice.name = _voice_names[i]
             abjad_measure.append(abjad_voice)
         abjad_measure.simultaneous = True
@@ -2294,7 +2286,8 @@ class Tuplet(ScoreComponent, ScoreContainer):
         if is_top_level_call:
             for same_source_group in source_id_dict.values():
                 _join_same_source_abjad_note_group(same_source_group)
-        return abjad().Tuplet(abjad().Multiplier(self.normal_divisions, self.tuplet_divisions), abjad_notes)
+        tuplet_fraction = Fraction(self.normal_divisions, self.tuplet_divisions)
+        return abjad().Tuplet((tuplet_fraction.numerator, tuplet_fraction.denominator), abjad_notes)
 
     def to_music_xml(self, source_id_dict=None) -> pymusicxml.Tuplet:
         is_top_level_call = True if source_id_dict is None else False
