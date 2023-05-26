@@ -155,7 +155,15 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
             "regularization_function": None,
             "merger_function": lambda p1, p2: p2,
             "chord_merger_critical": True
-        }
+        },
+        {
+            "key": "manual_split_point",
+            "regex": r"^manual_split_point$",
+            "default": False,
+            "regularization_function": None,
+            "merger_function": lambda p1, p2: p1 | p2,
+            "chord_merger_critical": True
+        },
     )
 
     PROPERTY_TYPES_AS_DICT = {property_info["key"]: property_info for property_info in PROPERTY_TYPES}

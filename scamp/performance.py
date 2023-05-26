@@ -277,6 +277,9 @@ class PerformanceNote(SavesToJSON):
                 # clear all of the text for the second part, since we only need it at the start of the note
                 second_part.properties.texts.clear()
 
+                # The second part is not explicitly tied to the first by the user (unless otherwise determined)
+                second_part.properties.manual_split_point = False
+
                 # we also want to keep track of which notes came from the same original note for doing ties and such
                 if "_source_id" in self.properties.temp:
                     second_part.properties.temp["_source_id"] = self.properties.temp["_source_id"]
@@ -298,6 +301,8 @@ class PerformanceNote(SavesToJSON):
         pieces = [self]
         for piece_length in self.length:
             last_piece = pieces.pop()
+            # length divisions represent manually split segments that should not be recombined
+            last_piece.properties.manual_split_point = True
             pieces.extend(last_piece.split_at_beat(last_piece.start_beat + piece_length))
         return pieces
 

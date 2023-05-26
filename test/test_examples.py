@@ -89,6 +89,10 @@ def check_equal_comparison(a, b):
     return "Differences found."
 
 
+def dummy_success_comparison(a, b):
+    return True
+
+
 ComparisonProtocol = namedtuple("ComparisonProtocol", "name prep_function comparison")
 
 
