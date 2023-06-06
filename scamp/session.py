@@ -19,6 +19,7 @@ functionality flows.
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
+from __future__ import annotations
 from .transcriber import Transcriber
 from ._midi import get_available_midi_input_devices, get_port_number_of_midi_device, \
     print_available_midi_input_devices, print_available_midi_output_devices, start_midi_listener
@@ -27,7 +28,7 @@ from clockblocks import Clock
 from .utilities import SavesToJSON
 from ._dependencies import pynput, pythonosc
 from .spelling import SpellingPolicy
-from typing import Union, Tuple, Iterator, Callable, Sequence
+from typing import Iterator, Callable, Sequence
 from .performance import Performance
 import threading
 
@@ -48,8 +49,8 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
     """
 
     def __init__(self, tempo: float = 60, default_soundfont: str = "default", default_audio_driver: str = "default",
-                 default_spelling_policy: Union[SpellingPolicy, str, tuple] = None,
-                 instruments: Sequence['ScampInstrument'] = None, max_threads=200):
+                 default_spelling_policy: SpellingPolicy | str | tuple = None,
+                 instruments: Sequence[ScampInstrument] = None, max_threads=200):
         Clock.__init__(self, name="MASTER", initial_tempo=tempo, pool_size=max_threads)
         Ensemble.__init__(self, default_soundfont=default_soundfont, default_audio_driver=default_audio_driver,
                           default_spelling_policy=default_spelling_policy, instruments=instruments)
@@ -57,7 +58,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
 
         self._listeners = {"midi": {}, "osc": {}}
 
-    def run_as_server(self) -> 'Session':
+    def run_as_server(self) -> Session:
         """
         Runs this session on a parallel thread so that it can act as a server. This is the approach that should be taken
         if running scamp from an interactive terminal session. Simply type :code:`s = Session().run_as_server()`
@@ -69,7 +70,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
     # ----------------------------------- Listeners ----------------------------------
 
     @staticmethod
-    def get_available_midi_input_devices() -> Iterator[Tuple[int, str]]:
+    def get_available_midi_input_devices() -> Iterator[tuple[int, str]]:
         """
         Returns a list of available ports and devices for midi input.
         """
@@ -89,7 +90,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         """
         return print_available_midi_output_devices()
 
-    def register_midi_listener(self, port_number_or_device_name: Union[int, str], callback_function: Callable) -> None:
+    def register_midi_listener(self, port_number_or_device_name: int | str, callback_function: Callable) -> None:
         """
         Register a callback_function to respond to incoming midi events from port_number_or_device_name
 
@@ -110,7 +111,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
             self.remove_midi_listener(port_number)
         self._listeners["midi"][port_number] = start_midi_listener(port_number, callback_function, clock=self)
 
-    def remove_midi_listener(self, port_number_or_device_name: Union[int, str]) -> None:
+    def remove_midi_listener(self, port_number_or_device_name: int | str) -> None:
         """
         Removes the midi listener with the given port_number_or_device_name
 
@@ -350,7 +351,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
 
     # --------------------------------- Transcription Stuff -------------------------------
 
-    def start_transcribing(self, instrument_or_instruments: Union[ScampInstrument, Sequence[ScampInstrument]] = None,
+    def start_transcribing(self, instrument_or_instruments: ScampInstrument | Sequence[ScampInstrument] = None,
                            clock: Clock = None, units: str = "beats") -> Performance:
         """
         Starts transcribing everything played in this Session's (or by the given instruments) to a Performance.

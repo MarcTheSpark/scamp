@@ -51,7 +51,7 @@ For LilyPond output, you will need the `abjad` library. To do so, run the follow
 
 .. code-block:: bash
 
-    pip3 install --user abjad==3.4
+    pip3 install --user abjad==3.17
 
 Note the '==' in the command, which specifies the exact version of abjad to install. This is the version
 that SCAMP has been built to be compatible with. You are free to use a newer version, but it is possible

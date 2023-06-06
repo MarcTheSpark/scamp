@@ -27,7 +27,6 @@ from ._soundfont_host import SoundfontHost
 from .note_properties import NoteProperties
 from abc import abstractmethod
 from ._dependencies import pythonosc
-from typing import Tuple, Optional
 import logging
 from .settings import playback_settings
 from .utilities import SavesToJSON, resolve_path
@@ -302,7 +301,7 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
 
     soundfont_hosts = {}
 
-    def __init__(self, bank_and_preset: Tuple[int, int] = (0, 0), soundfont: str = "default", num_channels: int = 8,
+    def __init__(self, bank_and_preset: tuple[int, int] = (0, 0), soundfont: str = "default", num_channels: int = 8,
                  audio_driver: str = "default", max_pitch_bend: int = "default", note_on_and_off_only: bool = False):
         super().__init__(num_channels, note_on_and_off_only)
 
@@ -390,7 +389,7 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
         the same MIDI channels, only using an extra one due to microtonality.
     """
 
-    def __init__(self, midi_output_device: str = "default", num_channels=8, midi_output_name: Optional[str] = None,
+    def __init__(self, midi_output_device: str = "default", num_channels=8, midi_output_name: str | None = None,
                  max_pitch_bend: int = "default", note_on_and_off_only: bool = False, start_channel=0):
         super().__init__(num_channels, note_on_and_off_only)
 

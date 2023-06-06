@@ -18,6 +18,8 @@ options that affect a given note.
 #  You should have received a copy of the GNU General Public License along with this program.    #
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
+
+from __future__ import annotations
 from .utilities import _is_non_str_sequence
 from .playback_adjustments import NotePlaybackAdjustment
 from .utilities import SavesToJSON, NoteProperty
@@ -29,7 +31,7 @@ from copy import deepcopy
 from . import _parsing
 import re
 from types import SimpleNamespace
-from typing import Union, MutableMapping
+from typing import MutableMapping
 
 
 class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
@@ -220,7 +222,7 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
         self.temp = {}
 
     @classmethod
-    def interpret(cls, properties_object) -> 'NoteProperties':
+    def interpret(cls, properties_object) -> NoteProperties:
         """
         Interprets a properties_object of unknown type into a :class:`NoteProperties`.
 
@@ -249,7 +251,7 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
                     return cls(**{property_info["key"]: properties_object})
             raise ValueError(f"{properties_object} not interpretable as NoteProperties.")
 
-    def incorporate(self, other_properties: Union[SimpleNamespace, MutableMapping, None]) -> 'NoteProperties':
+    def incorporate(self, other_properties: SimpleNamespace | MutableMapping | None) -> NoteProperties:
         """
         Incorporates a different NoteProperties or dictionary into this one.
 
@@ -271,7 +273,7 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
 
         return self
 
-    def chord_mergeable_with(self, other_properties: 'NoteProperties') -> bool:
+    def chord_mergeable_with(self, other_properties: NoteProperties) -> bool:
         """
         Determines whether this NoteProperties is compatible with another for chord merger purposes.
 

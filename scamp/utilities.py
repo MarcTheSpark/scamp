@@ -18,12 +18,13 @@ Various and sundry utility functions used by SCAMP.
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
+from __future__ import annotations
 import os
 import sys
 import math
 import itertools
 import functools
-from typing import Iterator, Type, Callable, List, Sequence, Tuple, Union, TypeVar
+from typing import Iterator, Type, Callable, Sequence, TypeVar
 from expenvelope.json_serializer import SavesToJSON, SavesToJSONMeta
 
 
@@ -186,7 +187,7 @@ def is_multiple(x, y) -> bool:
     return round_to_multiple(x, y) == x
 
 
-def prime_factor(n: int) -> List[int]:
+def prime_factor(n: int) -> list[int]:
     """
     Returns a list of the prime factors of n.
     """
@@ -213,7 +214,7 @@ def is_prime(a: int) -> bool:
 # ---------------------------------------------- List Utilities --------------------------------------------------
 
 
-def make_flat_list(l: Sequence, indivisible: Union[Type, Tuple[Type]] = None) -> List:
+def make_flat_list(l: Sequence, indivisible: Type | tuple[Type] = None) -> list:
     """
     Flattens a list, including ones containing multiple levels of nesting. Certain types can be excluded from expansion.
 
@@ -237,7 +238,7 @@ def make_flat_list(l: Sequence, indivisible: Union[Type, Tuple[Type]] = None) ->
     return new_list
 
 
-def rotate(l: List, n: int) -> List:
+def rotate(l: list, n: int) -> list:
     """
     Rotates a list such that it starts at the nth index and loops back to end at the (n-1)st
 
@@ -248,7 +249,7 @@ def rotate(l: List, n: int) -> List:
     return l[n:] + l[:n]
 
 
-def sum_nested_list(l: List):
+def sum_nested_list(l: list):
     """
     Sums up all of the values within a nested list.
     For instance :code:`sum_nested_list([6, [4, 2], [[-7]]])` will return 5
@@ -415,7 +416,7 @@ def _standardize_strata(rhythmic_strata):
 int_or_float = TypeVar("int_or_float", int, float)
 
 
-def get_standard_indispensability_array(rhythmic_strata: Sequence, normalize: bool = False) -> List[int_or_float]:
+def get_standard_indispensability_array(rhythmic_strata: Sequence, normalize: bool = False) -> list[int_or_float]:
     """
     Returns a list of the indispensabilities of different pulses in a meter defined by the rhythmic_strata.
     (See Barlow's "On Musiquantics", http://clarlow.org/wp-content/uploads/2016/10/On-MusiquanticsA4.pdf)

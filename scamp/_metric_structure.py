@@ -23,14 +23,15 @@ additive meters (even nested additive meters).
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
+from __future__ import annotations
 from itertools import chain, count
 from copy import deepcopy
 import operator
 import functools
-from typing import Union, Sequence, List, TypeVar
+from typing import Sequence, TypeVar
 
 
-INT_OR_FLOAT = TypeVar("IntOrFloat", int, float)
+INT_OR_FLOAT = TypeVar("INT_OR_FLOAT", int, float)
 
 
 def _rotate_list(l, n):
@@ -112,7 +113,7 @@ class MeterArithmeticGroup:
     :param operation: either "+", "*", or None, in the case of just a number
     """
 
-    def __init__(self, elements: Sequence[Union['MeterArithmeticGroup', int]], operation: Union[str, None]):
+    def __init__(self, elements: Sequence[MeterArithmeticGroup | int], operation: str | None):
         if operation is None:
             if not (len(elements) == 1 and isinstance(elements[0], int)):
                 raise ValueError("\"operation\" can only be None if a single integer element is given.")
@@ -122,7 +123,7 @@ class MeterArithmeticGroup:
         self.operation = operation
 
     @classmethod
-    def parse(cls, input_string: str) -> 'MeterArithmeticGroup':
+    def parse(cls, input_string: str) -> MeterArithmeticGroup:
         """
         Parses an input string containing an arithmetic expression into a (probably nested) MeterArithmeticGroup. For
         instance an input string of "(3+2)+3*2" will be parsed as::
@@ -200,7 +201,7 @@ class MeterArithmeticGroup:
         else:
             return MeterArithmeticGroup([int(input_string)], None)
 
-    def to_metric_structure(self, break_up_large_numbers: bool = False) -> 'MetricStructure':
+    def to_metric_structure(self, break_up_large_numbers: bool = False) -> MetricStructure:
         """
         Renders this arithmetic group as a :class:`MetricStructure`.
 
@@ -218,7 +219,7 @@ class MeterArithmeticGroup:
         return "MeterArithmeticGroup({}, \"{}\")".format(self.elements, self.operation)
 
 
-def flatten_beat_groups(beat_groups: List[List], upbeats_before_group_length: bool = True) -> List:
+def flatten_beat_groups(beat_groups: list[list], upbeats_before_group_length: bool = True) -> list:
     """
     Returns a flattened version of beat_groups, unraveling the outer layer according to rules of indispensability.
     Repeated application of this function to nested beat groups leads to a 1-d ordered list of beat priorities
@@ -297,7 +298,7 @@ class MetricStructure:
         followed by one 3 if odd. This is the Barlow approach.
     """
 
-    def __init__(self, *groups: Sequence[Union[int, Sequence, 'MetricStructure']],
+    def __init__(self, *groups: Sequence[int, Sequence, MetricStructure],
                  break_up_large_numbers: bool = False):
         if not all(isinstance(x, (int, list, tuple, MetricStructure)) for x in groups):
             raise ValueError("Groups must either be integers, list/tuples or MetricStructures themselves")
@@ -310,7 +311,7 @@ class MetricStructure:
         self._remove_redundant_nesting()
 
     @classmethod
-    def from_string(cls, input_string: str, break_up_large_numbers: bool = False) -> 'MetricStructure':
+    def from_string(cls, input_string: str, break_up_large_numbers: bool = False) -> MetricStructure:
         """
         Creates a MetricStructure from an appropriately formatted input string. This is the simplest way of creating
         complex nested structures. For example, "3 * 2 + 5 + (2 + 3)" renders to
@@ -378,7 +379,7 @@ class MetricStructure:
 
         return nested_beat_groups
 
-    def get_beat_depths(self) -> List[int]:
+    def get_beat_depths(self) -> list[int]:
         """
         Returns a list of integers representing how nested each beat/subdivision is within the metric structure.
         For example, `MetricStructure(MetricStructure(2, 2, 2), 5, MetricStructure(2, 3))` will give us beat depths
@@ -412,7 +413,7 @@ class MetricStructure:
         return beat_depths
 
     def get_indispensability_array(self, upbeats_before_group_length: bool = True,
-                                   normalize: bool = False) -> List[INT_OR_FLOAT]:
+                                   normalize: bool = False) -> list[INT_OR_FLOAT]:
         """
         Resolve the nested structure to a single one-dimensional indispensability array. See Barlow's
         "On Musiquantics" (http://clarlow.org/wp-content/uploads/2016/10/On-MusiquanticsA4.pdf) for more detail.
@@ -438,7 +439,7 @@ class MetricStructure:
         """The total number of pulses (smallest subdivisions) in this MetricStructure"""
         return sum(x.num_pulses() if isinstance(x, MetricStructure) else x for x in self.groups)
 
-    def extend(self, other_metric_structure: 'MetricStructure', in_place: bool = True) -> 'MetricStructure':
+    def extend(self, other_metric_structure: MetricStructure, in_place: bool = True) -> MetricStructure:
         """
         Extends this MetricStructure by appending all of the groups of other_metric_structure. For example:
         `MetricStructure(3, 3).extend(MetricStructure(2, 2))` results in `MetricStructure(3, 3, 2, 2)`.
@@ -452,7 +453,7 @@ class MetricStructure:
         else:
             return MetricStructure(*self.groups, *other_metric_structure.groups)
 
-    def append(self, other_metric_structure: 'MetricStructure', in_place: bool = True) -> 'MetricStructure':
+    def append(self, other_metric_structure: MetricStructure, in_place: bool = True) -> MetricStructure:
         """
         Adds a new group to this MetricStructure consisting of other_metric_structure. For example,
         `MetricStructure(3, 3).append(MetricStructure(2, 2))` results in `MetricStructure(3, 3, MetricStructure(2, 2))`.
@@ -466,7 +467,7 @@ class MetricStructure:
         else:
             return MetricStructure(*self.groups, other_metric_structure)
 
-    def join(self, other_metric_structure) -> 'MetricStructure':
+    def join(self, other_metric_structure) -> MetricStructure:
         """
         Creates a new MetricStructure with two groups: this MetricStructure and other_metric_structure. For example,
         `MetricStructure(3, 3).join(MetricStructure(2, 2))` results in

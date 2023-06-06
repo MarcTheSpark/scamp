@@ -17,11 +17,12 @@
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
+from __future__ import annotations
 from .performance import Performance
 from expenvelope import Envelope
 from clockblocks import Clock, TempoEnvelope
 from .instruments import ScampInstrument
-from typing import Union, Sequence
+from typing import Sequence
 
 
 class Transcriber:
@@ -35,7 +36,7 @@ class Transcriber:
         self._transcriptions_in_progress = []
 
     @property
-    def transcriptions_in_progress(self) -> Sequence[Performance]:
+    def transcriptions_in_progress(self) -> tuple[Performance]:
         """Tuple of all current transcriptions."""
         return tuple(self._transcriptions_in_progress)
 
@@ -43,7 +44,7 @@ class Transcriber:
         """Checks if any transcriptions are in progress."""
         return len(self._transcriptions_in_progress) > 0
 
-    def start_transcribing(self, instrument_or_instruments: Union[ScampInstrument, Sequence[ScampInstrument]],
+    def start_transcribing(self, instrument_or_instruments: ScampInstrument | Sequence[ScampInstrument],
                            clock: Clock, units: str = "beats") -> Performance:
         """
         Starts transcribing new performance on the given clock, consisting of the given instrument

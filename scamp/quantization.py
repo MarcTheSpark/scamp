@@ -19,6 +19,7 @@ Module containing classes and functions related to the quantization of performan
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
+from __future__ import annotations
 from fractions import Fraction
 from .utilities import indigestibility, is_multiple, is_x_pow_of_y, round_to_multiple, sum_nested_list, prime_factor, \
     SavesToJSON, memoize
@@ -28,7 +29,7 @@ from .settings import quantization_settings, engraving_settings
 from expenvelope import Envelope
 from ._dependencies import abjad
 from numbers import Number
-from typing import Sequence, Union, Tuple, Iterator
+from typing import Sequence, Iterator
 import textwrap
 
 
@@ -52,7 +53,7 @@ class TimeSignature(SavesToJSON):
         process.)
     """
 
-    def __init__(self, numerator: Union[int, Sequence[int]], denominator: int, beat_lengths: Sequence[float] = None):
+    def __init__(self, numerator: int | Sequence[int], denominator: int, beat_lengths: Sequence[float] = None):
 
         self.numerator = numerator
         # For now, and the foreseeable future, I don't want to deal with time signatures like 4/7
@@ -97,7 +98,7 @@ class TimeSignature(SavesToJSON):
         return beat_lengths
 
     @classmethod
-    def from_measure_length(cls, measure_length: float) -> 'TimeSignature':
+    def from_measure_length(cls, measure_length: float) -> TimeSignature:
         """
         Constructs a TimeSignature of the appropriate measure length.
         (Defaults to the simple rather than compound)
@@ -133,7 +134,7 @@ class TimeSignature(SavesToJSON):
         else:
             return "{}/{}".format(self.numerator, self.denominator)
 
-    def as_tuple(self) -> Tuple:
+    def as_tuple(self) -> tuple:
         """
         Returns a tuple representation of the time signature, e.g. (5, 4) or ((3, 2, 1), 8)
         """
@@ -222,7 +223,7 @@ class BeatQuantizationScheme:
 
     @classmethod
     def from_max_divisor(cls, length: float, max_divisor: int,
-                         simplicity_preference: float = "default") -> 'BeatQuantizationScheme':
+                         simplicity_preference: float = "default") -> BeatQuantizationScheme:
         """
         Takes a max divisor argument instead of a list of allowed divisors.
 
@@ -234,7 +235,7 @@ class BeatQuantizationScheme:
 
     @classmethod
     def from_max_divisor_indigestibility(cls, length: float, max_divisor: int, max_divisor_indigestibility: float,
-                                         simplicity_preference: float = "default") -> 'BeatQuantizationScheme':
+                                         simplicity_preference: float = "default") -> BeatQuantizationScheme:
         """
         Takes a max_divisor and max_divisor_indigestibility to determine the list of divisors.
 
@@ -331,7 +332,7 @@ class MeasureQuantizationScheme:
         groupings. For instance, in 4/4 time the beat_groupings will default to (2, 2).
     """
 
-    def __init__(self, beat_schemes: Sequence[BeatQuantizationScheme], time_signature: Union[TimeSignature, str],
+    def __init__(self, beat_schemes: Sequence[BeatQuantizationScheme], time_signature: TimeSignature | str,
                  beat_groupings: Sequence = "auto"):
 
         if isinstance(time_signature, str):
@@ -349,9 +350,9 @@ class MeasureQuantizationScheme:
             self.beat_groupings = MetricStructure(*beat_groupings)
 
     @classmethod
-    def from_time_signature(cls, time_signature: Union[TimeSignature, str, float], max_divisor: int = "default",
+    def from_time_signature(cls, time_signature: TimeSignature | str | float, max_divisor: int = "default",
                             max_divisor_indigestibility: float = "default",
-                            simplicity_preference: float = "default") -> 'MeasureQuantizationScheme':
+                            simplicity_preference: float = "default") -> MeasureQuantizationScheme:
         """
         Constructs a MeasureQuantizationScheme from a time signature.
         All beats will follow the same quantization scheme, as dictated by the parameters.
@@ -511,10 +512,10 @@ class QuantizationScheme:
         self.loop = loop
 
     @classmethod
-    def from_attributes(cls, time_signature: Union[str, TimeSignature, Sequence] = None,
+    def from_attributes(cls, time_signature: str | TimeSignature | Sequence = None,
                         bar_line_locations: Sequence[float] = None, max_divisor: int = None,
                         max_divisor_indigestibility: float = None,
-                        simplicity_preference: float = None) -> 'QuantizationScheme':
+                        simplicity_preference: float = None) -> QuantizationScheme:
         """
         Constructs a QuantizationScheme from some key attributes.
 
@@ -562,9 +563,9 @@ class QuantizationScheme:
         return quantization_scheme
 
     @classmethod
-    def from_time_signature(cls, time_signature: Union[str, TimeSignature], max_divisor: int = "default",
+    def from_time_signature(cls, time_signature: str | TimeSignature, max_divisor: int = "default",
                             max_divisor_indigestibility: float = "default",
-                            simplicity_preference: float = "default") -> 'QuantizationScheme':
+                            simplicity_preference: float = "default") -> QuantizationScheme:
         """
         Constructs a QuantizationScheme using a single time signature for the whole piece.
 
@@ -584,7 +585,7 @@ class QuantizationScheme:
     @classmethod
     def from_time_signature_list(cls, time_signatures_list: Sequence, loop: bool = False, max_divisor: int = "default",
                                  max_divisor_indigestibility: float = "default",
-                                 simplicity_preference: float = "default") -> 'QuantizationScheme':
+                                 simplicity_preference: float = "default") -> QuantizationScheme:
         """
         Constructs a QuantizationScheme using a list of time signatures
 
@@ -607,7 +608,7 @@ class QuantizationScheme:
             )
         return cls(measure_schemes, loop=loop)
 
-    def measure_scheme_iterator(self) -> Iterator[Tuple[MeasureQuantizationScheme, float]]:
+    def measure_scheme_iterator(self) -> Iterator[tuple[MeasureQuantizationScheme, float]]:
         """
         Iterates through the measures of this QuantizationScheme, returning tuples of (measure_scheme, start_beat)
         """
@@ -623,7 +624,7 @@ class QuantizationScheme:
             yield self.measure_schemes[-1], t
             t += self.measure_schemes[-1].length
 
-    def beat_scheme_iterator(self) -> Iterator[Tuple[BeatQuantizationScheme, float]]:
+    def beat_scheme_iterator(self) -> Iterator[tuple[BeatQuantizationScheme, float]]:
         """
         Iterates through the beats of this QuantizationScheme, returning tuples of (beat_scheme, start_beat)
         """
@@ -716,7 +717,7 @@ class QuantizationRecord(SavesToJSON):
 ##################################################################################################################
 
 
-def quantize_performance_part(part: 'PerformancePart', quantization_scheme: QuantizationScheme,
+def quantize_performance_part(part: PerformancePart, quantization_scheme: QuantizationScheme,
                               onset_weighting: float = "default",  termination_weighting: float = "default",
                               inner_split_weighting: float = "default"):
     """

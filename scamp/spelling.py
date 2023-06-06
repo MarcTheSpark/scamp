@@ -18,9 +18,10 @@ Module containing the :class:`SpellingPolicy` class, which describes how pitches
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
+from __future__ import annotations
 import functools
 from .utilities import SavesToJSON, NoteProperty
-from typing import Sequence, Tuple, Union
+from typing import Sequence
 import pymusicxml
 
 
@@ -62,7 +63,7 @@ class SpellingPolicy(SavesToJSON, NoteProperty):
     :ivar step_alteration_pairs: list of 12 (step, alteration) tuples showing how to spell each pitch class.
     """
 
-    def __init__(self, step_alteration_pairs: Sequence[Tuple[int, int]] = _c_standard_spellings):
+    def __init__(self, step_alteration_pairs: Sequence[tuple[int, int]] = _c_standard_spellings):
         self.step_alteration_pairs = step_alteration_pairs
 
     """
@@ -73,7 +74,7 @@ class SpellingPolicy(SavesToJSON, NoteProperty):
 
     @classmethod
     @functools.lru_cache()
-    def all_sharps(cls, including_white_keys: bool = False) -> 'SpellingPolicy':
+    def all_sharps(cls, including_white_keys: bool = False) -> SpellingPolicy:
         """
         Constructs a sharps-only SpellingPolicy
 
@@ -83,7 +84,7 @@ class SpellingPolicy(SavesToJSON, NoteProperty):
 
     @classmethod
     @functools.lru_cache()
-    def all_flats(cls, including_white_keys: bool = False) -> 'SpellingPolicy':
+    def all_flats(cls, including_white_keys: bool = False) -> SpellingPolicy:
         """
         Constructs a flats-only SpellingPolicy
 
@@ -94,7 +95,7 @@ class SpellingPolicy(SavesToJSON, NoteProperty):
     @classmethod
     @functools.lru_cache()
     def from_circle_of_fifths_position(cls, num_sharps_or_flats: int, avoid_double_accidentals: bool = False,
-                                       template: Sequence[Tuple[int, int]] = _c_standard_spellings) -> 'SpellingPolicy':
+                                       template: Sequence[tuple[int, int]] = _c_standard_spellings) -> SpellingPolicy:
         """
         Constructs a spelling policy by transposing a template around the circles of fifths
 
@@ -128,7 +129,7 @@ class SpellingPolicy(SavesToJSON, NoteProperty):
 
     @classmethod
     @functools.lru_cache()
-    def from_string(cls, string_initializer: str) -> 'SpellingPolicy':
+    def from_string(cls, string_initializer: str) -> SpellingPolicy:
         """
         Constructs a SpellingPolicy from several possible input string formats
 
@@ -186,7 +187,7 @@ class SpellingPolicy(SavesToJSON, NoteProperty):
             return cls.from_circle_of_fifths_position(num_sharps_or_flats, template=template)
 
     @classmethod
-    def interpret(cls, obj: Union['SpellingPolicy', str, tuple]) -> 'SpellingPolicy':
+    def interpret(cls, obj: SpellingPolicy | str | tuple) -> SpellingPolicy:
         """
         Interpret an object of unknown type as a SpellingPolicy
 
@@ -202,7 +203,7 @@ class SpellingPolicy(SavesToJSON, NoteProperty):
         else:
             raise ValueError("Spelling policy not understood.")
 
-    def resolve_name_octave_and_alteration(self, midi_num: int) -> Tuple[str, int, int]:
+    def resolve_name_octave_and_alteration(self, midi_num: int) -> tuple[str, int, int]:
         """
         For a given pitch, determine its name, octave and alteration under this SpellingPolicy.
 

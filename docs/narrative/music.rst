@@ -12,10 +12,10 @@ Marc Evanstein: `Searsville 1891-2015, for open ensemble with flute and clarinet
     <iframe class="youtube" width="560" height="315" src="https://www.youtube.com/embed/0Kz9SycpqPA" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 
-Alex Stephenson: `Three Reflections, for piano & synthesizer <https://soundcloud.com/alex-stephenson-composer/three-reflections-live>`_
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Alex Stephenson: `An Elemental Music <https://soundcloud.com/alex-stephenson-composer/an-elemental-music>`_
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Listen `here <https://soundcloud.com/alex-stephenson-composer/three-reflections-live>`_.
+According to Alex, "I used [SCAMP] quite a bit to model the canonic passages in the second movement. Listen `here <https://soundcloud.com/alex-stephenson-composer/an-elemental-music>`_.
 
 Stewart Engart: `A More Sound Outlook <https://stewartengart.com/works/aMoreSoundOutlook/>`_
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

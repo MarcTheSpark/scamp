@@ -18,11 +18,13 @@ Module containing classes for defining adjustments to the playback of note param
 #  You should have received a copy of the GNU General Public License along with this program.    #
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
+
+from __future__ import annotations
 import re
 from numbers import Real
 from .utilities import SavesToJSON, NoteProperty
 from expenvelope import Envelope
-from typing import Union, Sequence
+from typing import Sequence
 
 
 def _split_string_at_outer_spaces(s):
@@ -66,12 +68,12 @@ class ParamPlaybackAdjustment(SavesToJSON):
     :ivar add: how much to add
     """
 
-    def __init__(self, multiply: Union[Real, Envelope, Sequence] = 1, add: Union[Real, Envelope, Sequence] = 0):
+    def __init__(self, multiply: Real | Envelope | Sequence = 1, add: Real | Envelope | Sequence = 0):
         self.multiply = Envelope.from_list(multiply) if isinstance(multiply, Sequence) else multiply
         self.add_amount = Envelope.from_list(add) if isinstance(add, Sequence) else add
 
     @classmethod
-    def from_string(cls, string: str) -> 'ParamPlaybackAdjustment':
+    def from_string(cls, string: str) -> ParamPlaybackAdjustment:
         """
         Construct a ParamPlaybackAdjustment from an appropriately formatted string.
 
@@ -119,7 +121,7 @@ class ParamPlaybackAdjustment(SavesToJSON):
             raise ValueError("Bad parameter adjustment expression.")
 
     @classmethod
-    def set_to(cls, value) -> 'ParamPlaybackAdjustment':
+    def set_to(cls, value) -> ParamPlaybackAdjustment:
         """
         Class method for an adjustment that resets the value of the parameter, ignoring its original value
 
@@ -128,7 +130,7 @@ class ParamPlaybackAdjustment(SavesToJSON):
         return cls(0, value)
 
     @classmethod
-    def scale(cls, value) -> 'ParamPlaybackAdjustment':
+    def scale(cls, value) -> ParamPlaybackAdjustment:
         """
         Class method for a simple scaling adjustment.
 
@@ -137,7 +139,7 @@ class ParamPlaybackAdjustment(SavesToJSON):
         return cls(value)
 
     @classmethod
-    def add(cls, value) -> 'ParamPlaybackAdjustment':
+    def add(cls, value) -> ParamPlaybackAdjustment:
         """
         Class method for a simple additive adjustment.
 
@@ -211,7 +213,7 @@ class NotePlaybackAdjustment(SavesToJSON, NoteProperty):
         self.scale_envelopes_to_length = scale_envelopes_to_length
 
     @classmethod
-    def from_string(cls, string: str) -> 'NotePlaybackAdjustment':
+    def from_string(cls, string: str) -> NotePlaybackAdjustment:
         """
         Construct a NotePlaybackAdjustment from a string using a particular grammar.
 
@@ -259,7 +261,7 @@ class NotePlaybackAdjustment(SavesToJSON, NoteProperty):
         return string,
 
     @classmethod
-    def scale_params(cls, pitch=1, volume=1, length=1) -> 'NotePlaybackAdjustment':
+    def scale_params(cls, pitch=1, volume=1, length=1) -> NotePlaybackAdjustment:
         """
         Constructs a NotePlaybackAdjustment that scales the parameters
 
@@ -273,7 +275,7 @@ class NotePlaybackAdjustment(SavesToJSON, NoteProperty):
                    ParamPlaybackAdjustment.scale(length) if length != 1 else None)
 
     @classmethod
-    def add_to_params(cls, pitch=None, volume=None, length=None) -> 'NotePlaybackAdjustment':
+    def add_to_params(cls, pitch=None, volume=None, length=None) -> NotePlaybackAdjustment:
         """
         Constructs a NotePlaybackAdjustment that adds to the parameters
 
@@ -287,7 +289,7 @@ class NotePlaybackAdjustment(SavesToJSON, NoteProperty):
                    ParamPlaybackAdjustment.add(length) if length is not None else None)
 
     @classmethod
-    def set_params(cls, pitch=None, volume=None, length=None) -> 'NotePlaybackAdjustment':
+    def set_params(cls, pitch=None, volume=None, length=None) -> NotePlaybackAdjustment:
         """
         Constructs a NotePlaybackAdjustment that directly resets the parameters
 

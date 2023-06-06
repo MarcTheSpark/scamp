@@ -21,6 +21,7 @@ scamp package. These instances are part of the global scamp namespace, and conta
 #  You should have received a copy of the GNU General Public License along with this program.    #
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
+from __future__ import annotations
 import os
 import shutil
 from types import SimpleNamespace
@@ -32,7 +33,6 @@ import logging
 import json
 import platform
 import subprocess
-from typing import Optional, Union
 
 
 class _ScampSettings(SimpleNamespace, SavesToJSON):
@@ -274,7 +274,7 @@ class PlaybackSettings(_ScampSettings):
         for a, b in self.named_soundfonts.items():
             print("{}: {}".format(a, b))
 
-    def set_playback_adjustment(self, note_property: str, adjustment: Union[str, NotePlaybackAdjustment]):
+    def set_playback_adjustment(self, note_property: str, adjustment: str | NotePlaybackAdjustment):
         from ._parsing import parse_property_key_and_value, parse_note_playback_adjustment
 
         key, value = parse_property_key_and_value(note_property)
@@ -625,7 +625,7 @@ class EngravingSettings(_ScampSettings):
         else:
             logging.warning("Cannot run \"show_xml\" on unrecognized platform {}".format(platform_system))
 
-    def get_default_title(self) -> Optional[str]:
+    def get_default_title(self) -> str | None:
         """Grabs one of the default score titles."""
         if isinstance(self.default_titles, list):
             import random
@@ -635,7 +635,7 @@ class EngravingSettings(_ScampSettings):
         else:
             return None
 
-    def get_default_composer(self) -> Optional[str]:
+    def get_default_composer(self) -> str | None:
         """Grabs one of the default composer names."""
         if isinstance(self.default_composers, list):
             import random

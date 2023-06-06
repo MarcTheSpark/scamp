@@ -20,6 +20,7 @@ provide export functionality to both MusicXML and LilyPond.
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
+from __future__ import annotations
 from numbers import Real
 from . import settings
 from .settings import quantization_settings, engraving_settings
@@ -44,7 +45,7 @@ from collections import namedtuple
 from abc import ABC, abstractmethod
 import logging
 from ._metric_structure import MetricStructure
-from typing import Sequence, Type, Union, Tuple, Optional, Iterator
+from typing import Sequence, Type, Iterator
 from clockblocks import TempoEnvelope
 
 
@@ -423,7 +424,7 @@ def _join_same_source_xml_note_group(same_source_group):
 
 
 def _get_clef_from_average_pitch_and_clef_choices(average_pitch: float,
-                                                  clef_choices: Sequence[Union[str, Tuple[str, Real]]]) -> str:
+                                                  clef_choices: Sequence[str | tuple[str, Real]]) -> str:
     # find the clef whose pitch center is closest to the average pitch
     closest_clef = None
     closest_distance = float("inf")
@@ -454,7 +455,7 @@ class ScoreComponent(ABC):
     """
 
     @abstractmethod
-    def _to_abjad(self) -> 'abjad().Component':
+    def _to_abjad(self) -> abjad().Component:
         """
         Convert this to the abjad version of the component.
         The reason this is a protected member is that the user-facing "to_abjad" takes the output of this function
@@ -499,7 +500,7 @@ class ScoreComponent(ABC):
                             "your program of choice.".format(engraving_settings.show_music_xml_command_line))
 
     def to_abjad(self, wrap_as_file: bool = False, non_score_blocks: Sequence = None,
-                 **lilypond_file_args) -> 'abjad().Component':
+                 **lilypond_file_args) -> abjad().Component:
         r"""
         Convert this score component to its corresponding abjad component
 
@@ -523,7 +524,7 @@ class ScoreComponent(ABC):
             return abjad_object
 
     def _to_abjad_lilypond_file(self, non_score_blocks: Sequence = None,
-                                **lilypond_file_args) -> 'abjad().LilyPondFile':
+                                **lilypond_file_args) -> abjad().LilyPondFile:
         r"""
         Convert and wrap as an :class:`abjad.LilyPondFile` object.
 
@@ -668,7 +669,7 @@ class ScoreContainer(ABC):
     """
 
     def __init__(self, contents: Sequence[ScoreComponent], contents_argument_name: str,
-                 allowable_child_types: Union[Type, Tuple[Type, ...]], extra_field_names=()):
+                 allowable_child_types: Type | tuple[Type, ...], extra_field_names=()):
         self._contents = contents if contents is not None else []
         self._contents_argument_name = contents_argument_name
         self._extra_field_names = extra_field_names
@@ -772,7 +773,7 @@ class Score(ScoreComponent, ScoreContainer):
         "heavy-heavy", "tick", "short", or "none".
     """
 
-    def __init__(self, parts: Sequence[Union['Staff', 'StaffGroup']] = None, title: str = None,
+    def __init__(self, parts: Sequence[Staff | StaffGroup] = None, title: str = None,
                  composer: str = None, tempo_envelope: TempoEnvelope = None):
         ScoreContainer.__init__(self, parts, "parts", (StaffGroup, Staff), ("title", "composer"))
         self.title = title
@@ -781,14 +782,14 @@ class Score(ScoreComponent, ScoreContainer):
         self.final_bar_line = "end"
 
     @property
-    def parts(self) -> Sequence[Union['StaffGroup', 'Staff']]:
+    def parts(self) -> Sequence[Staff | StaffGroup]:
         """
         List of parts (StaffGroup or Staff objects).
         """
         return self._contents
 
     @property
-    def staves(self) -> Sequence['Staff']:
+    def staves(self) -> Sequence[Staff]:
         """
         List of all staves in this score, expanding out those inside of StaffGroups.
         """
@@ -809,11 +810,11 @@ class Score(ScoreComponent, ScoreContainer):
         return max(staff.length() for staff in self.staves)
 
     @classmethod
-    def from_performance(cls, performance: 'performance_module.Performance',
-                         quantization_scheme: QuantizationScheme = None, time_signature: Union[str, Sequence] = None,
+    def from_performance(cls, performance: performance_module.Performance,
+                         quantization_scheme: QuantizationScheme = None, time_signature: str | Sequence = None,
                          bar_line_locations: Sequence[float] = None, max_divisor: int = None,
                          max_divisor_indigestibility: int = None, simplicity_preference: float = None,
-                         title: str = "default", composer: str = "default") -> 'Score':
+                         title: str = "default", composer: str = "default") -> Score:
         """
         Builds a new Score from a Performance (list of note events in continuous time and pitch). In the process,
         the music must be quantized, for which two different options are available: one can either pass a
@@ -870,8 +871,8 @@ class Score(ScoreComponent, ScoreContainer):
         )
 
     @classmethod
-    def from_quantized_performance(cls, performance: 'performance_module.Performance',
-                                   title: str = "default", composer: str = "default") -> 'Score':
+    def from_quantized_performance(cls, performance: performance_module.Performance,
+                                   title: str = "default", composer: str = "default") -> Score:
         """
         Constructs a new Score from an already quantized Performance.
         
@@ -1227,8 +1228,8 @@ class StaffGroup(ScoreComponent, ScoreContainer):
     :param name: the name of the staff group on the score
     """
 
-    def __init__(self, staves: Sequence['Staff'], name: str = None,
-                 clef_choices: Sequence[Union[str, Tuple[str, Real]]] = None):
+    def __init__(self, staves: Sequence[Staff], name: str = None,
+                 clef_choices: Sequence[str | tuple[str, Real]] = None):
         ScoreContainer.__init__(self, staves, "staves", Staff)
         self._name = name
         self.clef_choices = engraving_settings.clefs_by_instrument["default"] if clef_choices is None else clef_choices
@@ -1255,8 +1256,8 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         return self._contents
 
     @classmethod
-    def from_quantized_performance_part(cls, quantized_performance_part: 'performance_module.PerformancePart') \
-                                        -> 'StaffGroup':
+    def from_quantized_performance_part(cls, quantized_performance_part: performance_module.PerformancePart) \
+                                        -> StaffGroup:
         """
         Constructs a new StaffGroup from an already quantized PerformancePart.
 
@@ -1436,7 +1437,7 @@ class StaffGroup(ScoreComponent, ScoreContainer):
 
     @classmethod
     def _from_measure_voice_grid(cls, measure_bins, quantization_record: QuantizationRecord, name: str = None,
-                                 clef_choices: Sequence[Union[str, Tuple[str, Real]]] = None):
+                                 clef_choices: Sequence[str | tuple[str, Real]] = None):
         """
         Creates a StaffGroup with Staves that accommodate engraving_settings.max_voices_per_part voices each
 
@@ -1542,12 +1543,12 @@ class Staff(ScoreComponent, ScoreContainer):
     :param name: Name of this staff in the score
     """
 
-    def __init__(self, measures: Sequence['Measure'], name: str = None):
+    def __init__(self, measures: Sequence[Measure], name: str = None):
         ScoreContainer.__init__(self, measures, "measures", Measure)
         self.name = name
 
     @property
-    def measures(self) -> Sequence['Measure']:
+    def measures(self) -> Sequence[Measure]:
         """Chronological list of Measure objects contained in this staff"""
         return self._contents
 
@@ -1559,7 +1560,7 @@ class Staff(ScoreComponent, ScoreContainer):
 
     @classmethod
     def _from_measure_bins_of_voice_lists(cls, measure_bins, time_signatures: Sequence[TimeSignature],
-                                          name: str = None) -> 'Staff':
+                                          name: str = None) -> Staff:
         """
         Constructs a Staff from a specially formatted list of measures
 
@@ -1622,8 +1623,8 @@ class Measure(ScoreComponent, ScoreContainer):
     :ivar clef: Which clef to use for the measure. If none, clef is left unspecified.
     """
 
-    def __init__(self, voices: Sequence['Voice'], time_signature: TimeSignature, show_time_signature: bool = True,
-                 clef: Optional[str] = None):
+    def __init__(self, voices: Sequence[Voice], time_signature: TimeSignature, show_time_signature: bool = True,
+                 clef: str | None = None):
 
         ScoreContainer.__init__(self, voices, "voices", (Voice, type(None)), ("time_signature", "show_time_signature"))
         self.time_signature = time_signature
@@ -1633,7 +1634,7 @@ class Measure(ScoreComponent, ScoreContainer):
         self.clef = clef
 
     @property
-    def voices(self) -> Sequence['Voice']:
+    def voices(self) -> Sequence[Voice]:
         """List of Voices within this measure, in numbered order"""
         return self._contents
 
@@ -1650,7 +1651,7 @@ class Measure(ScoreComponent, ScoreContainer):
         return max(v.non_empty_length() for v in self.voices if v is not None)
 
     @classmethod
-    def empty_measure(cls, time_signature: TimeSignature, show_time_signature: bool = True) -> 'Measure':
+    def empty_measure(cls, time_signature: TimeSignature, show_time_signature: bool = True) -> Measure:
         """
         Constructs an empty measure (one voice with a bar rest)
 
@@ -1661,7 +1662,7 @@ class Measure(ScoreComponent, ScoreContainer):
 
     @classmethod
     def from_list_of_performance_voices(cls, voices_list, time_signature: TimeSignature,
-                                        show_time_signature: bool = True) -> 'Measure':
+                                        show_time_signature: bool = True) -> Measure:
         """
         Constructs a Measure for a specially formatted list of voices
 
@@ -1690,7 +1691,7 @@ class Measure(ScoreComponent, ScoreContainer):
                     voices.append(Voice.from_performance_voice(*voice_content))
             return cls(voices, time_signature, show_time_signature=show_time_signature)
 
-    def get_appropriate_clef(self, clef_choices: Sequence[Union[str, Tuple[str, Real]]]):
+    def get_appropriate_clef(self, clef_choices: Sequence[str | tuple[str, Real]]):
         # find the average pitch of this measure
         average_pitch = 0
         num_notes = 0
@@ -1767,17 +1768,17 @@ class Voice(ScoreComponent, ScoreContainer):
     :ivar time_signature: the time signature of the measure to which this voice belongs
     """
 
-    def __init__(self, contents: Sequence[Union['Tuplet', 'NoteLike']], time_signature: TimeSignature):
+    def __init__(self, contents: Sequence[Tuplet | NoteLike], time_signature: TimeSignature):
 
         ScoreContainer.__init__(self, contents, "contents", (Tuplet, NoteLike), ("time_signature", ))
         self.time_signature = time_signature
 
     @property
-    def contents(self) -> Sequence[Union['Tuplet', 'NoteLike']]:
+    def contents(self) -> Sequence[Tuplet | NoteLike]:
         """list of Tuplet or NoteLike objects in this voice"""
         return self._contents
 
-    def iterate_notes(self, include_rests: bool = False) -> Iterator['NoteLike']:
+    def iterate_notes(self, include_rests: bool = False) -> Iterator[NoteLike]:
         """
         Iterate through the notes (and possibly rests) within this Voice
 
@@ -1806,7 +1807,7 @@ class Voice(ScoreComponent, ScoreContainer):
         return non_empty_length
 
     @classmethod
-    def empty_voice(cls, time_signature: TimeSignature) -> 'Voice':
+    def empty_voice(cls, time_signature: TimeSignature) -> Voice:
         """
         Constructs an empty voice containing simply a bar rest.
 
@@ -1815,8 +1816,8 @@ class Voice(ScoreComponent, ScoreContainer):
         return cls(None, time_signature)
 
     @classmethod
-    def from_performance_voice(cls, notes: Sequence['performance_module.PerformanceNote'],
-                               measure_quantization: QuantizedMeasure) -> 'Voice':
+    def from_performance_voice(cls, notes: Sequence[performance_module.PerformanceNote],
+                               measure_quantization: QuantizedMeasure) -> Voice:
         """
         Constructs a Voice object from a list of PerformanceNotes
 
@@ -2162,7 +2163,7 @@ class Voice(ScoreComponent, ScoreContainer):
                     _join_same_source_abjad_note_group(same_source_group)
             return abjad().Voice(abjad_components)
 
-    def to_music_xml(self, source_id_dict=None) -> Sequence[Union[pymusicxml.BeamedGroup, _XMLNote]]:
+    def to_music_xml(self, source_id_dict=None) -> Sequence[pymusicxml.BeamedGroup | _XMLNote]:
         if len(self.contents) == 0:
             return [pymusicxml.BarRest(self.time_signature.numerator / self.time_signature.denominator * 4)]
         else:
@@ -2216,7 +2217,7 @@ class Tuplet(ScoreComponent, ScoreContainer):
     """
 
     def __init__(self, tuplet_divisions: int, normal_divisions: int, division_length: float,
-                 contents: Sequence['NoteLike'] = None):
+                 contents: Sequence[NoteLike] = None):
         ScoreContainer.__init__(self, contents, "contents", NoteLike,
                                 ("tuplet_divisions", "normal_divisions", "division_length"))
         self.tuplet_divisions = tuplet_divisions
@@ -2224,7 +2225,7 @@ class Tuplet(ScoreComponent, ScoreContainer):
         self.division_length = division_length
 
     @classmethod
-    def from_length_and_divisor(cls, length: float, divisor: int) -> Optional['Tuplet']:
+    def from_length_and_divisor(cls, length: float, divisor: int) -> Tuplet | None:
         """
         Constructs and returns the appropriate tuplet from the length and the divisor. Returns None if no tuplet needed.
 
@@ -2264,7 +2265,7 @@ class Tuplet(ScoreComponent, ScoreContainer):
             return cls(divisor, normal_divisions, 4.0 / normal_type)
 
     @property
-    def contents(self) -> Sequence['NoteLike']:
+    def contents(self) -> Sequence[NoteLike]:
         """List of NoteLike objects (notes and rests) contained in this tuplet"""
         return self._contents
 
@@ -2317,7 +2318,7 @@ class NoteLike(ScoreComponent):
     :ivar properties: a properties dictionary, same as found in a PerformanceNote
     """
 
-    def __init__(self, pitch: Union[Envelope, float, Tuple, None], volume: Union[Envelope, float, None],
+    def __init__(self, pitch: Envelope | float | tuple | None, volume: Envelope | float | None,
                  written_length: float, properties: NoteProperties):
 
         self.pitch = pitch
@@ -2397,7 +2398,7 @@ class NoteLike(ScoreComponent):
     def _get_stop_spanners(self):
         return [x for x in self.properties.spanners if x.START_MID_OR_STOP == "stop"]
 
-    def merge_with(self, other: 'NoteLike') -> 'NoteLike':
+    def merge_with(self, other: NoteLike) -> NoteLike:
         """
         Merges other into this note, adding its length and combining its articulations
 
@@ -2935,7 +2936,7 @@ class NoteLike(ScoreComponent):
                 chord_velocity = int(self.volume * 127)
         return chord_velocity
 
-    def source_id(self) -> Optional[int]:
+    def source_id(self) -> int | None:
         """
         ID representing the original PerformanceNote that this came from.
         Since PerformanceNotes are split up into tied segments, we need to keep track of which ones

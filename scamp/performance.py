@@ -21,6 +21,7 @@ into the notation-based classes in the score module.
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
+from __future__ import annotations
 import bisect
 from functools import total_ordering
 from numbers import Real
@@ -37,7 +38,7 @@ import logging
 from copy import deepcopy
 import itertools
 import textwrap
-from typing import Union, Sequence, Tuple, Iterator, Callable
+from typing import Sequence, Iterator, Callable
 from midiutil import MIDIFile
 from ._midi import MIDIChannelManager
 
@@ -61,8 +62,8 @@ class PerformanceNote(SavesToJSON):
     :ivar properties: dictionary of note properties, or string representing those properties
     """
 
-    def __init__(self, start_beat: float, length: Union[float, Tuple[float]], pitch: Union[float, Envelope, Sequence],
-                 volume: Union[float, Envelope], properties: dict):
+    def __init__(self, start_beat: float, length: float | tuple[float, ...], pitch: float | Envelope | Sequence,
+                 volume: float | Envelope, properties: dict):
         self.start_beat = start_beat
         # if length is a tuple, this indicates that the note is to be split into tied segments
         self.length = length
@@ -180,7 +181,7 @@ class PerformanceNote(SavesToJSON):
             # simple length, not a tuple
             return split_point, length - split_point
 
-    def split_at_beat(self, split_beat: float) -> Sequence['PerformanceNote']:
+    def split_at_beat(self, split_beat: float) -> Sequence[PerformanceNote]:
         """
         Splits this note at the given beat, returning a tuple of the pieces created
 
@@ -289,7 +290,7 @@ class PerformanceNote(SavesToJSON):
 
             return self, second_part
 
-    def split_at_length_divisions(self) -> Sequence['PerformanceNote']:
+    def split_at_length_divisions(self) -> Sequence[PerformanceNote]:
         """
         If the self.length is a tuple, indicating a set of tied constituents, splits this into separate PerformanceNotes
 
@@ -306,7 +307,7 @@ class PerformanceNote(SavesToJSON):
             pieces.extend(last_piece.split_at_beat(last_piece.start_beat + piece_length))
         return pieces
 
-    def attempt_chord_merger_with(self, other: 'PerformanceNote') -> bool:
+    def attempt_chord_merger_with(self, other: PerformanceNote) -> bool:
         """
         Try to merge this note with another note to form a chord.
         Returns whether it worked or not, and when it did, has the side effect of changing this note into a chord
@@ -390,7 +391,7 @@ class PerformanceNote(SavesToJSON):
 
 class _NoteFiltersMixin:
 
-    def apply_note_filter(self, filter_function: Callable[['PerformanceNote'], None],
+    def apply_note_filter(self, filter_function: Callable[[PerformanceNote], None],
                           start_beat: float = 0, stop_beat: float = None,
                           selected_voices: Sequence[str] = None):
         """
@@ -407,7 +408,7 @@ class _NoteFiltersMixin:
             filter_function(note)
         return self
 
-    def apply_pitch_filter(self, filter_function: Callable[[Union[Envelope, float]], Union[Envelope, float]],
+    def apply_pitch_filter(self, filter_function: Callable[[Envelope | float], Envelope | float],
                            start_beat: float = 0, stop_beat: float = None,
                            selected_voices: Sequence[str] = None):
         """
@@ -437,7 +438,7 @@ class _NoteFiltersMixin:
         """
         return self.apply_pitch_filter(lambda p: p + interval)
 
-    def apply_volume_filter(self, filter_function: Callable[[Union[Envelope, float]], Union[Envelope, float]],
+    def apply_volume_filter(self, filter_function: Callable[[Envelope | float], Envelope | float],
                             start_beat: float = 0, stop_beat: float = None,
                             selected_voices: Sequence[str] = None):
         """
@@ -477,9 +478,9 @@ class PerformancePart(SavesToJSON, _NoteFiltersMixin):
     :ivar voice_quantization_records: dictionary mapping voice names to QuantizationRecords, if this is quantized
     """
 
-    def __init__(self, instrument: ScampInstrument = None, name: str = None, voices: Union[dict, Sequence] = None,
-                 instrument_id: Tuple[str, int] = None, voice_quantization_records: dict = None,
-                 clef_preference: Sequence[Union[str, Tuple[str, Real]]] = None):
+    def __init__(self, instrument: ScampInstrument = None, name: str = None, voices: dict | Sequence = None,
+                 instrument_id: tuple[str, int] = None, voice_quantization_records: dict = None,
+                 clef_preference: Sequence[str | tuple[str, Real]] = None):
         self.instrument = instrument  # A ScampInstrument instance
         self.clef_preference = clef_preference if clef_preference is not None \
             else instrument.resolve_clef_preference() if instrument is not None \
@@ -688,7 +689,7 @@ class PerformancePart(SavesToJSON, _NoteFiltersMixin):
                 sub_clock.tempo_history.append_envelope(tempo_envelope)
             return sub_clock
 
-    def set_instrument_from_ensemble(self, ensemble: Ensemble) -> 'PerformancePart':
+    def set_instrument_from_ensemble(self, ensemble: Ensemble) -> PerformancePart:
         """
         Set the default instrument to play back with based on the best fit in the given ensemble
 
@@ -809,7 +810,7 @@ class PerformancePart(SavesToJSON, _NoteFiltersMixin):
 
     def quantize(self, quantization_scheme: QuantizationScheme = "default",
                  onset_weighting: float = "default",
-                 termination_weighting: float = "default") -> 'PerformancePart':
+                 termination_weighting: float = "default") -> PerformancePart:
         """
         Quantizes this PerformancePart according to the quantization_scheme
 
@@ -830,7 +831,7 @@ class PerformancePart(SavesToJSON, _NoteFiltersMixin):
 
     def quantized(self, quantization_scheme: QuantizationScheme = "default",
                   onset_weighting: float = "default",
-                  termination_weighting: float = "default") -> 'PerformancePart':
+                  termination_weighting: float = "default") -> PerformancePart:
         """
         Same as quantize, except that it returns a new copy, rather than changing this PerformancePart in place.
 
@@ -1050,7 +1051,7 @@ class Performance(SavesToJSON, _NoteFiltersMixin):
             except StopIteration:
                 next_notes[note_to_pop] = None
 
-    def remap_to_tempo(self, tempo: Union[TempoEnvelope, float]):
+    def remap_to_tempo(self, tempo: TempoEnvelope | float):
         """
         Remaps this performance to use the given tempo or tempo envelope. All notes will happen at the same time, but
         on different beats.
@@ -1141,7 +1142,7 @@ class Performance(SavesToJSON, _NoteFiltersMixin):
         else:
             return clock.fork(_performance_playback)
 
-    def set_instruments_from_ensemble(self, ensemble: Ensemble, override: bool = True) -> 'Performance':
+    def set_instruments_from_ensemble(self, ensemble: Ensemble, override: bool = True) -> Performance:
         """
         Set the playback instruments for each part in this Performance by their best match in the ensemble given.
         If override is False, only set the instrument for parts that don't already have one set.
@@ -1156,7 +1157,7 @@ class Performance(SavesToJSON, _NoteFiltersMixin):
         return self
 
     def quantize(self, quantization_scheme: QuantizationScheme = "default", onset_weighting: float = "default",
-                 termination_weighting: float = "default") -> 'Performance':
+                 termination_weighting: float = "default") -> Performance:
         """
         Quantizes all parts according to the quantization_scheme
 
@@ -1178,7 +1179,7 @@ class Performance(SavesToJSON, _NoteFiltersMixin):
         return self
 
     def quantized(self, quantization_scheme: QuantizationScheme = "default", onset_weighting: float = "default",
-                  termination_weighting: float = "default") -> 'Performance':
+                  termination_weighting: float = "default") -> Performance:
         """
         Same as quantize, except that it returns a new copy, rather than changing this Performance in place.
 
@@ -1260,7 +1261,7 @@ class Performance(SavesToJSON, _NoteFiltersMixin):
             with open(output_file, "wb") as output_file:
                 midi_file.writeFile(output_file)
 
-    def to_score(self, quantization_scheme: QuantizationScheme = None, time_signature: Union[str, Sequence] = None,
+    def to_score(self, quantization_scheme: QuantizationScheme = None, time_signature: str | Sequence = None,
                  bar_line_locations: Sequence[float] = None, max_divisor: int = None,
                  max_divisor_indigestibility: int = None, simplicity_preference: float = None, title: str = "default",
                  composer: str = "default") -> Score:
