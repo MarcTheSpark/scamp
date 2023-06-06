@@ -59,16 +59,12 @@ to search for and install the following:
 
 - ``scamp_extensions`` (offers a range of useful extensions, like scales and other musical constructs)
 
+- ``abjad`` (generate PDFs of music notation using LilyPond; SCAMP is currently built for abjad version 3.18)
+
 .. note::
 
     On Linux, in order to install ``python-rtmidi`` you may have to first install the Python development headers.
     On Debian-based distros, simply run ``sudo apt install python3-dev`` from a terminal.
-
-Finally, if you want to be able generate PDFs of music notation using LilyPond, you will need to install the ``abjad``
-package, as well as LilyPond itself (see step 4). One wrinkle here is that SCAMP is based on version 3.4 of abjad,
-rather than the latest version. To install that specific version of abjad, search for abjad, and then click the
-three dots to the right of the install button. A dialog will pop up allowing you to select the desired version.
-Choose 3.4, and click install.
 
 +--------+--------+
 ||pic1b| | |pic2b||
