@@ -59,7 +59,7 @@ to search for and install the following:
 
 - ``scamp_extensions`` (offers a range of useful extensions, like scales and other musical constructs)
 
-- ``abjad`` (generate PDFs of music notation using LilyPond; SCAMP is currently built for abjad version 3.18)
+- ``abjad`` (generate PDFs of music notation using LilyPond)
 
 .. note::
 

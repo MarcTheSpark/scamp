@@ -123,7 +123,7 @@ release = scamp.__version__
 with open("narrative/experienced_setup.rst", "r+") as f:
     data = f.read()
     f.seek(0)
-    output = re.sub(r'abjad==.*', r'abjad=={}'.format(scamp._package_info.ABJAD_VERSION), data)
+    output = re.sub(r'abjad==.*', r'abjad=={}'.format(scamp._dependencies.ABJAD_VERSION), data)
     f.write(output)
     f.truncate()
 

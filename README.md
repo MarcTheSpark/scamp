@@ -85,7 +85,7 @@ running `pip3 install --user scamp`, you should be able to test the installation
 
 If you here a piano gesture sweeping inward towards middle C, SCAMP has installed correctly!
 
-### 1) Installing Python 3.6 or greater
+### 1) Installing Python 3.10 or greater
 
 ___Mac___
 
@@ -93,44 +93,30 @@ You can download and install Python 3 here: [https://www.python.org/downloads/](
 
 `python3 --version`
 
-You should be greeted with "Python 3.7.2" or something similar in response. If so, you're all set! 
+You should be greeted with "Python 3.10" or something similar in response. If so, you're all set! 
 If you get something like "command not found" instead, it's likely that something went wrong in the process of installation.
 
 ___Windows___
 
 As on a Mac, you can download and install Python 3 here: [https://www.python.org/downloads/](https://www.python.org/downloads/). 
-In the installer, be sure to select "Add Python 3.7 to PATH". This allows you to invoke python from the Command Prompt 
+In the installer, be sure to select "Add Python 3.10 to PATH". This allows you to invoke python from the Command Prompt 
 by typing either `python` or `py`, and this should also default to the latest version of python. Test that all went
 according to plan by typing:
 
 `python --version`
 
-You should be greeted with "Python 3.7.2" or something similar in response. If so, you're all set! For all other installation instructions below, use `python` instead of `python3` and `pip` instead of `pip3`.
+You should be greeted with "Python 3.10" or something similar in response. If so, you're all set! For all other installation instructions below, use `python` instead of `python3` and `pip` instead of `pip3`.
 
 ___Linux___
 
-On Linux, Python 3.6 or greater is often already installed by default. Again, you can check this 
+On Linux, Python 3.10 or greater is often already installed by default. Again, you can check this 
 by opening a terminal and running:
 
 `python3 --version`
 
-If your version of python is already 3.6 or greater, you're good to go. However, if your version 
-of Python 3 is less than 3.6, as might happen on an older distro, you can install Python 3.6 via 
-a PPA, such as Felix Krull's deadsnakes PPA on Ubuntu:
-
-```
-sudo add-apt-repository ppa:deadsnakes/ppa
-sudo apt-get update
-sudo apt-get install python3.6
-```
-
-It might then be useful to add the following line to your `~/.bashrc` file:
-
-`alias pip3.6="python3.6 -m pip"`
-
-From there on, you can proceed to use the commands `pip3.6` and `python3.6` in place of `pip3` 
-and `python3` to install SCAMP, manage dependencies, and invoke the correct version of Python. 
-(Don't do anything with the earlier version of Python; it's used by the operating system.)
+If your version of python is already 3.10 or greater, you're good to go. However, if your version 
+of Python 3 is less than 3.10, you will have to install python 3.10 or higher, e.g. from a third 
+party PPA.
 
 ### 2) (Linux only) Installing FluidSynth
 
@@ -169,12 +155,12 @@ For LilyPond output, you will need the [_abjad_](http://abjad.mbrsi.org/installa
 run the following:
 
 ```
-pip3 install abjad==3.3
+pip3 install abjad
 ```
 
-Note the '==' in the command, which specifies the exact version of abjad to install. This is the version that SCAMP 
-has been built to be compatible with. You are free to use a newer version, but it is possible there will be unexpected
-errors due to changes in the abjad API.
+Note that abjad sometimes changes in a way that breaks compatibility with SCAMP. If you are using a version of abjad 
+that is more recent than the one SCAMP was tested with, a warning will indicate this fact when you try to use 
+it to generate notation.
 
 After installing _abjad_, you will also need to [download and install LilyPond](https://lilypond.org/), since it
 is a dependency of abjad.

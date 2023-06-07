@@ -15,11 +15,13 @@
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
 from .settings import playback_settings, engraving_settings
-from ._package_info import ABJAD_VERSION, ABJAD_MIN_VERSION
 import logging
 import os
 import platform
 from pathlib import Path
+import importlib.metadata
+import re
+
 
 try:
     if playback_settings.try_system_fluidsynth_first:
@@ -128,6 +130,18 @@ _perform_lilypond_search = \
 
 def _abjad_version_to_tuple(version):
     return tuple(int(x) for x in version.split("."))
+
+
+# parse the abjad versions required
+for requirement in importlib.metadata.requires('scamp'):
+    if "abjad" in requirement.split(";")[0]:
+        abjad_req = requirement.split(";")[0]
+        versions = re.findall(r'(\d+\.\d+)', abjad_req)
+        if not versions:
+            ABJAD_MIN_VERSION, ABJAD_VERSION = "0.0", "9.9"
+        else:
+            ABJAD_MIN_VERSION = min(versions, key=_abjad_version_to_tuple)
+            ABJAD_VERSION = max(versions, key=_abjad_version_to_tuple)
 
 
 def abjad():

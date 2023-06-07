@@ -40,5 +40,7 @@ from ._midi import get_available_midi_input_devices, get_available_midi_output_d
     print_available_midi_input_devices, print_available_midi_output_devices, get_port_number_of_midi_device
 from .playback_adjustments import NotePlaybackAdjustment, ParamPlaybackAdjustment
 from .note_properties import NoteProperties
-from ._package_info import version as __version__
-from ._package_info import author as __author__
+import importlib.metadata
+
+__version__ = importlib.metadata.version('scamp')
+__author__ = importlib.metadata.metadata('scamp')['Author']
