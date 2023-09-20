@@ -531,7 +531,8 @@ class ScoreComponent(ABC):
         :param non_score_blocks: a list of :class:`abjad.Block` objects (or strings containing the LilyPond code for
             such a block, which are then parsed by abjad); typical blocks might be a \header block, a
             \layout block, or a \paper block. If no header block is specified, one will be created with the score's
-            title and composer. If a header is specified, title and composer will be added if not present.
+            title and composer. If a header is specified,it is assumed that this already contains any title and composer
+            information, and so the score object's title and composer will be ignored.
         :param lilypond_file_args: any additional keyword arguments will be passed along to the constructor of
             :class:`abjad.LilyPondFile`. This allows for setting staff size and various other customizations.
         """
@@ -548,16 +549,14 @@ class ScoreComponent(ABC):
 
         for block in non_score_blocks:
             if block.name == "header":
-                header_block = block
                 break
         else:
             header_block = abjad().Block(name="header")
+            if self.title is not None:
+                header_block.items.append(f"title = \"{self.title}\"")
+            if self.composer is not None:
+                header_block.items.append(f"composer = \"{self.composer}\"")
             non_score_blocks.insert(0, header_block)
-
-        if title is not None and not hasattr(header_block, "title"):
-            header_block.title = abjad().Markup(r'\markup { ' + title + ' }')
-        if composer is not None and not hasattr(header_block, "composer"):
-            header_block.composer = abjad().Markup(r'\markup { ' + composer + ' }')
 
         score_block = abjad().Block(name="score")
         score_block.items.append(abjad_object)
