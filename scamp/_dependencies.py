@@ -115,9 +115,6 @@ def find_lilypond():
             return str(potential_lp_binary.parent.resolve())
 
 
-# The first time we see that abjad is the wrong version, show a warning, but then set this flag and don't show it again
-_abjad_warning_given = False
-
 # Will need to search for lilypond binary if:
 # - On Mac or Windows and we don't have a saved engraving_settings.lilypond_dir
 # - We're on Windows and there is a saved engraving_settings.lilypond_dir, but no lilypond.exe is found there
@@ -144,22 +141,29 @@ for requirement in importlib.metadata.requires('scamp'):
             ABJAD_VERSION = max(versions, key=_abjad_version_to_tuple)
 
 
+_abjad_library = None
+
+
 def abjad():
-    # we make this a function that returns the abjad module so that we don't have to load it unless we need it
-    # (since it's kinda slow to load)
-    global _abjad_warning_given, _perform_lilypond_search
+    """
+    We make this a function that returns the abjad module so that we don't have to load it unless we need it
+    (since it's kinda slow to load)
+    """
+    global _abjad_library, _perform_lilypond_search
+
+    if _abjad_library:
+        return _abjad_library
+
     try:
         import abjad as abjad_library
     except ImportError:
         raise ImportError("abjad was not found; LilyPond output is not available.")
 
     if not hasattr(abjad_library, '__version__'):
-        if not _abjad_warning_given:
-            logging.warning(
-                f"abjad library is present, but its version could not be identified. Note that scamp requires abjad "
-                f"version {ABJAD_MIN_VERSION}{ABJAD_VERSION}"
-            )
-            _abjad_warning_given = True
+        logging.warning(
+            f"abjad library is present, but its version could not be identified. Note that scamp requires abjad "
+            f"version {ABJAD_MIN_VERSION}{ABJAD_VERSION}"
+        )
     elif _abjad_version_to_tuple(abjad_library.__version__) < _abjad_version_to_tuple(ABJAD_MIN_VERSION):
         raise ImportError(
             "abjad version {} found, but SCAMP is built for {}. "
@@ -170,24 +174,22 @@ def abjad():
                     ABJAD_VERSION)
         )
     elif _abjad_version_to_tuple(abjad_library.__version__) > _abjad_version_to_tuple(ABJAD_VERSION):
-        if not _abjad_warning_given:
-            logging.warning(
-                "abjad version {} found, but SCAMP is built for earlier version {}. The newer version may not be "
-                "backwards compatible. If errors occur, run `pip3 install abjad=={}` to downgrade."
-                .format(abjad_library.__version__, ABJAD_VERSION, ABJAD_VERSION)
-            )
-            _abjad_warning_given = True
+        logging.warning(
+            "abjad version {} found, but SCAMP is built for earlier version {}. The newer version may not be "
+            "backwards compatible. If errors occur, run `pip3 install abjad=={}` to downgrade."
+            .format(abjad_library.__version__, ABJAD_VERSION, ABJAD_VERSION)
+        )
 
     if _perform_lilypond_search:
         # need to perform a lilypond search
         engraving_settings.lilypond_dir = find_lilypond()
         engraving_settings.make_persistent()
-        # don't search again, since we already searched
-        _perform_lilypond_search = False
 
     # add lilypond to PATH if needed
     if engraving_settings.lilypond_dir is not None:
         os.environ["PATH"] += os.pathsep + engraving_settings.lilypond_dir
+
+    _abjad_library = abjad_library
 
     return abjad_library
 

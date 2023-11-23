@@ -583,7 +583,9 @@ class ScampInstrument(SavesToJSON):
         :param silent: see description for "play_note"
         :param transcribe: see description for "play_note"
         """
-        
+
+        clock, blocking = self._resolve_clock(clock, blocking)
+
         # A convenience: passing "None" to the pitch just causes a wait call
         if pitches is None:
             if blocking:
