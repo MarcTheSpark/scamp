@@ -123,13 +123,16 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
         dynamic pitch/volume/parameter changes. Without this flag, notes will all be placed on separate MIDI channels,
         since they could potentially change pitch or volume; with this flags, we know they won't, so they can share
         the same MIDI channels, only using an extra one due to microtonality.
+    :param volume_cc_num: The cc value used for volume changes. Defaults to 11 (expression).
     """
 
-    def __init__(self, num_channels: int = 8, note_on_and_off_only: bool = False):
+    def __init__(self, num_channels: int = 8, note_on_and_off_only: bool = False,
+                 volume_cc_num: int = 11):
         super().__init__()
         self.note_on_and_off_only = note_on_and_off_only
         self.num_channels = num_channels
         self.midi_channel_manager = MIDIChannelManager(num_channels)
+        self.volume_cc_num = volume_cc_num
         self._note_info = {}
 
     # -------------------------- Abstract methods to be implemented by subclasses--------------
@@ -175,17 +178,6 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
         pass
 
     @abstractmethod
-    def expression(self, chan, expression_from_0_to_1) -> None:
-        """
-        Sends a midi expression message
-
-        :param chan: channel to send message on
-        :param expression_from_0_to_1: expression to send (NB: scaled from 0 to 1)
-        :return:
-        """
-        pass
-
-    @abstractmethod
     def cc(self, chan: int, cc_number: int, value_from_0_to_1: float) -> None:
         """
         Sends an arbitrary midi CC message
@@ -195,6 +187,15 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
         :param value_from_0_to_1: value to send (NB: scaled from 0 to 1)
         """
         pass
+
+    def volume_cc(self, chan, volume_from_0_to_1) -> None:
+        """
+        Sends a midi expression message
+
+        :param chan: channel to send message on
+        :param volume_from_0_to_1: volume to send (NB: scaled from 0 to 1)
+        """
+        self.cc(chan, self.volume_cc_num, volume_from_0_to_1)
 
     # -------------------------------- Main Playback Methods --------------------------------
 
@@ -233,7 +234,7 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
 
         if not self.note_on_and_off_only:
             # start it at the max volume that it will ever reach, and use expression to get to the start volume
-            self.expression(chan, volume / this_note_info["max_volume"] if this_note_info["max_volume"] > 0 else 0)
+            self.volume_cc(chan, volume / this_note_info["max_volume"] if this_note_info["max_volume"] > 0 else 0)
             for cc_num, cc_value in cc_values.items():
                 self.cc(chan, cc_num, cc_value)
 
@@ -266,7 +267,7 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
         if note_id in self._note_info:  # make sure the note is active
             this_note_info = self._note_info[note_id]
             if not this_note_info["prematurely_ended"]:
-                self.expression(this_note_info["channel"], new_volume / this_note_info["velocity"])
+                self.volume_cc(this_note_info["channel"], new_volume / this_note_info["velocity"])
 
     def change_note_parameter(self, note_id, parameter_name, new_value):
         if self.note_on_and_off_only:
@@ -302,8 +303,9 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
     soundfont_hosts = {}
 
     def __init__(self, bank_and_preset: tuple[int, int] = (0, 0), soundfont: str = "default", num_channels: int = 8,
-                 audio_driver: str = "default", max_pitch_bend: int = "default", note_on_and_off_only: bool = False):
-        super().__init__(num_channels, note_on_and_off_only)
+                 audio_driver: str = "default", max_pitch_bend: int = "default", note_on_and_off_only: bool = False,
+                 volume_cc_num: int = 11):
+        super().__init__(num_channels, note_on_and_off_only, volume_cc_num)
 
         # we hold onto these arguments for the purposes of json serialization
         # note that if the audio_driver said "default", then we save it as "default",
@@ -352,9 +354,6 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
         self.soundfont_instrument.set_max_pitch_bend(semitones)
         self.max_pitch_bend = semitones
 
-    def expression(self, chan: int, expression_from_0_to_1: float):
-        self.soundfont_instrument.cc(chan, 11, expression_from_0_to_1)
-
     def cc(self, chan: int, cc_number: int, value_from_0_to_1: float):
         self.soundfont_instrument.cc(chan, cc_number, value_from_0_to_1)
 
@@ -390,8 +389,9 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
     """
 
     def __init__(self, midi_output_device: str = "default", num_channels=8, midi_output_name: str | None = None,
-                 max_pitch_bend: int = "default", note_on_and_off_only: bool = False, start_channel=0):
-        super().__init__(num_channels, note_on_and_off_only)
+                 max_pitch_bend: int = "default", note_on_and_off_only: bool = False, start_channel=0,
+                 volume_cc_num: int = 11):
+        super().__init__(num_channels, note_on_and_off_only, volume_cc_num)
 
         # we hold onto these arguments for the purposes of json serialization
         # note that if the midi_output_device or midi_output_name said "default",
@@ -463,9 +463,6 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
             rt_simple_out.cc(chan, 100, 127)
 
         self.max_pitch_bend = max_bend_in_semitones
-
-    def expression(self, chan: int, expression_from_0_to_1: float):
-        self.cc(chan, 11, expression_from_0_to_1)
 
     def cc(self, chan: int, cc_number: int, value_from_0_to_1: float):
         rt_simple_out, chan = self._get_rt_simple_out_and_channel(chan)

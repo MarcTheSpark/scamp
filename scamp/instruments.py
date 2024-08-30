@@ -144,7 +144,7 @@ class Ensemble(SavesToJSON):
     def new_part(self, name: str = None, preset="auto", soundfont: str = "default", num_channels: int = 8,
                  audio_driver: str = "default", max_pitch_bend: int = "default",
                  note_on_and_off_only: bool = False, default_spelling_policy: SpellingPolicy = None,
-                 clef_preference="from_name") -> ScampInstrument:
+                 clef_preference="from_name", volume_cc_num: int = 11) -> ScampInstrument:
         """
         Creates and returns a new ScampInstrument for this Ensemble that uses a SoundfontPlaybackImplementation. Unless
         otherwise specified, the default soundfont for this Ensemble/Session will be used, and we will search for the
@@ -165,6 +165,7 @@ class Ensemble(SavesToJSON):
             won't, so they can share the same MIDI channels, only using an extra one due to microtonality.
         :param default_spelling_policy: the :attr:`~ScampInstrument.default_spelling_policy` for the new part
         :param clef_preference: the :attr:`~ScampInstrument.clef_preference` for the new part
+        :param volume_cc_num: The cc value used for volume changes. Defaults to 11 (expression).
         :return: the newly created ScampInstrument
         """
         # Resolve soundfont and audio driver to ensemble defaults if necessary (these may well be the string
@@ -184,14 +185,16 @@ class Ensemble(SavesToJSON):
                                           clef_preference=clef_preference)
         instrument.add_soundfont_playback(preset=preset, soundfont=soundfont, num_channels=num_channels,
                                           audio_driver=audio_driver, max_pitch_bend=max_pitch_bend,
-                                          note_on_and_off_only=note_on_and_off_only)
+                                          note_on_and_off_only=note_on_and_off_only,
+                                          volume_cc_num=volume_cc_num)
 
         return instrument
 
     def new_midi_part(self, name: str = None, midi_output_device: int | str = None,
                       num_channels: int = 8, midi_output_name: str = None, max_pitch_bend: int = "default",
                       note_on_and_off_only: bool = False, default_spelling_policy: SpellingPolicy = None,
-                      clef_preference="from_name", start_channel: int = 0) -> ScampInstrument:
+                      clef_preference="from_name", start_channel: int = 0,
+                      volume_cc_num: int = 11) -> ScampInstrument:
         """
         Creates and returns a new ScampInstrument for this Ensemble that uses a MIDIStreamPlaybackImplementation.
         This means that when notes are played by this instrument, midi messages are sent out to the given device.
@@ -213,6 +216,7 @@ class Ensemble(SavesToJSON):
         :param start_channel: the first channel to use. For instance, if start_channel is 4, and num_channels is 5,
             we will use channels (4, 5, 6, 7, 8). NOTE: channel counting in SCAMP starts from 0, so this may show
             up as channels 5-9 in your MIDI software.
+        :param volume_cc_num: The cc value used for volume changes. Defaults to 11 (expression).
         :return: the newly created ScampInstrument
         """
 
@@ -224,7 +228,8 @@ class Ensemble(SavesToJSON):
                                           clef_preference=clef_preference)
         instrument.add_streaming_midi_playback(midi_output_device=midi_output_device, num_channels=num_channels,
                                                midi_output_name=midi_output_name, max_pitch_bend=max_pitch_bend,
-                                               note_on_and_off_only=note_on_and_off_only, start_channel=start_channel)
+                                               note_on_and_off_only=note_on_and_off_only, start_channel=start_channel,
+                                               volume_cc_num=volume_cc_num)
 
         return instrument
 
@@ -972,7 +977,8 @@ class ScampInstrument(SavesToJSON):
 
     def add_soundfont_playback(self, preset: str | int | tuple[int, int] = "auto", soundfont: str = "default",
                                num_channels: int = 8, audio_driver: str = "default",  max_pitch_bend: int = "default",
-                               note_on_and_off_only: bool = False) -> ScampInstrument:
+                               note_on_and_off_only: bool = False,
+                               volume_cc_num: int = 11) -> ScampInstrument:
         """
         Add a soundfont playback implementation for this instrument.
 
@@ -990,6 +996,7 @@ class ScampInstrument(SavesToJSON):
             doesn't do any dynamic pitch/volume/parameter changes. Without this flag, notes will all be placed on
             separate MIDI channels, since they could potentially change pitch or volume; with this flags, we know they
             won't, so they can share the same MIDI channels, only using an extra one due to microtonality.
+        :param volume_cc_num: The cc value used for volume changes. Defaults to 11 (expression).
         :return: self, for chaining purposes
         """
         soundfont = self.ensemble.default_soundfont \
@@ -1002,7 +1009,8 @@ class ScampInstrument(SavesToJSON):
         self.playback_implementations.append(
             SoundfontPlaybackImplementation(bank_and_preset=preset, soundfont=soundfont, num_channels=num_channels,
                                             audio_driver=audio_driver, max_pitch_bend=max_pitch_bend,
-                                            note_on_and_off_only=note_on_and_off_only)
+                                            note_on_and_off_only=note_on_and_off_only,
+                                            volume_cc_num=volume_cc_num)
         )
         return self
 
@@ -1020,7 +1028,8 @@ class ScampInstrument(SavesToJSON):
 
     def add_streaming_midi_playback(self, midi_output_device: int | str = "default", num_channels: int = 8,
                                     midi_output_name: str = None, max_pitch_bend: int = "default",
-                                    note_on_and_off_only: bool = False, start_channel: int = 0) -> ScampInstrument:
+                                    note_on_and_off_only: bool = False, start_channel: int = 0,
+                                    volume_cc_num: int = 11) -> ScampInstrument:
         """
         Add a streaming MIDI playback implementation for this instrument.
 
@@ -1036,12 +1045,14 @@ class ScampInstrument(SavesToJSON):
         :param start_channel: the first channel to use. For instance, if start_channel is 4, and num_channels is 5,
             we will use channels (4, 5, 6, 7, 8). NOTE: channel counting in SCAMP starts from 0, so this may show
             up as channels 5-9 in your MIDI software.
+        :param volume_cc_num: The cc value used for volume changes. Defaults to 11 (expression).
         :return: self, for chaining purposes
         """
         self.playback_implementations.append(
             MIDIStreamPlaybackImplementation(midi_output_device=midi_output_device, num_channels=num_channels,
                                              midi_output_name=midi_output_name, max_pitch_bend=max_pitch_bend,
-                                             note_on_and_off_only=note_on_and_off_only, start_channel=start_channel)
+                                             note_on_and_off_only=note_on_and_off_only, start_channel=start_channel,
+                                             volume_cc_num=volume_cc_num)
         )
         return self
 

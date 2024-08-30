@@ -757,6 +757,7 @@ class PerformancePart(SavesToJSON, _NoteFiltersMixin):
                 channel = mcm.assign_note_to_channel(
                     note_id, int_pitch, pitch_bend,
                     "variable" if any(isinstance(x, Envelope) for x in note.properties.get_midi_cc_params().values())
+                    or isinstance(note.volume, Envelope)
                     else cc_start_values
                 )
                 # Go through all of cc_start_values and send the appropriate midi messages to get it started
