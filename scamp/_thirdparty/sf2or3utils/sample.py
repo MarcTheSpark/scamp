@@ -1,10 +1,37 @@
-import audioop
 import logging
 import sys
 import wave
 from contextlib import closing
-
+import numpy as np
 from .riffparser import from_cstr
+
+
+def byteswap_np(fragment, width):
+    """
+    Reverse the byte order in each sample of the given fragment using NumPy. Replaces audioop.byteswap for python>3.13.
+    Written by ChatGPT o3-mini
+
+    :param fragment: A bytes object containing the audio data.
+    :param width: The number of bytes per sample.
+    :return: A new bytes object with each sample's bytes reversed.
+    :raises ValueError: If len(fragment) is not a multiple of width.
+    """
+    if width == 1:
+        return fragment
+
+    if len(fragment) % width != 0:
+        raise ValueError("Length of fragment is not a multiple of width")
+
+    # Create a NumPy array of type uint8 from the input bytes
+    arr = np.frombuffer(fragment, dtype=np.uint8)
+
+    # Reshape into rows of 'width' bytes (each row is a sample)
+    arr = arr.reshape(-1, width)
+
+    # Reverse the bytes in each sample (i.e., reverse each row)
+    swapped = arr[:, ::-1]
+
+    return swapped.tobytes()
 
 
 class Sf2Sample(object):
@@ -94,7 +121,7 @@ class Sf2Sample(object):
 
         # soundfont smpl samples are packed as 16bits little endian, switch order if our system is big endian
         if sys.byteorder == 'big':
-            higher_part = audioop.byteswap(higher_part, 2)
+            higher_part = byteswap_np(higher_part, 2)
 
         # in 16bits only, return the top 16bits
         if self.sm24_offset is None:
