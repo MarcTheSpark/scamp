@@ -41,6 +41,8 @@ from ._midi import get_available_midi_input_devices, get_available_midi_output_d
 from .playback_adjustments import NotePlaybackAdjustment, ParamPlaybackAdjustment
 from .note_properties import NoteProperties
 import importlib.metadata
+from ._soundfont_host import print_soundfont_presets
+
 
 __version__ = importlib.metadata.version('scamp')
 __author__ = importlib.metadata.metadata('scamp')['Author']
