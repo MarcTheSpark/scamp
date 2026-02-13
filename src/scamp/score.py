@@ -585,7 +585,7 @@ class ScoreComponent(ABC):
                                                              **lilypond_file_args)))
 
     def export_pdf(self, file_path: str, non_score_blocks: Sequence = None, **lilypond_file_args) -> None:
-        """
+        r"""
         Exports score as a PDF file and saves it to the given file_path
 
         :param file_path: where to save the PDF
@@ -621,7 +621,7 @@ class ScoreComponent(ABC):
 
     def print_lilypond(self, wrap_as_file: bool = False, non_score_blocks: Sequence = None,
                        **lilypond_file_args) -> None:
-        """
+        r"""
         Convert and print LilyPond code, via the `abjad` library.
 
         :param wrap_as_file: if True, wraps this as an :class:`abjad.LilypondFile`

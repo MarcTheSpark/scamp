@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scamp"
+version = "0.9.3.1"
+description = "A computer-assisted composition framework that manages the flow of musical time, plays back notes via SoundFonts, MIDI or OSC, and quantizes and saves the result to music notation."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "GPL-3.0-only"
+license-files = ["LICENSE.txt"]
+
+authors = [
+    { name = "Marc Evanstein", email = "marc@marcevanstein.com" }
+]
+
+dependencies = [
+    "pymusicxml>=0.5.6",
+    "expenvelope>=0.7.2",
+    "clockblocks>=0.6.9",
+    "python-osc",
+    "arpeggio",
+    "midiutil",
+    "numpy"
+]
+
+[project.optional-dependencies]
+all = [
+    "abjad>=3.17,<=3.19",
+    "python-rtmidi",
+    "pynput"
+]
+
+[project.urls]
+"Source Code" = "https://sr.ht/~marcevanstein/scamp/"
+Documentation = "http://scamp.marcevanstein.com/"
+Forum = "http://scampsters.marcevanstein.com/"
+
+[project.entry-points."pyinstaller40"]
+hook-dirs = "scamp.__pyinstaller:get_hook_dirs"
+tests = "scamp.__pyinstaller:get_PyInstaller_tests"
+
+[tool.setuptools]
+zip-safe = false
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+scamp = [
+    "soundfonts/*",
+    "lilypond/*",
+    "_thirdparty/mac_libs/*",
+    "_thirdparty/windows_libs/*"
+]

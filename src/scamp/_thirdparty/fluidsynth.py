@@ -59,12 +59,12 @@ def _try_to_load_local_fl_library():
             logging.debug("No local copy (not on mac or windows).")
     except OSError as e:
         logging.debug("Encountered error during load: '{}'".format(str(e)))
-    finally:
-        if out is None:
-            logging.debug("Loading of SCAMP's copy of fluidsynth DLL/DYLIB failed.")
-        else:
-            logging.debug("Loading of SCAMP's copy of fluidsynth DLL/DYLIB succeeded.")
-        return out
+
+    if out is None:
+        logging.debug("Loading of SCAMP's copy of fluidsynth DLL/DYLIB failed.")
+    else:
+        logging.debug("Loading of SCAMP's copy of fluidsynth DLL/DYLIB succeeded.")
+    return out
 
 
 def _try_to_load_system_fl_library():
