@@ -44,8 +44,10 @@ notations_key = r'notations?' ":"
 notation_value = {all_notations}
 notations = notations_key? notation_value ("/" notation_value)*
 
+color_annotation = r'\[#[0-9A-Fa-f]{{6}}\]'
 noteheads_key = r'noteheads?' ":"
-notehead_value = {all_noteheads}
+notehead_name = {all_noteheads}
+notehead_value = notehead_name color_annotation?
 noteheads = noteheads_key? notehead_value ("/" notehead_value)*
 
 dynamics_key = r'dynamics?' ":"
@@ -156,6 +158,10 @@ class PropertiesVisitor(PTNodeVisitor):
     def visit_notations(self, node, children): return {"notations": list(children)}
 
     def visit_noteheads(self, node, children): return {"noteheads": list(children)}
+
+    def visit_notehead_value(self, node, children):
+        # Just return the entire matched text as a string
+        return str("".join(children))
 
     def visit_dynamics(self, node, children): return {"dynamics": list(children)}
 

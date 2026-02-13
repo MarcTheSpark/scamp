@@ -70,27 +70,71 @@ notehead_name_to_lilypond_type = {
 }
 
 
-def get_lilypond_notehead_name(notehead_string: str):
-    notehead_string = notehead_string.lower().strip()
+def get_lilypond_notehead_tweaks(notehead_string: str):
+    """
+    Parse notehead string (possibly with color) and return lilypond tweak commands.
+
+    Returns:
+        tuple: (tweak_string, comment_string or None)
+        tweak_string contains all the \tweak commands needed
+    """
+    notehead_string = notehead_string.strip()
+
+    # Extract color if present
+    color = None
+    if '[#' in notehead_string and notehead_string.endswith(']'):
+        parts = notehead_string.split('[#')
+        notehead_string = parts[0].strip()
+        color = parts[1].rstrip(']')
+
+    notehead_string = notehead_string.lower()
     base_notehead = notehead_string.replace("filled", "").replace("open", "").strip()
+
     if base_notehead not in notehead_name_to_lilypond_type:
-        # This error is raised if a notehead is asked for that wouldn't have been recognized for xml output either
         raise ValueError("Notehead type {} not recognized".format(notehead_string))
 
-    elif notehead_string not in notehead_name_to_lilypond_type:
+    if notehead_string not in notehead_name_to_lilypond_type:
         logging.warning("\"Filled\" and \"open\" do not apply to lilypond output. "
                         "Reverting to \"{}\"".format(base_notehead))
-        out = notehead_name_to_lilypond_type[base_notehead]
-
+        style = notehead_name_to_lilypond_type[base_notehead]
     else:
-        out = notehead_name_to_lilypond_type[notehead_string]
+        style = notehead_name_to_lilypond_type[notehead_string]
 
-    if out is None:
+    tweaks = []
+    comment = None
+
+    if style is None:
         logging.warning("Notehead type \"{}\" not available for lilypond output; "
                         "reverting to standard notehead".format(notehead_string))
-        return "default|{} notehead was desired".format(notehead_string)
-    else:
-        return out
+        comment = "{} notehead was desired".format(notehead_string)
+    elif '|' in style:
+        # Handle the pipe-separated comment
+        style_part, comment = style.split('|', 1)
+        tweaks.append(rf"\tweak style {style_part}")
+    elif style != '#\'default':
+        tweaks.append(rf"\tweak style {style}")
+
+    if color:
+        r = int(color[0:2], 16) / 255
+        g = int(color[2:4], 16) / 255
+        b = int(color[4:6], 16) / 255
+        tweaks.append(rf"\tweak color #(rgb-color {r:.3f} {g:.3f} {b:.3f})")
+
+    return ' '.join(tweaks) if tweaks else '', comment
+
+
+def _set_abjad_note_head_styles(self, abjad_note_or_chord):
+    note_heads = ([abjad_note_or_chord.note_head] if isinstance(abjad_note_or_chord, abjad().Note)
+                  else abjad_note_or_chord.note_heads)
+
+    for note_head, note_head_string in zip(note_heads, self.properties.noteheads):
+        tweak_string, comment = get_lilypond_notehead_tweaks(note_head_string)
+
+        if tweak_string:
+            abjad().tweak(note_head, tweak_string)
+
+        if comment:
+            abjad().attach(abjad().LilyPondComment(comment), abjad_note_or_chord)
 
 
 notehead_name_to_xml_type = {
@@ -129,17 +173,35 @@ notehead_name_to_xml_type = {
 
 
 def get_xml_notehead(notehead_string: str):
-    notehead_string = notehead_string.lower().strip()
+    notehead_string = notehead_string.strip()
+
+    # Extract color if present
+    color = None
+    if '[#' in notehead_string and notehead_string.endswith(']'):
+        # Split off the color annotation
+        parts = notehead_string.split('[')
+        notehead_string = parts[0].strip()
+        color = parts[1].rstrip(']')
+
+    notehead_string = notehead_string.lower()
     base_notehead = notehead_string.replace("filled", "").replace("open", "").strip()
+
     if base_notehead not in notehead_name_to_xml_type:
         raise ValueError("Notehead type {} not recognized".format(notehead_string))
     else:
         base_notehead = notehead_name_to_xml_type[base_notehead]
-    out = pymusicxml.Notehead(base_notehead)
+
+    # Create notehead with optional color
+    if color:
+        out = pymusicxml.Notehead(base_notehead, color=color)
+    else:
+        out = pymusicxml.Notehead(base_notehead)
+
     if notehead_string.startswith("filled"):
         out.filled = "yes"
     elif notehead_string.startswith("open"):
         out.filled = "no"
+
     return out
 
 

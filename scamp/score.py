@@ -28,7 +28,7 @@ from expenvelope import Envelope
 from .quantization import QuantizationRecord, QuantizationScheme, QuantizedMeasure, TimeSignature
 from . import performance as performance_module  # to distinguish it from variables named performance
 from .utilities import prime_factor, floor_x_to_pow_of_y, is_x_pow_of_y, ceil_to_multiple, floor_to_multiple
-from ._engraving_translations import length_to_note_type, get_xml_notehead, get_lilypond_notehead_name, \
+from ._engraving_translations import length_to_note_type, get_xml_notehead, get_lilypond_notehead_tweaks, \
     articulation_to_xml_element_name, notations_to_xml_notations_element, attach_abjad_notation_to_note, \
     xml_barline_to_lilypond
 from .note_properties import NoteProperties
@@ -1726,7 +1726,13 @@ class Measure(ScoreComponent, ScoreContainer):
                                                        site="opening"),
                                abjad_voice)
             if len(self.voices) > 1:
-                abjad().attach(abjad().VoiceNumber(n=i+1), abjad_voice[0])
+                attachment_spot = abjad_voice[0]
+                while True:
+                    try:
+                        abjad().attach(abjad().VoiceNumber(n=i+1), attachment_spot)
+                        break
+                    except Exception:
+                        attachment_spot = attachment_spot[0]
             abjad_voice.name = _voice_names[i]
             abjad_measure.append(abjad_voice)
         abjad_measure.simultaneous = True
@@ -1894,6 +1900,7 @@ class Voice(ScoreComponent, ScoreContainer):
 
         if divisor is None:
             # if there's no beat divisor, then it should just be a note or rest of the full length of the beat
+            beat_notes = [beat_note for beat_note in beat_notes if beat_note.length > 0]
             assert len(beat_notes) == 1
             pitch, volume, length, properties = beat_notes[0].pitch, beat_notes[0].volume, \
                                                 beat_notes[0].length, beat_notes[0].properties
@@ -2622,26 +2629,17 @@ class NoteLike(ScoreComponent):
                 )
 
     def _set_abjad_note_head_styles(self, abjad_note_or_chord):
-        if isinstance(abjad_note_or_chord, abjad().Note):
-            note_head_style = self.properties.noteheads[0]
-            if note_head_style != "normal":
-                lilypond_style = get_lilypond_notehead_name(note_head_style)
-                # the pipe separates out a bit of comment text, which is used when the
-                # desired notehead can't be displayed
-                abjad().tweak(abjad_note_or_chord.note_head,
-                              rf"\tweak style {lilypond_style.split('|')[0]}")
-                if len(lilypond_style.split("|")) > 1:
-                    abjad().attach(abjad().LilyPondComment(lilypond_style.split("|")[1]), abjad_note_or_chord)
-        elif isinstance(abjad_note_or_chord, abjad().Chord):
-            for chord_member, note_head_style in enumerate(self.properties.noteheads):
-                if note_head_style != "normal":
-                    lilypond_style = get_lilypond_notehead_name(note_head_style)
-                    abjad().tweak(abjad_note_or_chord.note_heads[chord_member],
-                                  rf"\tweak style {lilypond_style.split('|')[0]}")
-                    if len(lilypond_style.split("|")) > 1:
-                        abjad().attach(abjad().LilyPondComment(lilypond_style.split("|")[1]), abjad_note_or_chord)
-        else:
-            raise ValueError("Must be an abjad Note or Chord object")
+        note_heads = ([abjad_note_or_chord.note_head] if isinstance(abjad_note_or_chord, abjad().Note)
+                      else abjad_note_or_chord.note_heads)
+
+        for note_head, note_head_string in zip(note_heads, self.properties.noteheads):
+            tweak_string, comment = get_lilypond_notehead_tweaks(note_head_string)
+
+            if tweak_string:
+                abjad().tweak(note_head, tweak_string)
+
+            if comment:
+                abjad().attach(abjad().LilyPondComment(comment), abjad_note_or_chord)
 
     def _attach_abjad_articulations(self, abjad_note_or_chord, grace_container):
         if grace_container is None:
