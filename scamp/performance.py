@@ -1215,15 +1215,15 @@ class Performance(SavesToJSON, _NoteFiltersMixin):
         """
         return max(part.num_measures() for part in self.parts)
 
-    def export_to_midi_file(self, output_file, flatten_tempo_changes=False, max_channels: int = 16,
+    def export_to_midi_file(self, output_file, flatten_tempo_to=None, max_channels: int = 16,
                             ring_time: float = 0.5,  pitch_bend_range: float = 2, envelope_precision: float = 0.01,
                             tempo_precision: float = 0.1):
         """
         Exports the Performance to a MIDI file.
 
         :param output_file: path of the MIDI file to create and write to.
-        :param flatten_tempo_changes: If True, then everything is flattened to a tempo of 60bpm, and notes at a faster
-            tempo are simply made shorter. If False, tempo changes are exported as part of the MIDI file.
+        :param flatten_tempo_to: If not None, then everything is flattened to the tempo given, and notes at a faster
+            tempo are simply made shorter. If None, tempo changes are exported as part of the MIDI file.
         :param max_channels: maximum number of channels to use for different notes. By default, notes with different
             pitch bends and cc messages will be placed on different channels to avoid interference.
         :param ring_time: When multiple channels are used for juggling different pitch bends and cc messages, channels
@@ -1240,9 +1240,9 @@ class Performance(SavesToJSON, _NoteFiltersMixin):
             MIDI events during gradual accelerandi/ritardandi.
         """
         midi_file = MIDIFile(len(self.parts))
-        if flatten_tempo_changes:
-            self.remap_to_tempo(60)
-            midi_file.addTempo(0, 0, 60)
+        if flatten_tempo_to:
+            self.remap_to_tempo(flatten_tempo_to)
+            midi_file.addTempo(0, 0, flatten_tempo_to)
         else:
             for segment in self.tempo_envelope.segments:
                 if segment.start_level == segment.end_level:
