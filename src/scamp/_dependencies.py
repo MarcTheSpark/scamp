@@ -144,7 +144,7 @@ for requirement in importlib.metadata.requires('scamp'):
 _abjad_library = None
 
 
-def abjad():
+def get_abjad():
     """
     We make this a function that returns the abjad module so that we don't have to load it unless we need it
     (since it's kinda slow to load)

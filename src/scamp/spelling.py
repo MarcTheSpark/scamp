@@ -21,8 +21,12 @@ Module containing the :class:`SpellingPolicy` class, which describes how pitches
 from __future__ import annotations
 import functools
 from .utilities import SavesToJSON, NoteProperty
-from typing import Sequence
+from typing import Sequence, TYPE_CHECKING
 import pymusicxml
+
+if TYPE_CHECKING:
+    # Import abjad only for type checking, not at runtime
+    import abjad
 
 
 ##################################################################################################################
@@ -227,17 +231,17 @@ class SpellingPolicy(SavesToJSON, NoteProperty):
             alteration += round(2 * (midi_num - rounded_midi_num)) / 2
         return name, octave, alteration
 
-    def resolve_abjad_pitch(self, midi_num: int) -> 'abjad.NamedPitch':
+    def resolve_abjad_pitch(self, midi_num: int) -> abjad.NamedPitch:
         """
         Convert a given MIDI pitch to an abjad NamedPitch according to this SpellingPolicy
 
         :param midi_num: a MIDI pitch value
         """
-        from scamp._dependencies import abjad
+        from scamp import abjad_facade as af
         name, octave, alteration = self.resolve_name_octave_and_alteration(midi_num)
-        return abjad().NamedPitch(name, accidental=alteration, octave=octave)
+        return af.create_named_pitch(name, accidental=alteration, octave=octave)
 
-    def resolve_music_xml_pitch(self, midi_num: int) -> 'pymusicxml.Pitch':
+    def resolve_music_xml_pitch(self, midi_num: int) -> pymusicxml.Pitch:
         """
         Convert a given MIDI pitch to an abjad pymusicxml Pitch object according to this SpellingPolicy
 

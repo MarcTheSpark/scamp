@@ -22,7 +22,7 @@ single note.
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Any
-from ._dependencies import abjad
+from . import abjad_facade as af
 from ._engraving_translations import xml_accidental_name_to_lilypond
 from .utilities import SavesToJSON, NoteProperty
 import pymusicxml
@@ -70,8 +70,8 @@ class Spanner(ABC, SavesToJSON, NoteProperty):
         return {k: v for k, v in self.formatting.items() if k in self.FORMATTING_SLOTS}
 
     def get_abjad_direction(self):
-        return abjad().UP if self.formatting["placement"] == "above" \
-            else abjad().DOWN if self.formatting["placement"] == "below" else None
+        return af.direction_up() if self.formatting["placement"] == "above" \
+            else af.direction_down() if self.formatting["placement"] == "below" else None
 
     def __eq__(self, other):
         if not isinstance(other, type(self)):
@@ -104,7 +104,7 @@ class StartSlur(Spanner):
         return pymusicxml.StartSlur(label=self.label, **self._get_xml_consistent_formatting())
 
     def to_abjad(self):
-        return abjad().StartSlur(),
+        return af.create_start_slur(),
 
 
 class StopSlur(Spanner):
@@ -123,7 +123,7 @@ class StopSlur(Spanner):
         return pymusicxml.StopSlur(label=self.label, **self._get_xml_consistent_formatting())
 
     def to_abjad(self):
-        return abjad().StopSlur(),
+        return af.create_stop_slur(),
 
 
 class StartPhrasingSlur(Spanner):
@@ -149,7 +149,7 @@ class StartPhrasingSlur(Spanner):
         return pymusicxml.StartSlur(label=self.label, **self._get_xml_consistent_formatting())
 
     def to_abjad(self):
-        return abjad().StartPhrasingSlur(),
+        return af.create_start_phrasing_slur(),
 
 
 class StopPhrasingSlur(Spanner):
@@ -171,7 +171,7 @@ class StopPhrasingSlur(Spanner):
         return pymusicxml.StopSlur(label=self.label, **self._get_xml_consistent_formatting())
 
     def to_abjad(self):
-        return abjad().StopPhrasingSlur(),
+        return af.create_stop_phrasing_slur(),
 
 
 class StartHairpin(Spanner):
@@ -195,7 +195,7 @@ class StartHairpin(Spanner):
             shape = "<" if "niente" not in self.formatting or self.formatting["niente"] is False else "o<"
         else:
             shape = ">" if "niente" not in self.formatting or self.formatting["niente"] is False else ">o"
-        return abjad().StartHairpin(shape=shape),
+        return af.create_start_hairpin(shape=shape),
 
 
 class StopHairpin(Spanner):
@@ -215,7 +215,7 @@ class StopHairpin(Spanner):
         return pymusicxml.StopHairpin(label=self.label, **self._get_xml_consistent_formatting())
 
     def to_abjad(self):
-        return abjad().StopHairpin(),
+        return af.create_stop_hairpin(),
 
 
 class StartBracket(Spanner):
@@ -248,10 +248,10 @@ class StartBracket(Spanner):
         left_text = rf"""- \tweak bound-details.left.text \markup \concat """ \
                     rf"""{{ "{self.formatting["text"]}" \hspace #0.5 }}""" if "text" in self.formatting else None
 
-        return abjad().StartTextSpan(
+        return af.create_start_text_span(
             left_text=left_text if "text" in self.formatting else None,
             # TODO: left broken text is broken, can't handle a literal in abjad 3.4. when we update abjad, fix this
-            # left_broken_text=abjad().Markup(f"({self.formatting['text']})") if "text" in self.formatting else None,
+            # left_broken_text=af.create_markup(f"({self.formatting['text']})") if "text" in self.formatting else None,
             right_text=self.formatting["right_text"],
             style=style
         ),
@@ -274,7 +274,7 @@ class StopBracket(Spanner):
         return pymusicxml.StopBracket(label=self.label, **self._get_xml_consistent_formatting())
 
     def to_abjad(self):
-        return abjad().StopTextSpan(),
+        return af.create_stop_text_span(),
 
 
 class StartDashes(Spanner):
@@ -296,9 +296,9 @@ class StartDashes(Spanner):
     def to_abjad(self):
         left_text = r"- \tweak bound-details.left.text \markup \concat { " + \
                     self.formatting['text'] + r" \hspace #0.5 }" if "text" in self.formatting else None
-        left_broken_text = abjad().Markup(fr"\markup {{ ({self.formatting['text']}) }}") \
+        left_broken_text = af.create_markup(fr"\markup {{ ({self.formatting['text']}) }}") \
             if "text" in self.formatting else None
-        return abjad().StartTextSpan(
+        return af.create_start_text_span(
             left_text=left_text,
             left_broken_text=left_broken_text,
             right_text=self.formatting["right_text"]
@@ -307,7 +307,7 @@ class StartDashes(Spanner):
     def get_abjad_direction(self):
         # since dashes is generally used for stuff like "cresc.---" or "dim.---", it should generally default to
         # below the staff, so we need to override this method for dashes particularly
-        return abjad().UP if self.formatting["placement"] == "above" else abjad().DOWN
+        return af.direction_up() if self.formatting["placement"] == "above" else af.direction_down()
 
 
 class StopDashes(Spanner):
@@ -325,7 +325,7 @@ class StopDashes(Spanner):
         return pymusicxml.StopDashes(label=self.label, **self._get_xml_consistent_formatting())
 
     def to_abjad(self):
-        return abjad().StopTextSpan(),
+        return af.create_stop_text_span(),
 
 
 class StartTrill(Spanner):
@@ -345,9 +345,9 @@ class StartTrill(Spanner):
         return pymusicxml.StartTrill(label=self.label, **self._get_xml_consistent_formatting())
 
     def to_abjad(self):
-        abjad_object = abjad().StartTrillSpan()
+        abjad_object = af.create_start_trill_span()
         if self.formatting["accidental"] is not None:
-            abjad_object = abjad().bundle(
+            abjad_object = af.bundle(
                 abjad_object,
                 rf'\tweak bound-details.left.text \markup{{ '
                 rf'\musicglyph #"scripts.trill" \raise #0.65 \teeny '
@@ -372,7 +372,7 @@ class StopTrill(Spanner):
         return pymusicxml.StopTrill(label=self.label, **self._get_xml_consistent_formatting())
 
     def to_abjad(self):
-        return abjad().StopTrillSpan(),
+        return af.create_stop_trill_span(),
 
 
 class StartPedal(Spanner):
@@ -394,7 +394,7 @@ class StartPedal(Spanner):
         return pymusicxml.StartPedal(label=self.label, **self._get_xml_consistent_formatting())
 
     def to_abjad(self):
-        return abjad().StartPianoPedal(),
+        return af.create_start_piano_pedal(),
 
 
 class ChangePedal(Spanner):
@@ -414,7 +414,7 @@ class ChangePedal(Spanner):
         return pymusicxml.ChangePedal(label=self.label, **self._get_xml_consistent_formatting())
 
     def to_abjad(self):
-        return abjad().StopPianoPedal(), abjad().StartPianoPedal()
+        return af.create_stop_piano_pedal(), af.create_start_piano_pedal()
 
 
 class StopPedal(Spanner):
@@ -433,5 +433,5 @@ class StopPedal(Spanner):
         return pymusicxml.StopPedal(label=self.label, **self._get_xml_consistent_formatting())
 
     def to_abjad(self):
-        abjad_stop_pedal = abjad().StopPianoPedal()
+        abjad_stop_pedal = af.create_stop_piano_pedal()
         return abjad_stop_pedal,

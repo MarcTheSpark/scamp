@@ -18,8 +18,14 @@ Module containing utilities for representing text in SCAMP, currently containing
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
+from __future__ import annotations
 from .utilities import SavesToJSON, NoteProperty
 import pymusicxml
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Import abjad only for type checking, not at runtime
+    import abjad
 
 
 class StaffText(SavesToJSON, NoteProperty):
@@ -69,14 +75,14 @@ class StaffText(SavesToJSON, NoteProperty):
         """Converts this to a pymusicxml TextAnnotation object."""
         return pymusicxml.TextAnnotation(self.text, placement=self.placement, italic=self.italic, bold=self.bold)
 
-    def to_abjad(self) -> 'abjad.Markup':
+    def to_abjad(self) -> abjad.Markup:
         """Converts this to an abjad Markup object."""
-        from ._dependencies import abjad
+        from . import abjad_facade as af
         markup_string = r"\markup " + \
                         (r"\bold " if self.bold else "") + \
                         (r"\italic " if self.italic else "") + \
                         r"{ " + self.text + " }"
-        return abjad().Markup(markup_string)
+        return af.create_markup(markup_string)
 
     def _to_dict(self) -> dict:
         json_dict = {"text": self.text}

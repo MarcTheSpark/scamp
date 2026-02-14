@@ -124,17 +124,18 @@ def get_lilypond_notehead_tweaks(notehead_string: str):
 
 
 def _set_abjad_note_head_styles(self, abjad_note_or_chord):
-    note_heads = ([abjad_note_or_chord.note_head] if isinstance(abjad_note_or_chord, abjad().Note)
-                  else abjad_note_or_chord.note_heads)
+    from . import abjad_facade as af
+
+    note_heads = af.get_noteheads(abjad_note_or_chord)
 
     for note_head, note_head_string in zip(note_heads, self.properties.noteheads):
         tweak_string, comment = get_lilypond_notehead_tweaks(note_head_string)
 
         if tweak_string:
-            abjad().tweak(note_head, tweak_string)
+            af.tweak(note_head, tweak_string)
 
         if comment:
-            abjad().attach(abjad().LilyPondComment(comment), abjad_note_or_chord)
+            af.attach(af.create_lilypond_comment(comment), abjad_note_or_chord)
 
 
 notehead_name_to_xml_type = {
@@ -272,24 +273,24 @@ all_notations = list(notations_to_xml_notations_element.keys())
 
 
 def attach_abjad_notation_to_note(abjad_note, notation_string):
-    from ._dependencies import abjad
+    from . import abjad_facade as af
     notation_string = notation_string.lower()
     # markup vs otherwise
     # fix tremolo to be consistent number of slashes
     to_attach = None
     if notation_string in notations_to_lilypond_articulations:
-        to_attach = abjad().Articulation(notations_to_lilypond_articulations[notation_string])
+        to_attach = af.create_articulation(notations_to_lilypond_articulations[notation_string])
     elif "tremolo" in notation_string:
         num_slashes = int(notation_string[-1]) if len(notation_string) == 8 else 3
-        to_attach = abjad().StemTremolo(2 ** (2 + abjad_note.written_duration().flag_count() + num_slashes))
+        to_attach = af.create_stem_tremolo(2 ** (2 + af.get_written_duration(abjad_note).flag_count() + num_slashes))
     elif "arpeggiate" in notation_string:
-        to_attach = abjad().Arpeggio() if notation_string == "arpeggiate" \
-            else abjad().Arpeggio(direction=abjad().UP) if notation_string == "arpeggiate up" \
-            else abjad().Arpeggio(direction=abjad().DOWN) if notation_string == "arpeggiate down" \
+        to_attach = af.create_arpeggio() if notation_string == "arpeggiate" \
+            else af.create_arpeggio(direction=af.direction_up()) if notation_string == "arpeggiate up" \
+            else af.create_arpeggio(direction=af.direction_down()) if notation_string == "arpeggiate down" \
             else None
     elif notation_string == "fermata":
-        to_attach = abjad().Fermata()
-    abjad().attach(to_attach, abjad_note)
+        to_attach = af.create_fermata()
+    af.attach(to_attach, abjad_note)
 
 
 xml_barline_to_lilypond = {

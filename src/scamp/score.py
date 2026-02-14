@@ -35,7 +35,8 @@ from .note_properties import NoteProperties
 from .text import StaffText
 import pymusicxml
 from pymusicxml.score_components import _XMLNote, MusicXMLComponent
-from ._dependencies import abjad
+from ._dependencies import get_abjad
+from . import abjad_facade as af
 import math
 from fractions import Fraction
 from copy import deepcopy
@@ -45,8 +46,12 @@ from collections import namedtuple
 from abc import ABC, abstractmethod
 import logging
 from ._metric_structure import MetricStructure
-from typing import Sequence, Type, Iterator
+from typing import Sequence, Type, Iterator, TYPE_CHECKING
 from clockblocks import TempoEnvelope
+
+if TYPE_CHECKING:
+    # Import abjad only for type checking, not at runtime
+    import abjad
 
 
 ##################################################################################################################
@@ -309,8 +314,7 @@ def _join_same_source_abjad_note_group(same_source_group):
     current_tie_group = [same_source_group[0]]
 
     for i, note_pair in enumerate(zip(same_source_group[:-1], same_source_group[1:])):
-        if isinstance(note_pair[0], abjad().Note) and note_pair[0].written_pitch() == note_pair[1].written_pitch() or \
-                isinstance(note_pair[0], abjad().Chord) and note_pair[0].written_pitches() == note_pair[1].written_pitches():
+        if af.get_written_pitches(note_pair[0]) == af.get_written_pitches(note_pair[1]):
             # same pitch - continue the tie group
             current_tie_group.append(note_pair[1])
         else:
@@ -319,7 +323,7 @@ def _join_same_source_abjad_note_group(same_source_group):
             if len(current_tie_group) > 1:
                 tie_groups.append(current_tie_group)
             # add the gliss
-            abjad().glissando(note_pair)
+            af.glissando(note_pair)
             gliss_present = True
             # start a new tie group with the second note of the pair
             current_tie_group = [note_pair[1]]
@@ -330,11 +334,11 @@ def _join_same_source_abjad_note_group(same_source_group):
 
     # now tie all the groups
     for tie_group in tie_groups:
-        abjad().tie(tie_group)
+        af.tie_notes(tie_group)
 
     if gliss_present and engraving_settings.glissandi.slur_glisses:
         # if any of the segments gliss, we might attach a slur
-        abjad().slur(same_source_group)
+        af.slur_notes(same_source_group)
 
 
 # generates unique ids for gliss slurs that won't conflict with manual slurs
@@ -462,20 +466,6 @@ def _get_clef_from_average_pitch_and_clef_choices(average_pitch: float,
     return closest_clef
 
 
-def make_abjad_duration(value):
-    """
-    Converts a float or fraction to an abjad Duration object
-
-    :param value: the float or Fraction
-    :return: the Duration
-    """
-    if isinstance(value, Fraction):
-        frac = value
-    else:
-        frac = Fraction(value).limit_denominator()
-    return abjad().Duration(frac.numerator, frac.denominator)
-
-
 ##################################################################################################################
 #                                             Abstract Classes
 ##################################################################################################################
@@ -489,7 +479,7 @@ class ScoreComponent(ABC):
     """
 
     @abstractmethod
-    def _to_abjad(self) -> abjad().Component:
+    def _to_abjad(self) -> abjad.Component:
         """
         Convert this to the abjad version of the component.
         The reason this is a protected member is that the user-facing "to_abjad" takes the output of this function
@@ -534,7 +524,7 @@ class ScoreComponent(ABC):
                             "your program of choice.".format(engraving_settings.show_music_xml_command_line))
 
     def to_abjad(self, wrap_as_file: bool = False, non_score_blocks: Sequence = None,
-                 **lilypond_file_args) -> abjad().Component:
+                 **lilypond_file_args) -> abjad.Component:
         r"""
         Convert this score component to its corresponding abjad component
 
@@ -548,7 +538,7 @@ class ScoreComponent(ABC):
             :class:`abjad.LilyPondFile` (assuming wrap_as_file is True). This allows for setting staff size and
             various other customizations.
         """
-        assert abjad() is not None, "Abjad is required for this operation."
+        assert get_abjad() is not None, "Abjad is required for this operation."
         if wrap_as_file:
             return self._to_abjad_lilypond_file(non_score_blocks=non_score_blocks, **lilypond_file_args)
         else:
@@ -558,7 +548,7 @@ class ScoreComponent(ABC):
             return abjad_object
 
     def _to_abjad_lilypond_file(self, non_score_blocks: Sequence = None,
-                                **lilypond_file_args) -> abjad().LilyPondFile:
+                                **lilypond_file_args) -> abjad.LilyPondFile:
         r"""
         Convert and wrap as an :class:`abjad.LilyPondFile` object.
 
@@ -570,7 +560,7 @@ class ScoreComponent(ABC):
         :param lilypond_file_args: any additional keyword arguments will be passed along to the constructor of
             :class:`abjad.LilyPondFile`. This allows for setting staff size and various other customizations.
         """
-        assert abjad() is not None, "Abjad is required for this operation."
+        assert get_abjad() is not None, "Abjad is required for this operation."
 
         title = self.title if hasattr(self, "title") else None
         composer = self.composer if hasattr(self, "composer") else None
@@ -579,25 +569,25 @@ class ScoreComponent(ABC):
         if non_score_blocks is None:
             non_score_blocks = []
         else:
-            non_score_blocks = [abjad().parse(block) if isinstance(block, str) else block for block in non_score_blocks]
+            non_score_blocks = [af.parse_lilypond(block) if isinstance(block, str) else block for block in non_score_blocks]
 
         for block in non_score_blocks:
             if block.name == "header":
                 break
         else:
-            header_block = abjad().Block(name="header")
-            if self.title is not None:
-                header_block.items.append(f"title = \"{self.title}\"")
-            if self.composer is not None:
-                header_block.items.append(f"composer = \"{self.composer}\"")
+            header_block = af.create_block(name="header")
+            if title is not None:
+                header_block.items.append(f"title = \"{title}\"")
+            if composer is not None:
+                header_block.items.append(f"composer = \"{composer}\"")
             non_score_blocks.insert(0, header_block)
 
-        score_block = abjad().Block(name="score")
+        score_block = af.create_block(name="score")
         score_block.items.append(abjad_object)
 
         non_score_blocks.insert(0, rf'\include "{settings.lilypond_template_path}"')
 
-        abjad_lilypond_file = abjad().LilyPondFile(items=non_score_blocks + [score_block], **lilypond_file_args)
+        abjad_lilypond_file = af.create_lilypond_file(items=non_score_blocks + [score_block], **lilypond_file_args)
 
         return abjad_lilypond_file
 
@@ -615,8 +605,8 @@ class ScoreComponent(ABC):
             various other customizations.
         """
         with open(file_path, "w") as output_file:
-            output_file.write(abjad().lilypond(self.to_abjad(wrap_as_file=True, non_score_blocks=non_score_blocks,
-                                                             **lilypond_file_args)))
+            output_file.write(af.to_lilypond(self.to_abjad(wrap_as_file=True, non_score_blocks=non_score_blocks,
+                                                           **lilypond_file_args)))
 
     def export_pdf(self, file_path: str, non_score_blocks: Sequence = None, **lilypond_file_args) -> None:
         r"""
@@ -631,7 +621,7 @@ class ScoreComponent(ABC):
             :class:`abjad.LilyPondFile` (assuming wrap_as_file is True). This allows for setting staff size and
             various other customizations.
         """
-        abjad().persist.as_pdf(
+        af.persist_as_pdf(
             self.to_abjad(wrap_as_file=True, non_score_blocks=non_score_blocks, **lilypond_file_args), file_path)
 
     def to_lilypond(self, wrap_as_file: bool = False, non_score_blocks: Sequence = None, **lilypond_file_args) -> str:
@@ -649,9 +639,9 @@ class ScoreComponent(ABC):
             various other customizations.
         :return: a string containing the LilyPond code
         """
-        assert abjad() is not None, "Abjad is required for this operation."
-        return abjad().lilypond(self.to_abjad(wrap_as_file=wrap_as_file, non_score_blocks=non_score_blocks,
-                                              **lilypond_file_args))
+        assert get_abjad() is not None, "Abjad is required for this operation."
+        return af.to_lilypond(self.to_abjad(wrap_as_file=wrap_as_file, non_score_blocks=non_score_blocks,
+                                            **lilypond_file_args))
 
     def print_lilypond(self, wrap_as_file: bool = False, non_score_blocks: Sequence = None,
                        **lilypond_file_args) -> None:
@@ -682,8 +672,8 @@ class ScoreComponent(ABC):
             :class:`abjad.LilyPondFile` (assuming wrap_as_file is True). This allows for setting staff size and
             various other customizations.
         """
-        assert abjad() is not None, "Abjad is required for this operation."
-        abjad().show(self.to_abjad(wrap_as_file=True, non_score_blocks=non_score_blocks, **lilypond_file_args))
+        assert get_abjad() is not None, "Abjad is required for this operation."
+        af.show(self.to_abjad(wrap_as_file=True, non_score_blocks=non_score_blocks, **lilypond_file_args))
 
 
 class ScoreContainer(ABC):
@@ -1002,10 +992,10 @@ class Score(ScoreComponent, ScoreContainer):
         return key_points, guide_marks
 
     def _to_abjad(self):
-        abjad_score = abjad().Score([part._to_abjad() for part in self.parts])
+        abjad_score = af.create_score([part._to_abjad() for part in self.parts])
         # tempo markings will be attached to the top staff.
         # Here we sort out whether or not that staff is part of a staff group or not
-        top_staff = abjad_score[0][0] if isinstance(abjad_score[0], abjad().StaffGroup) else abjad_score[0]
+        top_staff = abjad_score[0][0] if af.is_staff_group(abjad_score[0]) else abjad_score[0]
 
         # go through and add all of the tempo marks to the xml score
         key_points, guide_marks = self._get_tempo_key_points_and_guide_marks()
@@ -1054,8 +1044,8 @@ class Score(ScoreComponent, ScoreContainer):
                 # if we had started an accel or rit spanner, end it here
                 if rit_or_accel_spanner_start is not None:
                     start_text_span, span_start_skip_object, markup_text = rit_or_accel_spanner_start
-                    abjad().text_spanner([span_start_skip_object, this_point_skip_object],
-                                         start_text_span=start_text_span)
+                    af.text_spanner([span_start_skip_object, this_point_skip_object],
+                                    start_text_span=start_text_span)
                     rit_or_accel_spanner_start = None
 
                 # figure out the tempo we're at, and the tempo we're going to next
@@ -1069,9 +1059,9 @@ class Score(ScoreComponent, ScoreContainer):
                 # add the metronome mark, adjusting the tempo based on the metronome_mark_beat_length
                 # (note: for some reason abjad insists on either integer tempos or some nonsense involving custom
                 # tempo markups in order to allow floats)
-                abjad().attach(
-                    abjad().MetronomeMark(
-                        make_abjad_duration(0.25 * metronome_mark_beat_length),
+                af.attach(
+                    af.create_metronome_mark(
+                        0.25 * metronome_mark_beat_length,
                         round(key_point_tempo / metronome_mark_beat_length)
                     ),
                     this_point_skip_object
@@ -1080,9 +1070,9 @@ class Score(ScoreComponent, ScoreContainer):
                 # start the accel or rit spanner if needed
                 if change_indicator is not None:
                     # to construct it later, we need to the StartTextSpan object and the skip object where it starts
-                    rit_or_accel_spanner_start = abjad().StartTextSpan(
-                        left_text=abjad().Markup(f"\"{change_indicator}\""),
-                        left_broken_text=abjad().Markup(rf'\markup \concat {{ "({change_indicator})" \hspace #0.5 }}'),
+                    rit_or_accel_spanner_start = af.create_start_text_span(
+                        left_text=af.create_markup(f"\"{change_indicator}\""),
+                        left_broken_text=af.create_markup(rf'\markup \concat {{ "({change_indicator})" \hspace #0.5 }}'),
                         right_padding=2,
                     ), this_point_skip_object, change_indicator
 
@@ -1091,22 +1081,22 @@ class Score(ScoreComponent, ScoreContainer):
                 guide_mark_location, guide_mark_tempo = guide_marks.pop(0)
                 this_point_skip_object = mark_beats_to_skip_objects[guide_mark_location]
                 guide_mark_override = r"""\once \override Score.MetronomeMark.font-size = #-5"""
-                abjad().attach(
-                    abjad().MetronomeMark(
-                        make_abjad_duration(0.25 * metronome_mark_beat_length),
+                af.attach(
+                    af.create_metronome_mark(
+                        0.25 * metronome_mark_beat_length,
                         round(guide_mark_tempo / metronome_mark_beat_length),
                         textual_indication="\"\""  # this results in parentheses
                     ),
                     this_point_skip_object
                 )
-                abjad().attach(abjad().LilyPondLiteral(guide_mark_override, site="absolute_before"),
-                               this_point_skip_object)
+                af.attach(af.create_lilypond_literal(guide_mark_override, site="absolute_before"),
+                          this_point_skip_object)
 
             measure_start += score_measure.length
 
         if self.final_bar_line is not None:
-            abjad().attach(abjad().BarLine(xml_barline_to_lilypond[self.final_bar_line]),
-                           abjad().select.leaf(abjad_score, -1),)
+            af.attach(af.create_bar_line(xml_barline_to_lilypond[self.final_bar_line]),
+                      af.select_leaf(abjad_score, -1))
         return abjad_score
 
     @staticmethod
@@ -1117,21 +1107,15 @@ class Score(ScoreComponent, ScoreContainer):
         """
         if len(displacements) == 0:
             skip_length = 1 / Fraction(score_measure.length / 4).denominator
-            skip_duration = make_abjad_duration(0.25 * skip_length)
-            skips = [abjad().Skip() for _ in range(int(round(score_measure.length / skip_length)))]
-            for skip in skips:
-                skip.set_written_duration(skip_duration)
-            return abjad().Voice(skips, name="TempoVoice"), None
+            skips = [af.create_skip(duration=0.25 * skip_length) for _ in range(int(round(score_measure.length / skip_length)))]
+            return af.create_voice(skips, name="TempoVoice"), None
 
         # length of the skips in quarter notes
         min_skip = 1 / Fraction(score_measure.length).denominator
         while max(x % min_skip for x in displacements) > 0.05:
             min_skip /= 2
 
-        skip_duration = make_abjad_duration(0.25 * min_skip)
-        skips = [abjad().Skip() for _ in range(int(round(score_measure.length / min_skip)))]
-        for skip in skips:
-            skip.set_written_duration(skip_duration)
+        skips = [af.create_skip(duration=0.25 * min_skip) for _ in range(int(round(score_measure.length / min_skip)))]
 
         # maps the beat of any of the key points and guide marks we will run into to the skip object
         # that most nearly approximates its position
@@ -1147,8 +1131,7 @@ class Score(ScoreComponent, ScoreContainer):
             for sub_chunk in (chunk[i: i + skips_per_sub_chunk] for i in range(0, len(chunk), skips_per_sub_chunk)):
                 if not any(x in mark_beats_to_skip_objects.values() for x in sub_chunk[1:]):
                     # we can combine the skips so long as none except the first are locations where tempo marks occur
-                    combined_skip = abjad().Skip()
-                    combined_skip.set_written_duration(make_abjad_duration(combination_size))
+                    combined_skip = af.create_skip(duration=combination_size)
                     # if a tempo mark occurs at the first skip in the chunk, we can still combine it, but we have to be
                     # careful to remap the mark_beats_to_skip_objects dictionary to point to the new combined skip
                     for x in mark_beats_to_skip_objects:
@@ -1165,7 +1148,7 @@ class Score(ScoreComponent, ScoreContainer):
         skips = combine_skips_as_possible(skips, 1 / Fraction(score_measure.length / 4).denominator)
 
         # add a tempo voice filled with skip objects to attach tempo markings to
-        tempo_voice = abjad().Voice(skips, name="TempoVoice")
+        tempo_voice = af.create_voice(skips, name="TempoVoice")
 
         return tempo_voice, mark_beats_to_skip_objects
 
@@ -1238,7 +1221,7 @@ class Score(ScoreComponent, ScoreContainer):
     # Override the signatures of these three methods for the Score class, so they wrap as file by default
 
     def to_abjad(self, wrap_as_file: bool = True, non_score_blocks: Sequence = None,
-                 **lilypond_file_args) -> 'abjad().Component':
+                 **lilypond_file_args) -> abjad.Component:
         return ScoreComponent.to_abjad(self, wrap_as_file=wrap_as_file, non_score_blocks=non_score_blocks,
                                        **lilypond_file_args)
 
@@ -1566,7 +1549,7 @@ class StaffGroup(ScoreComponent, ScoreContainer):
                             last_clef_used = measure.clef = this_measure_clef
 
     def _to_abjad(self):
-        return abjad().StaffGroup([staff._to_abjad() for staff in self.staves])
+        return af.create_staff_group([staff._to_abjad() for staff in self.staves])
 
     def to_music_xml(self) -> pymusicxml.PartGroup:
         return pymusicxml.PartGroup([staff.to_music_xml() for staff in self.staves])
@@ -1631,8 +1614,8 @@ class Staff(ScoreComponent, ScoreContainer):
         contents = [measure._to_abjad(source_id_dict) for measure in self.measures]
         for same_source_group in source_id_dict.values():
             _join_same_source_abjad_note_group(same_source_group)
-        abjad_staff = abjad().Staff(contents, name=self.name)
-        abjad().setting(abjad_staff).instrument_name = '#"{}"'.format(self.name)
+        abjad_staff = af.create_staff(contents, name=self.name)
+        af.setting(abjad_staff).instrument_name = '#"{}"'.format(self.name)
         return abjad_staff
 
     def to_music_xml(self) -> pymusicxml.Part:
@@ -1760,31 +1743,17 @@ class Measure(ScoreComponent, ScoreContainer):
 
             if i == 0 and self.show_time_signature:
                 # TODO: this seems to break in abjad when the measure starts with a tuplet, so for now, a klugey fix
-                # abjad().attach(self.time_signature.to_abjad(), abjad_voice[0])
-                abjad().attach(abjad().LilyPondLiteral(r"\time {}".format(self.time_signature.as_string()),
-                                                       site="opening"),
-                               abjad_voice)
+                # af.attach(self.time_signature.to_abjad(), abjad_voice[0])
+                af.attach_time_signature(self.time_signature.as_string(), abjad_voice)
             if len(self.voices) > 1:
-                attachment_spot = abjad_voice[0]
-                while True:
-                    try:
-                        abjad().attach(abjad().VoiceNumber(n=i+1), attachment_spot)
-                        break
-                    except Exception:
-                        attachment_spot = attachment_spot[0]
+                af.set_voice_number(abjad_voice, i+1)
             abjad_voices.append(abjad_voice)
-
-        abjad_measure = abjad().Container(abjad_voices, simultaneous=True)
 
         if is_top_level_call:
             for same_source_group in source_id_dict.values():
                 _join_same_source_abjad_note_group(same_source_group)
 
-        if self.clef is not None:
-            # attach the clef to the first note of the first voice
-            abjad().attach(abjad().Clef(self.clef), abjad().select.leaf(abjad_measure, 0))
-
-        return abjad_measure
+        return af.make_measure(abjad_voices, self.clef)
 
     def to_music_xml(self, source_id_dict=None) -> pymusicxml.Measure:
         is_top_level_call = True if source_id_dict is None else False
@@ -2191,9 +2160,7 @@ class Voice(ScoreComponent, ScoreContainer):
 
     def _to_abjad(self, source_id_dict=None, name=None):
         if len(self.contents) == 0:  # empty voice
-            rest_text = "R1" if self.time_signature.numerator == self.time_signature.denominator else \
-                "R1 * {}/{}".format(self.time_signature.numerator, self.time_signature.denominator)
-            return abjad().Voice(rest_text, name=name)
+            return af.create_empty_voice(self.time_signature, name=name)
 
         else:
             is_top_level_call = True if source_id_dict is None else False
@@ -2202,7 +2169,7 @@ class Voice(ScoreComponent, ScoreContainer):
             if is_top_level_call:
                 for same_source_group in source_id_dict.values():
                     _join_same_source_abjad_note_group(same_source_group)
-            return abjad().Voice(abjad_components, name=name)
+            return af.create_voice(abjad_components, name=name)
 
     def to_music_xml(self, source_id_dict=None) -> Sequence[pymusicxml.BeamedGroup | _XMLNote]:
         if len(self.contents) == 0:
@@ -2333,7 +2300,7 @@ class Tuplet(ScoreComponent, ScoreContainer):
             for same_source_group in source_id_dict.values():
                 _join_same_source_abjad_note_group(same_source_group)
         tuplet_fraction = Fraction(self.tuplet_divisions, self.normal_divisions)
-        return abjad().Tuplet(abjad().Ratio(tuplet_fraction.numerator, tuplet_fraction.denominator), abjad_notes)
+        return af.create_tuplet(tuplet_fraction, abjad_notes)
 
     def to_music_xml(self, source_id_dict=None) -> pymusicxml.Tuplet:
         is_top_level_call = True if source_id_dict is None else False
@@ -2531,16 +2498,14 @@ class NoteLike(ScoreComponent):
         grace_notes = []
 
         if self.is_rest():
-            abjad_object = abjad().Rest()
-            abjad_object.set_written_duration(make_abjad_duration(duration))
+            abjad_object = af.create_rest(duration=duration)
         elif self.is_chord():
-            abjad_object = abjad().Chord()
-            abjad_object.set_written_duration(make_abjad_duration(duration))
+            abjad_object = af.create_chord(duration=duration)
 
             if self.does_glissando():
                 # if it's a glissing chord, its noteheads are based on the start level
                 abjad_object.set_note_heads([
-                    abjad().NoteHead(self.properties.get_spelling_policy(i).resolve_abjad_pitch(x.start_level()))
+                    af.create_notehead(self.properties.get_spelling_policy(i).resolve_abjad_pitch(x.start_level()))
                     for i, x in enumerate(self.pitch)
                 ])
                 # Set the notehead
@@ -2552,10 +2517,9 @@ class NoteLike(ScoreComponent):
 
                 # add a grace chord for each important turn around point in the gliss
                 for t in grace_points:
-                    grace_chord = abjad().Chord()
-                    grace_chord.set_written_duration(abjad().Duration(1, 16))
+                    grace_chord = af.create_chord(duration=1/16)
                     grace_chord.set_note_heads([
-                        abjad().NoteHead(self.properties.get_spelling_policy(i).resolve_abjad_pitch(x.value_at(t)))
+                        af.create_notehead(self.properties.get_spelling_policy(i).resolve_abjad_pitch(x.value_at(t)))
                         for i, x in enumerate(self.pitch)
                     ])
                     # Set the notehead
@@ -2568,7 +2532,7 @@ class NoteLike(ScoreComponent):
             else:
                 # if not, our job is simple
                 abjad_object.set_note_heads([
-                    abjad().NoteHead(self.properties.get_spelling_policy(i).resolve_abjad_pitch(x))
+                    af.create_notehead(self.properties.get_spelling_policy(i).resolve_abjad_pitch(x))
                     for i, x in enumerate(self.pitch)
                 ])
                 # Set the noteheads
@@ -2578,10 +2542,8 @@ class NoteLike(ScoreComponent):
 
         elif self.does_glissando():
             # This is a note doing a glissando
-            abjad_object = abjad().Note(
-                self.properties.get_spelling_policy().resolve_abjad_pitch(self.pitch.start_level()).name()
-            )
-            abjad_object.set_written_duration(make_abjad_duration(duration))
+            pitch_name = self.properties.get_spelling_policy().resolve_abjad_pitch(self.pitch.start_level()).name()
+            abjad_object = af.create_note(pitch_name, duration=duration)
             # Set the notehead
             self._set_abjad_note_head_styles(abjad_object)
             # attach any microtonal annotations (if setting is flipped)
@@ -2592,10 +2554,8 @@ class NoteLike(ScoreComponent):
             grace_points = self._get_grace_points()
 
             for t in grace_points:
-                grace = abjad().Note(
-                    self.properties.get_spelling_policy().resolve_abjad_pitch(self.pitch.value_at(t)).name()
-                )
-                grace.set_written_duration(make_abjad_duration(1 / 16))
+                grace_pitch = self.properties.get_spelling_policy().resolve_abjad_pitch(self.pitch.value_at(t)).name()
+                grace = af.create_note(grace_pitch, duration=1/16)
 
                 # Set the notehead
                 self._set_abjad_note_head_styles(grace)
@@ -2607,8 +2567,8 @@ class NoteLike(ScoreComponent):
                     last_pitch = grace.written_pitch()
         else:
             # This is a simple note
-            abjad_object = abjad().Note(self.properties.get_spelling_policy().resolve_abjad_pitch(self.pitch).name())
-            abjad_object.set_written_duration(make_abjad_duration(duration))
+            pitch_name = self.properties.get_spelling_policy().resolve_abjad_pitch(self.pitch).name()
+            abjad_object = af.create_note(pitch_name, duration=duration)
             # Set the notehead
             self._set_abjad_note_head_styles(abjad_object)
             self._attach_abjad_microtonal_annotation(abjad_object, self.pitch)
@@ -2618,9 +2578,9 @@ class NoteLike(ScoreComponent):
             for note in grace_notes:
                 # this signifier, \stemless, is not standard lilypond, and is defined with
                 # an override at the start of the score
-                abjad().attach(abjad().LilyPondLiteral(r"\stemless"), note)
-            grace_container = abjad().AfterGraceContainer(grace_notes)
-            abjad().attach(grace_container, abjad_object)
+                af.attach(af.create_lilypond_literal(r"\stemless"), note)
+            grace_container = af.create_after_grace_container(grace_notes)
+            af.attach(grace_container, abjad_object)
         else:
             grace_container = None
 
@@ -2659,38 +2619,36 @@ class NoteLike(ScoreComponent):
             return
         if hasattr(pitch_or_pitches, '__len__'):
             if any(round(p, engraving_settings.microtonal_annotation_digits) != round(p) for p in pitch_or_pitches):
-                abjad().attach(abjad().Markup(
+                markup = af.create_markup(
                     r'\markup { \pitch-annotation "' +
                     "; ".join(str(round(p, engraving_settings.microtonal_annotation_digits))
                               for p in pitch_or_pitches) +
-                    '" }'), note_object, direction=abjad().UP
-                )
+                    '" }')
+                af.attach(markup, note_object, direction=af.direction_up())
         else:
             if round(pitch_or_pitches, engraving_settings.microtonal_annotation_digits) != round(pitch_or_pitches):
-                abjad().attach(abjad().Markup(
-                        r'\markup { \pitch-annotation "' +
-                        str(round(pitch_or_pitches, engraving_settings.microtonal_annotation_digits)) + '" }',
-                    ), note_object, direction=abjad().UP
-                )
+                markup = af.create_markup(
+                    r'\markup { \pitch-annotation "' +
+                    str(round(pitch_or_pitches, engraving_settings.microtonal_annotation_digits)) + '" }')
+                af.attach(markup, note_object, direction=af.direction_up())
 
     def _set_abjad_note_head_styles(self, abjad_note_or_chord):
-        note_heads = ([abjad_note_or_chord.note_head()] if isinstance(abjad_note_or_chord, abjad().Note)
-                      else abjad_note_or_chord.note_heads())
+        note_heads = af.get_noteheads(abjad_note_or_chord)
 
         for note_head, note_head_string in zip(note_heads, self.properties.noteheads):
             tweak_string, comment = get_lilypond_notehead_tweaks(note_head_string)
 
             if tweak_string:
-                abjad().tweak(note_head, tweak_string)
+                af.tweak(note_head, tweak_string)
 
             if comment:
-                abjad().attach(abjad().LilyPondComment(comment), abjad_note_or_chord)
+                af.attach(af.create_lilypond_comment(comment), abjad_note_or_chord)
 
     def _attach_abjad_articulations(self, abjad_note_or_chord, grace_container):
         if grace_container is None:
             # just a single notehead, so attach all articulations
             for articulation in self.properties.articulations:
-                abjad().attach(abjad().Articulation(articulation), abjad_note_or_chord)
+                af.attach(af.create_articulation(articulation), abjad_note_or_chord)
         else:
             # there's a gliss
             attack_notehead = abjad_note_or_chord if not self.properties.ends_tie else None
@@ -2702,15 +2660,15 @@ class NoteLike(ScoreComponent):
             # only attach attack articulations to the main note
             if attack_notehead is not None:
                 for articulation in self._get_attack_articulations():
-                    abjad().attach(abjad().Articulation(articulation), attack_notehead)
+                    af.attach(af.create_articulation(articulation), attack_notehead)
             # attach inner articulations to all but the last notehead in the grace container
             for articulation in self._get_inner_articulations():
                 for grace_note in inner_noteheads:
-                    abjad().attach(abjad().Articulation(articulation), grace_note)
+                    af.attach(af.create_articulation(articulation), grace_note)
             # attach release articulations to the last notehead in the grace container
             if release_notehead is not None:
                 for articulation in self._get_release_articulations():
-                    abjad().attach(abjad().Articulation(articulation), release_notehead)
+                    af.attach(af.create_articulation(articulation), release_notehead)
 
     def _attach_abjad_notations(self, abjad_note_or_chord, grace_container):
         if grace_container is None:
@@ -2758,7 +2716,7 @@ class NoteLike(ScoreComponent):
     @staticmethod
     def _abjad_attach_spanner(spanner, target):
         for spanner_abjad_object in spanner.to_abjad():
-            abjad().attach(
+            af.attach(
                 spanner_abjad_object, target,
                 direction=spanner.get_abjad_direction()
             )
@@ -2770,15 +2728,15 @@ class NoteLike(ScoreComponent):
                 # we want texts to appear in the order that they have been added to the note, but since 3.9,
                 # abjad alphabetizes everything. So we need to set outside-staff-priority explicitly
                 # 450 is the default outside-staff-priority
-                text_object = abjad().bundle(text.to_abjad(), rf'\tweak outside-staff-priority #{450 + i}')
+                text_object = af.bundle(text.to_abjad(), rf'\tweak outside-staff-priority #{450 + i}')
             else:
                 text_object = text.to_abjad()
-            abjad().attach(
+            af.attach(
                 text_object, abjad_note_or_chord,
-                direction=abjad().UP if text.placement == "above" else abjad().DOWN
+                direction=af.direction_up() if text.placement == "above" else af.direction_down()
             )
         for dynamic in self.properties.dynamics:
-            abjad().attach(abjad().Dynamic(dynamic), abjad_note_or_chord)
+            af.attach(af.create_dynamic(dynamic), abjad_note_or_chord)
 
     def to_music_xml(self, source_id_dict=None) -> Sequence[_XMLNote]:
         if self.is_rest():

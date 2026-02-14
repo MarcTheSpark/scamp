@@ -27,10 +27,14 @@ from ._metric_structure import MetricStructure
 from collections import namedtuple
 from .settings import quantization_settings, engraving_settings
 from expenvelope import Envelope
-from ._dependencies import abjad
 from numbers import Number
-from typing import Sequence, Iterator
+from typing import Sequence, Iterator, TYPE_CHECKING
 import textwrap
+from . import abjad_facade as af
+
+if TYPE_CHECKING:
+    # Import abjad only for type checking, not at runtime
+    import abjad
 
 
 ##################################################################################################################
@@ -159,11 +163,11 @@ class TimeSignature(SavesToJSON):
     def _from_dict(cls, json_dict):
         return cls(**json_dict)
 
-    def to_abjad(self) -> 'abjad().TimeSignature':
+    def to_abjad(self) -> abjad.TimeSignature:
         """
         Returns the abjad version of this time signature
         """
-        return abjad().TimeSignature((self.numerator, self.denominator))
+        return af.create_time_signature((self.numerator, self.denominator))
 
     def __eq__(self, other):
         return self.numerator == other.numerator and self.denominator == other.denominator
