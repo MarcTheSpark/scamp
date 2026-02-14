@@ -281,7 +281,7 @@ def attach_abjad_notation_to_note(abjad_note, notation_string):
         to_attach = abjad().Articulation(notations_to_lilypond_articulations[notation_string])
     elif "tremolo" in notation_string:
         num_slashes = int(notation_string[-1]) if len(notation_string) == 8 else 3
-        to_attach = abjad().StemTremolo(2 ** (2 + abjad_note.written_duration.flag_count + num_slashes))
+        to_attach = abjad().StemTremolo(2 ** (2 + abjad_note.written_duration().flag_count() + num_slashes))
     elif "arpeggiate" in notation_string:
         to_attach = abjad().Arpeggio() if notation_string == "arpeggiate" \
             else abjad().Arpeggio(direction=abjad().UP) if notation_string == "arpeggiate up" \

@@ -7,9 +7,8 @@ name = "scamp"
 version = "0.9.3.1"
 description = "A computer-assisted composition framework that manages the flow of musical time, plays back notes via SoundFonts, MIDI or OSC, and quantizes and saves the result to music notation."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = "GPL-3.0-only"
-license-files = ["LICENSE.txt"]
 
 authors = [
     { name = "Marc Evanstein", email = "marc@marcevanstein.com" }
@@ -27,7 +26,7 @@ dependencies = [
 
 [project.optional-dependencies]
 all = [
-    "abjad>=3.17,<=3.19",
+    "abjad==3.31",
     "python-rtmidi",
     "pynput"
 ]

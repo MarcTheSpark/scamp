@@ -235,11 +235,15 @@ class StartBracket(Spanner):
         return pymusicxml.StartBracket(label=self.label, **self._get_xml_consistent_formatting())
 
     def to_abjad(self):
-        style = ("dashed-line" if "line_type" in self.formatting and self.formatting["line_type"] == "dashed" else "solid-line") + \
-                ("-with-hook" if self.formatting["line_end"] is None
-                 else "-with-up-hook" if "up" in self.formatting["line_end"]
-                 else "-with-arrow" if "arrow" in self.formatting["line_end"]
-                 else "-with-hook")
+        style = (
+            r"\abjad-" +
+            ("dashed-line" if "line_type" in self.formatting and self.formatting["line_type"] == "dashed"
+             else "solid-line") +
+            ("-with-hook" if self.formatting["line_end"] is None
+             else "-with-up-hook" if "up" in self.formatting["line_end"]
+             else "-with-arrow" if "arrow" in self.formatting["line_end"]
+             else "-with-hook")
+        )
 
         left_text = rf"""- \tweak bound-details.left.text \markup \concat """ \
                     rf"""{{ "{self.formatting["text"]}" \hspace #0.5 }}""" if "text" in self.formatting else None

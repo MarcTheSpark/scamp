@@ -305,13 +305,32 @@ def _join_same_source_abjad_note_group(same_source_group):
     # sometimes a note will gliss, then sit at a static pitch
 
     gliss_present = False
-    for note_pair in zip(same_source_group[:-1], same_source_group[1:]):
-        if isinstance(note_pair[0], abjad().Note) and note_pair[0].written_pitch == note_pair[1].written_pitch or \
-                isinstance(note_pair[0], abjad().Chord) and note_pair[0].written_pitches == note_pair[1].written_pitches:
-            abjad().tie(note_pair)
+    tie_groups = []  # collect groups of consecutive notes to tie together
+    current_tie_group = [same_source_group[0]]
+
+    for i, note_pair in enumerate(zip(same_source_group[:-1], same_source_group[1:])):
+        if isinstance(note_pair[0], abjad().Note) and note_pair[0].written_pitch() == note_pair[1].written_pitch() or \
+                isinstance(note_pair[0], abjad().Chord) and note_pair[0].written_pitches() == note_pair[1].written_pitches():
+            # same pitch - continue the tie group
+            current_tie_group.append(note_pair[1])
         else:
+            # different pitch - it's a gliss
+            # first, finish the current tie group if it has more than one note
+            if len(current_tie_group) > 1:
+                tie_groups.append(current_tie_group)
+            # add the gliss
             abjad().glissando(note_pair)
             gliss_present = True
+            # start a new tie group with the second note of the pair
+            current_tie_group = [note_pair[1]]
+
+    # don't forget the last tie group
+    if len(current_tie_group) > 1:
+        tie_groups.append(current_tie_group)
+
+    # now tie all the groups
+    for tie_group in tie_groups:
+        abjad().tie(tie_group)
 
     if gliss_present and engraving_settings.glissandi.slur_glisses:
         # if any of the segments gliss, we might attach a slur
@@ -441,6 +460,21 @@ def _get_clef_from_average_pitch_and_clef_choices(average_pitch: float,
             closest_distance = dist
 
     return closest_clef
+
+
+def make_abjad_duration(value):
+    """
+    Converts a float or fraction to an abjad Duration object
+
+    :param value: the float or Fraction
+    :return: the Duration
+    """
+    if isinstance(value, Fraction):
+        frac = value
+    else:
+        frac = Fraction(value).limit_denominator()
+    return abjad().Duration(frac.numerator, frac.denominator)
+
 
 ##################################################################################################################
 #                                             Abstract Classes
@@ -1037,7 +1071,7 @@ class Score(ScoreComponent, ScoreContainer):
                 # tempo markups in order to allow floats)
                 abjad().attach(
                     abjad().MetronomeMark(
-                        abjad().Duration(0.25 * metronome_mark_beat_length),
+                        make_abjad_duration(0.25 * metronome_mark_beat_length),
                         round(key_point_tempo / metronome_mark_beat_length)
                     ),
                     this_point_skip_object
@@ -1059,7 +1093,7 @@ class Score(ScoreComponent, ScoreContainer):
                 guide_mark_override = r"""\once \override Score.MetronomeMark.font-size = #-5"""
                 abjad().attach(
                     abjad().MetronomeMark(
-                        abjad().Duration(0.25 * metronome_mark_beat_length),
+                        make_abjad_duration(0.25 * metronome_mark_beat_length),
                         round(guide_mark_tempo / metronome_mark_beat_length),
                         textual_indication="\"\""  # this results in parentheses
                     ),
@@ -1083,17 +1117,21 @@ class Score(ScoreComponent, ScoreContainer):
         """
         if len(displacements) == 0:
             skip_length = 1 / Fraction(score_measure.length / 4).denominator
-            return abjad().Voice(
-                [abjad().Skip(0.25 * skip_length)
-                 for _ in range(int(round(score_measure.length / skip_length)))], name="TempoVoice"
-            ), None
+            skip_duration = make_abjad_duration(0.25 * skip_length)
+            skips = [abjad().Skip() for _ in range(int(round(score_measure.length / skip_length)))]
+            for skip in skips:
+                skip.set_written_duration(skip_duration)
+            return abjad().Voice(skips, name="TempoVoice"), None
 
         # length of the skips in quarter notes
         min_skip = 1 / Fraction(score_measure.length).denominator
         while max(x % min_skip for x in displacements) > 0.05:
             min_skip /= 2
 
-        skips = [abjad().Skip(0.25 * min_skip) for _ in range(int(round(score_measure.length / min_skip)))]
+        skip_duration = make_abjad_duration(0.25 * min_skip)
+        skips = [abjad().Skip() for _ in range(int(round(score_measure.length / min_skip)))]
+        for skip in skips:
+            skip.set_written_duration(skip_duration)
 
         # maps the beat of any of the key points and guide marks we will run into to the skip object
         # that most nearly approximates its position
@@ -1109,7 +1147,8 @@ class Score(ScoreComponent, ScoreContainer):
             for sub_chunk in (chunk[i: i + skips_per_sub_chunk] for i in range(0, len(chunk), skips_per_sub_chunk)):
                 if not any(x in mark_beats_to_skip_objects.values() for x in sub_chunk[1:]):
                     # we can combine the skips so long as none except the first are locations where tempo marks occur
-                    combined_skip = abjad().Skip(combination_size)
+                    combined_skip = abjad().Skip()
+                    combined_skip.set_written_duration(make_abjad_duration(combination_size))
                     # if a tempo mark occurs at the first skip in the chunk, we can still combine it, but we have to be
                     # careful to remap the mark_beats_to_skip_objects dictionary to point to the new combined skip
                     for x in mark_beats_to_skip_objects:
@@ -1712,12 +1751,12 @@ class Measure(ScoreComponent, ScoreContainer):
     def _to_abjad(self, source_id_dict=None):
         is_top_level_call = True if source_id_dict is None else False
         source_id_dict = {} if source_id_dict is None else source_id_dict
-        abjad_measure = abjad().Container()
 
+        abjad_voices = []
         for i, voice in enumerate(self.voices):
             if voice is None:
                 continue
-            abjad_voice = self.voices[i]._to_abjad(source_id_dict)
+            abjad_voice = self.voices[i]._to_abjad(source_id_dict, name=_voice_names[i])
 
             if i == 0 and self.show_time_signature:
                 # TODO: this seems to break in abjad when the measure starts with a tuplet, so for now, a klugey fix
@@ -1733,9 +1772,9 @@ class Measure(ScoreComponent, ScoreContainer):
                         break
                     except Exception:
                         attachment_spot = attachment_spot[0]
-            abjad_voice.name = _voice_names[i]
-            abjad_measure.append(abjad_voice)
-        abjad_measure.simultaneous = True
+            abjad_voices.append(abjad_voice)
+
+        abjad_measure = abjad().Container(abjad_voices, simultaneous=True)
 
         if is_top_level_call:
             for same_source_group in source_id_dict.values():
@@ -2150,15 +2189,11 @@ class Voice(ScoreComponent, ScoreContainer):
         return len(beat_bin) == 1 and not isinstance(beat_bin[0], Tuplet) and not beat_bin[0].does_glissando() \
                and (beat_bin[0].is_rest() or beat_bin[0].source_id() is not None)
 
-    def _to_abjad(self, source_id_dict=None):
+    def _to_abjad(self, source_id_dict=None, name=None):
         if len(self.contents) == 0:  # empty voice
-            try:
-                return abjad().Voice([abjad().MultimeasureRest(
-                    (self.time_signature.numerator, self.time_signature.denominator)
-                )])
-            except abjad().exceptions.AssignabilityError:
-                return abjad().Voice("R1 * {}/{}".format(self.time_signature.numerator,
-                                                         self.time_signature.denominator))
+            rest_text = "R1" if self.time_signature.numerator == self.time_signature.denominator else \
+                "R1 * {}/{}".format(self.time_signature.numerator, self.time_signature.denominator)
+            return abjad().Voice(rest_text, name=name)
 
         else:
             is_top_level_call = True if source_id_dict is None else False
@@ -2167,7 +2202,7 @@ class Voice(ScoreComponent, ScoreContainer):
             if is_top_level_call:
                 for same_source_group in source_id_dict.values():
                     _join_same_source_abjad_note_group(same_source_group)
-            return abjad().Voice(abjad_components)
+            return abjad().Voice(abjad_components, name=name)
 
     def to_music_xml(self, source_id_dict=None) -> Sequence[pymusicxml.BeamedGroup | _XMLNote]:
         if len(self.contents) == 0:
@@ -2297,8 +2332,8 @@ class Tuplet(ScoreComponent, ScoreContainer):
         if is_top_level_call:
             for same_source_group in source_id_dict.values():
                 _join_same_source_abjad_note_group(same_source_group)
-        tuplet_fraction = Fraction(self.normal_divisions, self.tuplet_divisions)
-        return abjad().Tuplet((tuplet_fraction.numerator, tuplet_fraction.denominator), abjad_notes)
+        tuplet_fraction = Fraction(self.tuplet_divisions, self.normal_divisions)
+        return abjad().Tuplet(abjad().Ratio(tuplet_fraction.numerator, tuplet_fraction.denominator), abjad_notes)
 
     def to_music_xml(self, source_id_dict=None) -> pymusicxml.Tuplet:
         is_top_level_call = True if source_id_dict is None else False
@@ -2496,39 +2531,46 @@ class NoteLike(ScoreComponent):
         grace_notes = []
 
         if self.is_rest():
-            abjad_object = abjad().Rest(duration)
+            abjad_object = abjad().Rest()
+            abjad_object.set_written_duration(make_abjad_duration(duration))
         elif self.is_chord():
             abjad_object = abjad().Chord()
-            abjad_object.written_duration = duration
+            abjad_object.set_written_duration(make_abjad_duration(duration))
 
             if self.does_glissando():
                 # if it's a glissing chord, its noteheads are based on the start level
-                abjad_object.note_heads = [self.properties.get_spelling_policy(i).resolve_abjad_pitch(x.start_level())
-                                           for i, x in enumerate(self.pitch)]
+                abjad_object.set_note_heads([
+                    abjad().NoteHead(self.properties.get_spelling_policy(i).resolve_abjad_pitch(x.start_level()))
+                    for i, x in enumerate(self.pitch)
+                ])
                 # Set the notehead
                 self._set_abjad_note_head_styles(abjad_object)
                 self._attach_abjad_microtonal_annotation(abjad_object, [p.start_level() for p in self.pitch])
-                last_pitches = abjad_object.written_pitches
+                last_pitches = abjad_object.written_pitches()
 
                 grace_points = self._get_grace_points()
 
                 # add a grace chord for each important turn around point in the gliss
                 for t in grace_points:
                     grace_chord = abjad().Chord()
-                    grace_chord.written_duration = 1/16
-                    grace_chord.note_heads = [self.properties.get_spelling_policy(i).resolve_abjad_pitch(x.value_at(t))
-                                              for i, x in enumerate(self.pitch)]
+                    grace_chord.set_written_duration(abjad().Duration(1, 16))
+                    grace_chord.set_note_heads([
+                        abjad().NoteHead(self.properties.get_spelling_policy(i).resolve_abjad_pitch(x.value_at(t)))
+                        for i, x in enumerate(self.pitch)
+                    ])
                     # Set the notehead
                     self._set_abjad_note_head_styles(grace_chord)
                     self._attach_abjad_microtonal_annotation(grace_chord, [p.value_at(t) for p in self.pitch])
                     # but first check that we're not just repeating the last grace chord
-                    if grace_chord.written_pitches != last_pitches:
+                    if grace_chord.written_pitches() != last_pitches:
                         grace_notes.append(grace_chord)
-                        last_pitches = grace_chord.written_pitches
+                        last_pitches = grace_chord.written_pitches()
             else:
                 # if not, our job is simple
-                abjad_object.note_heads = [self.properties.get_spelling_policy(i).resolve_abjad_pitch(x)
-                                           for i, x in enumerate(self.pitch)]
+                abjad_object.set_note_heads([
+                    abjad().NoteHead(self.properties.get_spelling_policy(i).resolve_abjad_pitch(x))
+                    for i, x in enumerate(self.pitch)
+                ])
                 # Set the noteheads
                 self._set_abjad_note_head_styles(abjad_object)
                 # attach any microtonal annotations (if setting is flipped)
@@ -2537,33 +2579,36 @@ class NoteLike(ScoreComponent):
         elif self.does_glissando():
             # This is a note doing a glissando
             abjad_object = abjad().Note(
-                self.properties.get_spelling_policy().resolve_abjad_pitch(self.pitch.start_level()), duration
+                self.properties.get_spelling_policy().resolve_abjad_pitch(self.pitch.start_level()).name()
             )
+            abjad_object.set_written_duration(make_abjad_duration(duration))
             # Set the notehead
             self._set_abjad_note_head_styles(abjad_object)
             # attach any microtonal annotations (if setting is flipped)
             self._attach_abjad_microtonal_annotation(abjad_object, self.pitch.start_level())
 
-            last_pitch = abjad_object.written_pitch
+            last_pitch = abjad_object.written_pitch()
 
             grace_points = self._get_grace_points()
 
             for t in grace_points:
                 grace = abjad().Note(
-                    self.properties.get_spelling_policy().resolve_abjad_pitch(self.pitch.value_at(t)), 1 / 16
+                    self.properties.get_spelling_policy().resolve_abjad_pitch(self.pitch.value_at(t)).name()
                 )
+                grace.set_written_duration(make_abjad_duration(1 / 16))
 
                 # Set the notehead
                 self._set_abjad_note_head_styles(grace)
                 # attach any microtonal annotations (if setting is flipped)
                 self._attach_abjad_microtonal_annotation(grace, self.pitch.value_at(t))
                 # but first check that we're not just repeating the last grace note pitch
-                if last_pitch != grace.written_pitch:
+                if last_pitch != grace.written_pitch():
                     grace_notes.append(grace)
-                    last_pitch = grace.written_pitch
+                    last_pitch = grace.written_pitch()
         else:
             # This is a simple note
-            abjad_object = abjad().Note(self.properties.get_spelling_policy().resolve_abjad_pitch(self.pitch), duration)
+            abjad_object = abjad().Note(self.properties.get_spelling_policy().resolve_abjad_pitch(self.pitch).name())
+            abjad_object.set_written_duration(make_abjad_duration(duration))
             # Set the notehead
             self._set_abjad_note_head_styles(abjad_object)
             self._attach_abjad_microtonal_annotation(abjad_object, self.pitch)
@@ -2629,8 +2674,8 @@ class NoteLike(ScoreComponent):
                 )
 
     def _set_abjad_note_head_styles(self, abjad_note_or_chord):
-        note_heads = ([abjad_note_or_chord.note_head] if isinstance(abjad_note_or_chord, abjad().Note)
-                      else abjad_note_or_chord.note_heads)
+        note_heads = ([abjad_note_or_chord.note_head()] if isinstance(abjad_note_or_chord, abjad().Note)
+                      else abjad_note_or_chord.note_heads())
 
         for note_head, note_head_string in zip(note_heads, self.properties.noteheads):
             tweak_string, comment = get_lilypond_notehead_tweaks(note_head_string)
