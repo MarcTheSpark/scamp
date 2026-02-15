@@ -30,7 +30,7 @@ from expenvelope import Envelope
 from numbers import Number
 from typing import Sequence, Iterator, TYPE_CHECKING
 import textwrap
-from . import abjad_facade as af
+from . import _abjad_facade as af
 
 if TYPE_CHECKING:
     # Import abjad only for type checking, not at runtime

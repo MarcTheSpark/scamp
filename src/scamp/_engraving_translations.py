@@ -124,7 +124,7 @@ def get_lilypond_notehead_tweaks(notehead_string: str):
 
 
 def _set_abjad_note_head_styles(self, abjad_note_or_chord):
-    from . import abjad_facade as af
+    from . import _abjad_facade as af
 
     note_heads = af.get_noteheads(abjad_note_or_chord)
 
@@ -273,7 +273,7 @@ all_notations = list(notations_to_xml_notations_element.keys())
 
 
 def attach_abjad_notation_to_note(abjad_note, notation_string):
-    from . import abjad_facade as af
+    from . import _abjad_facade as af
     notation_string = notation_string.lower()
     # markup vs otherwise
     # fix tremolo to be consistent number of slashes

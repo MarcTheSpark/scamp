@@ -611,3 +611,396 @@ def create_empty_voice(time_signature, name: Optional[str] = None):
     rest_text = "R1" if time_signature.numerator == time_signature.denominator else \
         "R1 * {}/{}".format(time_signature.numerator, time_signature.denominator)
     return create_voice(rest_text, name=name)
+
+
+# ============================================================================
+# COMPLEX MUSICAL OPERATIONS
+# These handle common SCAMP patterns that involve multiple abjad operations
+# ============================================================================
+
+
+def create_styled_note(spelling_policy, pitch, duration, properties, is_glissando=False):
+    """
+    Create a note with pitches resolved from spelling policy, with noteheads styled and
+    microtonal annotations attached.
+
+    :param spelling_policy: SCAMP SpellingPolicy object
+    :param pitch: Pitch value (MIDI number or pitch at time point)
+    :param duration: Duration value
+    :param properties: SCAMP NoteProperties object
+    :param is_glissando: Whether this is part of a glissando (affects which pitch to use)
+    :return: Styled abjad Note
+    """
+    from ._engraving_translations import get_lilypond_notehead_tweaks
+
+    pitch_obj = pitch.start_level() if is_glissando else pitch
+    pitch_name = spelling_policy.resolve_abjad_pitch(pitch_obj).name()
+    note = create_note(pitch_name, duration=duration)
+
+    # Set notehead styles
+    note_head = note.note_head()
+    tweak_string, comment = get_lilypond_notehead_tweaks(properties.noteheads[0])
+    if tweak_string:
+        tweak(note_head, tweak_string)
+    if comment:
+        attach(create_lilypond_comment(comment), note)
+
+    # Attach microtonal annotations if needed
+    attach_microtonal_annotation(note, pitch_obj, properties)
+
+    return note
+
+
+def create_styled_chord(spelling_policies, pitches, duration, properties, is_glissando=False):
+    """
+    Create a chord with pitches resolved from spelling policies, noteheads styled and
+    microtonal annotations attached.
+
+    :param spelling_policies: List of SCAMP SpellingPolicy objects (one per pitch)
+    :param pitches: List of pitch values
+    :param duration: Duration value
+    :param properties: SCAMP NoteProperties object
+    :param is_glissando: Whether this is part of a glissando (affects which pitches to use)
+    :return: Styled abjad Chord
+    """
+    from ._engraving_translations import get_lilypond_notehead_tweaks
+
+    chord = create_chord(duration=duration)
+
+    # Create and set noteheads
+    pitch_objs = [p.start_level() if is_glissando else p for p in pitches]
+    noteheads = [
+        create_notehead(spelling_policies[i].resolve_abjad_pitch(pitch_obj))
+        for i, pitch_obj in enumerate(pitch_objs)
+    ]
+    chord.set_note_heads(noteheads)
+
+    # Set notehead styles
+    note_heads = get_noteheads(chord)
+    for note_head, notehead_string in zip(note_heads, properties.noteheads):
+        tweak_string, comment = get_lilypond_notehead_tweaks(notehead_string)
+        if tweak_string:
+            tweak(note_head, tweak_string)
+        if comment:
+            attach(create_lilypond_comment(comment), chord)
+
+    # Attach microtonal annotations if needed
+    attach_microtonal_annotation(chord, pitch_objs, properties)
+
+    return chord
+
+
+def attach_glissando_grace_notes(main_note, grace_note_or_chord_list, stemless=True):
+    """
+    Create an AfterGraceContainer with grace notes, optionally mark them as stemless,
+    and attach to the main note.
+
+    :param main_note: The main abjad note/chord to attach grace notes to
+    :param grace_note_or_chord_list: List of abjad grace notes/chords
+    :param stemless: Whether to add \\stemless literal to grace notes
+    :return: The created AfterGraceContainer
+    """
+    if stemless:
+        for grace_note in grace_note_or_chord_list:
+            attach(create_lilypond_literal(r"\stemless"), grace_note)
+
+    grace_container = create_after_grace_container(grace_note_or_chord_list)
+    attach(grace_container, main_note)
+
+    return grace_container
+
+
+def create_tempo_voice(score_measure, displacements, metronome_mark_beat_length):
+    """
+    Create a voice filled with skips for attaching tempo markings, with optimized
+    skip combining for cleaner output.
+
+    :param score_measure: SCAMP Measure object
+    :param displacements: List of beat positions where tempo marks occur
+    :param metronome_mark_beat_length: Beat length for metronome marks
+    :return: Tuple of (tempo_voice, mark_beats_to_skip_objects dict)
+    """
+    from fractions import Fraction
+
+    if len(displacements) == 0:
+        skip_length = 1 / Fraction(score_measure.length / 4).denominator
+        skips = [create_skip(duration=0.25 * skip_length)
+                 for _ in range(int(round(score_measure.length / skip_length)))]
+        return create_voice(skips, name="TempoVoice"), None
+
+    # length of the skips in quarter notes
+    min_skip = 1 / Fraction(score_measure.length).denominator
+    while max(x % min_skip for x in displacements) > 0.05:
+        min_skip /= 2
+
+    skips = [create_skip(duration=0.25 * min_skip)
+             for _ in range(int(round(score_measure.length / min_skip)))]
+
+    # maps the beat of any of the key points and guide marks we will run into to the skip object
+    # that most nearly approximates its position
+    mark_beats_to_skip_objects = {x: skips[int(x / min_skip)] for x in displacements}
+
+    # Now combine skips when possible for cleaner output
+    def combine_skips_as_possible(chunk, combination_size):
+        if combination_size < 0.25 * min_skip:
+            return chunk
+        out = []
+        skips_per_sub_chunk = int(round(combination_size / (0.25 * min_skip)))
+        for sub_chunk in (chunk[i: i + skips_per_sub_chunk]
+                         for i in range(0, len(chunk), skips_per_sub_chunk)):
+            if not any(x in mark_beats_to_skip_objects.values() for x in sub_chunk[1:]):
+                # we can combine the skips so long as none except the first are locations where tempo marks occur
+                combined_skip = create_skip(duration=combination_size)
+                # if a tempo mark occurs at the first skip in the chunk, we can still combine it, but we have to be
+                # careful to remap the mark_beats_to_skip_objects dictionary to point to the new combined skip
+                for x in mark_beats_to_skip_objects:
+                    if mark_beats_to_skip_objects[x] == sub_chunk[0]:
+                        mark_beats_to_skip_objects[x] = combined_skip
+                out.append(combined_skip)
+            else:
+                out.extend(combine_skips_as_possible(sub_chunk, combination_size / 2))
+        return out
+
+    # Start by trying to chunk things into the largest un-dotted note that divides the measure
+    skips = combine_skips_as_possible(skips, 1 / Fraction(score_measure.length / 4).denominator)
+
+    tempo_voice = create_voice(skips, name="TempoVoice")
+
+    return tempo_voice, mark_beats_to_skip_objects
+
+
+def attach_articulations(properties, target, grace_container=None):
+    """
+    Attach articulations from SCAMP NoteProperties to an abjad note/chord,
+    with intelligent handling of attack/inner/release articulations for glissandi.
+
+    :param properties: SCAMP NoteProperties object
+    :param target: Main abjad note/chord
+    :param grace_container: Optional AfterGraceContainer for glissandi
+    """
+    if grace_container is None:
+        # just a single notehead, so attach all articulations
+        for articulation in properties.articulations:
+            attach(create_articulation(articulation), target)
+    else:
+        # there's a gliss - need to handle attack/inner/release articulations
+        from .note_properties import NoteProperties  # Import locally to avoid circular dependency
+
+        attack_notehead = target if not properties.ends_tie else None
+        release_notehead = grace_container[-1] if not properties.starts_tie else None
+        inner_noteheads = ([] if attack_notehead is not None else [target]) + \
+                          [grace for grace in grace_container[:-1]] + \
+                          ([] if release_notehead is not None else [grace_container[-1]])
+
+        # Helper functions to get attack/inner/release articulations
+        def get_attack_articulations():
+            return [x.split()[0] for x in properties.articulations if "attack" in x or " " not in x]
+
+        def get_inner_articulations():
+            return [x.split()[1] for x in properties.articulations if "inner" in x]
+
+        def get_release_articulations():
+            return [x.split()[-1] for x in properties.articulations if "release" in x]
+
+        # only attach attack articulations to the main note
+        if attack_notehead is not None:
+            for articulation in get_attack_articulations():
+                attach(create_articulation(articulation), attack_notehead)
+        # attach inner articulations to all but the last notehead in the grace container
+        for articulation in get_inner_articulations():
+            for grace_note in inner_noteheads:
+                attach(create_articulation(articulation), grace_note)
+        # attach release articulations to the last notehead in the grace container
+        if release_notehead is not None:
+            for articulation in get_release_articulations():
+                attach(create_articulation(articulation), release_notehead)
+
+
+def attach_markup(text_or_markup, target, placement="above"):
+    """
+    Attach markup to a target with specified placement.
+
+    :param text_or_markup: String or abjad Markup object
+    :param target: Abjad note/chord to attach to
+    :param placement: "above", "below", or None
+    """
+    if isinstance(text_or_markup, str):
+        markup = create_markup(text_or_markup)
+    else:
+        markup = text_or_markup
+
+    direction = direction_up() if placement == "above" else \
+                direction_down() if placement == "below" else None
+
+    attach(markup, target, direction=direction)
+
+
+def create_named_staff(contents, name):
+    """
+    Create a staff with instrument name set.
+
+    :param contents: List of abjad components
+    :param name: Staff name (also used as instrument name)
+    :return: Abjad Staff
+    """
+    staff = create_staff(contents, name=name)
+    setting(staff).instrument_name = '#"{}"'.format(name)
+    return staff
+
+
+def create_score_with_top_staff(parts):
+    """
+    Create a score and return it along with the top staff (for tempo marking attachment).
+
+    :param parts: List of abjad Staff or StaffGroup objects
+    :return: Tuple of (score, top_staff)
+    """
+    score = create_score(parts)
+    # tempo markings will be attached to the top staff
+    # Here we sort out whether or not that staff is part of a staff group or not
+    top_staff = score[0][0] if is_staff_group(score[0]) else score[0]
+    return score, top_staff
+
+
+def attach_microtonal_annotation(note_or_chord, pitch_or_pitches, properties):
+    """
+    Attach microtonal annotation markup to a note/chord if needed.
+
+    :param note_or_chord: Abjad note or chord
+    :param pitch_or_pitches: Single pitch or list of pitches (MIDI numbers)
+    :param properties: SCAMP NoteProperties object
+    """
+    from .settings import engraving_settings
+
+    if not engraving_settings.show_microtonal_annotations or \
+            properties.ends_tie and not hasattr(pitch_or_pitches, '__iter__'):
+        # if this is not the first segment of the note, and it's not part of a gliss, don't do the annotations
+        return
+
+    if hasattr(pitch_or_pitches, '__len__'):
+        if any(round(p, engraving_settings.microtonal_annotation_digits) != round(p) for p in pitch_or_pitches):
+            markup = create_markup(
+                r'\markup { \pitch-annotation "' +
+                "; ".join(str(round(p, engraving_settings.microtonal_annotation_digits))
+                          for p in pitch_or_pitches) +
+                '" }')
+            attach(markup, note_or_chord, direction=direction_up())
+    else:
+        if round(pitch_or_pitches, engraving_settings.microtonal_annotation_digits) != round(pitch_or_pitches):
+            markup = create_markup(
+                r'\markup { \pitch-annotation "' +
+                str(round(pitch_or_pitches, engraving_settings.microtonal_annotation_digits)) + '" }')
+            attach(markup, note_or_chord, direction=direction_up())
+
+
+def attach_notations(properties, target, grace_container=None):
+    """
+    Attach notations from SCAMP NoteProperties to an abjad note/chord.
+
+    :param properties: SCAMP NoteProperties object
+    :param target: Main abjad note/chord
+    :param grace_container: Optional AfterGraceContainer for glissandi
+    """
+    from ._engraving_translations import attach_abjad_notation_to_note
+
+    if grace_container is None:
+        # just a single notehead, so attach all notations
+        for notation in properties.notations:
+            attach_abjad_notation_to_note(target, notation)
+    else:
+        # there's a gliss - need to handle attack/inner/release notations
+        attack_notehead = target if not properties.ends_tie else None
+        release_notehead = grace_container[-1] if not properties.starts_tie else None
+        inner_noteheads = ([] if attack_notehead is not None else [target]) + \
+                          [grace for grace in grace_container[:-1]] + \
+                          ([] if release_notehead is not None else [grace_container[-1]])
+
+        # Helper functions to get attack/inner/release notations
+        def get_attack_notations():
+            return [x.split()[0] for x in properties.notations if "attack" in x or " " not in x]
+
+        def get_inner_notations():
+            return [x.split()[1] for x in properties.notations if "inner" in x]
+
+        def get_release_notations():
+            return [x.split()[-1] for x in properties.notations if "release" in x]
+
+        # only attach attack notations to the main note
+        if attack_notehead is not None:
+            for notation in get_attack_notations():
+                attach_abjad_notation_to_note(attack_notehead, notation)
+        # attach inner notations to all but the last notehead in the grace container
+        for notation in get_inner_notations():
+            for grace_note in inner_noteheads:
+                attach_abjad_notation_to_note(grace_note, notation)
+        # attach release notations to the last notehead in the grace container
+        if release_notehead is not None:
+            for notation in get_release_notations():
+                attach_abjad_notation_to_note(release_notehead, notation)
+
+
+def attach_spanners(properties, target, grace_container=None):
+    """
+    Attach spanners from SCAMP NoteProperties to an abjad note/chord.
+
+    :param properties: SCAMP NoteProperties object
+    :param target: Main abjad note/chord
+    :param grace_container: Optional AfterGraceContainer for glissandi
+    """
+    def attach_spanner(spanner, spanner_target):
+        """Helper to attach a single spanner."""
+        for spanner_abjad_object in spanner.to_abjad():
+            attach(
+                spanner_abjad_object, spanner_target,
+                direction=spanner.get_abjad_direction()
+            )
+
+    if grace_container is None:
+        # just a single notehead, so attach all spanners
+        for spanner in properties.spanners:
+            attach_spanner(spanner, target)
+    else:
+        # there's a gliss - need to handle start/stop spanners
+        attack_notehead = target if not properties.ends_tie else None
+        release_notehead = grace_container[-1] if not properties.starts_tie else None
+
+        # Helper functions to get start/mid/stop spanners
+        def get_start_and_mid_spanners():
+            return [s for s in properties.spanners if "start" in s.__class__.__name__.lower()
+                    or "change" in s.__class__.__name__.lower()]
+
+        def get_stop_spanners():
+            return [s for s in properties.spanners if "stop" in s.__class__.__name__.lower()]
+
+        if attack_notehead is not None:
+            for spanner in get_start_and_mid_spanners():
+                attach_spanner(spanner, attack_notehead)
+        if release_notehead is not None:
+            for spanner in get_stop_spanners():
+                attach_spanner(spanner, release_notehead)
+
+
+def attach_texts_and_dynamics(properties, target):
+    """
+    Attach text annotations and dynamics from SCAMP NoteProperties to an abjad note/chord.
+
+    :param properties: SCAMP NoteProperties object
+    :param target: Abjad note/chord
+    """
+    from .text import StaffText
+
+    for i, text in enumerate(properties.texts):
+        assert isinstance(text, StaffText)
+        if len(properties.texts) > 1:
+            # we want texts to appear in the order that they have been added to the note, but since 3.9,
+            # abjad alphabetizes everything. So we need to set outside-staff-priority explicitly
+            # 450 is the default outside-staff-priority
+            text_object = bundle(text.to_abjad(), rf'\tweak outside-staff-priority #{450 + i}')
+        else:
+            text_object = text.to_abjad()
+        attach(
+            text_object, target,
+            direction=direction_up() if text.placement == "above" else direction_down()
+        )
+    for dynamic in properties.dynamics:
+        attach(create_dynamic(dynamic), target)

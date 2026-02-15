@@ -237,7 +237,7 @@ class SpellingPolicy(SavesToJSON, NoteProperty):
 
         :param midi_num: a MIDI pitch value
         """
-        from scamp import abjad_facade as af
+        from scamp import _abjad_facade as af
         name, octave, alteration = self.resolve_name_octave_and_alteration(midi_num)
         return af.create_named_pitch(name, accidental=alteration, octave=octave)
 

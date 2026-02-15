@@ -22,7 +22,7 @@ single note.
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Any
-from . import abjad_facade as af
+from . import _abjad_facade as af
 from ._engraving_translations import xml_accidental_name_to_lilypond
 from .utilities import SavesToJSON, NoteProperty
 import pymusicxml

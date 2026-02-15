@@ -36,7 +36,7 @@ from .text import StaffText
 import pymusicxml
 from pymusicxml.score_components import _XMLNote, MusicXMLComponent
 from ._dependencies import get_abjad
-from . import abjad_facade as af
+from . import _abjad_facade as af
 import math
 from fractions import Fraction
 from copy import deepcopy
@@ -992,10 +992,7 @@ class Score(ScoreComponent, ScoreContainer):
         return key_points, guide_marks
 
     def _to_abjad(self):
-        abjad_score = af.create_score([part._to_abjad() for part in self.parts])
-        # tempo markings will be attached to the top staff.
-        # Here we sort out whether or not that staff is part of a staff group or not
-        top_staff = abjad_score[0][0] if af.is_staff_group(abjad_score[0]) else abjad_score[0]
+        abjad_score, top_staff = af.create_score_with_top_staff([part._to_abjad() for part in self.parts])
 
         # go through and add all of the tempo marks to the xml score
         key_points, guide_marks = self._get_tempo_key_points_and_guide_marks()
@@ -1105,50 +1102,15 @@ class Score(ScoreComponent, ScoreContainer):
         Returns a measure of tempo voice filled with skip objects, and a dictionary pointing the time points of the
         various tempo marks to their associated skip objects.
         """
-        if len(displacements) == 0:
-            skip_length = 1 / Fraction(score_measure.length / 4).denominator
-            skips = [af.create_skip(duration=0.25 * skip_length) for _ in range(int(round(score_measure.length / skip_length)))]
-            return af.create_voice(skips, name="TempoVoice"), None
+        # Use the facade function (note: it doesn't know about measure_start, so we adjust keys afterward)
+        tempo_voice, mark_beats_to_skip_objects = af.create_tempo_voice(
+            score_measure, displacements, metronome_mark_beat_length=1
+        )
 
-        # length of the skips in quarter notes
-        min_skip = 1 / Fraction(score_measure.length).denominator
-        while max(x % min_skip for x in displacements) > 0.05:
-            min_skip /= 2
-
-        skips = [af.create_skip(duration=0.25 * min_skip) for _ in range(int(round(score_measure.length / min_skip)))]
-
-        # maps the beat of any of the key points and guide marks we will run into to the skip object
-        # that most nearly approximates its position
-        mark_beats_to_skip_objects = {x + measure_start: skips[int(x / min_skip)] for x in displacements}
-
-        def combine_skips_as_possible(chunk, combination_size):
-            # chunk is a list of skip objects of the same size, and combination size is the size we want to try to
-            # merge them together into (in whole notes, using the abjad duration standard)
-            if len(chunk) == 1:
-                return chunk
-            out = []
-            skips_per_sub_chunk = int(round(combination_size / (0.25 * min_skip)))
-            for sub_chunk in (chunk[i: i + skips_per_sub_chunk] for i in range(0, len(chunk), skips_per_sub_chunk)):
-                if not any(x in mark_beats_to_skip_objects.values() for x in sub_chunk[1:]):
-                    # we can combine the skips so long as none except the first are locations where tempo marks occur
-                    combined_skip = af.create_skip(duration=combination_size)
-                    # if a tempo mark occurs at the first skip in the chunk, we can still combine it, but we have to be
-                    # careful to remap the mark_beats_to_skip_objects dictionary to point to the new combined skip
-                    for x in mark_beats_to_skip_objects:
-                        if mark_beats_to_skip_objects[x] == sub_chunk[0]:
-                            mark_beats_to_skip_objects[x] = combined_skip
-                    out.append(combined_skip)
-                else:
-                    out.extend(combine_skips_as_possible(sub_chunk, combination_size / 2))
-            return out
-
-        # 1 / Fraction(score_measure.length / 4).denominator gives the length (in whole notes, following the abjad
-        # duration standard) of the largest un-dotted note that divides the measure. This starts by trying to chunk
-        # the skips into those, then tries smaller and smaller chunks as needed
-        skips = combine_skips_as_possible(skips, 1 / Fraction(score_measure.length / 4).denominator)
-
-        # add a tempo voice filled with skip objects to attach tempo markings to
-        tempo_voice = af.create_voice(skips, name="TempoVoice")
+        # Adjust the dictionary keys to account for measure_start
+        if mark_beats_to_skip_objects is not None:
+            mark_beats_to_skip_objects = {x + measure_start: skip_obj
+                                          for x, skip_obj in mark_beats_to_skip_objects.items()}
 
         return tempo_voice, mark_beats_to_skip_objects
 
@@ -1614,9 +1576,7 @@ class Staff(ScoreComponent, ScoreContainer):
         contents = [measure._to_abjad(source_id_dict) for measure in self.measures]
         for same_source_group in source_id_dict.values():
             _join_same_source_abjad_note_group(same_source_group)
-        abjad_staff = af.create_staff(contents, name=self.name)
-        af.setting(abjad_staff).instrument_name = '#"{}"'.format(self.name)
-        return abjad_staff
+        return af.create_named_staff(contents, self.name)
 
     def to_music_xml(self) -> pymusicxml.Part:
         source_id_dict = {}
@@ -2499,244 +2459,87 @@ class NoteLike(ScoreComponent):
 
         if self.is_rest():
             abjad_object = af.create_rest(duration=duration)
+
         elif self.is_chord():
-            abjad_object = af.create_chord(duration=duration)
+            spelling_policies = [self.properties.get_spelling_policy(i) for i in range(len(self.pitch))]
 
             if self.does_glissando():
-                # if it's a glissing chord, its noteheads are based on the start level
-                abjad_object.set_note_heads([
-                    af.create_notehead(self.properties.get_spelling_policy(i).resolve_abjad_pitch(x.start_level()))
-                    for i, x in enumerate(self.pitch)
-                ])
-                # Set the notehead
-                self._set_abjad_note_head_styles(abjad_object)
-                self._attach_abjad_microtonal_annotation(abjad_object, [p.start_level() for p in self.pitch])
+                # Create main chord with glissando start pitches
+                abjad_object = af.create_styled_chord(
+                    spelling_policies, self.pitch, duration, self.properties, is_glissando=True
+                )
                 last_pitches = abjad_object.written_pitches()
 
+                # Create grace chords for gliss turning points
                 grace_points = self._get_grace_points()
-
-                # add a grace chord for each important turn around point in the gliss
                 for t in grace_points:
-                    grace_chord = af.create_chord(duration=1/16)
-                    grace_chord.set_note_heads([
-                        af.create_notehead(self.properties.get_spelling_policy(i).resolve_abjad_pitch(x.value_at(t)))
-                        for i, x in enumerate(self.pitch)
-                    ])
-                    # Set the notehead
-                    self._set_abjad_note_head_styles(grace_chord)
-                    self._attach_abjad_microtonal_annotation(grace_chord, [p.value_at(t) for p in self.pitch])
-                    # but first check that we're not just repeating the last grace chord
+                    pitches_at_t = [p.value_at(t) for p in self.pitch]
+                    grace_chord = af.create_styled_chord(
+                        spelling_policies, pitches_at_t, 1/16, self.properties, is_glissando=False
+                    )
+                    # Only add if pitches changed
                     if grace_chord.written_pitches() != last_pitches:
                         grace_notes.append(grace_chord)
                         last_pitches = grace_chord.written_pitches()
             else:
-                # if not, our job is simple
-                abjad_object.set_note_heads([
-                    af.create_notehead(self.properties.get_spelling_policy(i).resolve_abjad_pitch(x))
-                    for i, x in enumerate(self.pitch)
-                ])
-                # Set the noteheads
-                self._set_abjad_note_head_styles(abjad_object)
-                # attach any microtonal annotations (if setting is flipped)
-                self._attach_abjad_microtonal_annotation(abjad_object, self.pitch)
+                # Simple chord (no gliss)
+                abjad_object = af.create_styled_chord(
+                    spelling_policies, self.pitch, duration, self.properties, is_glissando=False
+                )
 
         elif self.does_glissando():
-            # This is a note doing a glissando
-            pitch_name = self.properties.get_spelling_policy().resolve_abjad_pitch(self.pitch.start_level()).name()
-            abjad_object = af.create_note(pitch_name, duration=duration)
-            # Set the notehead
-            self._set_abjad_note_head_styles(abjad_object)
-            # attach any microtonal annotations (if setting is flipped)
-            self._attach_abjad_microtonal_annotation(abjad_object, self.pitch.start_level())
-
+            # Note doing a glissando
+            abjad_object = af.create_styled_note(
+                self.properties.get_spelling_policy(), self.pitch, duration, self.properties, is_glissando=True
+            )
             last_pitch = abjad_object.written_pitch()
 
+            # Create grace notes for gliss turning points
             grace_points = self._get_grace_points()
-
             for t in grace_points:
-                grace_pitch = self.properties.get_spelling_policy().resolve_abjad_pitch(self.pitch.value_at(t)).name()
-                grace = af.create_note(grace_pitch, duration=1/16)
-
-                # Set the notehead
-                self._set_abjad_note_head_styles(grace)
-                # attach any microtonal annotations (if setting is flipped)
-                self._attach_abjad_microtonal_annotation(grace, self.pitch.value_at(t))
-                # but first check that we're not just repeating the last grace note pitch
+                grace = af.create_styled_note(
+                    self.properties.get_spelling_policy(), self.pitch.value_at(t),
+                    1/16, self.properties, is_glissando=False
+                )
+                # Only add if pitch changed
                 if last_pitch != grace.written_pitch():
                     grace_notes.append(grace)
                     last_pitch = grace.written_pitch()
         else:
-            # This is a simple note
-            pitch_name = self.properties.get_spelling_policy().resolve_abjad_pitch(self.pitch).name()
-            abjad_object = af.create_note(pitch_name, duration=duration)
-            # Set the notehead
-            self._set_abjad_note_head_styles(abjad_object)
-            self._attach_abjad_microtonal_annotation(abjad_object, self.pitch)
+            # Simple note (no gliss)
+            abjad_object = af.create_styled_note(
+                self.properties.get_spelling_policy(), self.pitch, duration, self.properties, is_glissando=False
+            )
 
-        # Now we make, fill, and attach the abjad AfterGraceContainer, if applicable
+        # Create and attach grace container if we have grace notes
+        grace_container = None
         if len(grace_notes) > 0:
-            for note in grace_notes:
-                # this signifier, \stemless, is not standard lilypond, and is defined with
-                # an override at the start of the score
-                af.attach(af.create_lilypond_literal(r"\stemless"), note)
-            grace_container = af.create_after_grace_container(grace_notes)
-            af.attach(grace_container, abjad_object)
-        else:
-            grace_container = None
+            grace_container = af.attach_glissando_grace_notes(abjad_object, grace_notes, stemless=True)
 
-        # this is where we populate the source_id_dict passed down to us from the top level "to_abjad()" call
+        # Populate source_id_dict for tie/gliss joining
         if source_id_dict is not None:
-            # sometimes a note will not have a _source_id property defined, since it never gets broken into tied
-            # components. However, if it's a glissando and there's stemless grace notes involved, we're going to
-            # have to give it a _source_id so that it can share it with its grace notes
+            # Give glissandi with grace notes a source_id if they don't have one
             if grace_container is not None and "_source_id" not in self.properties.temp:
                 self.properties.temp["_source_id"] = performance_module.PerformanceNote.next_id()
 
             if "_source_id" in self.properties.temp:
-                # here we take the new note that we're creating and add it to the bin in source_id_dict that
-                # contains all the notes of the same source, so that they can be tied / joined by glissandi
+                # Add this note to the source_id bin for tie/gliss processing
                 if self.properties.temp["_source_id"] in source_id_dict:
-                    # this source_id is already associated with a leaf, so add it to the list
                     source_id_dict[self.properties.temp["_source_id"]].append(abjad_object)
                 else:
-                    # we don't yet have a record on this source_id, so start a list with this object under that key
                     source_id_dict[self.properties.temp["_source_id"]] = [abjad_object]
 
-                # add any grace notes to the same bin as their parent
+                # Add grace notes to the same bin as their parent
                 if grace_container is not None:
                     source_id_dict[self.properties.temp["_source_id"]].extend(grace_container)
 
-        self._attach_abjad_articulations(abjad_object, grace_container)
-        self._attach_abjad_notations(abjad_object, grace_container)
-        self._attach_abjad_spanners(abjad_object, grace_container)
-        self._attach_abjad_texts_and_dynamics(abjad_object)
+        # Attach all the properties using facade functions
+        af.attach_articulations(self.properties, abjad_object, grace_container)
+        af.attach_notations(self.properties, abjad_object, grace_container)
+        af.attach_spanners(self.properties, abjad_object, grace_container)
+        af.attach_texts_and_dynamics(self.properties, abjad_object)
+
         return abjad_object
-
-    def _attach_abjad_microtonal_annotation(self, note_object, pitch_or_pitches):
-        if not engraving_settings.show_microtonal_annotations or \
-                self.properties.ends_tie and not self.does_glissando():
-            # if this is not the first segment of the note, and it's not part of a gliss, don't do the annotations
-            return
-        if hasattr(pitch_or_pitches, '__len__'):
-            if any(round(p, engraving_settings.microtonal_annotation_digits) != round(p) for p in pitch_or_pitches):
-                markup = af.create_markup(
-                    r'\markup { \pitch-annotation "' +
-                    "; ".join(str(round(p, engraving_settings.microtonal_annotation_digits))
-                              for p in pitch_or_pitches) +
-                    '" }')
-                af.attach(markup, note_object, direction=af.direction_up())
-        else:
-            if round(pitch_or_pitches, engraving_settings.microtonal_annotation_digits) != round(pitch_or_pitches):
-                markup = af.create_markup(
-                    r'\markup { \pitch-annotation "' +
-                    str(round(pitch_or_pitches, engraving_settings.microtonal_annotation_digits)) + '" }')
-                af.attach(markup, note_object, direction=af.direction_up())
-
-    def _set_abjad_note_head_styles(self, abjad_note_or_chord):
-        note_heads = af.get_noteheads(abjad_note_or_chord)
-
-        for note_head, note_head_string in zip(note_heads, self.properties.noteheads):
-            tweak_string, comment = get_lilypond_notehead_tweaks(note_head_string)
-
-            if tweak_string:
-                af.tweak(note_head, tweak_string)
-
-            if comment:
-                af.attach(af.create_lilypond_comment(comment), abjad_note_or_chord)
-
-    def _attach_abjad_articulations(self, abjad_note_or_chord, grace_container):
-        if grace_container is None:
-            # just a single notehead, so attach all articulations
-            for articulation in self.properties.articulations:
-                af.attach(af.create_articulation(articulation), abjad_note_or_chord)
-        else:
-            # there's a gliss
-            attack_notehead = abjad_note_or_chord if not self.properties.ends_tie else None
-            release_notehead = grace_container[-1] if not self.properties.starts_tie else None
-            inner_noteheads = ([] if attack_notehead is not None else [abjad_note_or_chord]) + \
-                              [grace for grace in grace_container[:-1]] + \
-                              ([] if release_notehead is not None else [grace_container[-1]])
-
-            # only attach attack articulations to the main note
-            if attack_notehead is not None:
-                for articulation in self._get_attack_articulations():
-                    af.attach(af.create_articulation(articulation), attack_notehead)
-            # attach inner articulations to all but the last notehead in the grace container
-            for articulation in self._get_inner_articulations():
-                for grace_note in inner_noteheads:
-                    af.attach(af.create_articulation(articulation), grace_note)
-            # attach release articulations to the last notehead in the grace container
-            if release_notehead is not None:
-                for articulation in self._get_release_articulations():
-                    af.attach(af.create_articulation(articulation), release_notehead)
-
-    def _attach_abjad_notations(self, abjad_note_or_chord, grace_container):
-        if grace_container is None:
-            # just a single notehead, so attach all notations
-            for notation in self.properties.notations:
-                attach_abjad_notation_to_note(abjad_note_or_chord, notation)
-        else:
-            # there's a gliss
-            attack_notehead = abjad_note_or_chord if not self.properties.ends_tie else None
-            release_notehead = grace_container[-1] if not self.properties.starts_tie else None
-            inner_noteheads = ([] if attack_notehead is not None else [abjad_note_or_chord]) + \
-                              [grace for grace in grace_container[:-1]] + \
-                              ([] if release_notehead is not None else [grace_container[-1]])
-
-            # only attach attack notations to the main note
-            if attack_notehead is not None:
-                for notation in self._get_attack_notations():
-                    attach_abjad_notation_to_note(attack_notehead, notation)
-            # attach inner notations to all but the last notehead in the grace container
-            for notation in self._get_inner_notations():
-                for grace_note in inner_noteheads:
-                    attach_abjad_notation_to_note(grace_note, notation)
-            # attach release notations to the last notehead in the grace container
-            if release_notehead is not None:
-                for notation in self._get_release_notations():
-                    attach_abjad_notation_to_note(release_notehead, notation)
-
-    def _attach_abjad_spanners(self, abjad_note_or_chord, grace_container):
-        if grace_container is None:
-            # just a single notehead, so attach all notations
-            for spanner in self.properties.spanners:
-                NoteLike._abjad_attach_spanner(spanner, abjad_note_or_chord)
-        else:
-            # there's a gliss
-            attack_notehead = abjad_note_or_chord if not self.properties.ends_tie else None
-            release_notehead = grace_container[-1] if not self.properties.starts_tie else None
-
-            if attack_notehead is not None:
-                for spanner in self._get_start_and_mid_spanners():
-                    NoteLike._abjad_attach_spanner(spanner, attack_notehead)
-            if release_notehead is not None:
-                for spanner in self._get_stop_spanners():
-                    NoteLike._abjad_attach_spanner(spanner, release_notehead)
-
-    @staticmethod
-    def _abjad_attach_spanner(spanner, target):
-        for spanner_abjad_object in spanner.to_abjad():
-            af.attach(
-                spanner_abjad_object, target,
-                direction=spanner.get_abjad_direction()
-            )
-
-    def _attach_abjad_texts_and_dynamics(self, abjad_note_or_chord):
-        for i, text in enumerate(self.properties.texts):
-            assert isinstance(text, StaffText)
-            if len(self.properties.texts) > 1:
-                # we want texts to appear in the order that they have been added to the note, but since 3.9,
-                # abjad alphabetizes everything. So we need to set outside-staff-priority explicitly
-                # 450 is the default outside-staff-priority
-                text_object = af.bundle(text.to_abjad(), rf'\tweak outside-staff-priority #{450 + i}')
-            else:
-                text_object = text.to_abjad()
-            af.attach(
-                text_object, abjad_note_or_chord,
-                direction=af.direction_up() if text.placement == "above" else af.direction_down()
-            )
-        for dynamic in self.properties.dynamics:
-            af.attach(af.create_dynamic(dynamic), abjad_note_or_chord)
 
     def to_music_xml(self, source_id_dict=None) -> Sequence[_XMLNote]:
         if self.is_rest():
