@@ -51,5 +51,48 @@ scamp = [
     "soundfonts/*",
     "lilypond/*",
     "_thirdparty/mac_libs/*",
-    "_thirdparty/windows_libs/*"
+    "_thirdparty/windows_libs/*",
+    "_thirdparty/linux_libs/*"
 ]
+
+# ---------------------------------------------------------------------------
+# cibuildwheel — produces per-platform binary wheels with FluidSynth bundled.
+# Reads this section when invoked (e.g. by GitHub Actions in
+# .github/workflows/build-wheels.yml). Locally you can also do:
+#     pipx run cibuildwheel --platform linux
+# to test the linux build on your own machine.
+# ---------------------------------------------------------------------------
+
+[tool.cibuildwheel]
+# Build only for the Python versions scamp supports. Skip PyPy (no benefit
+# for a package this size) and skip 32-bit / musl Linux (vanishingly rare
+# audiences for a desktop music tool).
+build = ["cp312-*", "cp313-*"]
+skip = ["*-musllinux_*", "*_i686", "*-win32"]
+build-verbosity = 1
+
+# After each wheel is built, run a quick import test to catch obviously-broken
+# bundles (e.g. missing transitive dylib). Doesn't actually start audio output.
+test-command = "python -c \"import scamp; print(scamp.__version__)\""
+
+[tool.cibuildwheel.linux]
+# manylinux_2_28 = AlmaLinux 8. New enough to have current FluidSynth in EPEL,
+# old enough to produce wheels that work on essentially every current distro.
+manylinux-x86_64-image = "manylinux_2_28"
+manylinux-aarch64-image = "manylinux_2_28"
+before-build = "bash {project}/scripts/ci/before_build_linux.sh"
+# auditwheel repair (run automatically after build) will copy libfluidsynth.so.3
+# and its transitive deps into the wheel under scamp/.libs/.
+
+[tool.cibuildwheel.macos]
+before-build = "bash {project}/scripts/ci/before_build_macos.sh"
+# delocate-wheel runs automatically after build. We deliberately ship per-arch
+# wheels (one for arm64, one for x86_64) rather than a universal2 wheel —
+# Homebrew installs are arch-specific, so producing a universal wheel from a
+# single runner would mean building FluidSynth from source for the other arch.
+
+[tool.cibuildwheel.windows]
+# Just download the official prebuilt DLLs; nothing else to do. Windows wheels
+# don't get a delocate/auditwheel pass — the DLLs we drop in via package_data
+# end up adjacent to the Python files in site-packages.
+before-build = "python {project}/scripts/ci/before_build_windows.py"

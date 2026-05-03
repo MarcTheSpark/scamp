@@ -25,6 +25,7 @@
 
 from ctypes import *
 from ctypes.util import find_library
+import glob
 import os
 import platform
 from ..settings import playback_settings
@@ -47,16 +48,27 @@ def _try_to_load_local_fl_library():
     out = None
     try:
         if platform.system() == "Darwin":
-            out = CDLL(os.path.join(os.path.dirname(__file__), "mac_libs/libfluidsynth.3.0.1.dylib"))
+            # The exact filename depends on what Homebrew installed in CI
+            # (e.g. libfluidsynth.3.4.6.dylib). Take the first match.
+            mac_libs = os.path.join(os.path.dirname(__file__), "mac_libs")
+            candidates = sorted(glob.glob(os.path.join(mac_libs, "libfluidsynth*.dylib")))
+            if candidates:
+                out = CDLL(candidates[0])
         elif platform.system() == "Windows":
-            try:
-                out = CDLL(os.path.join(os.path.dirname(__file__), "windows_libs/libfluidsynth64.dll"))
-            except OSError as e:
-                logging.debug("Encountered error during load of 64-bit library: '{}'".format(str(e)))
-                logging.debug("Trying to load 32-bit library.")
-                out = CDLL(os.path.join(os.path.dirname(__file__), "windows_libs/libfluidsynth.dll"))
+            # The cpp11 build of FluidSynth ships libfluidsynth-3.dll alongside
+            # sndfile.dll and SDL3.dll; libfluidsynth-3 dynamically loads its
+            # siblings, so the bundled directory must be on the DLL search path.
+            win_libs = os.path.join(os.path.dirname(__file__), "windows_libs")
+            if hasattr(os, 'add_dll_directory'):
+                os.add_dll_directory(win_libs)
+            out = CDLL(os.path.join(win_libs, "libfluidsynth-3.dll"))
+        elif platform.system() == "Linux":
+            # CI's before_build_linux.sh copies libfluidsynth.so.3 into
+            # linux_libs/, then auditwheel bundles its transitive deps into
+            # scamp.libs/ with patched RPATHs that find each other via $ORIGIN.
+            out = CDLL(os.path.join(os.path.dirname(__file__), "linux_libs/libfluidsynth.so.3"))
         else:
-            logging.debug("No local copy (not on mac or windows).")
+            logging.debug("Unsupported platform: {}".format(platform.system()))
     except OSError as e:
         logging.debug("Encountered error during load: '{}'".format(str(e)))
 
