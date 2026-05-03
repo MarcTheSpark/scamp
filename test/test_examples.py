@@ -38,8 +38,7 @@ STOP_RED_TEXT = '\033[0m'
 # number of unaltered lines before and after it shows in the diff
 NUM_DIFF_CONTEXT_LINES = 2
 
-
-example_test_directory = "example_tests"
+example_test_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "example_tests")
 
 examples = [
     os.path.join(dp, f)
