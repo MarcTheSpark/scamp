@@ -73,6 +73,10 @@ scamp = [
 build = ["cp312-*", "cp313-*"]
 skip = ["*-musllinux_*", "*_i686", "*-win32"]
 build-verbosity = 1
+# Don't use cibuildwheel's bundled "pinned" constraints file — it pins
+# packaging==24.1, which conflicts with our build-system requirement of
+# packaging>=24.2 (needed by setuptools>=77 for SPDX license validation).
+dependency-versions = "latest"
 
 # After each wheel is built, run a quick import test to catch obviously-broken
 # bundles (e.g. missing transitive dylib). Doesn't actually start audio output.
