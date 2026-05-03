@@ -38,10 +38,16 @@ jobs:
             arch: aarch64
           # macOS: one runner per arch since Homebrew installs match the
           # host architecture, and we want to bundle native dylibs.
+          # MACOSX_DEPLOYMENT_TARGET must match the runner's macOS version,
+          # because Homebrew binaries get built against that — delocate refuses
+          # to ship a wheel claiming compatibility with older macOS than the
+          # bundled dylibs actually support.
           - os: macos-13         # Intel
             arch: x86_64
+            macos_deployment_target: "13.0"
           - os: macos-14         # Apple Silicon
             arch: arm64
+            macos_deployment_target: "14.0"
           # Windows: only 64-bit. Drop x86 entirely — it's vanishing and our
           # cpp11 FluidSynth bundle is x64.
           - os: windows-latest
@@ -54,6 +60,7 @@ jobs:
         uses: pypa/cibuildwheel@v2.21
         env:
           CIBW_ARCHS: ${{ matrix.arch }}
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}
         # cibuildwheel reads its config from pyproject.toml's [tool.cibuildwheel]
         # sections. The `before-build` hooks defined there are what install /
         # download FluidSynth into _thirdparty/ on each platform.
