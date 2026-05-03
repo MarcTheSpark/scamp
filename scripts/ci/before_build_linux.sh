@@ -29,14 +29,26 @@ rm -f "$THIRDPARTY_DIR/windows_libs"/*.dll
 dnf install -y epel-release
 dnf install -y fluidsynth
 
-# Find the real .so file (resolve symlinks like libfluidsynth.so -> .so.3 -> .so.3.x.y)
-LIBFLUIDSYNTH=$(readlink -f /usr/lib64/libfluidsynth.so.3)
-echo "Resolved libfluidsynth to: $LIBFLUIDSYNTH"
+# Discover whichever libfluidsynth.so.<N> EPEL gave us (e.g. .so.2 on EL8's
+# fluidsynth 2.1.x, .so.3 on newer). Pick the SONAME (e.g. libfluidsynth.so.2),
+# not the unversioned symlink or the fully-versioned real file.
+SONAME=$(ls /usr/lib64/libfluidsynth.so.* 2>/dev/null \
+         | grep -E 'libfluidsynth\.so\.[0-9]+$' \
+         | head -1)
+if [ -z "$SONAME" ]; then
+    echo "ERROR: no libfluidsynth.so.<N> found in /usr/lib64" >&2
+    ls -la /usr/lib64/libfluidsynth* >&2 || true
+    exit 1
+fi
+LIBFLUIDSYNTH=$(readlink -f "$SONAME")
+echo "SONAME: $SONAME"
+echo "Real file: $LIBFLUIDSYNTH"
 
 mkdir -p "$LINUX_LIBS"
 rm -f "$LINUX_LIBS"/*.so*
 
-# Copy as libfluidsynth.so.3 (the SONAME) so dlopen finds it under that name.
-cp -L "$LIBFLUIDSYNTH" "$LINUX_LIBS/libfluidsynth.so.3"
+# Copy under the SONAME filename so dlopen and auditwheel can both find it
+# under the name libfluidsynth advertises in its DT_SONAME field.
+cp -L "$LIBFLUIDSYNTH" "$LINUX_LIBS/$(basename "$SONAME")"
 echo "Bundled:"
 ls -la "$LINUX_LIBS"

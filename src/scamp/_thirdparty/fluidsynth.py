@@ -63,10 +63,13 @@ def _try_to_load_local_fl_library():
                 os.add_dll_directory(win_libs)
             out = CDLL(os.path.join(win_libs, "libfluidsynth-3.dll"))
         elif platform.system() == "Linux":
-            # CI's before_build_linux.sh copies libfluidsynth.so.3 into
-            # linux_libs/, then auditwheel bundles its transitive deps into
-            # scamp.libs/ with patched RPATHs that find each other via $ORIGIN.
-            out = CDLL(os.path.join(os.path.dirname(__file__), "linux_libs/libfluidsynth.so.3"))
+            # The exact SONAME (libfluidsynth.so.2 on EL8/EPEL fluidsynth 2.1,
+            # .so.3 on newer FluidSynth) depends on whatever the manylinux
+            # container's package manager installed. Take the first match.
+            linux_libs = os.path.join(os.path.dirname(__file__), "linux_libs")
+            candidates = sorted(glob.glob(os.path.join(linux_libs, "libfluidsynth.so.*")))
+            if candidates:
+                out = CDLL(candidates[0])
         else:
             logging.debug("Unsupported platform: {}".format(platform.system()))
     except OSError as e:
