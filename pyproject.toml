@@ -1,5 +1,8 @@
 [build-system]
-requires = ["setuptools>=61", "wheel"]
+# setuptools>=77 is needed to handle SPDX license expressions in `[project]`,
+# and it requires packaging>=24.2 to do so — pin both explicitly because the
+# transitive resolution doesn't enforce the latter.
+requires = ["setuptools>=77", "wheel", "packaging>=24.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
