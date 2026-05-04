@@ -15,24 +15,23 @@ Workflow:
 
   1. ONE TIME, on your Intel Mac:
         pipx run cibuildwheel --platform macos --archs x86_64
-        # → wheelhouse/scamp-X.Y.Z-cp312-cp312-macosx_13_0_x86_64.whl
+        # → wheelhouse/scamp-X.Y.Z-py3-none-macosx_12_0_x86_64.whl
+        #   (exact platform tag depends on MACOSX_DEPLOYMENT_TARGET)
         unzip -d /tmp/wheel wheelhouse/scamp-*-x86_64.whl
-        tar czf intel-mac-dylibs.tar.gz \\
-            -C /tmp/wheel scamp/_thirdparty/mac_libs .dylibs
+        tar czf intel-mac-dylibs.tar.gz -C /tmp/wheel/scamp _thirdparty/mac_libs .dylibs
         # Stash intel-mac-dylibs.tar.gz somewhere durable.
 
   2. ON LINUX, for each subsequent release:
-        # a) Build the wheel locally (will be tagged with linux_x86_64
-        #    because of setup.py's BinaryDistribution shim):
+        # a) Build the wheel locally (tagged py3-none-linux_x86_64
+        #    because of setup.py's BinaryDistribution + bdist_wheel shim):
         python -m build --wheel
-        # b) Retag to claim macOS compatibility:
-        pipx run wheel tags --remove \\
-            --platform-tag=macosx_13_0_x86_64 \\
-            dist/scamp-X.Y.Z-cp312-cp312-linux_x86_64.whl
+        # b) Retag to claim macOS compatibility (use the same platform tag
+        #    your Intel-Mac stash was built against):
+        pipx run wheel tags --remove --platform-tag=macosx_12_0_x86_64 dist/scamp-*-py3-none-linux_x86_64.whl
         # c) Inject the stashed dylibs:
-        python3 scripts/inject_mac_dylibs.py \\
-            --wheel dist/scamp-X.Y.Z-cp312-cp312-macosx_13_0_x86_64.whl \\
-            --stash intel-mac-dylibs.tar.gz \\
+        python3 scripts/inject_mac_dylibs.py \
+            --wheel dist/scamp-*-py3-none-macosx_12_0_x86_64.whl \
+            --stash scripts/intel-mac-dylibs.tar.gz \
             --output dist/
 
 The script extracts the wheel, lays the stash on top, recomputes the
@@ -111,7 +110,8 @@ def main() -> int:
     parser.add_argument("--wheel", required=True, type=Path,
                         help="freshly-built wheel to inject dylibs into")
     parser.add_argument("--stash", required=True, type=Path,
-                        help=".tar.gz of pre-delocated mac dylibs (scamp/_thirdparty/mac_libs/ + .dylibs/)")
+                        help=".tar.gz of pre-delocated mac dylibs (_thirdparty/mac_libs/ + .dylibs/, "
+                             "relative to the scamp/ package dir)")
     parser.add_argument("--output", required=True, type=Path,
                         help="output directory for the resulting wheel")
     args = parser.parse_args()
@@ -123,8 +123,6 @@ def main() -> int:
     args.output.mkdir(parents=True, exist_ok=True)
 
     out_path = args.output / args.wheel.name
-    if out_path.resolve() == args.wheel.resolve():
-        sys.exit("--output would overwrite the input wheel; pick a different directory")
 
     with tempfile.TemporaryDirectory() as tmp:
         wheel_dir = Path(tmp) / "wheel"
@@ -134,8 +132,13 @@ def main() -> int:
             zf.extractall(wheel_dir)
         before = sum(1 for p in wheel_dir.rglob("*") if p.is_file())
 
+        # The stash paths are relative to the scamp/ package dir, not the wheel
+        # root, so extract into wheel_dir/scamp/.
+        pkg_dir = wheel_dir / "scamp"
+        if not pkg_dir.is_dir():
+            sys.exit(f"expected scamp/ package directory inside wheel; not found at {pkg_dir}")
         with tarfile.open(args.stash, "r:gz") as tf:
-            tf.extractall(wheel_dir)
+            tf.extractall(pkg_dir)
         after = sum(1 for p in wheel_dir.rglob("*") if p.is_file())
         print(f"injected {after - before} files from {args.stash.name}")
 
