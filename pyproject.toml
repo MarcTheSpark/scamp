@@ -86,10 +86,14 @@ dependency-versions = "latest"
 test-command = "python -c \"import scamp; print(scamp.__version__)\""
 
 [tool.cibuildwheel.linux]
-# manylinux_2_28 = AlmaLinux 8. New enough to have current FluidSynth in EPEL,
-# old enough to produce wheels that work on essentially every current distro.
-manylinux-x86_64-image = "manylinux_2_28"
-manylinux-aarch64-image = "manylinux_2_28"
+# manylinux_2_34 = AlmaLinux 9 (glibc 2.34). Matches Ubuntu 22.04+ /
+# Fedora 35+ / Debian 12+ / RHEL 9+ — every current desktop Linux. We use
+# the newer base because EPEL 9 ships fluidsynth 2.3.x compiled with
+# PulseAudio/PipeWire/JACK backends, not just ALSA. (Users on older distros
+# can either upgrade or `apt install fluidsynth` and rely on the system
+# libfluidsynth via try_system_fluidsynth_first.)
+manylinux-x86_64-image = "manylinux_2_34"
+manylinux-aarch64-image = "manylinux_2_34"
 before-build = "bash {project}/scripts/ci/before_build_linux.sh"
 # auditwheel repair (run automatically after build) will copy libfluidsynth.so.3
 # and its transitive deps into the wheel under scamp/.libs/.

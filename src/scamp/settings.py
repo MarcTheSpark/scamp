@@ -24,6 +24,7 @@ scamp package. These instances are part of the global scamp namespace, and conta
 from __future__ import annotations
 import os
 import shutil
+import sys
 from types import SimpleNamespace
 from .utilities import resolve_path, SavesToJSON
 from .playback_adjustments import NotePlaybackAdjustment
@@ -190,7 +191,8 @@ class PlaybackSettings(_ScampSettings):
     :ivar adjustments: a dictionary defining how playback should be altered in response to different
         articulations/notations/etc.
     :ivar try_system_fluidsynth_first: if True, always tries system copy of the fluidsynth libraries first before using
-        the one embedded in the scamp package.
+        the one embedded in the scamp package. Defaults to True on Linux (where a package-managed fluidsynth is
+        usually better integrated with the host audio stack) and False on Mac/Windows.
     :ivar resize_parameter_envelopes: one of "never", "lists", and "always". This determines whether or not parameter
         envelopes are resized to the length of the note. The default value of "lists" does this resizing only when the
         envelope was created indirectly by passing a list to the parameter.
@@ -226,7 +228,12 @@ class PlaybackSettings(_ScampSettings):
                 "marcato": NotePlaybackAdjustment.scale_params(volume=1.5),
             }
         },
-        "try_system_fluidsynth_first": False,
+        # On Linux, prefer the user's package-managed fluidsynth: it's built
+        # against their system's audio stack (PulseAudio/PipeWire/JACK) and
+        # almost always works better than the bundled lib for desktop output.
+        # On Mac/Windows the bundled lib is well-tested via cibuildwheel and
+        # system fluidsynth is rare, so bundled-first is the better default.
+        "try_system_fluidsynth_first": sys.platform == "linux",
         "resize_parameter_envelopes": "lists",
         "recording_file_path": None,
         "recording_time_range": [0, "inf"]

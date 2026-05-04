@@ -1,5 +1,5 @@
 #!/bin/bash
-# Runs inside cibuildwheel's manylinux container (AlmaLinux 8 / manylinux_2_28)
+# Runs inside cibuildwheel's manylinux container (AlmaLinux 9 / manylinux_2_34)
 # once before each wheel is built.
 #
 # Strategy: install fluidsynth via the package manager, then copy the resulting
@@ -25,9 +25,19 @@ LINUX_LIBS="$THIRDPARTY_DIR/linux_libs"
 rm -f "$THIRDPARTY_DIR/mac_libs"/*.dylib
 rm -f "$THIRDPARTY_DIR/windows_libs"/*.dll
 
-# fluidsynth lives in EPEL on AlmaLinux 8
+# fluidsynth lives in EPEL on AlmaLinux 9 (newer than the EPEL 8 one we
+# previously used: fluidsynth 2.3.x with PulseAudio/PipeWire/JACK backends
+# compiled in, vs EPEL 8's 2.1.8 which was ALSA-only).
 dnf install -y epel-release
 dnf install -y fluidsynth
+
+# Verify which audio backends this build of fluidsynth supports. The list
+# `fluidsynth --help` prints under "audio.driver" reflects what was compiled
+# in. We want to see at least pulseaudio/pipewire/jack in there; ALSA-only
+# would mean we need to switch base image or build fluidsynth from source.
+echo "=== fluidsynth audio backends available ==="
+fluidsynth --help 2>&1 | grep -A2 -i 'audio\.driver\|valid values' || true
+echo "==========================================="
 
 # Discover whichever libfluidsynth.so.<N> EPEL gave us (e.g. .so.2 on EL8's
 # fluidsynth 2.1.x, .so.3 on newer). Pick the SONAME (e.g. libfluidsynth.so.2),
