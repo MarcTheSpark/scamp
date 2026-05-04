@@ -67,10 +67,13 @@ scamp = [
 # ---------------------------------------------------------------------------
 
 [tool.cibuildwheel]
-# Build only for the Python versions scamp supports. Skip PyPy (no benefit
-# for a package this size) and skip 32-bit / musl Linux (vanishingly rare
-# audiences for a desktop music tool).
-build = ["cp312-*", "cp313-*"]
+# setup.py forces wheels to be tagged ``py3-none-<platform>``, so a single
+# wheel built with any CPython >=3.12 works on every CPython >=3.12 of the
+# same platform. Build with cp312 only (oldest supported); the resulting
+# wheel installs cleanly on cp313, cp314, etc. Building under additional
+# Python versions would just produce identically-named wheels that overwrite
+# each other.
+build = ["cp312-*"]
 skip = ["*-musllinux_*", "*_i686", "*-win32"]
 build-verbosity = 1
 # Don't use cibuildwheel's bundled "pinned" constraints file — it pins
