@@ -18,7 +18,7 @@ Workflow:
         # → wheelhouse/scamp-X.Y.Z-cp312-cp312-macosx_13_0_x86_64.whl
         unzip -d /tmp/wheel wheelhouse/scamp-*-x86_64.whl
         tar czf intel-mac-dylibs.tar.gz \\
-            -C /tmp/wheel scamp/_thirdparty/mac_libs scamp.dylibs
+            -C /tmp/wheel scamp/_thirdparty/mac_libs .dylibs
         # Stash intel-mac-dylibs.tar.gz somewhere durable.
 
   2. ON LINUX, for each subsequent release:
@@ -111,7 +111,7 @@ def main() -> int:
     parser.add_argument("--wheel", required=True, type=Path,
                         help="freshly-built wheel to inject dylibs into")
     parser.add_argument("--stash", required=True, type=Path,
-                        help=".tar.gz of pre-delocated mac dylibs (mac_libs/ + scamp.dylibs/)")
+                        help=".tar.gz of pre-delocated mac dylibs (scamp/_thirdparty/mac_libs/ + .dylibs/)")
     parser.add_argument("--output", required=True, type=Path,
                         help="output directory for the resulting wheel")
     args = parser.parse_args()
