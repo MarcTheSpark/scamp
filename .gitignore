@@ -17,3 +17,11 @@ docs/clockblocks
 docs/expenvelope
 docs/pymusicxml
 docs/scamp_extensions.*
+*-mac-dylibs.tar.gz
+
+# Native libs in _thirdparty/*_libs/ are populated at build time by the
+# platform's before-build hook (or fetch_fluidsynth_libs.py for Windows),
+# never committed. The directories themselves are kept via .gitkeep.
+src/scamp/_thirdparty/windows_libs/*.dll
+src/scamp/_thirdparty/mac_libs/*.dylib
+src/scamp/_thirdparty/linux_libs/*.so*
