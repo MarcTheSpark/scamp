@@ -42,6 +42,7 @@ from .playback_adjustments import NotePlaybackAdjustment, ParamPlaybackAdjustmen
 from .note_properties import NoteProperties
 import importlib.metadata
 from ._soundfont_host import print_soundfont_presets
+from ._dependencies import print_dependency_status, dependency_status
 
 
 __version__ = importlib.metadata.version('scamp')

@@ -15,71 +15,99 @@
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
 from .settings import playback_settings, engraving_settings
+import importlib.metadata
 import logging
 import os
 import platform
-from pathlib import Path
-import importlib.metadata
 import re
+from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# fluidsynth
+# ---------------------------------------------------------------------------
+# Two possible sources: a system-wide pip-installed pyfluidsynth, or the
+# tweaked copy bundled inside scamp/_thirdparty/. The bundled copy also knows
+# how to dlopen scamp's bundled libfluidsynth dylib/so/dll. Either source can
+# fail (not installed; partially installed; OS missing the underlying lib).
+# We try both, in an order driven by playback_settings.try_system_fluidsynth_first.
 
 
-try:
-    if playback_settings.try_system_fluidsynth_first:
-        # first choice: import using an installed version of pyfluidsynth
-        logging.debug("Trying to load system copy of pyfluidsynth.")
+def _import_fluidsynth(strategy: str):
+    if strategy == "system":
         import fluidsynth
-    else:
-        # first choice: use the local, tweaked copy of pyfluidsynth (which will also try to
-        # load up a local copy of the fluidsynth dll on Windows or dylib on MacOS)
-        logging.debug("Trying to load copy of pyfluidsynth from within SCAMP package.")
+        return fluidsynth
+    if strategy == "bundled":
         from ._thirdparty import fluidsynth
-    # Sometimes fluidsynth seems to load, but it's empty and doesn't have the Synth attribute.
-    # this line will cause an AttributeError to be thrown and handled in that case
-    fluidsynth.Synth
-    logging.debug("Loading of pyfluidsynth succeeded.")
-except (ImportError, AttributeError):
-    logging.debug("Loading of pyfluidsynth failed.")
-    try:
-        if playback_settings.try_system_fluidsynth_first:
-            # second choice: use the local, tweaked copy of pyfluidsynth (which will also try to
-            # load up a local copy of the fluidsynth dll on Windows or dylib on MacOS)
-            logging.debug("Trying to copy of pyfluidsynth from within SCAMP package.")
-            from ._thirdparty import fluidsynth
-        else:
-            # second choice: import using an installed version of pyfluidsynth
-            logging.debug("Trying to load system copy of pyfluidsynth.")
-            import fluidsynth
-        fluidsynth.Synth  # See note above
-        logging.debug("Loading of pyfluidsynth succeeded.")
-    except (ImportError, AttributeError):
-        # if we're here, it's probably because fluidsynth wasn't installed
-        logging.debug("Loading of pyfluidsynth failed again.")
-        fluidsynth = None
-        logging.warning("Fluidsynth could not be loaded; synth output will not be available.")
+        return fluidsynth
+    raise ValueError(strategy)
 
-if fluidsynth is not None and playback_settings.default_audio_driver == "auto":
-    print("Testing for working audio driver...")
-    found_driver = False
-    for driver in ['alsa', 'coreaudio', 'dsound', 'Direct Sound', 'oss', 'pulseaudio', 'jack', 'portaudio', 'sndmgr']:
+
+_first = "system" if playback_settings.try_system_fluidsynth_first else "bundled"
+_second = "bundled" if _first == "system" else "system"
+fluidsynth = None
+_FLUIDSYNTH_SOURCE: str | None = None  # which strategy actually loaded ('system' or 'bundled')
+for _strategy in (_first, _second):
+    try:
+        _candidate = _import_fluidsynth(_strategy)
+    except ImportError as e:
+        logging.debug(f"Loading {_strategy} pyfluidsynth failed: {e}")
+        continue
+    # pyfluidsynth occasionally imports as a near-empty module (partial
+    # install, namespace conflict). Treat that as a failed load and try the
+    # next strategy.
+    if not hasattr(_candidate, 'Synth'):
+        logging.debug(f"{_strategy} pyfluidsynth loaded but is missing 'Synth' attribute")
+        continue
+    fluidsynth = _candidate
+    _FLUIDSYNTH_SOURCE = _strategy
+    logging.debug(f"Loaded {_strategy} pyfluidsynth.")
+    break
+
+if fluidsynth is None:
+    logging.warning("Fluidsynth could not be loaded; synth output will not be available.")
+
+
+def auto_detect_audio_driver_if_needed() -> None:
+    """
+    If the saved default audio driver is "auto", probe each backend until one
+    starts successfully, then save it as the new default. Idempotent: once a
+    real driver has been written to settings, this function is a no-op.
+
+    Called lazily from SoundfontHost.__init__ rather than at import time so
+    that simply `import scamp` doesn't block on audio probing or write to the
+    user's persistent settings file as a side effect.
+    """
+    if fluidsynth is None or playback_settings.default_audio_driver != "auto":
+        return
+    logging.info("Testing for working audio driver...")
+    drivers = ['alsa', 'coreaudio', 'dsound', 'Direct Sound', 'oss',
+               'pulseaudio', 'jack', 'portaudio', 'sndmgr']
+    for driver in drivers:
         test_synth = fluidsynth.Synth()
         test_synth.start(driver=driver)
         if test_synth.audio_driver is not None:
             playback_settings.default_audio_driver = driver
             playback_settings.make_persistent()
-            found_driver = True
             test_synth.delete()
-            print("Found audio driver '{}'. This has been made the default, but it can be altered via "
-                  "the playback settings.".format(driver))
-            break
+            logging.info(f"Found audio driver '{driver}'. Saved as default; "
+                         f"override via playback_settings if needed.")
+            return
         test_synth.delete()
-    if not found_driver:
-        logging.warning("No working audio driver was found; synth output will not be available.")
+    logging.warning("No working audio driver was found; synth output will not be available.")
+
+
+# ---------------------------------------------------------------------------
+# Optional Python deps. Each one can be missing without breaking scamp; users
+# get a clear ImportError at the call site if they actually try to use the
+# corresponding feature. These are logged at debug level (not warning) so
+# routine `import scamp` doesn't pester users about features they don't use.
+# ---------------------------------------------------------------------------
 
 try:
     from ._thirdparty.sf2or3utils.sf2parse import Sf2File
 except ImportError:
     Sf2File = None
-    logging.warning("sf2utils was not found; info about soundfont presets will not be available.")
+    logging.debug("sf2utils not available; soundfont preset introspection disabled.")
 
 try:
     import pythonosc
@@ -88,19 +116,31 @@ try:
     import pythonosc.osc_server
 except ImportError:
     pythonosc = None
-    logging.warning("pythonosc was not found; OSCScampInstrument will not function.")
+    logging.debug("pythonosc not available; OSCScampInstrument disabled.")
 
 try:
     import rtmidi
 except ImportError:
     rtmidi = None
-    logging.warning("python-rtmidi was not found; streaming midi input / output will not be available.")
+    logging.debug("python-rtmidi not available; streaming MIDI I/O disabled.")
 
+try:
+    import pynput
+except ImportError:
+    pynput = None
+    logging.debug("pynput not available; mouse and keyboard input disabled.")
+
+
+# ---------------------------------------------------------------------------
+# LilyPond binary discovery (Mac and Windows only — Linux uses distro packaging)
+# ---------------------------------------------------------------------------
 
 def find_lilypond():
-    # Look for the lilypond binary and return the directory in which it resides
-    # searches in the platform-specific paths defined in engraving_settings.lilypond_search_paths, and returns
-    # the first match
+    """
+    Return the directory containing the lilypond binary, or None if not found.
+    Searches the platform-specific paths defined in
+    engraving_settings.lilypond_search_paths.
+    """
     if platform.system() not in engraving_settings.lilypond_search_paths:
         return None
     logging.warning("Searching for LilyPond binary (this may take a while and is normal on first run)")
@@ -108,37 +148,58 @@ def find_lilypond():
         lsp = Path(lilypond_search_path).expanduser()
         if not lsp.exists():
             continue
-        for potential_lp_binary in lsp.rglob("lilypond.exe" if platform.system() == "Windows" else "lilypond"):
-            if not potential_lp_binary.is_file():
-                continue
-            logging.warning(f"LilyPond binary found at {str(potential_lp_binary.parent.resolve())}")
-            return str(potential_lp_binary.parent.resolve())
+        binary_name = "lilypond.exe" if platform.system() == "Windows" else "lilypond"
+        for potential_lp_binary in lsp.rglob(binary_name):
+            if potential_lp_binary.is_file():
+                logging.warning(f"LilyPond binary found at {potential_lp_binary.parent.resolve()}")
+                return str(potential_lp_binary.parent.resolve())
+    return None
 
 
-# Will need to search for lilypond binary if:
-# - On Mac or Windows and we don't have a saved engraving_settings.lilypond_dir
-# - We're on Windows and there is a saved engraving_settings.lilypond_dir, but no lilypond.exe is found there
-# - We're on Mac and there is a saved engraving_settings.lilypond_dir, but no lilypond binary is found there
-_perform_lilypond_search = \
-    platform.system() in ("Darwin", "Windows") and engraving_settings.lilypond_dir is None or \
-    platform.system() == "Windows" and not (Path(engraving_settings.lilypond_dir) / "lilypond.exe").exists() or \
-    platform.system() == "Darwin" and not (Path(engraving_settings.lilypond_dir) / "lilypond").exists()
+def _should_search_for_lilypond() -> bool:
+    """Decide whether to (re)scan for a lilypond binary on this platform."""
+    if platform.system() not in ("Darwin", "Windows"):
+        # Linux users get lilypond from their distro; PATH handles it.
+        return False
+    if engraving_settings.lilypond_dir is None:
+        # Mac/Windows with no remembered location: search.
+        return True
+    # Have a remembered location, but verify the binary is still there.
+    binary_name = "lilypond.exe" if platform.system() == "Windows" else "lilypond"
+    return not (Path(engraving_settings.lilypond_dir) / binary_name).exists()
 
+
+# ---------------------------------------------------------------------------
+# abjad — kept lazy because importing abjad is slow
+# ---------------------------------------------------------------------------
 
 def _abjad_version_to_tuple(version):
     return tuple(int(x) for x in version.split("."))
 
 
-# parse the abjad versions required
-for requirement in importlib.metadata.requires('scamp'):
-    if "abjad" in requirement.split(";")[0]:
-        abjad_req = requirement.split(";")[0]
-        versions = re.findall(r'(\d+\.\d+)', abjad_req)
-        if not versions:
-            ABJAD_MIN_VERSION, ABJAD_VERSION = "0.0", "9.9"
-        else:
-            ABJAD_MIN_VERSION = min(versions, key=_abjad_version_to_tuple)
-            ABJAD_VERSION = max(versions, key=_abjad_version_to_tuple)
+# Determine the abjad version range scamp expects by parsing scamp's own
+# package metadata. This keeps the version constraint declared in one place
+# (pyproject.toml). Falls back to a hardcoded pin if metadata is unavailable
+# (e.g. running from a source checkout that wasn't installed).
+_ABJAD_PIN_FALLBACK = "3.31"
+
+
+def _parse_abjad_pins() -> tuple[str, str]:
+    try:
+        for requirement in importlib.metadata.requires('scamp') or []:
+            req = requirement.split(";")[0]  # strip env marker like "; extra=='all'"
+            if "abjad" not in req:
+                continue
+            versions = re.findall(r'(\d+\.\d+)', req)
+            if versions:
+                return (min(versions, key=_abjad_version_to_tuple),
+                        max(versions, key=_abjad_version_to_tuple))
+    except importlib.metadata.PackageNotFoundError:
+        pass
+    return (_ABJAD_PIN_FALLBACK, _ABJAD_PIN_FALLBACK)
+
+
+ABJAD_MIN_VERSION, ABJAD_VERSION = _parse_abjad_pins()
 
 
 _abjad_library = None
@@ -146,10 +207,11 @@ _abjad_library = None
 
 def get_abjad():
     """
-    We make this a function that returns the abjad module so that we don't have to load it unless we need it
-    (since it's kinda slow to load)
+    Return the abjad module, importing it lazily on first call. abjad is slow
+    to import (a few seconds), so we don't want to pay that cost unless the
+    caller actually needs LilyPond output.
     """
-    global _abjad_library, _perform_lilypond_search
+    global _abjad_library
 
     if _abjad_library:
         return _abjad_library
@@ -161,41 +223,111 @@ def get_abjad():
 
     if not hasattr(abjad_library, '__version__'):
         logging.warning(
-            f"abjad library is present, but its version could not be identified. Note that scamp requires abjad "
-            f"version {ABJAD_MIN_VERSION}{ABJAD_VERSION}"
+            f"abjad library is present, but its version could not be identified. "
+            f"Note that scamp requires abjad version {ABJAD_VERSION}."
         )
     elif _abjad_version_to_tuple(abjad_library.__version__) < _abjad_version_to_tuple(ABJAD_MIN_VERSION):
         raise ImportError(
-            "abjad version {} found, but SCAMP is built for {}. "
-            "Run `pip3 install abjad=={}` to upgrade."
-            .format(abjad_library.__version__,
-                    "version {}".format(ABJAD_VERSION) if ABJAD_MIN_VERSION == ABJAD_VERSION
-                    else "versions {}-{}".format(ABJAD_MIN_VERSION, ABJAD_VERSION), ABJAD_VERSION,
-                    ABJAD_VERSION)
+            f"abjad version {abjad_library.__version__} found, but SCAMP is built for "
+            f"version {ABJAD_VERSION}. Run `pip3 install abjad=={ABJAD_VERSION}` to upgrade."
         )
     elif _abjad_version_to_tuple(abjad_library.__version__) > _abjad_version_to_tuple(ABJAD_VERSION):
         logging.warning(
-            "abjad version {} found, but SCAMP is built for earlier version {}. The newer version may not be "
-            "backwards compatible. If errors occur, run `pip3 install abjad=={}` to downgrade."
-            .format(abjad_library.__version__, ABJAD_VERSION, ABJAD_VERSION)
+            f"abjad version {abjad_library.__version__} found, but SCAMP is built for "
+            f"earlier version {ABJAD_VERSION}. The newer version may not be backwards "
+            f"compatible. If errors occur, run `pip3 install abjad=={ABJAD_VERSION}` to downgrade."
         )
 
-    if _perform_lilypond_search:
-        # need to perform a lilypond search
+    if _should_search_for_lilypond():
         engraving_settings.lilypond_dir = find_lilypond()
         engraving_settings.make_persistent()
 
-    # add lilypond to PATH if needed
     if engraving_settings.lilypond_dir is not None:
         os.environ["PATH"] += os.pathsep + engraving_settings.lilypond_dir
 
     _abjad_library = abjad_library
-
     return abjad_library
 
 
-try:
-    import pynput
-except ImportError:
-    pynput = None
-    logging.warning("pynput was not found; mouse and keyboard input will not be available.")
+# ---------------------------------------------------------------------------
+# Optional-dependency status reporting
+# ---------------------------------------------------------------------------
+# Useful for debugging "why doesn't feature X work in my install?" without
+# having to walk the user through inspecting each import.
+
+# (state, detail) — state is one of 'ok', 'warn', 'missing'.
+_DepStatus = tuple[str, str]
+
+
+def _fluidsynth_status() -> _DepStatus:
+    if fluidsynth is None:
+        return ("missing", "not loaded — synth playback unavailable")
+    wrapper = _FLUIDSYNTH_SOURCE  # 'system' or 'bundled' pyfluidsynth wrapper
+
+    # The bundled wrapper sets _LIB_SOURCE explicitly to "system" or "bundled"
+    # to tell us which libfluidsynth binary it dlopened. The upstream system
+    # wrapper doesn't, but both wrappers store the loaded library handle at
+    # module-level `_fl`, and CDLL._name records the path/name it was opened
+    # with — so we can usually report the binary path even for the system
+    # wrapper, just without classifying it as system vs bundled.
+    lib_source = getattr(fluidsynth, '_LIB_SOURCE', None)
+    lib_path = getattr(fluidsynth, '_LIB_PATH', None)
+    if lib_path is None:
+        _fl = getattr(fluidsynth, '_fl', None)
+        if _fl is not None:
+            lib_path = getattr(_fl, '_name', None)
+
+    parts = [f"{wrapper} wrapper"]
+    if lib_source and lib_path:
+        parts.append(f"{lib_source} libfluidsynth ({lib_path})")
+    elif lib_source:
+        parts.append(f"{lib_source} libfluidsynth")
+    elif lib_path:
+        parts.append(f"binary: {lib_path}")
+    else:
+        parts.append("libfluidsynth location not tracked")
+    return ("ok", ", ".join(parts))
+
+
+def _abjad_status() -> _DepStatus:
+    """Check abjad availability and version match without importing it."""
+    try:
+        installed = importlib.metadata.version('abjad')
+    except importlib.metadata.PackageNotFoundError:
+        return ("missing", f"not installed (need {ABJAD_VERSION})")
+    iv = _abjad_version_to_tuple(installed)
+    if iv < _abjad_version_to_tuple(ABJAD_MIN_VERSION):
+        return ("missing", f"installed {installed}, need >={ABJAD_MIN_VERSION}")
+    if iv > _abjad_version_to_tuple(ABJAD_VERSION):
+        return ("warn", f"installed {installed} (newer than tested {ABJAD_VERSION}; may be incompatible)")
+    return ("ok", f"installed {installed}")
+
+
+def _present_status(module, what_it_does: str) -> _DepStatus:
+    if module is None:
+        return ("missing", what_it_does)
+    return ("ok", what_it_does)
+
+
+def dependency_status() -> list[tuple[str, str, str]]:
+    """
+    Return a list of (name, state, detail) tuples describing the status of
+    each optional dependency. State is 'ok', 'warn', or 'missing'.
+    """
+    return [
+        ("FluidSynth",      *_fluidsynth_status()),
+        ("sf2utils",        *_present_status(Sf2File, "soundfont preset introspection")),
+        ("python-osc",      *_present_status(pythonosc, "OSC instruments")),
+        ("python-rtmidi",   *_present_status(rtmidi, "streaming MIDI I/O")),
+        ("pynput",          *_present_status(pynput, "mouse/keyboard input")),
+        ("abjad",           *_abjad_status()),
+    ]
+
+
+def print_dependency_status() -> None:
+    """Print which optional features are available in this scamp install."""
+    glyphs = {"ok": "✓", "warn": "~", "missing": "✗"}
+    rows = dependency_status()
+    width = max(len(name) for name, _, _ in rows)
+    for name, state, detail in rows:
+        print(f"  {glyphs[state]} {name:<{width}}  {detail}")

@@ -16,7 +16,7 @@
 
 from .utilities import resolve_path, SavesToJSON, get_average_square_correlation
 from .settings import playback_settings
-from ._dependencies import fluidsynth, Sf2File
+from ._dependencies import fluidsynth, Sf2File, auto_detect_audio_driver_if_needed
 import logging
 from collections import OrderedDict
 import re
@@ -174,6 +174,10 @@ class SoundfontHost(SavesToJSON):
 
         if fluidsynth is None:
             raise ModuleNotFoundError("FluidSynth not available.")
+
+        # Probe for a working audio backend on first use if the saved default
+        # is "auto" (no-op once a real driver has been written to settings).
+        auto_detect_audio_driver_if_needed()
 
         self.audio_driver = playback_settings.default_audio_driver if audio_driver == "default" else audio_driver
 

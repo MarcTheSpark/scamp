@@ -118,15 +118,24 @@ def _try_to_load_system_fl_library():
 
 
 _fl = None  # this will contain the loaded library
+# Diagnostics surfaced to scamp._dependencies.print_dependency_status() so
+# users can see whether the system or bundled libfluidsynth is in use.
+_LIB_SOURCE = None  # "system" or "bundled" once a library has loaded
+_LIB_PATH = None    # filesystem path of the loaded library
 
-if playback_settings.try_system_fluidsynth_first:
-    _fl = _try_to_load_system_fl_library()
-    if _fl is None:
-        _fl = _try_to_load_local_fl_library()
-else:
-    _fl = _try_to_load_local_fl_library()
-    if _fl is None:
-        _fl = _try_to_load_system_fl_library()
+_loaders = {
+    "system": _try_to_load_system_fl_library,
+    "bundled": _try_to_load_local_fl_library,
+}
+_first_attempt = "system" if playback_settings.try_system_fluidsynth_first else "bundled"
+_fallback = "bundled" if _first_attempt == "system" else "system"
+
+for _src in (_first_attempt, _fallback):
+    _fl = _loaders[_src]()
+    if _fl is not None:
+        _LIB_SOURCE = _src
+        _LIB_PATH = getattr(_fl, "_name", None)  # CDLL records the loaded path here
+        break
 
 if _fl is None:
     raise ImportError("Couldn't find the FluidSynth library.")
