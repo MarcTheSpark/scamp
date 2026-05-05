@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scamp"
-version = "0.9.3.2a1"
+version = "0.9.4"
 description = "A computer-assisted composition framework that manages the flow of musical time, plays back notes via SoundFonts, MIDI or OSC, and quantizes and saves the result to music notation."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -18,9 +18,9 @@ authors = [
 ]
 
 dependencies = [
-    "pymusicxml>=0.5.6",
-    "expenvelope>=0.7.2",
-    "clockblocks>=0.6.9",
+    "pymusicxml>=0.5.7",
+    "expenvelope>=0.7.3",
+    "clockblocks>=0.6.10",
     "python-osc",
     "arpeggio",
     "midiutil",
