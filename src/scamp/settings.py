@@ -190,9 +190,12 @@ class PlaybackSettings(_ScampSettings):
         [instrument name]/note_on/
     :ivar adjustments: a dictionary defining how playback should be altered in response to different
         articulations/notations/etc.
-    :ivar try_system_fluidsynth_first: if True, always tries system copy of the fluidsynth libraries first before using
-        the one embedded in the scamp package. Defaults to True on Linux (where a package-managed fluidsynth is
-        usually better integrated with the host audio stack) and False on Mac/Windows.
+    :ivar try_system_fluidsynth_first: if True, always tries the system copy of the libfluidsynth shared library
+        first before falling back to the one embedded in the scamp package. Defaults to True on Linux (where a
+        package-managed fluidsynth is usually better integrated with the host audio stack) and False on Mac/Windows.
+    :ivar use_bundled_pyfluidsynth: if True (the default everywhere), use scamp's bundled copy of the pyfluidsynth
+        Python wrapper. The bundled wrapper can dlopen either the system or the bundled libfluidsynth (controlled by
+        ``try_system_fluidsynth_first``). Set to False to use a separately-installed pyfluidsynth pip package instead.
     :ivar resize_parameter_envelopes: one of "never", "lists", and "always". This determines whether or not parameter
         envelopes are resized to the length of the note. The default value of "lists" does this resizing only when the
         envelope was created indirectly by passing a list to the parameter.
@@ -234,6 +237,11 @@ class PlaybackSettings(_ScampSettings):
         # On Mac/Windows the bundled lib is well-tested via cibuildwheel and
         # system fluidsynth is rare, so bundled-first is the better default.
         "try_system_fluidsynth_first": sys.platform == "linux",
+        # Always default to the bundled pyfluidsynth wrapper: it knows how to
+        # locate scamp's bundled libfluidsynth and is the version we test
+        # against. The wrapper itself respects try_system_fluidsynth_first to
+        # decide which underlying libfluidsynth to dlopen.
+        "use_bundled_pyfluidsynth": True,
         "resize_parameter_envelopes": "lists",
         "recording_file_path": None,
         "recording_time_range": [0, "inf"]
@@ -249,6 +257,7 @@ class PlaybackSettings(_ScampSettings):
             self.default_max_soundfont_pitch_bend = self.default_max_streaming_midi_pitch_bend = \
             self.soundfont_volume_to_velocity_curve = self.streaming_midi_volume_to_velocity_curve = \
             self.osc_message_addresses = self.adjustments = self.try_system_fluidsynth_first = \
+            self.use_bundled_pyfluidsynth = \
             self.soundfont_search_paths = self.resize_parameter_envelopes = self.recording_file_path = \
             self.recording_time_range = None
         super().__init__(settings_dict, suppress_warnings)

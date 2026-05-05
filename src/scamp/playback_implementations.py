@@ -26,7 +26,7 @@ from ._midi import SimpleRtMidiOut, MIDIChannelManager, NoFreeChannelError
 from ._soundfont_host import SoundfontHost
 from .note_properties import NoteProperties
 from abc import abstractmethod
-from ._dependencies import pythonosc
+from ._dependencies import pythonosc, auto_detect_audio_driver_if_needed
 import logging
 from .settings import playback_settings
 from .utilities import SavesToJSON, resolve_path
@@ -320,6 +320,11 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
         # audio driver. (Theoretically, if you created two SoundfontPlaybackImplementations using different drivers
         # we would have to create different underlying SoundfontHosts, so the SoundfontHost is stored in a dictionary
         # indexed by audio driver.) We create it if needed.
+        # Also: Resolve "auto" / "default" to a real driver name now so the
+        # soundfont_hosts dict is keyed by the actual driver rather than by
+        # the placeholder. This must happen before we read default_audio_driver
+        # below, since that value may still be "auto" until detection runs.
+        auto_detect_audio_driver_if_needed()
         audio_driver = playback_settings.default_audio_driver if self.audio_driver == "default" else self.audio_driver
         if audio_driver in SoundfontPlaybackImplementation.soundfont_hosts:
             self.soundfont_host = SoundfontPlaybackImplementation.soundfont_hosts[audio_driver]

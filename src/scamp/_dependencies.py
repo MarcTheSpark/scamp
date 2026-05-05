@@ -25,11 +25,17 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # fluidsynth
 # ---------------------------------------------------------------------------
-# Two possible sources: a system-wide pip-installed pyfluidsynth, or the
-# tweaked copy bundled inside scamp/_thirdparty/. The bundled copy also knows
-# how to dlopen scamp's bundled libfluidsynth dylib/so/dll. Either source can
-# fail (not installed; partially installed; OS missing the underlying lib).
-# We try both, in an order driven by playback_settings.try_system_fluidsynth_first.
+# Two possible sources for the pyfluidsynth Python wrapper: a system-wide
+# pip-installed pyfluidsynth, or the tweaked copy bundled inside
+# scamp/_thirdparty/. The bundled wrapper additionally knows how to dlopen
+# either the system libfluidsynth or scamp's bundled libfluidsynth — that
+# library-level choice is governed separately by
+# playback_settings.try_system_fluidsynth_first.
+#
+# Wrapper choice is governed by playback_settings.use_bundled_pyfluidsynth
+# (default True everywhere). Either source can fail (not installed; partially
+# installed; underlying lib missing); we try the preferred one first and fall
+# back to the other.
 
 
 def _import_fluidsynth(strategy: str):
@@ -42,8 +48,8 @@ def _import_fluidsynth(strategy: str):
     raise ValueError(strategy)
 
 
-_first = "system" if playback_settings.try_system_fluidsynth_first else "bundled"
-_second = "bundled" if _first == "system" else "system"
+_first = "bundled" if playback_settings.use_bundled_pyfluidsynth else "system"
+_second = "system" if _first == "bundled" else "bundled"
 fluidsynth = None
 _FLUIDSYNTH_SOURCE: str | None = None  # which strategy actually loaded ('system' or 'bundled')
 for _strategy in (_first, _second):
@@ -80,8 +86,8 @@ def auto_detect_audio_driver_if_needed() -> None:
     if fluidsynth is None or playback_settings.default_audio_driver != "auto":
         return
     logging.info("Testing for working audio driver...")
-    drivers = ['alsa', 'coreaudio', 'dsound', 'Direct Sound', 'oss',
-               'pulseaudio', 'jack', 'portaudio', 'sndmgr']
+    drivers = ['pipewire', 'pulseaudio', 'alsa', 'coreaudio', 'dsound',
+               'Direct Sound', 'oss', 'jack', 'portaudio', 'sndmgr']
     for driver in drivers:
         test_synth = fluidsynth.Synth()
         test_synth.start(driver=driver)
