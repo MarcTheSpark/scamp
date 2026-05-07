@@ -514,14 +514,14 @@ class ScoreComponent(ABC):
     def show_xml(self) -> None:
         """
         Convert and wrap as a MusicXML score, and open it up in notation software.
-        (The software to use is defined in engraving_settings.show_music_xml_command_line.)
+        (The software to use is defined in engraving_settings.music_xml_open_command.)
         """
         try:
-            self.to_music_xml().view_in_software(engraving_settings.show_music_xml_command_line)
+            self.to_music_xml().view_in_software(engraving_settings.music_xml_open_command)
         except OSError:
             raise Exception("Command \"{}\" for showing musicXML failed. Either install the relevant program, or \n"
-                            "change the value of \"show_music_xml_command_line\" in the engraving_settings to use "
-                            "your program of choice.".format(engraving_settings.show_music_xml_command_line))
+                            "change the value of \"music_xml_open_command\" in the engraving_settings to use "
+                            "your program of choice.".format(engraving_settings.music_xml_open_command))
 
     def to_abjad(self, wrap_as_file: bool = False, non_score_blocks: Sequence = None,
                  **lilypond_file_args) -> abjad.Component:

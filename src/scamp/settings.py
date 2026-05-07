@@ -478,7 +478,7 @@ class EngravingSettings(_ScampSettings):
     :ivar tempo: instance of :class:`TempoSettings` specifying how tempo changes should be engraved.
     :ivar pad_incomplete_parts: If true, add measures to parts that don't have enough music in them so that they are
         go the full length of the score.
-    :ivar show_music_xml_command_line: Terminal command to run when opening up MusicXML scores. It is easiest to set
+    :ivar music_xml_open_command: Terminal command to run when opening up MusicXML scores. It is easiest to set
         this by calling set_music_xml_application. The value "auto" tries to find an appropriate application
         automatically.
     :ivar show_microtonal_annotations: if True, annotates microtonal pitches with the exact floating-point MIDI pitch
@@ -560,7 +560,7 @@ class EngravingSettings(_ScampSettings):
     glissandi: GlissandiSettings = field(default_factory=GlissandiSettings)
     tempo: TempoSettings = field(default_factory=TempoSettings)
     pad_incomplete_parts: bool = True
-    show_music_xml_command_line: str = "auto"
+    music_xml_open_command: str = "auto"
     show_microtonal_annotations: bool = False
     microtonal_annotation_digits: int = 2
     export_note_velocities_to_xml: bool = False
@@ -576,7 +576,7 @@ class EngravingSettings(_ScampSettings):
 
     def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
         super().__init__(settings_dict, suppress_warnings)
-        if self.show_music_xml_command_line is None or self.show_music_xml_command_line == "auto":
+        if self.music_xml_open_command is None or self.music_xml_open_command == "auto":
             # default to just a generic open command
             self.set_music_xml_application()
 
@@ -589,14 +589,14 @@ class EngravingSettings(_ScampSettings):
         platform_system = platform.system().lower()
         if platform_system == "linux":
             # generic open command on linux is "xdg-open"
-            self.show_music_xml_command_line = application_name if application_name is not None else "xdg-open"
+            self.music_xml_open_command = application_name if application_name is not None else "xdg-open"
         elif platform_system == "darwin":
             # generic open command on mac is "open"
-            self.show_music_xml_command_line = "open -a {}".format(application_name) \
+            self.music_xml_open_command = "open -a {}".format(application_name) \
                 if application_name is not None else "open"
         elif platform_system == "windows":
             # generic open command on windows is "start"
-            self.show_music_xml_command_line = "cmd.exe /c start {}".format(application_name) \
+            self.music_xml_open_command = "cmd.exe /c start {}".format(application_name) \
                 if application_name is not None else "cmd.exe /c start"
         else:
             logging.warning("Cannot run \"show_xml\" on unrecognized platform {}".format(platform_system))
