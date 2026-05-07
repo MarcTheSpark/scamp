@@ -7,8 +7,8 @@ there are either done, abandoned, or superseded; revisit only as reference.
 
 1. [Test infrastructure & settings refactor](#test-infrastructure--settings-refactor) — pytest + syrupy migration, targeted unit tests, dataclass-based settings with per-`Session` overrides.
 2. ["auto"-style settings: a general approach](#auto-style-settings-a-general-approach) — design a reusable pattern for settings whose default is "figure it out on first use".
-3. [Documentation: switch source links from sourcehut to GitHub](#documentation-switch-source-links-from-sourcehut-to-github) — audit and update canonical source URLs across docs, README, and package metadata.
-4. [Documentation: refresh installation & dependency story](#documentation-refresh-installation--dependency-story) — installation is now simpler since wheels bundle FluidSynth; review other dependency notes for staleness.
+
+Recently completed (2026-05-06): sourcehut → GitHub link migration across all five packages, and a full refresh of the installation docs (FluidSynth bundling, Python ≥ 3.12, `scamp[all]` extras, abjad pin, Mac LilyPond instructions, dependency-status testing snippet).
 
 ## Test infrastructure & settings refactor
 
@@ -77,26 +77,3 @@ soundfont search paths. Possible shapes:
 Tie this in with Phase C of the settings refactor (dataclass migration, load
 vs. migrate split) — a cleaner settings substrate makes any of these easier.
 
-## Documentation: switch source links from sourcehut to GitHub
-
-The published docs still point to sourcehut as the canonical source. Audit and
-update all references (docs site, README, package metadata, any
-`project_urls` in `pyproject.toml`, in-code links) to point at GitHub.
-
-## Documentation: refresh installation & dependency story
-
-Installation is now substantially simpler than what the docs describe:
-prebuilt wheels bundle FluidSynth (via `auditwheel`/`delocate-wheel`/Windows
-DLL drop-in), so users no longer need to install FluidSynth separately on
-most platforms. The install instructions, troubleshooting sections, and any
-"prerequisites" lists should be rewritten to reflect this.
-
-While in there, do a broader staleness pass:
-
-- Other optional dependencies (`abjad`, `python-rtmidi`, `pynput`) — make sure
-  the `pip install scamp[all]` story and per-feature notes are current.
-- LilyPond / MusicXML export prerequisites.
-- Python version requirements (now ≥ 3.12).
-- Any references to old build/install workflows that predate the `src/`
-  layout and cibuildwheel-based wheel pipeline.
-- Screenshots, example output, and links that may have rotted.
