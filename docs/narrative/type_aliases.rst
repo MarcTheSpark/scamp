@@ -1,3 +1,5 @@
+:orphan:
+
 SCAMP Type Aliases
 ==================
 

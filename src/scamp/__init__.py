@@ -46,4 +46,4 @@ from ._dependencies import print_dependency_status, dependency_status
 
 
 __version__ = importlib.metadata.version('scamp')
-__author__ = importlib.metadata.metadata('scamp')['Author']
+__author__ = importlib.metadata.metadata('scamp')['Author-email']

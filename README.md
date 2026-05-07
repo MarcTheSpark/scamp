@@ -23,9 +23,9 @@ messages, placing notes on separate channels where necessary so that these messa
 not conflict.
 
 - Effortless playback of glissandi and dynamic envelopes. Both pitch and volume can follow 
-arbitrary curves defined using the [_expenvelope_](https://git.sr.ht/~marcevanstein/expenvelope) package.
+arbitrary curves defined using the [_expenvelope_](https://github.com/MarcTheSpark/expenvelope) package.
 
-- Flexible and precise polyphonic tempo control using [_clockblocks_](https://git.sr.ht/~marcevanstein/clockblocks). 
+- Flexible and precise polyphonic tempo control using [_clockblocks_](https://github.com/MarcTheSpark/clockblocks). 
 In SCAMP, different layers of music moving at different tempi can be interwoven with one 
 another while remaining coordinated. Smooth accelerandi and ritardandi are possible, and the 
 resulting music can be quantized according to the tempo of any layer.
@@ -43,7 +43,7 @@ While this may be a worthwhile trade-off in many cases, it is not the goal of SC
 the goal is to provide general purpose tools, to remove the drudgery of implementing practical 
 functionality that is needed again and again. Beyond this scope, users are encouraged to write 
 and share their own extensions to suit their own compositional inclinations. (Several such 
-extensions are available in the [_scamp_extensions_](https://git.sr.ht/~marcevanstein/scamp_extensions) package.)
+extensions are available in the [_scamp_extensions_](https://github.com/MarcTheSpark/scamp_extensions) package.)
 
 Other key values underlying this framework are:
 
@@ -56,131 +56,76 @@ functionality under the hood, it shouldn't be encountered by the user until it i
 - Modularity and adherence as much as possible to the [Unix Philosophy](https://en.wikipedia.org/wiki/Unix_philosophy). 
 SCAMP bundles a number of tools together for convenience, but it may be more than a given user 
 needs. For this reason, the MusicXML export capability is available separately as 
-[_pymusicxml_](https://git.sr.ht/~marcevanstein/pymusicxml), the flexible musical Envelope 
-class is available separately as [_expenvelope_](https://git.sr.ht/~marcevanstein/expenvelope), 
-and the system for managing musical time is available separately as [_clockblocks_](https://git.sr.ht/~marcevanstein/clockblocks).
+[_pymusicxml_](https://github.com/MarcTheSpark/pymusicxml), the flexible musical Envelope 
+class is available separately as [_expenvelope_](https://github.com/MarcTheSpark/expenvelope), 
+and the system for managing musical time is available separately as [_clockblocks_](https://github.com/MarcTheSpark/clockblocks).
 
 
 ## Installation & Requirements
 
-On a properly configured computer, installing SCAMP is as simple as opening a terminal and 
-running:
+SCAMP requires **Python 3.12 or greater**. With Python installed, opening a terminal and running:
 
-`pip3 install --user scamp`
+```
+pip install scamp
+```
 
-(This installs it for a single user. To install it for all users on a computer, use `sudo pip3 install scamp` and enter your administrator password.)
+is usually all you need. Prebuilt wheels on PyPI bundle the FluidSynth library for Linux, macOS
+(both Intel and Apple Silicon), and Windows, so soundfont playback works out of the box on all
+three platforms with no separate install step.
 
-Properly configuring your computer involves:
+To pull in the optional extras (LilyPond export, MIDI input/output, keyboard/mouse input) in
+one go:
 
-1) Installing Python 3.6 or greater
-2) (Linux only) Installing FluidSynth
-3) (Optional) Installing [_python-rtmidi_](https://spotlightkid.github.io/python-rtmidi/)
-4) (Optional) Installing [_abjad_](https://github.com/Abjad/abjad) and [LilyPond](https://lilypond.org/)
+```
+pip install "scamp[all]"
+```
 
-Each of these steps is described in greater detail below. After configuring the computer and 
-running `pip3 install --user scamp`, you should be able to test the installation by:
+This installs `abjad==3.31` (pinned for compatibility), `python-rtmidi`, and `pynput`.
 
-1) Opening a terminal and typing `python3` to start an interactive python session.
+Test the installation by:
+
+1) Opening a terminal and typing `python` to start an interactive python session.
 2) Typing in `from scamp import test_run; test_run.play()` and pressing return.
 
-If you here a piano gesture sweeping inward towards middle C, SCAMP has installed correctly!
+If you hear a piano gesture sweeping inward towards middle C, SCAMP has installed correctly!
 
-### 1) Installing Python 3.10 or greater
+### Optional dependencies, individually
 
-___Mac___
+You don't need any of these for a basic install — they only matter if you want the
+corresponding feature.
 
-You can download and install Python 3 here: [https://www.python.org/downloads/](https://www.python.org/downloads/). After installation, open up a terminal and type:
+**python-rtmidi** — needed for MIDI input and for generating an outgoing MIDI stream (e.g. into
+a DAW). On Linux, if `pip install python-rtmidi` fails, you may first need the Python development
+headers: `sudo apt install python3-dev`. See the [python-rtmidi installation
+instructions](https://spotlightkid.github.io/python-rtmidi/installation.html) for details.
 
-`python3 --version`
+**abjad + LilyPond** — needed for LilyPond output. SCAMP pins to `abjad==3.31`; newer abjad
+releases sometimes break compatibility, so prefer `pip install "scamp[all]"` (which uses the
+pinned version) over `pip install abjad`. After installing abjad, also [download and install
+LilyPond](https://lilypond.org/), which abjad calls out to.
 
-You should be greeted with "Python 3.10" or something similar in response. If so, you're all set! 
-If you get something like "command not found" instead, it's likely that something went wrong in the process of installation.
+**pynput** — needed for the keyboard/mouse input helpers in `scamp.utilities`.
 
-___Windows___
+### Building FluidSynth from source (Linux, advanced)
 
-As on a Mac, you can download and install Python 3 here: [https://www.python.org/downloads/](https://www.python.org/downloads/). 
-In the installer, be sure to select "Add Python 3.10 to PATH". This allows you to invoke python from the Command Prompt 
-by typing either `python` or `py`, and this should also default to the latest version of python. Test that all went
-according to plan by typing:
+Linux wheels include a bundled FluidSynth, but if you have FluidSynth installed system-wide
+(e.g. `sudo apt install fluidsynth`), SCAMP will prefer that copy. This is useful if you want
+SCAMP to share a FluidSynth build with the rest of your system, or you're running on a distro
+the wheels weren't built for.
 
-`python --version`
+### Installing scamp_extensions
 
-You should be greeted with "Python 3.10" or something similar in response. If so, you're all set! For all other installation instructions below, use `python` instead of `python3` and `pip` instead of `pip3`.
-
-___Linux___
-
-On Linux, Python 3.10 or greater is often already installed by default. Again, you can check this 
-by opening a terminal and running:
-
-`python3 --version`
-
-If your version of python is already 3.10 or greater, you're good to go. However, if your version 
-of Python 3 is less than 3.10, you will have to install python 3.10 or higher, e.g. from a third 
-party PPA.
-
-### 2) (Linux only) Installing FluidSynth
-
-SCAMP requires FluidSynth for soundfont playback, but on both Mac and Windows &mdash; due to
-the lack of a default package manager &mdash; it became clear that the path of least resistance was to 
-include the compiled FluidSynth library within the SCAMP package. For this reason, you don't need to
-take the step of installing FluidSynth to use SCAMP on Mac or Windows.
-
-Since Linux distros have package managers, it makes more sense to have users take the extra
-step to install FluidSynth that way. On apt-based distros like Debian and Ubuntu, 
-it's as simple as running:
-
-`sudo apt install fluidsynth`
-
-You are now the proud owner of a FluidSynthesizer!
-
-### 3) (Optional) Installing python-rtmidi
-
-For midi input, and also to generate an outgoing midi stream (which could, for instance, be 
-routed to a DAW), you will need the [_python-rtmidi_](https://pypi.org/project/python-rtmidi/) 
-library. You can get this by running from a terminal:
-
-`pip3 install --user python-rtmidi` 
-
-On Linux, if you're running into an error you may need to first install the `python3-dev` 
-package, for instance with the command:
-
-`sudo apt install python3-dev`
-
-For any other _python-rtmidi_ installation woes, take a look at the installation instructions 
-[here](https://spotlightkid.github.io/python-rtmidi/installation.html).
-
-### 4) (Optional) Installing abjad and LilyPond
-
-For LilyPond output, you will need the [_abjad_](http://abjad.mbrsi.org/installation.html) library. To do so, 
-run the following:
+The *scamp_extensions* package is the place for models of music-theoretical concepts (e.g.
+scales, pitch-class sets), additional conveniences for interacting with various types of input
+and output, and in general anything that builds upon SCAMP but is outside the scope of the main
+framework.
 
 ```
-pip3 install abjad
+pip install scamp_extensions
 ```
 
-Note that abjad sometimes changes in a way that breaks compatibility with SCAMP. If you are using a version of abjad 
-that is more recent than the one SCAMP was tested with, a warning will indicate this fact when you try to use 
-it to generate notation.
-
-After installing _abjad_, you will also need to [download and install LilyPond](https://lilypond.org/), since it
-is a dependency of abjad.
-
-### 5) (Optional) Installing scamp_extensions
-
-The *scamp_extensions* package is the place for models of music-theoretical concepts (e.g. scales, pitch-class sets), 
-additional conveniences for interacting with various types of input and output, and in general anything that builds 
-upon SCAMP but is outside of the scope of the main framework.
-
-The easiest way to install `scamp_extensions` is by running the command:
+To install the latest development version directly from GitHub:
 
 ```
-pip3 install --user scamp_extensions
+pip install git+https://github.com/MarcTheSpark/scamp_extensions
 ```
-
-To install the most up-to-date version (assuming you have git installed), you can instead run:
-
-```
-pip3 install --user git+https://git.sr.ht/~marcevanstein/scamp_extensions
-```
-
-This will install the latest version from this repository.

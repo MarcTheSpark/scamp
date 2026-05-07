@@ -1,7 +1,7 @@
 SCAMP (Suite for Computer-Assisted Music in Python) |release|
 =============================================================
 
-`Source Code <https://sr.ht/~marcevanstein/scamp>`_ |
+`Source Code <https://github.com/MarcTheSpark/scamp>`_ |
 `PyPI <https://pypi.org/project/scamp>`_ |
 `Paper <http://marcevanstein.com/Writings/Evanstein_MAT_Thesis_SCAMP.pdf>`_ |
 `Forum <https://scampsters.marcevanstein.com>`_ |
@@ -26,7 +26,7 @@ the following video provides a good introduction to the framework:
   <iframe class="youtube" frameborder=0 allowfullscreen="" src="https://www.youtube.com/embed/vpv686Rasds?rel=0&showinfo=0&listen=0"></iframe>
 
 You can also read the `paper introducing the framework <http://marcevanstein.com/Writings/Evanstein_MAT_Thesis_SCAMP.pdf>`_,
-and check out the "tutorial" examples found `here <https://git.sr.ht/~marcevanstein/scamp/tree/master/examples/Tutorial>`_.
+and check out the "tutorial" examples found `here <https://github.com/MarcTheSpark/scamp/tree/master/examples/Tutorial>`_.
 
 .. toctree::
    :maxdepth: 2

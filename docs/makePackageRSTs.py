@@ -36,13 +36,13 @@ template = """{package_name} package
 subpackages_template = """.. rubric:: Sub-packages:
 
 .. autosummary::
-   
-{subpackage_names}
+
+{subpackage_summary_names}
 
 .. toctree::
    :hidden:
-   
-{subpackage_names}
+
+{subpackage_toctree_names}
 """
 
 modules_template = """.. rubric:: Modules:
@@ -69,21 +69,30 @@ api_name_path_replacements = {
 }
 
 
+def strip_current_module(name, current_module):
+    """Drop the package prefix when it matches the current module — Sphinx 9's
+    autosummary warns about redundant prefixes in the same-module case."""
+    prefix = current_module + "."
+    return name[len(prefix):] if name.startswith(prefix) else name
+
+
 for package_name in packages:
     package = importlib.import_module(package_name)
 
-    module_names = ""
-    sub_package_names = ""
+    module_names = ""              # autosummary entries for submodules (relative, no prefix)
+    sub_package_summary_names = "" # autosummary entries for subpackages (relative)
+    sub_package_toctree_names = "" # hidden toctree entries (full document names, with prefix)
     api_names = ""
 
     for module_or_subpackage in pkgutil.iter_modules(package.__path__):
         # skip protected modules and subpackages (for now, the only sub-package is "_thirdparty")
         if not module_or_subpackage.name.startswith("_"):
             if module_or_subpackage.ispkg:
-                sub_package_names += "   {}.{}\n".format(package_name, module_or_subpackage.name)
+                sub_package_summary_names += "   {}\n".format(module_or_subpackage.name)
+                sub_package_toctree_names += "   {}.{}\n".format(package_name, module_or_subpackage.name)
                 packages.append("{}.{}".format(package_name, module_or_subpackage.name))
             else:
-                module_names += "   {}.{}\n".format(package_name, module_or_subpackage.name)
+                module_names += "   {}\n".format(module_or_subpackage.name)
 
     api_name_paths = []
     for x in package.__dict__:
@@ -92,6 +101,10 @@ for package_name in packages:
                 api_name_path = inspect.getmodule(package.__dict__[x]).__name__ + "." + x
                 if api_name_path in api_name_path_replacements:
                     api_name_path = api_name_path_replacements[api_name_path]
+                # Strip the package prefix when the symbol lives in the current package, to
+                # silence Sphinx 9's autosummary.import_cycle warnings. Cross-package
+                # re-exports (e.g. clockblocks.* listed in scamp.rst) keep their full paths.
+                api_name_path = strip_current_module(api_name_path, package_name)
                 api_name_paths.append(api_name_path)
     if len(api_name_paths) > 0:
         api_name_paths.sort()
@@ -99,8 +112,10 @@ for package_name in packages:
 
     modules_string = modules_template.format(package_name=package_name, module_names=module_names) \
         if len(module_names) > 0 else ""
-    subpackages_string = subpackages_template.format(package_name=package_name, subpackage_names=sub_package_names) \
-        if len(sub_package_names) > 0 else ""
+    subpackages_string = subpackages_template.format(
+        subpackage_summary_names=sub_package_summary_names,
+        subpackage_toctree_names=sub_package_toctree_names,
+    ) if len(sub_package_summary_names) > 0 else ""
     api_string = api_template.format(api_names=api_names) if len(api_names) > 0 else ""
 
     with open(package_name + ".rst", "w") as file:

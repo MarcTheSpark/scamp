@@ -38,7 +38,7 @@
 
 .. autosummary::
 {% for item in attributes %}
-  ~{{ fullname }}.{{ item }}
+  {{ item }}
 {%- endfor %}
 {% endif %}
 
@@ -47,6 +47,6 @@
 
 .. autosummary::
 {% for item in exceptions %}
-  ~{{ fullname }}.{{ item }}
+  {{ item }}
 {%- endfor %}
 {% endif %}

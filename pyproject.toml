@@ -35,7 +35,7 @@ all = [
 ]
 
 [project.urls]
-"Source Code" = "https://sr.ht/~marcevanstein/scamp/"
+"Source Code" = "https://github.com/MarcTheSpark/scamp"
 Documentation = "http://scamp.marcevanstein.com/"
 Forum = "http://scampsters.marcevanstein.com/"
 

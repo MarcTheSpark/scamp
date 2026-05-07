@@ -123,7 +123,10 @@ release = scamp.__version__
 with open("narrative/experienced_setup.rst", "r+") as f:
     data = f.read()
     f.seek(0)
-    output = re.sub(r'abjad==.*', r'abjad=={}'.format(scamp._dependencies.ABJAD_VERSION), data)
+    # Match only the version digits, not "to end of line" — otherwise an inline
+    # ``abjad==3.31`` mid-sentence gets its trailing backticks and the rest of the
+    # sentence swallowed by the greedy `.*`.
+    output = re.sub(r'abjad==[\d.]+', r'abjad=={}'.format(scamp._dependencies.ABJAD_VERSION), data)
     f.write(output)
     f.truncate()
 
