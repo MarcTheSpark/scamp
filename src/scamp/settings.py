@@ -25,7 +25,7 @@ from __future__ import annotations
 import os
 import shutil
 import sys
-from types import SimpleNamespace
+from dataclasses import dataclass, field, fields, MISSING
 from .utilities import resolve_path, SavesToJSON
 from .playback_adjustments import NotePlaybackAdjustment
 from expenvelope.envelope import Envelope
@@ -36,28 +36,37 @@ import platform
 import subprocess
 
 
-class _ScampSettings(SimpleNamespace, SavesToJSON):
+class _ScampSettings(SavesToJSON):
 
-    """Base class for scamp settings classes."""
+    """
+    Base class for scamp settings classes. Subclasses are dataclasses (decorated with
+    ``@dataclass(init=False, repr=False, eq=False)``) whose field declarations are the single source of truth
+    for both the schema and the factory defaults.
+    """
 
-    factory_defaults = {}
     _settings_name = "Settings"
     _json_path = None
     _is_root_setting = False
 
+    @classmethod
+    def _factory_default(cls, key):
+        """Fresh factory default value for a single field, calling the field's default_factory if any."""
+        f = cls.__dataclass_fields__[key]
+        return f.default_factory() if f.default_factory is not MISSING else f.default
+
     def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
         rewrite_file = False
+        field_names = {f.name for f in fields(self)}
         if settings_dict is None:
-            settings_arguments = self.factory_defaults
+            settings_arguments = {name: self._factory_default(name) for name in field_names}
         else:
             settings_arguments = {}
-            for key in set(settings_dict.keys()).union(set(self.factory_defaults.keys())):
-                if key in settings_dict and key in self.factory_defaults:
+            for key in set(settings_dict.keys()).union(field_names):
+                if key in settings_dict and key in field_names:
                     # an expected settings key
                     settings_arguments[key] = settings_dict[key]
                 elif key in settings_dict:
-                    # there is no factory default for this key, which really shouldn't happen
-                    # it suggests someone added something to the json file that shouldn't be there
+                    # no field for this key — someone added something to the JSON that shouldn't be there
                     if not suppress_warnings:
                         logging.warning("Removing unexpected key \"{}\" in {}.".format(
                             key, self._json_path.split("/")[-1] if self._json_path is not None else "settings"
@@ -66,14 +75,15 @@ class _ScampSettings(SimpleNamespace, SavesToJSON):
                     continue
                 else:
                     # no setting given in the settings_dict, so we fall back to the factory default
-                    settings_arguments[key] = self.factory_defaults[key]
+                    settings_arguments[key] = self._factory_default(key)
                     if not suppress_warnings:
                         logging.warning("Key \"{}\" was not found in {}, and will be added.".format(
                             key, self._json_path.split("/")[-1] if self._json_path is not None else "settings"
                         ))
                     rewrite_file = True
                 settings_arguments[key] = self._validate_attribute(key, settings_arguments[key])
-        super().__init__(**settings_arguments)
+        for k, v in settings_arguments.items():
+            object.__setattr__(self, k, v)
         if rewrite_file:
             self.make_persistent()
 
@@ -85,8 +95,8 @@ class _ScampSettings(SimpleNamespace, SavesToJSON):
         :param persist: if True, rewrites the JSON file from which defaults are loaded, meaning that this reset will
             persist to the running of scripts in the future.
         """
-        for key in self.factory_defaults:
-            vars(self)[key] = self.factory_defaults[key]
+        for f in fields(self):
+            object.__setattr__(self, f.name, self._factory_default(f.name))
         if persist:
             self.make_persistent()
 
@@ -105,7 +115,7 @@ class _ScampSettings(SimpleNamespace, SavesToJSON):
         return cls({}, suppress_warnings=True)
 
     def _to_dict(self):
-        return {k: v for k, v in vars(self).items()}
+        return {f.name: getattr(self, f.name) for f in fields(self)}
 
     @classmethod
     def _from_dict(cls, json_object):
@@ -154,14 +164,10 @@ class _ScampSettings(SimpleNamespace, SavesToJSON):
         return value
 
     def __setattr__(self, key, value):
-        if all(x is None for x in vars(self).values()):
-            # this avoids validation warnings getting sent out when we set the instance variables of subclasses
-            # to None at the beginning of their __init__ calls (which we do as a hint to IDEs)
-            super().__setattr__(key, value)
-        else:
-            super().__setattr__(key, self._validate_attribute(key, value))
+        object.__setattr__(self, key, self._validate_attribute(key, value))
 
 
+@dataclass(init=False, repr=False, eq=False)
 class PlaybackSettings(_ScampSettings):
 
     """
@@ -201,66 +207,52 @@ class PlaybackSettings(_ScampSettings):
         envelope was created indirectly by passing a list to the parameter.
     """
 
-    #: Default playback settings (from when SCAMP was installed)
-    factory_defaults = {
-        "named_soundfonts": {
-            "general_midi": "Merlin.sf2",
-        },
-        "soundfont_search_paths": [
-            "%PKG/soundfonts"
-        ],
-        "default_soundfont": "general_midi",
-        "default_audio_driver": "auto",
-        "default_max_soundfont_pitch_bend": 48,
-        "default_max_streaming_midi_pitch_bend": 2,
-        "soundfont_volume_to_velocity_curve": Envelope.from_points((0, 0), (0.1, 40), (1, 127)),
-        "streaming_midi_volume_to_velocity_curve": Envelope.from_points((0, 0), (1, 127)),
-        "osc_message_addresses": {
-            "start_note": "start_note",
-            "end_note": "end_note",
-            "change_pitch": "change_pitch",
-            "change_volume": "change_volume",
-            "change_parameter": "change_parameter"
-        },
-        "adjustments": {
-            "articulations": {
-                "staccato": NotePlaybackAdjustment.scale_params(length=0.5),
-                "staccatissimo": NotePlaybackAdjustment.scale_params(length=0.3),
-                "tenuto": NotePlaybackAdjustment.scale_params(length=1.2),
-                "accent": NotePlaybackAdjustment.scale_params(volume=1.2),
-                "marcato": NotePlaybackAdjustment.scale_params(volume=1.5),
-            }
-        },
-        # On Linux, prefer the user's package-managed fluidsynth: it's built
-        # against their system's audio stack (PulseAudio/PipeWire/JACK) and
-        # almost always works better than the bundled lib for desktop output.
-        # On Mac/Windows the bundled lib is well-tested via cibuildwheel and
-        # system fluidsynth is rare, so bundled-first is the better default.
-        "try_system_fluidsynth_first": sys.platform == "linux",
-        # Always default to the bundled pyfluidsynth wrapper: it knows how to
-        # locate scamp's bundled libfluidsynth and is the version we test
-        # against. The wrapper itself respects try_system_fluidsynth_first to
-        # decide which underlying libfluidsynth to dlopen.
-        "use_bundled_pyfluidsynth": True,
-        "resize_parameter_envelopes": "lists",
-        "recording_file_path": None,
-        "recording_time_range": [0, "inf"]
-    }
+    named_soundfonts: dict = field(default_factory=lambda: {"general_midi": "Merlin.sf2"})
+    soundfont_search_paths: list = field(default_factory=lambda: ["%PKG/soundfonts"])
+    default_soundfont: str = "general_midi"
+    default_audio_driver: str = "auto"
+    default_max_soundfont_pitch_bend: int = 48
+    default_max_streaming_midi_pitch_bend: int = 2
+    soundfont_volume_to_velocity_curve: Envelope = field(
+        default_factory=lambda: Envelope.from_points((0, 0), (0.1, 40), (1, 127))
+    )
+    streaming_midi_volume_to_velocity_curve: Envelope = field(
+        default_factory=lambda: Envelope.from_points((0, 0), (1, 127))
+    )
+    osc_message_addresses: dict = field(default_factory=lambda: {
+        "start_note": "start_note",
+        "end_note": "end_note",
+        "change_pitch": "change_pitch",
+        "change_volume": "change_volume",
+        "change_parameter": "change_parameter",
+    })
+    adjustments: dict = field(default_factory=lambda: {
+        "articulations": {
+            "staccato": NotePlaybackAdjustment.scale_params(length=0.5),
+            "staccatissimo": NotePlaybackAdjustment.scale_params(length=0.3),
+            "tenuto": NotePlaybackAdjustment.scale_params(length=1.2),
+            "accent": NotePlaybackAdjustment.scale_params(volume=1.2),
+            "marcato": NotePlaybackAdjustment.scale_params(volume=1.5),
+        }
+    })
+    # On Linux, prefer the user's package-managed fluidsynth: it's built
+    # against their system's audio stack (PulseAudio/PipeWire/JACK) and
+    # almost always works better than the bundled lib for desktop output.
+    # On Mac/Windows the bundled lib is well-tested via cibuildwheel and
+    # system fluidsynth is rare, so bundled-first is the better default.
+    try_system_fluidsynth_first: bool = field(default_factory=lambda: sys.platform == "linux")
+    # Always default to the bundled pyfluidsynth wrapper: it knows how to
+    # locate scamp's bundled libfluidsynth and is the version we test
+    # against. The wrapper itself respects try_system_fluidsynth_first to
+    # decide which underlying libfluidsynth to dlopen.
+    use_bundled_pyfluidsynth: bool = True
+    resize_parameter_envelopes: str = "lists"
+    recording_file_path: str | None = None
+    recording_time_range: list = field(default_factory=lambda: [0, "inf"])
 
     _settings_name = "Playback settings"
     _json_path = "%DATA/playbackSettings.json"
     _is_root_setting = True
-
-    def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
-        # This is here to help with auto-completion so that the IDE knows what attributes are available
-        self.named_soundfonts = self.default_soundfont = self.default_audio_driver = \
-            self.default_max_soundfont_pitch_bend = self.default_max_streaming_midi_pitch_bend = \
-            self.soundfont_volume_to_velocity_curve = self.streaming_midi_volume_to_velocity_curve = \
-            self.osc_message_addresses = self.adjustments = self.try_system_fluidsynth_first = \
-            self.use_bundled_pyfluidsynth = \
-            self.soundfont_search_paths = self.resize_parameter_envelopes = self.recording_file_path = \
-            self.recording_time_range = None
-        super().__init__(settings_dict, suppress_warnings)
 
     def register_named_soundfont(self, name: str, soundfont_path: str) -> None:
         """
@@ -322,16 +314,16 @@ class PlaybackSettings(_ScampSettings):
     @staticmethod
     def _validate_attribute(key, value):
         if key == "resize_parameter_envelopes" and value not in ("lists", "always", "never"):
+            fallback = PlaybackSettings._factory_default("resize_parameter_envelopes")
             logging.warning(
                 "Invalid value of \"{}\" for glissando control point policy: must be one of: \"lists\", \"always\", or "
-                "\"never\". Defaulting to \"{}\".".format(
-                    value, PlaybackSettings.factory_defaults["resize_parameter_envelopes"]
-                )
+                "\"never\". Defaulting to \"{}\".".format(value, fallback)
             )
-            return PlaybackSettings.factory_defaults["resize_parameter_envelopes"]
+            return fallback
         return value
 
 
+@dataclass(init=False, repr=False, eq=False)
 class QuantizationSettings(_ScampSettings):
     """
     Namespace containing the settings relevant to the quantization of Performances in preparation for Score creation.
@@ -354,28 +346,20 @@ class QuantizationSettings(_ScampSettings):
         specified.
     """
 
-    #: Default quantization settings (from when SCAMP was installed)
-    factory_defaults = {
-        "onset_weighting": 1.0,
-        "termination_weighting": 0.5,
-        "inner_split_weighting": 0.75,
-        "max_divisor": 8,
-        "max_divisor_indigestibility": None,
-        "simplicity_preference": 2.0,
-        "default_time_signature": "4/4"
-    }
+    onset_weighting: float = 1.0
+    termination_weighting: float = 0.5
+    inner_split_weighting: float = 0.75
+    max_divisor: int = 8
+    max_divisor_indigestibility: float | None = None
+    simplicity_preference: float = 2.0
+    default_time_signature: str = "4/4"
 
     _settings_name = "Quantization settings"
     _json_path = "%DATA/quantizationSettings.json"
     _is_root_setting = True
 
-    def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
-        # This is here to help with auto-completion so that the IDE knows what attributes are available
-        self.onset_weighting = self.termination_weighting = self.inner_split_weighting = self.max_divisor = \
-            self.max_divisor_indigestibility = self.simplicity_preference = self.default_time_signature = None
-        super().__init__(settings_dict, suppress_warnings)
 
-
+@dataclass(init=False, repr=False, eq=False)
 class GlissandiSettings(_ScampSettings):
     """
     Namespace containing the settings relevant to the engraving of glissandi.
@@ -399,39 +383,30 @@ class GlissandiSettings(_ScampSettings):
         there's nothing inherently unclear about including more in the XML.)
     """
 
-    #: Default glissandi-related settings (from when SCAMP was installed)
-    factory_defaults = {
-        "control_point_policy": "split",
-        "consider_non_extrema_control_points": True,
-        "include_end_grace_note": True,
-        "inner_grace_relevance_threshold": 1.5,
-        "max_inner_graces_music_xml": 1,
-        "slur_glisses": True
-    }
+    control_point_policy: str = "split"
+    consider_non_extrema_control_points: bool = True
+    include_end_grace_note: bool = True
+    inner_grace_relevance_threshold: float = 1.5
+    max_inner_graces_music_xml: int = 1
+    slur_glisses: bool = True
 
     _settings_name = "Glissandi settings"
     _json_path = "%DATA/engravingSettings.json"
     _is_root_setting = False
 
-    def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
-        # This is here to help with auto-completion so that the IDE knows what attributes are available
-        self.control_point_policy = self.consider_non_extrema_control_points = self.include_end_grace_note = \
-            self.inner_grace_relevance_threshold = self.max_inner_graces_music_xml = self.slur_glisses = None
-        super().__init__(settings_dict, suppress_warnings)
-
     @staticmethod
     def _validate_attribute(key, value):
         if key == "control_point_policy" and value not in ("grace", "split", "none"):
+            fallback = GlissandiSettings._factory_default("control_point_policy")
             logging.warning(
                 "Invalid value of \"{}\" for glissando control point policy: must be one of: \"grace\", \"split\", or "
-                "\"none\". Defaulting to \"{}\".".format(
-                    value, GlissandiSettings.factory_defaults["control_point_policy"]
-                )
+                "\"none\". Defaulting to \"{}\".".format(value, fallback)
             )
-            return GlissandiSettings.factory_defaults["control_point_policy"]
+            return fallback
         return value
 
 
+@dataclass(init=False, repr=False, eq=False)
 class TempoSettings(_ScampSettings):
     """
     Namespace containing the settings relevant to the engraving of tempo changes.
@@ -447,24 +422,17 @@ class TempoSettings(_ScampSettings):
     :ivar parenthesize_guide_marks: Whether or not to place tempo guide marks in parentheses.
     """
 
-    #: Default tempo-related settings (from when SCAMP was installed)
-    factory_defaults = {
-        "guide_mark_resolution": 0.125,
-        "guide_mark_sensitivity": 0.08,
-        "include_guide_marks": True,
-        "parenthesize_guide_marks": True
-    }
+    guide_mark_resolution: float = 0.125
+    guide_mark_sensitivity: float = 0.08
+    include_guide_marks: bool = True
+    parenthesize_guide_marks: bool = True
 
     _settings_name = "Tempo settings"
     _json_path = "%DATA/engravingSettings.json"
     _is_root_setting = False
 
-    def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
-        self.guide_mark_resolution = self.guide_mark_sensitivity = self.include_guide_marks = \
-            self.parenthesize_guide_marks = None
-        super().__init__(settings_dict, suppress_warnings)
 
-
+@dataclass(init=False, repr=False, eq=False)
 class EngravingSettings(_ScampSettings):
     """
     Namespace containing the settings relevant to the engraving of scores.
@@ -520,101 +488,93 @@ class EngravingSettings(_ScampSettings):
         annotations.
     """
 
-    #: Default engraving settings (from when SCAMP was installed)
-    factory_defaults = {
-        "allow_duple_tuplets_in_compound_time": False,
-        "max_voices_per_part": 4,
-        "max_dots_allowed": 3,
-        "beat_hierarchy_spacing": 2.4,
-        "num_divisions_penalty": 0.6,
-        "rest_beat_hierarchy_spacing": 20,
-        "rest_num_divisions_penalty": 0.2,
-        "articulation_split_protocols": {
-            "staccato": "last",
-            "staccatissimo": "last",
-            "marcato": "first",
-            "tenuto": "both",
-            "accent": "first",
-            "default": "all"
-        },
-        "notation_split_protocols": {
-            "tremolo": "all",
-            "tremolo1": "all",
-            "tremolo2": "all",
-            "tremolo3": "all",
-            "tremolo4": "all",
-            "tremolo5": "all",
-            "tremolo6": "all",
-            "tremolo7": "all",
-            "tremolo8": "all",
-            "fermata": "last",
-            "default": "first"
-        },
-        "clefs_by_instrument": {
-            "piano": ["treble", "bass"],
-            "flute": ["treble"],
-            "oboe": ["treble"],
-            "clarinet": ["treble"],
-            "bassoon": [("bass", 59), ("tenor", 66), ("treble", 74)],
-            "horn": ["treble"],
-            "trumpet": ["treble"],
-            "trombone": ["bass", "tenor", "treble"],
-            "tuba": ["bass"],
-            "guitar": ["treble"],
-            "timpani": ["bass"],
-            "violin": ["treble"],
-            "viola": ["alto", ("treble", 75)],
-            "cello": [("bass", 59), ("tenor", 66), ("treble", 74)],
-            "bass": ["bass", "treble"],
-            "default": ["treble", "bass"]
-        },
-        "clef_pitch_centers": {
-            "bass": 48,
-            "tenor": 57,
-            "alto": 60,
-            "treble": 71,
-            "soprano": 67,
-            "mezzo-soprano": 64,
-            "baritone": 53,
-        },
-        "clef_selection_policy": "measure-wise",
-        "default_titles": ["On the Code Again", "The Long and Winding Code", "Code To Joy",
-                           "Take Me Home, Country Codes", "Thunder Code", "Code to Nowhere",
-                           "Goodbye Yellow Brick Code", "Hit the Code, Jack"],
-        "default_composers": ["HTMLvis", "Rustin Beiber", "Javan Morrison", "Sia++",
-                              "The Rubytles", "CSStiny's Child", "Perl Jam", "PHPrince", ],
-        "default_spelling_policy": spelling.SpellingPolicy.from_string("C"),
-        "ignore_empty_parts": True,
-        "glissandi": GlissandiSettings(),
-        "tempo": TempoSettings(),
-        "pad_incomplete_parts": True,
-        "show_music_xml_command_line": "auto",
-        "show_microtonal_annotations": False,
-        "microtonal_annotation_digits": 2,
-        "export_note_velocities_to_xml": False,
-        "lilypond_dir": None,
-        "lilypond_search_paths": {
-            "Darwin": ["/Applications", "~/Applications", "/usr/local/bin", "/opt/homebrew/bin"],
-            "Windows": [r"C:\Program Files (x86)", r"C:\Program Files"]
-        }
-    }
+    allow_duple_tuplets_in_compound_time: bool = False
+    max_voices_per_part: int = 4
+    max_dots_allowed: int = 3
+    beat_hierarchy_spacing: float = 2.4
+    num_divisions_penalty: float = 0.6
+    rest_beat_hierarchy_spacing: float = 20
+    rest_num_divisions_penalty: float = 0.2
+    articulation_split_protocols: dict = field(default_factory=lambda: {
+        "staccato": "last",
+        "staccatissimo": "last",
+        "marcato": "first",
+        "tenuto": "both",
+        "accent": "first",
+        "default": "all",
+    })
+    notation_split_protocols: dict = field(default_factory=lambda: {
+        "tremolo": "all",
+        "tremolo1": "all",
+        "tremolo2": "all",
+        "tremolo3": "all",
+        "tremolo4": "all",
+        "tremolo5": "all",
+        "tremolo6": "all",
+        "tremolo7": "all",
+        "tremolo8": "all",
+        "fermata": "last",
+        "default": "first",
+    })
+    clefs_by_instrument: dict = field(default_factory=lambda: {
+        "piano": ["treble", "bass"],
+        "flute": ["treble"],
+        "oboe": ["treble"],
+        "clarinet": ["treble"],
+        "bassoon": [("bass", 59), ("tenor", 66), ("treble", 74)],
+        "horn": ["treble"],
+        "trumpet": ["treble"],
+        "trombone": ["bass", "tenor", "treble"],
+        "tuba": ["bass"],
+        "guitar": ["treble"],
+        "timpani": ["bass"],
+        "violin": ["treble"],
+        "viola": ["alto", ("treble", 75)],
+        "cello": [("bass", 59), ("tenor", 66), ("treble", 74)],
+        "bass": ["bass", "treble"],
+        "default": ["treble", "bass"],
+    })
+    clef_pitch_centers: dict = field(default_factory=lambda: {
+        "bass": 48,
+        "tenor": 57,
+        "alto": 60,
+        "treble": 71,
+        "soprano": 67,
+        "mezzo-soprano": 64,
+        "baritone": 53,
+    })
+    clef_selection_policy: str = "measure-wise"
+    default_titles: list | str | None = field(default_factory=lambda: [
+        "On the Code Again", "The Long and Winding Code", "Code To Joy",
+        "Take Me Home, Country Codes", "Thunder Code", "Code to Nowhere",
+        "Goodbye Yellow Brick Code", "Hit the Code, Jack",
+    ])
+    default_composers: list | str | None = field(default_factory=lambda: [
+        "HTMLvis", "Rustin Beiber", "Javan Morrison", "Sia++",
+        "The Rubytles", "CSStiny's Child", "Perl Jam", "PHPrince",
+    ])
+    default_spelling_policy: spelling.SpellingPolicy = field(
+        default_factory=lambda: spelling.SpellingPolicy.from_string("C")
+    )
+    ignore_empty_parts: bool = True
+    glissandi: GlissandiSettings = field(default_factory=GlissandiSettings)
+    tempo: TempoSettings = field(default_factory=TempoSettings)
+    pad_incomplete_parts: bool = True
+    show_music_xml_command_line: str = "auto"
+    show_microtonal_annotations: bool = False
+    microtonal_annotation_digits: int = 2
+    export_note_velocities_to_xml: bool = False
+    lilypond_dir: str | None = None
+    lilypond_search_paths: dict = field(default_factory=lambda: {
+        "Darwin": ["/Applications", "~/Applications", "/usr/local/bin", "/opt/homebrew/bin"],
+        "Windows": [r"C:\Program Files (x86)", r"C:\Program Files"],
+    })
 
     _settings_name = "Engraving settings"
     _json_path = "%DATA/engravingSettings.json"
     _is_root_setting = True
 
     def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
-        # This is here to help with auto-completion so that the IDE knows what attributes are available
-        self.max_voices_per_part = self.max_dots_allowed = self.beat_hierarchy_spacing = self.num_divisions_penalty = \
-            self.rest_beat_hierarchy_spacing = self.rest_num_divisions_penalty = self.articulation_split_protocols = \
-            self.notation_split_protocols = self.default_titles = self.default_composers = \
-            self.default_spelling_policy = self.ignore_empty_parts = self.pad_incomplete_parts = \
-            self.show_music_xml_command_line = self.show_microtonal_annotations = self.microtonal_annotation_digits = \
-            self.allow_duple_tuplets_in_compound_time = self.clefs_by_instrument = self.clef_pitch_centers = \
-            self.clef_selection_policy = self.export_note_velocities_to_xml = self.lilypond_dir = \
-            self.lilypond_search_paths = None
-        self.glissandi: GlissandiSettings = None
-        self.tempo: TempoSettings = None
         super().__init__(settings_dict, suppress_warnings)
         if self.show_music_xml_command_line is None or self.show_music_xml_command_line == "auto":
             # default to just a generic open command
@@ -663,20 +623,21 @@ class EngravingSettings(_ScampSettings):
 
     def _validate_attribute(self, key, value):
         if key == "max_voices_per_part" and not (isinstance(value, int) and 1 <= value <= 4):
+            fallback = EngravingSettings._factory_default("max_voices_per_part")
             logging.warning("Invalid value \"{}\" for max_voices_per_part: must be an integer from 1 to 4. defaulting "
-                            "to {}".format(value, EngravingSettings.factory_defaults["max_voices_per_part"]))
-            return EngravingSettings.factory_defaults["max_voices_per_part"]
+                            "to {}".format(value, fallback))
+            return fallback
         elif key == "default_composers" and not isinstance(value, (list, str, type(None))):
             logging.warning("Default composers not understood: must be a list, string, or None. "
                             "Falling back to defaults.")
-            return EngravingSettings.factory_defaults["default_composers"]
+            return EngravingSettings._factory_default("default_composers")
         elif key == "default_titles" and not isinstance(value, (list, str, type(None))):
             logging.warning("Default titles not understood: must be a list, string, or None. Falling back to defaults.")
-            return EngravingSettings.factory_defaults["default_titles"]
+            return EngravingSettings._factory_default("default_titles")
         elif key == "clef_selection_policy" and value not in ["measure-wise", "part-wise"]:
             logging.warning("Clef selection policy must be either \"measure-wise\" or \"part-wise\"."
                             "Falling back to defaults.")
-            return EngravingSettings.factory_defaults["clef_selection_policy"]
+            return EngravingSettings._factory_default("clef_selection_policy")
         return value
 
 
