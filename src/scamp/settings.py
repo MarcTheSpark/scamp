@@ -40,13 +40,23 @@ class _ScampSettings(SavesToJSON):
 
     """
     Base class for scamp settings classes. Subclasses are dataclasses (decorated with
-    ``@dataclass(init=False, repr=False, eq=False)``) whose field declarations are the single source of truth
-    for both the schema and the factory defaults.
+    ``@dataclass(repr=False, eq=False)``) whose field declarations are the single source of truth
+    for both the schema and the factory defaults. The auto-generated dataclass ``__init__``
+    handles construction (use kwargs to override individual fields); ``_from_dict`` is the
+    entry point for loading from JSON, with migration handling.
     """
 
     _settings_name = "Settings"
     _json_path = None
     _is_root_setting = False
+
+    # Subclasses can declare lazily-resolved fields here. Each entry maps a field name to a
+    # resolver function `(self) -> value`; the resolver runs the first time the attribute is
+    # read while the stored value is None, and the result is cached on the instance. Names
+    # listed in `_persist_after_resolve` also get written to the JSON file after resolution
+    # so subsequent processes don't pay the resolution cost again.
+    _resolvers: dict = {}
+    _persist_after_resolve: set = set()
 
     @classmethod
     def _factory_default(cls, key):
@@ -54,38 +64,27 @@ class _ScampSettings(SavesToJSON):
         f = cls.__dataclass_fields__[key]
         return f.default_factory() if f.default_factory is not MISSING else f.default
 
-    def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
-        rewrite_file = False
-        field_names = {f.name for f in fields(self)}
-        if settings_dict is None:
-            settings_arguments = {name: self._factory_default(name) for name in field_names}
-        else:
-            settings_arguments = {}
-            for key in set(settings_dict.keys()).union(field_names):
-                if key in settings_dict and key in field_names:
-                    # an expected settings key
-                    settings_arguments[key] = settings_dict[key]
-                elif key in settings_dict:
-                    # no field for this key — someone added something to the JSON that shouldn't be there
-                    if not suppress_warnings:
-                        logging.warning("Removing unexpected key \"{}\" in {}.".format(
-                            key, self._json_path.split("/")[-1] if self._json_path is not None else "settings"
-                        ))
-                    rewrite_file = True
-                    continue
-                else:
-                    # no setting given in the settings_dict, so we fall back to the factory default
-                    settings_arguments[key] = self._factory_default(key)
-                    if not suppress_warnings:
-                        logging.warning("Key \"{}\" was not found in {}, and will be added.".format(
-                            key, self._json_path.split("/")[-1] if self._json_path is not None else "settings"
-                        ))
-                    rewrite_file = True
-                settings_arguments[key] = self._validate_attribute(key, settings_arguments[key])
-        for k, v in settings_arguments.items():
-            object.__setattr__(self, k, v)
-        if rewrite_file:
-            self.make_persistent()
+    def __post_init__(self):
+        # The dataclass-generated __init__ has just set every field. For resolvable fields
+        # whose value is None, delete the instance attribute so __getattr__ fires on first
+        # read and triggers the resolver. (The class itself has no attribute for these
+        # fields — see the default_factory comment on the field declarations — so once the
+        # instance attr is gone, lookup misses and falls into __getattr__.)
+        for name in type(self)._resolvers:
+            if self.__dict__.get(name) is None:
+                del self.__dict__[name]
+
+    def __getattr__(self, name):
+        # Only fires when normal lookup misses (attribute not in instance __dict__ and not on
+        # the class). For resolvable fields we leave the attribute unset until first access.
+        resolvers = type(self)._resolvers
+        if name in resolvers:
+            value = resolvers[name](self)
+            object.__setattr__(self, name, value)
+            if name in type(self)._persist_after_resolve and self._is_root_setting:
+                self.make_persistent()
+            return value
+        raise AttributeError(name)
 
     def restore_factory_defaults(self, persist=False) -> None:
         """
@@ -95,8 +94,14 @@ class _ScampSettings(SavesToJSON):
         :param persist: if True, rewrites the JSON file from which defaults are loaded, meaning that this reset will
             persist to the running of scripts in the future.
         """
+        resolvers = type(self)._resolvers
         for f in fields(self):
-            object.__setattr__(self, f.name, self._factory_default(f.name))
+            value = self._factory_default(f.name)
+            if value is None and f.name in resolvers:
+                # Leave unset so the next read re-runs the resolver.
+                self.__dict__.pop(f.name, None)
+            else:
+                object.__setattr__(self, f.name, value)
         if persist:
             self.make_persistent()
 
@@ -112,14 +117,70 @@ class _ScampSettings(SavesToJSON):
         """
         Returns a factory default version of this settings object.
         """
-        return cls({}, suppress_warnings=True)
+        return cls()
 
     def _to_dict(self):
-        return {f.name: getattr(self, f.name) for f in fields(self)}
+        # For resolvable fields that haven't been resolved yet, write None to JSON rather
+        # than triggering resolution as a side effect of saving.
+        resolvers = type(self)._resolvers
+        out = {}
+        for f in fields(self):
+            if f.name in resolvers and f.name not in self.__dict__:
+                out[f.name] = None
+            else:
+                out[f.name] = getattr(self, f.name)
+        return out
 
     @classmethod
-    def _from_dict(cls, json_object):
-        return cls(json_object)
+    def _migrate_settings_dict(cls, settings_dict, suppress_warnings=False):
+        """
+        Translate a raw on-disk settings dict into kwargs for ``cls.__init__``, applying
+        schema migrations: drop unexpected keys, fill missing keys from field defaults
+        (by omitting them so auto-init uses the default), and translate the legacy
+        ``"auto"`` sentinel to ``None`` for resolvable fields. Returns
+        ``(kwargs, rewrite_file)`` where ``rewrite_file`` is True if any migration
+        happened and the JSON should be re-saved.
+        """
+        field_names = {f.name for f in fields(cls)}
+        resolvers = cls._resolvers
+        rewrite_file = False
+        kwargs = {}
+
+        json_filename = cls._json_path.split("/")[-1] if cls._json_path is not None else "settings"
+
+        for key, value in settings_dict.items():
+            if key not in field_names:
+                if not suppress_warnings:
+                    logging.warning(f"Removing unexpected key \"{key}\" in {json_filename}.")
+                rewrite_file = True
+                continue
+            # Treat the legacy "auto" sentinel as equivalent to None for resolvable fields,
+            # so old persisted JSON files trigger the resolver on the next read.
+            if key in resolvers and value == "auto":
+                value = None
+                rewrite_file = True
+            kwargs[key] = value
+
+        for name in field_names - kwargs.keys():
+            if not suppress_warnings:
+                logging.warning(f"Key \"{name}\" was not found in {json_filename}, and will be added.")
+            rewrite_file = True
+            # Don't put it in kwargs; the auto-init will use the field's default.
+
+        return kwargs, rewrite_file
+
+    @classmethod
+    def _from_dict(cls, settings_dict, suppress_warnings=False):
+        """
+        Construct a settings instance from a dict (typically loaded from JSON), migrating
+        the dict's schema first (see ``_migrate_settings_dict``) and re-saving the JSON
+        file if migration occurred.
+        """
+        kwargs, rewrite_file = cls._migrate_settings_dict(settings_dict, suppress_warnings)
+        instance = cls(**kwargs)
+        if rewrite_file and cls._is_root_setting:
+            instance.make_persistent()
+        return instance
 
     @classmethod
     def load(cls):
@@ -167,7 +228,7 @@ class _ScampSettings(SavesToJSON):
         object.__setattr__(self, key, self._validate_attribute(key, value))
 
 
-@dataclass(init=False, repr=False, eq=False)
+@dataclass(repr=False, eq=False)
 class PlaybackSettings(_ScampSettings):
 
     """
@@ -210,7 +271,13 @@ class PlaybackSettings(_ScampSettings):
     named_soundfonts: dict = field(default_factory=lambda: {"general_midi": "Merlin.sf2"})
     soundfont_search_paths: list = field(default_factory=lambda: ["%PKG/soundfonts"])
     default_soundfont: str = "general_midi"
-    default_audio_driver: str = "auto"
+    # Resolved lazily on first read by probing each backend (see ``_resolvers`` below).
+    # ``default_factory=lambda: None`` (rather than ``= None``) is deliberate: a plain
+    # ``= None`` default puts a class-level attribute equal to None on the class, which
+    # would mask ``__getattr__`` even after we delete the instance attr. ``default_factory``
+    # leaves no class attribute behind, so once ``__post_init__`` deletes the instance attr
+    # the attribute lookup misses entirely and ``__getattr__`` fires the resolver.
+    default_audio_driver: str | None = field(default_factory=lambda: None)
     default_max_soundfont_pitch_bend: int = 48
     default_max_streaming_midi_pitch_bend: int = 2
     soundfont_volume_to_velocity_curve: Envelope = field(
@@ -253,6 +320,11 @@ class PlaybackSettings(_ScampSettings):
     _settings_name = "Playback settings"
     _json_path = "%DATA/playbackSettings.json"
     _is_root_setting = True
+
+    _resolvers = {
+        "default_audio_driver": lambda self: _resolve_audio_driver(),
+    }
+    _persist_after_resolve = {"default_audio_driver"}
 
     def register_named_soundfont(self, name: str, soundfont_path: str) -> None:
         """
@@ -323,7 +395,7 @@ class PlaybackSettings(_ScampSettings):
         return value
 
 
-@dataclass(init=False, repr=False, eq=False)
+@dataclass(repr=False, eq=False)
 class QuantizationSettings(_ScampSettings):
     """
     Namespace containing the settings relevant to the quantization of Performances in preparation for Score creation.
@@ -359,7 +431,7 @@ class QuantizationSettings(_ScampSettings):
     _is_root_setting = True
 
 
-@dataclass(init=False, repr=False, eq=False)
+@dataclass(repr=False, eq=False)
 class GlissandiSettings(_ScampSettings):
     """
     Namespace containing the settings relevant to the engraving of glissandi.
@@ -406,7 +478,7 @@ class GlissandiSettings(_ScampSettings):
         return value
 
 
-@dataclass(init=False, repr=False, eq=False)
+@dataclass(repr=False, eq=False)
 class TempoSettings(_ScampSettings):
     """
     Namespace containing the settings relevant to the engraving of tempo changes.
@@ -432,7 +504,7 @@ class TempoSettings(_ScampSettings):
     _is_root_setting = False
 
 
-@dataclass(init=False, repr=False, eq=False)
+@dataclass(repr=False, eq=False)
 class EngravingSettings(_ScampSettings):
     """
     Namespace containing the settings relevant to the engraving of scores.
@@ -560,11 +632,17 @@ class EngravingSettings(_ScampSettings):
     glissandi: GlissandiSettings = field(default_factory=GlissandiSettings)
     tempo: TempoSettings = field(default_factory=TempoSettings)
     pad_incomplete_parts: bool = True
-    music_xml_open_command: str = "auto"
+    # Resolved lazily on first read from the platform's generic file-open command
+    # (xdg-open / open / start). Override via ``set_music_xml_application``. See the
+    # ``default_audio_driver`` field on PlaybackSettings for why we use
+    # ``default_factory=lambda: None`` instead of ``= None``.
+    music_xml_open_command: str | None = field(default_factory=lambda: None)
     show_microtonal_annotations: bool = False
     microtonal_annotation_digits: int = 2
     export_note_velocities_to_xml: bool = False
-    lilypond_dir: str | None = None
+    # Resolved lazily on first read by searching ``lilypond_search_paths``. See the
+    # ``default_audio_driver`` field on PlaybackSettings for the default_factory rationale.
+    lilypond_dir: str | None = field(default_factory=lambda: None)
     lilypond_search_paths: dict = field(default_factory=lambda: {
         "Darwin": ["/Applications", "~/Applications", "/usr/local/bin", "/opt/homebrew/bin"],
         "Windows": [r"C:\Program Files (x86)", r"C:\Program Files"],
@@ -574,17 +652,18 @@ class EngravingSettings(_ScampSettings):
     _json_path = "%DATA/engravingSettings.json"
     _is_root_setting = True
 
-    def __init__(self, settings_dict: dict = None, suppress_warnings: bool = False):
-        super().__init__(settings_dict, suppress_warnings)
-        if self.music_xml_open_command is None or self.music_xml_open_command == "auto":
-            # default to just a generic open command
-            self.set_music_xml_application()
+    _resolvers = {
+        "music_xml_open_command": lambda self: _resolve_music_xml_open_command(),
+        "lilypond_dir": lambda self: _resolve_lilypond_dir(),
+    }
+    _persist_after_resolve = {"lilypond_dir"}
 
-    def set_music_xml_application(self, application_name: str = None) -> None:
+    def set_music_xml_application(self, application_name: str = None, persist: bool = False) -> None:
         """
         Sets the application to use when opening generated MusicXML scores
 
         :param application_name: name of the application to use. If None, defaults to a generic file open command.
+        :param persist: if True, also write the change to the engraving settings JSON so it survives across processes.
         """
         platform_system = platform.system().lower()
         if platform_system == "linux":
@@ -600,6 +679,9 @@ class EngravingSettings(_ScampSettings):
                 if application_name is not None else "cmd.exe /c start"
         else:
             logging.warning("Cannot run \"show_xml\" on unrecognized platform {}".format(platform_system))
+            return
+        if persist:
+            self.make_persistent()
 
     def get_default_title(self) -> str | None:
         """Grabs one of the default score titles."""
@@ -639,6 +721,35 @@ class EngravingSettings(_ScampSettings):
                             "Falling back to defaults.")
             return EngravingSettings._factory_default("clef_selection_policy")
         return value
+
+
+# ---------------------------------------------------------------------------
+# Resolvers for lazy ("auto") settings — invoked from _ScampSettings.__getattr__
+# the first time the corresponding field is read. Imports are deferred to call
+# time to avoid circular imports (the dependency probes live in _dependencies,
+# which itself imports this module).
+# ---------------------------------------------------------------------------
+
+def _resolve_audio_driver():
+    from ._dependencies import probe_audio_driver
+    return probe_audio_driver()
+
+
+def _resolve_music_xml_open_command():
+    platform_system = platform.system().lower()
+    if platform_system == "linux":
+        return "xdg-open"
+    if platform_system == "darwin":
+        return "open"
+    if platform_system == "windows":
+        return "cmd.exe /c start"
+    logging.warning("Cannot run \"show_xml\" on unrecognized platform {}".format(platform_system))
+    return None
+
+
+def _resolve_lilypond_dir():
+    from ._dependencies import find_lilypond
+    return find_lilypond()
 
 
 _factory_lilypond_template_path = os.path.join(resolve_path("%PKG/lilypond"), "scamp_template.ly")

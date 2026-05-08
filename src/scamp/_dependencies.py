@@ -73,18 +73,17 @@ if fluidsynth is None:
     logging.warning("Fluidsynth could not be loaded; synth output will not be available.")
 
 
-def auto_detect_audio_driver_if_needed() -> None:
+def probe_audio_driver() -> str | None:
     """
-    If the saved default audio driver is "auto", probe each backend until one
-    starts successfully, then save it as the new default. Idempotent: once a
-    real driver has been written to settings, this function is a no-op.
+    Probe each backend until one starts successfully and return its name. Returns
+    None if fluidsynth is unavailable or no backend works.
 
-    Called lazily from SoundfontHost.__init__ rather than at import time so
-    that simply `import scamp` doesn't block on audio probing or write to the
-    user's persistent settings file as a side effect.
+    Called lazily by ``PlaybackSettings.default_audio_driver``'s resolver the
+    first time that field is read, so simply `import scamp` doesn't block on
+    audio probing.
     """
-    if fluidsynth is None or playback_settings.default_audio_driver != "auto":
-        return
+    if fluidsynth is None:
+        return None
     logging.info("Testing for working audio driver...")
     drivers = ['pipewire', 'pulseaudio', 'alsa', 'coreaudio', 'dsound',
                'Direct Sound', 'oss', 'jack', 'portaudio', 'sndmgr']
@@ -92,14 +91,13 @@ def auto_detect_audio_driver_if_needed() -> None:
         test_synth = fluidsynth.Synth()
         test_synth.start(driver=driver)
         if test_synth.audio_driver is not None:
-            playback_settings.default_audio_driver = driver
-            playback_settings.make_persistent()
             test_synth.delete()
             logging.info(f"Found audio driver '{driver}'. Saved as default; "
                          f"override via playback_settings if needed.")
-            return
+            return driver
         test_synth.delete()
     logging.warning("No working audio driver was found; synth output will not be available.")
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -162,17 +160,18 @@ def find_lilypond():
     return None
 
 
-def _should_search_for_lilypond() -> bool:
-    """Decide whether to (re)scan for a lilypond binary on this platform."""
+def _invalidate_lilypond_dir_if_stale() -> None:
+    """If the cached lilypond_dir no longer points at a real binary, clear it so the
+    resolver re-runs the next time the setting is read (Mac/Windows only — Linux
+    relies on PATH)."""
     if platform.system() not in ("Darwin", "Windows"):
-        # Linux users get lilypond from their distro; PATH handles it.
-        return False
-    if engraving_settings.lilypond_dir is None:
-        # Mac/Windows with no remembered location: search.
-        return True
-    # Have a remembered location, but verify the binary is still there.
+        return
+    cached = engraving_settings.__dict__.get("lilypond_dir")
+    if cached is None:
+        return
     binary_name = "lilypond.exe" if platform.system() == "Windows" else "lilypond"
-    return not (Path(engraving_settings.lilypond_dir) / binary_name).exists()
+    if not (Path(cached) / binary_name).exists():
+        del engraving_settings.__dict__["lilypond_dir"]
 
 
 # ---------------------------------------------------------------------------
@@ -244,10 +243,8 @@ def get_abjad():
             f"compatible. If errors occur, run `pip3 install abjad=={ABJAD_VERSION}` to downgrade."
         )
 
-    if _should_search_for_lilypond():
-        engraving_settings.lilypond_dir = find_lilypond()
-        engraving_settings.make_persistent()
-
+    _invalidate_lilypond_dir_if_stale()
+    # Reading lilypond_dir triggers the lazy resolver if it hasn't been resolved yet (or was just invalidated above).
     if engraving_settings.lilypond_dir is not None:
         os.environ["PATH"] += os.pathsep + engraving_settings.lilypond_dir
 
@@ -321,12 +318,12 @@ def dependency_status() -> list[tuple[str, str, str]]:
     each optional dependency. State is 'ok', 'warn', or 'missing'.
     """
     return [
-        ("FluidSynth",      *_fluidsynth_status()),
-        ("sf2utils",        *_present_status(Sf2File, "soundfont preset introspection")),
-        ("python-osc",      *_present_status(pythonosc, "OSC instruments")),
-        ("python-rtmidi",   *_present_status(rtmidi, "streaming MIDI I/O")),
-        ("pynput",          *_present_status(pynput, "mouse/keyboard input")),
-        ("abjad",           *_abjad_status()),
+        ("FluidSynth", *_fluidsynth_status()),
+        ("sf2utils", *_present_status(Sf2File, "soundfont preset introspection")),
+        ("python-osc", *_present_status(pythonosc, "OSC instruments")),
+        ("python-rtmidi", *_present_status(rtmidi, "streaming MIDI I/O")),
+        ("pynput", *_present_status(pynput, "mouse/keyboard input")),
+        ("abjad", *_abjad_status()),
     ]
 
 

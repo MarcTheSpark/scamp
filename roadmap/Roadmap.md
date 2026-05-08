@@ -39,9 +39,13 @@ Done in eight bite-sized steps so each one ships independently.
 
 ### Phase C — Settings refactor
 
-6. **Move `_ScampSettings` from `SimpleNamespace` to `dataclass`, internally.**
-   Public API unchanged. Get type hints, IDE completion, less migration
-   ceremony.
+6. ~~**Move `_ScampSettings` from `SimpleNamespace` to `dataclass`, internally.**~~
+   Done 2026-05-06/07. Each subclass is `@dataclass(repr=False, eq=False)`;
+   field declarations are now the single source of truth for both schema and
+   defaults (no more parallel `factory_defaults` dict and no more
+   `self.x = self.y = ... = None` IDE-hint init lines). Auto-init handles
+   construction (kwargs work and are IDE-completable); a separate
+   `_from_dict` classmethod is the JSON-load entry point with migration.
 7. **Stop auto-rewriting JSON on load.** Split "load + fill defaults in
    memory" (silent) from "migrate file on disk" (explicit, on version upgrade
    or via a CLI command).
@@ -50,30 +54,25 @@ Done in eight bite-sized steps so each one ships independently.
    ergonomics, but a Session can carry its own. Real test isolation; makes
    "what settings did this Performance use?" answerable.
 
-## "auto"-style settings: a general approach
+## ~~"auto"-style settings: a general approach~~ — done 2026-05-07
 
-`default_audio_driver = "auto"` is currently a one-off: a sentinel string that
-triggers a one-time probe (`auto_detect_audio_driver_if_needed`), which writes
-the resolved value back into the persisted settings. The mechanism is fragile
-— callers have to remember to invoke the resolver *before* reading the
-setting (the dict-key bug in `SoundfontPlaybackImplementation` was caused by
-reading `default_audio_driver` while it was still `"auto"`), and we now have
-an awkward `"auto"` literal threading through the type as if it were a real
-driver name.
+Implemented as a class-level resolver registry on `_ScampSettings`. Each
+subclass declares `_resolvers = {field_name: resolver_fn}` and optionally
+`_persist_after_resolve = {field_name, ...}`. Resolvable fields use
+`field(default_factory=lambda: None)` so no class attribute masks
+`__getattr__`; `__post_init__` deletes None instance attrs to "arm" the lazy
+mechanism. `__getattr__` runs the resolver once, caches the result, and
+optionally calls `make_persistent()`. Hot-path reads pay zero overhead since
+non-resolver fields are normal instance attributes.
 
-Worth designing a general pattern for "settings whose default is 'figure it
-out the first time'" — candidates besides audio driver: lilypond binary
-location (already half-implemented as `_should_search_for_lilypond`), maybe
-soundfont search paths. Possible shapes:
+Three settings now use it:
 
-- A `Resolvable` setting type that lazily computes on first read and caches
-  (so the resolver runs at the read site, not at scattered call sites).
-- Or, resolve all such settings once at `import scamp` time / first
-  `Session()` construction, with an opt-out for tests.
-- Or keep the explicit-probe model but standardize: every setting with an
-  `"auto"` value has a registered resolver, and a single
-  `playback_settings.resolve_pending()` is called from one well-known place.
+- `playback_settings.default_audio_driver` (persisted — probing is slow)
+- `engraving_settings.lilypond_dir` (persisted — search is slow;
+  `_invalidate_lilypond_dir_if_stale()` re-arms if the cached binary is gone)
+- `engraving_settings.music_xml_open_command` (not persisted — platform
+  lookup is microseconds and not persisting avoids stale platform values)
 
-Tie this in with Phase C of the settings refactor (dataclass migration, load
-vs. migrate split) — a cleaner settings substrate makes any of these easier.
+The legacy `"auto"` sentinel in old persisted JSON is translated to None on
+load (in `_from_dict`) so existing user config files migrate transparently.
 
