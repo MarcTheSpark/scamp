@@ -15,11 +15,13 @@
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
 from .settings import playback_settings, engraving_settings
+from .utilities import first_run_notice
 import importlib.metadata
 import logging
 import os
 import platform
 import re
+import shutil
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -84,7 +86,7 @@ def probe_audio_driver() -> str | None:
     """
     if fluidsynth is None:
         return None
-    logging.info("Testing for working audio driver...")
+    first_run_notice("Testing for working audio driver (this is normal on first run)...")
     drivers = ['pipewire', 'pulseaudio', 'alsa', 'coreaudio', 'dsound',
                'Direct Sound', 'oss', 'jack', 'portaudio', 'sndmgr']
     for driver in drivers:
@@ -92,8 +94,8 @@ def probe_audio_driver() -> str | None:
         test_synth.start(driver=driver)
         if test_synth.audio_driver is not None:
             test_synth.delete()
-            logging.info(f"Found audio driver '{driver}'. Saved as default; "
-                         f"override via playback_settings if needed.")
+            first_run_notice(f"Found audio driver '{driver}'. Saved as default; "
+                             f"override via playback_settings if needed.")
             return driver
         test_synth.delete()
     logging.warning("No working audio driver was found; synth output will not be available.")
@@ -147,7 +149,7 @@ def find_lilypond():
     """
     if platform.system() not in engraving_settings.lilypond_search_paths:
         return None
-    logging.warning("Searching for LilyPond binary (this may take a while and is normal on first run)")
+    first_run_notice("Searching for LilyPond binary (this may take a while and is normal on first run)...")
     for lilypond_search_path in engraving_settings.lilypond_search_paths[platform.system()]:
         lsp = Path(lilypond_search_path).expanduser()
         if not lsp.exists():
@@ -155,7 +157,7 @@ def find_lilypond():
         binary_name = "lilypond.exe" if platform.system() == "Windows" else "lilypond"
         for potential_lp_binary in lsp.rglob(binary_name):
             if potential_lp_binary.is_file():
-                logging.warning(f"LilyPond binary found at {potential_lp_binary.parent.resolve()}")
+                first_run_notice(f"LilyPond binary found at {potential_lp_binary.parent.resolve()}")
                 return str(potential_lp_binary.parent.resolve())
     return None
 
@@ -175,7 +177,10 @@ def _invalidate_lilypond_dir_if_stale() -> None:
 
 
 # ---------------------------------------------------------------------------
-# abjad — kept lazy because importing abjad is slow
+# abjad — kept lazy so users who never use LilyPond output don't pay the
+# import cost at all. abjad itself is no longer especially slow (~0.3s as of
+# 3.31, after rmakers/nauert were split out into separate packages), but free
+# is still better than fast.
 # ---------------------------------------------------------------------------
 
 def _abjad_version_to_tuple(version):
@@ -212,9 +217,9 @@ _abjad_library = None
 
 def get_abjad():
     """
-    Return the abjad module, importing it lazily on first call. abjad is slow
-    to import (a few seconds), so we don't want to pay that cost unless the
-    caller actually needs LilyPond output.
+    Return the abjad module, importing it lazily on first call. The import is
+    no longer dramatically slow (~0.3s), but skipping it entirely for users
+    who never touch LilyPond output is still worth the small bit of plumbing.
     """
     global _abjad_library
 
@@ -293,17 +298,34 @@ def _fluidsynth_status() -> _DepStatus:
 
 
 def _abjad_status() -> _DepStatus:
-    """Check abjad availability and version match without importing it."""
+    """Check abjad availability and version match. Imports abjad (slow), but
+    since dependency_status also runs _lilypond_status which imports abjad
+    anyway, there's no point dodging it here."""
     try:
-        installed = importlib.metadata.version('abjad')
-    except importlib.metadata.PackageNotFoundError:
-        return ("missing", f"not installed (need {ABJAD_VERSION})")
+        abjad = get_abjad()
+    except ImportError as e:
+        return ("missing", str(e))
+    installed = getattr(abjad, '__version__', None)
+    if installed is None:
+        return ("warn", f"installed but version unidentifiable (need {ABJAD_VERSION})")
     iv = _abjad_version_to_tuple(installed)
-    if iv < _abjad_version_to_tuple(ABJAD_MIN_VERSION):
-        return ("missing", f"installed {installed}, need >={ABJAD_MIN_VERSION}")
     if iv > _abjad_version_to_tuple(ABJAD_VERSION):
         return ("warn", f"installed {installed} (newer than tested {ABJAD_VERSION}; may be incompatible)")
     return ("ok", f"installed {installed}")
+
+
+def _lilypond_status() -> _DepStatus:
+    """Trigger lilypond discovery via get_abjad() and report binary location.
+    Without abjad, scamp can't drive lilypond, so report missing in that case."""
+    try:
+        get_abjad()
+    except ImportError:
+        return ("missing", "abjad not installed — lilypond unreachable")
+    binary_name = "lilypond.exe" if platform.system() == "Windows" else "lilypond"
+    found = shutil.which(binary_name)
+    if found:
+        return ("ok", f"binary at {found}")
+    return ("missing", "lilypond binary not found on PATH or in standard search locations")
 
 
 def _present_status(module, what_it_does: str) -> _DepStatus:
@@ -324,6 +346,7 @@ def dependency_status() -> list[tuple[str, str, str]]:
         ("python-rtmidi", *_present_status(rtmidi, "streaming MIDI I/O")),
         ("pynput", *_present_status(pynput, "mouse/keyboard input")),
         ("abjad", *_abjad_status()),
+        ("LilyPond", *_lilypond_status()),
     ]
 
 

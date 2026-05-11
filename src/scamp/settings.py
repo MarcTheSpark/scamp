@@ -26,7 +26,7 @@ import os
 import shutil
 import sys
 from dataclasses import dataclass, field, fields, MISSING
-from .utilities import resolve_path, SavesToJSON
+from .utilities import resolve_path, SavesToJSON, first_run_notice
 from .playback_adjustments import NotePlaybackAdjustment
 from expenvelope.envelope import Envelope
 from . import spelling
@@ -756,7 +756,7 @@ _factory_lilypond_template_path = os.path.join(resolve_path("%PKG/lilypond"), "s
 lilypond_template_path = resolve_path("%DATA/scamp_lilypond_template.ly")
 
 if not os.path.exists(resolve_path(lilypond_template_path)):
-    logging.warning(f"Installing lilypond template file at {lilypond_template_path}. (This is normal on first import.)")
+    first_run_notice(f"Installing lilypond template file at {lilypond_template_path} (this is normal on first import).")
     try:
         shutil.copy(_factory_lilypond_template_path, lilypond_template_path)
     except FileNotFoundError:

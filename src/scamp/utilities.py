@@ -41,6 +41,18 @@ class NoteProperty:
 # ------------------------------------------- General Utilities ---------------------------------------------
 
 
+def first_run_notice(msg: str) -> None:
+    """
+    Print a reassuring "this is normal on first run" message to stderr, in green
+    if stderr is a TTY. Used for the lilypond / audio-driver / template-install
+    discovery steps so the user sees them as expected setup, not warnings.
+    """
+    if getattr(sys.stderr, "isatty", lambda: False)():
+        print(f"\033[32m{msg}\033[0m", file=sys.stderr)
+    else:
+        print(msg, file=sys.stderr)
+
+
 def iterate_all_subclasses(type_name: Type) -> Iterator[Type]:
     """
     Iterates all generations of subclasses of a type

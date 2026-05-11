@@ -6,7 +6,7 @@ there are either done, abandoned, or superseded; revisit only as reference.
 ## Summary
 
 1. [Test infrastructure & settings refactor](#test-infrastructure--settings-refactor) — pytest + syrupy migration, targeted unit tests, dataclass-based settings with per-`Session` overrides.
-2. ["auto"-style settings: a general approach](#auto-style-settings-a-general-approach) — design a reusable pattern for settings whose default is "figure it out on first use".
+2. [Assorted Fixes](#assorted-fixes)
 
 Recently completed (2026-05-06): sourcehut → GitHub link migration across all five packages, and a full refresh of the installation docs (FluidSynth bundling, Python ≥ 3.12, `scamp[all]` extras, abjad pin, Mac LilyPond instructions, dependency-status testing snippet).
 
@@ -76,3 +76,9 @@ Three settings now use it:
 The legacy `"auto"` sentinel in old persisted JSON is translated to None on
 load (in `_from_dict`) so existing user config files migrate transparently.
 
+
+## Assorted Fixes
+
+- ~~Start-up vibes: Make all the text on first run about searching for stuff green, to say: this is all normal.~~ Done 2026-05-11: `utilities.first_run_notice()` prints the lilypond search, audio-driver probe, and lilypond-template install messages in green when stderr is a TTY.
+- ~~print_dependency_status() should try to run get_abjad() and see if it finds lilypond. We want to know the status and location of the lilypond binary.~~ Done 2026-05-11: added a `LilyPond` row that calls `get_abjad()` (triggering the lazy lilypond_dir resolver) and reports the binary path via `shutil.which`.
+- Semaphore leakage warnings on Mac. This could be a much broader thing, a Thonny thing, or a clockblocks thing
