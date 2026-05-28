@@ -20,7 +20,7 @@ notation.
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
-from clockblocks import Clock, TempoEnvelope, MetricPhaseTarget, wait, fork_unsynchronized, fork, current_clock, \
+from cb2 import Clock, TempoEnvelope, MetricPhaseTarget, wait, fork_unsynchronized, fork, current_clock, \
     wait_forever, wait_for_children_to_finish
 from expenvelope import Envelope, EnvelopeSegment
 from .session import Session

@@ -47,7 +47,7 @@ from abc import ABC, abstractmethod
 import logging
 from ._metric_structure import MetricStructure
 from typing import Sequence, Type, Iterator, TYPE_CHECKING
-from clockblocks import TempoEnvelope
+from cb2 import TempoEnvelope
 
 if TYPE_CHECKING:
     # Import abjad only for type checking, not at runtime

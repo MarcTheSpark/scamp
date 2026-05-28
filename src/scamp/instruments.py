@@ -32,8 +32,7 @@ from .note_properties import NoteProperties
 from .playback_implementations import PlaybackImplementation, SoundfontPlaybackImplementation, \
     MIDIStreamPlaybackImplementation,  OSCPlaybackImplementation
 from .settings import engraving_settings, playback_settings
-from clockblocks.utilities import wait
-from clockblocks.clock import current_clock, Clock, ClockKilledError, DeadClockError, TimeStamp
+from cb2 import wait, current_clock, Clock, ClockKilledError, DeadClockError, TimeStamp
 from expenvelope import EnvelopeSegment
 import logging
 import time

@@ -20,7 +20,7 @@
 from __future__ import annotations
 from .performance import Performance
 from expenvelope import Envelope
-from clockblocks import Clock, TempoEnvelope
+from cb2 import Clock, TempoEnvelope
 from .instruments import ScampInstrument
 from typing import Sequence
 
