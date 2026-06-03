@@ -83,8 +83,6 @@ score2_block.items.append(score2.to_abjad(wrap_as_file=False))
 
 lilypond_file = abjad.LilyPondFile(items=[score1_block, score2_block])
 
-s.kill()
-
 def test_results():
     return (
         performance,

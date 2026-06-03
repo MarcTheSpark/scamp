@@ -66,8 +66,6 @@ while s.beat() < 12:
 # Stop recording and show the result
 performance = s.stop_transcribing()
 
-s.kill()
-
 
 def test_results():
     return (

@@ -45,8 +45,6 @@ for _ in range(4):
 
 performance = s.stop_transcribing()
 
-s.kill()
-
 
 def test_results():
     return (

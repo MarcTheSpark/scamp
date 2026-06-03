@@ -52,8 +52,6 @@ note_handle2.end()
 
 performance = s.stop_transcribing()
 
-s.kill()
-
 
 def test_results():
     return (

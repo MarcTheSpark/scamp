@@ -77,7 +77,6 @@ fork(piano_part)
 violin_part()
 performance = s.stop_transcribing()
 
-
 def test_results():
     return (
         performance,

@@ -24,6 +24,7 @@ import json
 import sys
 import re
 import random
+import threading
 from difflib import Differ
 from collections import namedtuple, defaultdict
 
@@ -129,19 +130,34 @@ result_type_to_comparison_protocols = defaultdict(
 )
 
 
+def _kill_active_session():
+    # The examples are imported one after another into this single process. Each one creates a master
+    # Session on the import (main) thread, but the example scripts themselves don't tear it down — that's
+    # the harness's job, not the script's. A surviving master leaves cb2's module-level scheduler parked
+    # on it, which deadlocks the *next* example's Session() at construction (its initial wake never fires).
+    # So after each example we kill whatever clock is active on this thread and clear the reference.
+    active = scamp.current_clock()
+    if active is not None:
+        active.master.kill()
+    threading.current_thread().__clock__ = None
+
+
 def get_example_result(python_file_path):
     # restore state
     scamp.engraving_settings.restore_factory_defaults()
     random.seed(0)
-    mod = import_module(python_file_path)
-    protocols_and_prepped_results = [
-        (comparison_protocol._replace(name=type(raw_result).__name__ )
-         if comparison_protocol.name is None else comparison_protocol, comparison_protocol.prep_function(raw_result))
-        for raw_result in mod.test_results()
-        for comparison_protocol in result_type_to_comparison_protocols[type(raw_result)]
-    ]
-    # return (list of comparison protocols, list of prepped results)
-    return tuple(zip(*protocols_and_prepped_results))
+    try:
+        mod = import_module(python_file_path)
+        protocols_and_prepped_results = [
+            (comparison_protocol._replace(name=type(raw_result).__name__ )
+             if comparison_protocol.name is None else comparison_protocol, comparison_protocol.prep_function(raw_result))
+            for raw_result in mod.test_results()
+            for comparison_protocol in result_type_to_comparison_protocols[type(raw_result)]
+        ]
+        # return (list of comparison protocols, list of prepped results)
+        return tuple(zip(*protocols_and_prepped_results))
+    finally:
+        _kill_active_session()
 
 
 def save_example_result(python_file_path):

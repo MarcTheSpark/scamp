@@ -48,8 +48,6 @@ for _ in range(2):  # loop twice
             # clock is the Session as a whole.
             wait(random.random())
 
-s.kill()
-
 
 def test_results():
     return [True]

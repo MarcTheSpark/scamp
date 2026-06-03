@@ -65,8 +65,6 @@ violin2.end_all_notes()
 bass_banjo.end_all_notes()
 performance = s.stop_transcribing()
 
-s.kill()
-
 
 def test_results():
     old_engraving_settings = engraving_settings.duplicate()

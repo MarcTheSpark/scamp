@@ -37,8 +37,6 @@ fp_cresc = Envelope(
 # play a note with the dynamic curve
 viola.play_note(48, fp_cresc, 4)
 
-s.kill()
-
 
 def test_results():
     return [True]

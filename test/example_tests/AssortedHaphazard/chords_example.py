@@ -47,8 +47,6 @@ piano.play_chord((64, 60, 69), 0.5, 2.0, "noteheads: diamond / normal / cross")
 s.wait(0)
 performance = s.stop_transcribing()
 
-s.kill()
-
 
 def test_results():
     old_engraving_settings = engraving_settings.duplicate()
