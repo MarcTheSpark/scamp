@@ -28,10 +28,15 @@ import threading
 from difflib import Differ
 from collections import namedtuple, defaultdict
 
-if len(sys.argv) > 1 and sys.argv[1] == "-s":
-    SAVE_NEW = True
-else:
-    SAVE_NEW = False
+# Usage:
+#   python3 test_examples.py                 # test all examples
+#   python3 test_examples.py -s              # SAVE_NEW: regenerate all reference outputs
+#   python3 test_examples.py foo bar         # only test examples whose path contains "foo" or "bar"
+#   python3 test_examples.py -s foo          # regenerate references only for matching examples
+# Filters are case-insensitive substring matches against each example's full path.
+args = sys.argv[1:]
+SAVE_NEW = "-s" in args
+FILTERS = [a.lower() for a in args if a != "-s"]
 
 START_RED_TEXT = '\033[91m'
 STOP_RED_TEXT = '\033[0m'
@@ -46,6 +51,12 @@ examples = [
     for dp, dn, filenames in os.walk(example_test_directory)
     for f in filenames if os.path.splitext(f)[1] == '.py'
 ]
+
+if FILTERS:
+    examples = [e for e in examples if any(flt in e.lower() for flt in FILTERS)]
+    if not examples:
+        print("No examples matched filter(s): {}".format(", ".join(FILTERS)))
+        sys.exit(1)
 
 
 def import_module(python_file_path):
