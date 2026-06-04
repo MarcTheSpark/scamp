@@ -650,7 +650,8 @@ class PerformancePart(SavesToJSON, _NoteFiltersMixin):
         if not stop_beat >= start_beat:
             raise ValueError("Stop beat must be after start beat.")
 
-        def _play_thread(child_clock):
+        def _play_thread(child_clock=None):
+            child_clock = current_clock() if child_clock is None else child_clock
             note_iterator = self.get_note_iterator(start_beat, stop_beat, selected_voices)
             self.get_note_iterator(start_beat, stop_beat)
             try:
@@ -1131,7 +1132,9 @@ class Performance(SavesToJSON, _NoteFiltersMixin):
         if stop_beat is None:
             stop_beat = max(p.end_beat for p in self.parts)
 
-        def _performance_playback(performance_playback_clock):
+        def _performance_playback(performance_playback_clock=None):
+            performance_playback_clock = current_clock() if performance_playback_clock is None \
+                else performance_playback_clock
             for p in self.parts:
                 p.play(start_beat, stop_beat, clock=performance_playback_clock, blocking=False,
                        tempo_envelope=tempo_envelope, note_filter=note_filter)

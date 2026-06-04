@@ -455,7 +455,7 @@ class ScampInstrument(SavesToJSON):
                            kwargs={"transcribe": False, "silent": silent})
             # transcribe, but don't play the unmodified version
             if blocking:
-                self._do_play_note(clock, pitch, volume, length, properties, silent=True, transcribe=transcribe)
+                self._do_play_note(pitch, volume, length, properties, silent=True, transcribe=transcribe)
             else:
                 clock.fork(self._do_play_note, name="DO_PLAY_NOTE",
                            args=(pitch, volume, length, properties), kwargs={"silent": True, "transcribe": transcribe})
@@ -463,7 +463,7 @@ class ScampInstrument(SavesToJSON):
             # No adjustments, so no need to separate transcription from playback
             # (However, if the clock is fast-forwarding, make it silent)
             if blocking:
-                self._do_play_note(clock, pitch, volume, length, properties,
+                self._do_play_note(pitch, volume, length, properties,
                                    silent=clock.is_fast_forwarding() or silent, transcribe=transcribe)
             else:
                 clock.fork(self._do_play_note, name="DO_PLAY_NOTE",
@@ -525,14 +525,13 @@ class ScampInstrument(SavesToJSON):
                                                 hasattr(value, "parsed_from_list")):
                 value.normalize_to_duration(sum_length)
 
-    def _do_play_note(self, clock, pitch, volume, length, properties, silent=False, transcribe=True):
+    def _do_play_note(self, pitch, volume, length, properties, silent=False, transcribe=True):
         """
         This runs the actual thread that plays the note, and is scheduled when play_note is called.
         If playback adjustments were made, then we schedule the altered version of _do_play_note to play back, but with
         "transcribe" set to false, and we schedule an unaltered version of _do_play_note to run silently, but with
         "transcribe" set to true. This way the transcription is not affected by performance adjustments.
 
-        :param clock: which clock this plays back on
         :param pitch: either a number, an Envelope
         :param volume: either a number, an Envelope
         :param length: either a number (of beats), or a tuple representing a set of tied segments
@@ -540,6 +539,7 @@ class ScampInstrument(SavesToJSON):
         :param silent: if True, don't actually do any of the playback; just go through the motions for transcribing it
         :param transcribe: if False, don't notify Transcribers at the end of the note
         """
+        clock = current_clock()
 
         # if we know ahead of time that neither pitch nor volume changes, we can pass
         fixed = not isinstance(pitch, Envelope) and not isinstance(volume, Envelope) and \

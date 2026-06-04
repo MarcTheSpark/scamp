@@ -47,7 +47,8 @@ def banjass():
         wait(random() * 1.5)
 
 
-def sine_glisses(this_clock):
+def sine_glisses():
+    this_clock = current_clock()
     freq = 0.2
     while True:
         violin.play_note([72 + 10 * math.sin(this_clock.beat() * freq * 2 * math.pi),
