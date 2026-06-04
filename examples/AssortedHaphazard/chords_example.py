@@ -43,5 +43,4 @@ piano.play_chord((64, 60, 69), 0.5, 2.0, "noteheads: diamond / normal / cross")
 # This line would throw an error, because the wrong number of noteheads is given for the chord
 # piano.play_chord((64, 60, 69), 0.5, 2.0, "noteheads: diamond / normal")
 
-s.wait(0)
 s.stop_transcribing().to_score().show()
