@@ -122,14 +122,17 @@ def start_midi_listener(port_number_or_device_name, callback_function, clock):
 
     @functools.wraps(callback_function)
     def callback_wrapper(message, data=None):
-        clock.rouse_and_hold()
-        threading.current_thread().__clock__ = clock
-        if callback_accepts_dt:
-            callback_function(message[0], message[1])
-        else:
-            callback_function(message[0])
-        threading.current_thread().__clock__ = None
-        clock.release_from_suspension()
+        # Hold the scheduler quiescent so user callback code can read clock state and play notes
+        # without racing a scheduled action firing on the central scheduler.
+        with clock.while_scheduler_quiescent():
+            threading.current_thread().__clock__ = clock
+            try:
+                if callback_accepts_dt:
+                    callback_function(message[0], message[1])
+                else:
+                    callback_function(message[0])
+            finally:
+                threading.current_thread().__clock__ = None
 
     midi_in.set_callback(callback_wrapper)
     return midi_in

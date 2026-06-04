@@ -140,11 +140,12 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
             raise ImportError("Package python-osc not found; cannot set up osc listener.")
 
         def callback_wrapper(*args, **kwargs):
-            self.rouse_and_hold()
-            threading.current_thread().__clock__ = self
-            callback_function(*args, **kwargs)
-            threading.current_thread().__clock__ = None
-            self.release_from_suspension()
+            with self.while_scheduler_quiescent():
+                threading.current_thread().__clock__ = self
+                try:
+                    callback_function(*args, **kwargs)
+                finally:
+                    threading.current_thread().__clock__ = None
 
         if (ip_address, port) not in self._listeners["osc"]:
             dispatcher = pythonosc.dispatcher.Dispatcher()
@@ -185,27 +186,29 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         if on_press is not None:
             # if on_press is defined, place a wrapper around it that wakes up the the Session when it's called
             def on_press_wrapper(key_argument):
-                self.rouse_and_hold()
-                threading.current_thread().__clock__ = self
-                name, number = Session._name_and_number_from_key(key_argument)
-                if name not in keys_down:
-                    keys_down.append(name)
-                    on_press(name, number)
-                threading.current_thread().__clock__ = None
-                self.release_from_suspension()
+                with self.while_scheduler_quiescent():
+                    threading.current_thread().__clock__ = self
+                    try:
+                        name, number = Session._name_and_number_from_key(key_argument)
+                        if name not in keys_down:
+                            keys_down.append(name)
+                            on_press(name, number)
+                    finally:
+                        threading.current_thread().__clock__ = None
         else:
             on_press_wrapper = None
         if on_release is not None:
             # if on_release is defined, place a wrapper around it that wakes up the the Session when it's called
             def on_release_wrapper(key_argument):
-                self.rouse_and_hold()
-                threading.current_thread().__clock__ = self
-                name, number = Session._name_and_number_from_key(key_argument)
-                if name in keys_down:
-                    keys_down.remove(name)
-                on_release(name, number)
-                threading.current_thread().__clock__ = None
-                self.release_from_suspension()
+                with self.while_scheduler_quiescent():
+                    threading.current_thread().__clock__ = self
+                    try:
+                        name, number = Session._name_and_number_from_key(key_argument)
+                        if name in keys_down:
+                            keys_down.remove(name)
+                        on_release(name, number)
+                    finally:
+                        threading.current_thread().__clock__ = None
         else:
             # otherwise, in case we defined on_press, we need to make sure to remove the key from key down anyway
             def on_release_wrapper(key_argument):
@@ -302,21 +305,23 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         # the current clock on the thread of the callback function
         if on_move is not None:
             def on_move_wrapper(x, y):
-                self.rouse_and_hold()
-                threading.current_thread().__clock__ = self
-                on_move(x * x_scale, y * y_scale)
-                threading.current_thread().__clock__ = None
-                self.release_from_suspension()
+                with self.while_scheduler_quiescent():
+                    threading.current_thread().__clock__ = self
+                    try:
+                        on_move(x * x_scale, y * y_scale)
+                    finally:
+                        threading.current_thread().__clock__ = None
         else:
             on_move_wrapper = None
 
         if on_scroll is not None:
             def on_scroll_wrapper(x, y, dx, dy):
-                self.rouse_and_hold()
-                threading.current_thread().__clock__ = self
-                on_scroll(x * x_scale, y * y_scale, dx, dy)
-                threading.current_thread().__clock__ = None
-                self.release_from_suspension()
+                with self.while_scheduler_quiescent():
+                    threading.current_thread().__clock__ = self
+                    try:
+                        on_scroll(x * x_scale, y * y_scale, dx, dy)
+                    finally:
+                        threading.current_thread().__clock__ = None
         else:
             on_scroll_wrapper = None
 
@@ -325,14 +330,15 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         # string rather than an enum that you have to go find in the pynput package.
         if on_press is not None or on_release is not None:
             def on_click_wrapper(x, y, button, pressed):
-                self.rouse_and_hold()
-                threading.current_thread().__clock__ = self
-                if pressed:
-                    on_press(x * x_scale, y * y_scale, button.name)
-                else:
-                    on_release(x * x_scale, y * y_scale, button.name)
-                threading.current_thread().__clock__ = None
-                self.release_from_suspension()
+                with self.while_scheduler_quiescent():
+                    threading.current_thread().__clock__ = self
+                    try:
+                        if pressed:
+                            on_press(x * x_scale, y * y_scale, button.name)
+                        else:
+                            on_release(x * x_scale, y * y_scale, button.name)
+                    finally:
+                        threading.current_thread().__clock__ = None
         else:
             on_click_wrapper = None
 
