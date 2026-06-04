@@ -27,7 +27,8 @@ from .settings import quantization_settings, engraving_settings
 from expenvelope import Envelope
 from .quantization import QuantizationRecord, QuantizationScheme, QuantizedMeasure, TimeSignature
 from . import performance as performance_module  # to distinguish it from variables named performance
-from .utilities import prime_factor, floor_x_to_pow_of_y, is_x_pow_of_y, ceil_to_multiple, floor_to_multiple
+from .utilities import prime_factor, floor_x_to_pow_of_y, is_x_pow_of_y, ceil_to_multiple, floor_to_multiple, \
+    beat_is_before
 from ._engraving_translations import length_to_note_type, get_xml_notehead, get_lilypond_notehead_tweaks, \
     articulation_to_xml_element_name, notations_to_xml_notations_element, attach_abjad_notation_to_note, \
     xml_barline_to_lilypond
@@ -1820,7 +1821,8 @@ class Voice(ScoreComponent, ScoreContainer):
             notes_from_this_beat = []
 
             while len(notes) > 0 and \
-                    notes[0].start_beat + 1e-10 < beat_quantization.start_beat_in_measure + beat_quantization.length:
+                    beat_is_before(notes[0].start_beat,
+                                   beat_quantization.start_beat_in_measure + beat_quantization.length):
                 # go through all the notes in this beat
                 notes_from_this_beat.append(notes.pop(0))
 
@@ -1836,7 +1838,7 @@ class Voice(ScoreComponent, ScoreContainer):
         notes_and_rests = []
         t = 0
         for note in notes:
-            if t + 1e-10 < note.start_beat:
+            if beat_is_before(t, note.start_beat):
                 notes_and_rests.append(performance_module.PerformanceNote(t, note.start_beat - t, None, None, {}))
             notes_and_rests.append(note)
             t = note.end_beat

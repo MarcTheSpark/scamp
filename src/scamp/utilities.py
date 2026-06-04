@@ -26,6 +26,7 @@ import itertools
 import functools
 from typing import Iterator, Type, Callable, Sequence, TypeVar
 from expenvelope.json_serializer import SavesToJSON, SavesToJSONMeta
+from cb2.utilities import meaningfully_less_than, meaningfully_greater_than
 
 
 # -------------------------------------------- Utility Classes ----------------------------------------------
@@ -134,6 +135,28 @@ def memoize(obj: Callable) -> Callable:
     return memoizer
 
 # -------------------------------------------- Numerical Utilities -----------------------------------------------
+
+
+# Absolute tolerance used in beat comparison. Without such tolerance, accumulated floating point noise
+# resulting from numerical integration can cause two beats that are essentially the same to be treated
+# as different. This can lead to meaningless tiny curve segments, tiny gaps that lead to spurious rests
+# and other similar issues.
+BEAT_EPSILON = 1e-10
+
+
+def beat_is_before(a: float, b: float, tolerance: float = BEAT_EPSILON) -> bool:
+    """
+    True if beat `a` falls meaningfully before beat `b` — i.e. `a < b` by more than
+    `tolerance`, not merely by reconstruction noise.
+    """
+    return meaningfully_less_than(a, b, rel_tol=0, abs_tol=tolerance)
+
+
+def beat_is_after(a: float, b: float, tolerance: float = BEAT_EPSILON) -> bool:
+    """
+    True if beat ``a` falls meaningfully after beat `b` (mirror of :func:`beat_is_before`).
+    """
+    return meaningfully_greater_than(a, b, rel_tol=0, abs_tol=tolerance)
 
 
 def is_x_pow_of_y(x, y) -> bool:

@@ -21,6 +21,7 @@ from __future__ import annotations
 from .performance import Performance
 from expenvelope import Envelope
 from cb2 import Clock, TempoEnvelope
+from cb2.utilities import meaningfully_less_than, meaningfully_greater_than
 from .instruments import ScampInstrument
 from typing import Sequence
 
@@ -110,7 +111,8 @@ class Transcriber:
                     split_point_beat = Transcriber._resolve_time_stamp(split_point, clock, units)
                     note_length_sections.append(split_point_beat - last_split)
                     last_split = split_point_beat
-                if end_beat_in_clock > last_split:
+                # comparison with tolerance to avoid split points from floating point noise
+                if meaningfully_greater_than(end_beat_in_clock, last_split):
                     note_length_sections.append(end_beat_in_clock - last_split)
                 note_length_sections = tuple(note_length_sections)
 
@@ -135,8 +137,10 @@ class Transcriber:
                             param_change_segment.end_time_stamp, clock, units)
 
                         # if there's a gap between the last level we recorded and this segment, we need to fill it with
-                        # a flat segment that holds the last level recorded
-                        if param_start_beat_in_clock > beat_of_last_level_recorded:
+                        # a flat segment that holds the last level recorded. Use a tolerant comparison: these beats are
+                        # reconstructed from scheduler-time TimeStamps and carry ~1e-12 of root-finding noise, so a bare
+                        # ">" would spuriously insert negligible filler segments (see near_equal in cb2.utilities).
+                        if meaningfully_greater_than(param_start_beat_in_clock, beat_of_last_level_recorded):
                             durations.append(param_start_beat_in_clock - beat_of_last_level_recorded)
                             levels.append(levels[-1])
                             curve_shapes.append(0)
@@ -147,8 +151,9 @@ class Transcriber:
 
                         beat_of_last_level_recorded = param_end_beat_in_clock
 
-                    # again, if we end the curve early, then we need to add a flat filler segment
-                    if beat_of_last_level_recorded < note_start_beat + note_length:
+                    # again, if we end the curve early, then we need to add a flat filler segment (tolerant comparison,
+                    # for the same reason as the gap-fill above)
+                    if meaningfully_less_than(beat_of_last_level_recorded, note_start_beat + note_length):
                         durations.append(note_start_beat + note_length - beat_of_last_level_recorded)
                         levels.append(levels[-1])
                         curve_shapes.append(0)

@@ -33,7 +33,7 @@ from .settings import quantization_settings
 from cb2 import Clock, TempoEnvelope, current_clock
 from .instruments import Ensemble, ScampInstrument
 from .score import Score, StaffGroup
-from .utilities import SavesToJSON
+from .utilities import SavesToJSON, beat_is_before, beat_is_after
 import logging
 from copy import deepcopy
 import itertools
@@ -189,7 +189,7 @@ class PerformanceNote(SavesToJSON):
         :return: tuple of (first half note, second half note) if split beat is within the note.
             Otherwise just return the unchanged note in a length-1 tuple.
         """
-        if not self.start_beat + 1e-10 < split_beat < self.end_beat - 1e-10:
+        if not (beat_is_after(split_beat, self.start_beat) and beat_is_before(split_beat, self.end_beat)):
             # if we're asked to split at a beat that is outside the note, it has no effect
             # since the expectation is a tuple as return value, return the note unaltered in a length-1 tuple
             return self,
