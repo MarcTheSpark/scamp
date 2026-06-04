@@ -69,11 +69,13 @@ class Transcriber:
             if self not in instrument._transcribers_to_notify:
                 instrument._transcribers_to_notify.append(self)
 
-        clock.rouse_and_hold()  # ensures that the call to clock.beat() is up-to-date, e.g. when session runs as server
-        self._transcriptions_in_progress.append(
-            (performance, clock, clock.beat(), units)
-        )
-        clock.release_from_suspension()  # releases
+        # Hold the scheduler quiescent so that, if called from a foreign thread (e.g. a pygame event
+        # handler), a concurrently-firing scheduled action can't observe a half-registered
+        # transcription. Safe from any thread — see Clock.while_scheduler_quiescent.
+        with clock.while_scheduler_quiescent():
+            self._transcriptions_in_progress.append(
+                (performance, clock, clock.beat(), units)
+            )
 
         return performance
 
