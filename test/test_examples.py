@@ -143,10 +143,8 @@ result_type_to_comparison_protocols = defaultdict(
 
 def _kill_active_session():
     # The examples are imported one after another into this single process. Each one creates a master
-    # Session on the import (main) thread, but the example scripts themselves don't tear it down — that's
-    # the harness's job, not the script's. A surviving master leaves cb2's module-level scheduler parked
-    # on it, which deadlocks the *next* example's Session() at construction (its initial wake never fires).
-    # So after each example we kill whatever clock is active on this thread and clear the reference.
+    # Session on the import (main) thread, but the example scripts themselves don't tear it down.
+    # We clean it up here.
     active = scamp.current_clock()
     if active is not None:
         active.master.kill()
