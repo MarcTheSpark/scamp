@@ -32,10 +32,9 @@ from .note_properties import NoteProperties
 from .playback_implementations import PlaybackImplementation, SoundfontPlaybackImplementation, \
     MIDIStreamPlaybackImplementation,  OSCPlaybackImplementation
 from .settings import engraving_settings, playback_settings
-from cb2 import wait, current_clock, Clock, ClockKilledError, DeadClockError, TimeStamp
+from cb2 import wait, current_clock, Clock, ClockKilledError, DeadClockError, TimeStamp, Moment
 from expenvelope import EnvelopeSegment
 import logging
-import time
 from threading import Lock
 from typing import Sequence, TypeAlias
 from numbers import Real
@@ -1513,29 +1512,21 @@ class _ParameterChangeSegment(EnvelopeSegment):
         # don't animate faster than 4ms though, and don't go slower than half the duration
         time_increment = min(self.duration / 2, max(0.004, time_increment))
 
-        def _animation_function():
-            # does the intermediate changing of values; since it's sleeping in small time increments, we fork it
-            # as unsynchronized parallel process so that it doesn't gum up the clocks with the overhead of
-            # waking and sleeping rapidly
-            beats_passed = 0
-            time_estimate = self.clock.master.time()
-            self.clock.master.unsynced_time = time_estimate
+        # Schedule the intermediate value changes as lightweight leaf actions (Clock.schedule_action) rather
+        # than using the heavier machinery of a forked clock. Because these are tagged with the acting clock
+        # (see `Clock._schedule_at`) any future tempo mutation will affect these value changes, and the events
+        # disappear if the clock is killed.
+        # the calculated `time_increment` is measured in second, so we have to use the clock's absolute rate
+        # to convert these to beat targets on the clock.
+        seconds_per_beat = 1 / self.clock.absolute_rate()
+        num_steps = max(1, round(self.duration * seconds_per_beat / time_increment))
+        for i in range(1, num_steps):
+            beat_offset = self.duration * i / num_steps
+            self._run_clock.schedule_action(
+                lambda b=beat_offset: self.do_change_parameter(self.value_at(b)),
+                Moment.after_beats(beat_offset)
+            )
 
-            while beats_passed < self.duration and self.running:
-                start = time.time()
-                if beats_passed > 0:  # no need to change the parameter the first time, before we had a chance to wait
-                    self.do_change_parameter(self.value_at(beats_passed))
-                time.sleep(time_increment)
-                time_estimate += time_increment
-
-                self.clock.master.unsynced_time = max(time_estimate, self.clock.master.unsynced_time)
-
-                # TODO: Absolute_rate would be great, except that it doesn't update between synchronized clock events
-                # Is there a way of improving this??
-                beats_passed += (time.time() - start) * self.clock.absolute_rate()
-
-        # start the unsynchronized animation function
-        self.clock.fork_unsynchronized(_animation_function)
         # waits in a synchronized fashion so that it can save an accurate time stamp at the end
         wait(self.duration)
 
@@ -1565,11 +1556,9 @@ class _ParameterChangeSegment(EnvelopeSegment):
                 return
 
             self.do_change_parameter(self.end_level)  # set it to where we should be at this point
-        self.running = False  # this will make sure to abort the animation function
-
-    def completed(self):
-        # it's not running, but because it finished, not because it never started
-        return not self.running and self.end_time_stamp is not None
+        # mark finished; kill() (above) already cancelled the scheduled leaf updates, so this is just for
+        # idempotency (a later abort_if_running no-ops) and the running checks in do_animation_sequence
+        self.running = False
 
     def _get_good_pitch_bend_temporal_resolution(self):
         """

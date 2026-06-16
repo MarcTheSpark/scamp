@@ -13,14 +13,14 @@
 #  You should have received a copy of the GNU General Public License along with this program.    #
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
-
+from cb2 import Moment
 from scamp import *
 from random import random
 import math
 
 s = Session()
 
-s.set_tempo_target(300, 20)
+s.set_tempo_target(300, Moment.after_beats(20))
 
 violin = s.new_part("violin")
 violin2 = s.new_part("violin2")

@@ -24,7 +24,7 @@ from .transcriber import Transcriber
 from ._midi import get_available_midi_input_devices, get_port_number_of_midi_device, \
     print_available_midi_input_devices, print_available_midi_output_devices, start_midi_listener
 from .instruments import Ensemble, ScampInstrument
-from cb2 import Clock
+from cb2 import Clock, ClockFamilyOptions
 from .utilities import SavesToJSON
 from ._dependencies import pynput, pythonosc
 from .spelling import SpellingPolicy
@@ -51,7 +51,8 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
     def __init__(self, tempo: float = 60, default_soundfont: str = "default", default_audio_driver: str = "default",
                  default_spelling_policy: SpellingPolicy | str | tuple = None,
                  instruments: Sequence[ScampInstrument] = None, max_threads=200):
-        Clock.__init__(self, name="MASTER", initial_tempo=tempo, pool_size=max_threads)
+        Clock.__init__(self, name="MASTER", initial_tempo=tempo,
+                       clock_family_options=ClockFamilyOptions(pool_size=max_threads))
         Ensemble.__init__(self, default_soundfont=default_soundfont, default_audio_driver=default_audio_driver,
                           default_spelling_policy=default_spelling_policy, instruments=instruments)
         Transcriber.__init__(self)
