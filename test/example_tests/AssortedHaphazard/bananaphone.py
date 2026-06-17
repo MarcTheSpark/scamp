@@ -21,7 +21,7 @@ import math
 s = Session()
 s.fast_forward_in_beats(float("inf"))
 
-s.set_tempo_target(300, 20)
+s.set_tempo_target(300, Moment.after_beats(20))
 
 violin = s.new_part("violin")
 violin2 = s.new_part("violin2")
