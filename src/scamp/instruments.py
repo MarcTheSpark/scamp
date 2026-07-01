@@ -33,6 +33,7 @@ from .playback_implementations import PlaybackImplementation, SoundfontPlaybackI
     MIDIStreamPlaybackImplementation,  OSCPlaybackImplementation
 from .settings import engraving_settings, playback_settings
 from cb2 import wait, current_clock, Clock, ClockKilledError, DeadClockError, TimeStamp, Moment
+from cb2.utilities import meaningfully_less_than, meaningfully_greater_than
 from expenvelope import EnvelopeSegment
 import logging
 from threading import Lock
@@ -1545,15 +1546,22 @@ class _ParameterChangeSegment(EnvelopeSegment):
             how_far_we_got = self.end_time_stamp.beat_in_clock(self.clock) - \
                              self.start_time_stamp.beat_in_clock(self.clock)
 
-            # now split there, discarding the rest of the envelope. This makes self.end_level the value we ended up at.
-            if self.start_time < how_far_we_got < self.end_time:
+            # Decide, tolerantly, where in the envelope we ended up. how_far_we_got is reconstructed from
+            # scheduler-time TimeStamps and can end up infinitesimally short due to floating point math.
+            # A bare "<" comparison would lead to unwanted truncation in that case. This is the kind of
+            # thing that meaningfully_less/greater_than are designed to guard against.
+            if meaningfully_greater_than(how_far_we_got, self.start_time) and \
+                    meaningfully_less_than(how_far_we_got, self.end_time):
+                # genuinely aborted partway through: split there, discarding the rest of the envelope.
+                # This makes self.end_level the value we ended up at.
                 self.split_at(how_far_we_got)
-            elif self.start_time == how_far_we_got:
+            elif not meaningfully_greater_than(how_far_we_got, self.start_time):
                 # this was aborted before it even got going. Later, the transcriber will ignore this nothing segment
                 self.end_time = self.start_time
                 self.end_level = self.start_level
                 self.running = False
                 return
+            # otherwise we reached the end (within noise), so leave the segment and its exact end_level untouched
 
             self.do_change_parameter(self.end_level)  # set it to where we should be at this point
         # mark finished; kill() (above) already cancelled the scheduled leaf updates, so this is just for
