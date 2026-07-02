@@ -25,12 +25,12 @@ trombone = s.new_part("trombone")
 def trumpet_part(clock: Clock):
     while s.beat() < 3:
         trumpet.play_note(67, 1, 0.5)
-    clock.set_rate_target(0.5, 6, duration_units="time")
+    clock.set_rate_target(0.5, Moment.after_time(6))
     while s.beat() < 12:
         trumpet.play_note(67, 1, 0.5)
 
 
-s.set_tempo_target(100, 9)
+s.set_tempo_target(100, Moment.after_beats(9))
 trumpet_clock = s.fork(trumpet_part)
 trombone_based_performance = s.start_transcribing()
 trumpet_based_performance = s.start_transcribing(clock=trumpet_clock)

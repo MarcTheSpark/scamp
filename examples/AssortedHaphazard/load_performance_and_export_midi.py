@@ -24,7 +24,7 @@ from scamp import *
 
 random.seed(0)
 s = Session()
-s.set_rate_target(2, 10, duration_units="time")
+s.set_rate_target(2, Moment.after_time(10))
 s.fast_forward_to_beat(float("inf"))
 clar = s.new_part("clarinet")
 piano = s.new_part("piano")

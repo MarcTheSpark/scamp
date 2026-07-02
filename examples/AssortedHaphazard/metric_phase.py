@@ -1,4 +1,3 @@
-from cb2 import set_rate_target, set_rate_targets, Moment
 from scamp import *
 
 s = Session(tempo=120)

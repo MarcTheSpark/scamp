@@ -37,9 +37,11 @@ def trumpet_part():
     while s.beat() < 3:
         trumpet.play_note(67, 1, 0.5)
 
-    # tell the clock for this child process to slow down to 1/2 speed over six beats in the parent process
-    # metric_phase_target of 0 ensures that we reach that we land perfectly on a beat
-    current_clock().set_rate_target(0.5, 6, duration_units="time", metric_phase_target=0)
+    # tell the clock for this child process
+    # to slow down to 1/2 speed over six
+    # beats in the parent process
+    # MetricPhaseTarget(0) ensures that we land perfectly on a beat
+    current_clock().set_rate_target(0.5, Moment.after_time(6), align_to=MetricPhaseTarget(0))
 
     # keep playing eighth notes until 12 beats pass in the parent session
     while s.beat() < 12:
@@ -47,7 +49,7 @@ def trumpet_part():
 
 
 # Have the session as a whole speed up to 100 BPM over the first nine beats
-s.set_tempo_target(100, 9)
+s.set_tempo_target(100, Moment.after_beats(9))
 # Fork the trumpet part as a child process. It will be influenced both by its own tempo and that of the session
 s.fork(trumpet_part)
 s.start_transcribing()

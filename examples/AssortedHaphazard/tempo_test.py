@@ -23,12 +23,12 @@ engraving_settings.tempo.include_guide_marks = False
 
 violin = session.new_part("violin")
 
-session.set_tempo_target(100, 5)
-session.set_tempo_target(135, 26/3, truncate=False)
-session.set_tempo_target(135, 14, truncate=False)
-session.set_tempo_target(40, 18, truncate=False)
-session.set_tempo_target(100, 18, truncate=False)
-session.set_tempo_target(89, 27, truncate=False)
+session.set_tempo_target(100, Moment.after_beats(5))
+session.set_tempo_target(135, Moment.after_beats(26/3), truncate=False)
+session.set_tempo_target(135, Moment.after_beats(14), truncate=False)
+session.set_tempo_target(40, Moment.after_beats(18), truncate=False)
+session.set_tempo_target(100, Moment.after_beats(18), truncate=False)
+session.set_tempo_target(89, Moment.after_beats(27), truncate=False)
 
 session.start_transcribing()
 

@@ -27,8 +27,8 @@ cello = s.new_part("cello")
 pianoteq = s.new_midi_part("pianoteq", midi_output_device="IAC")
 supercollider_instrument = s.new_osc_part("superInst", 57120, "127.0.0.1")
 
-s.set_tempo_targets([150, 60], [TOTAL_LENGTH * 0.618, TOTAL_LENGTH],
-                    duration_units="time")
+s.set_tempo_targets([150, 60],
+                    [Moment.after_time(TOTAL_LENGTH * 0.618), Moment.after_time(TOTAL_LENGTH)])
 
 s.start_transcribing()
 
@@ -44,7 +44,7 @@ def pianoteq_upbeat(clock: Clock):
     for i, p in enumerate([start_pitch + uniform(-k, k) for k in range(7)]):
         pianoteq.play_note(p, 0.3 + 0.1 * i, 0.5/7)
     
-    clock.set_rate_target(pianoteq_gesture_rit_factor.value_at(s.time()), 15)
+    clock.set_rate_target(pianoteq_gesture_rit_factor.value_at(s.time()), Moment.after_beats(15))
     p = end_pitch
     volume = 1.0
     pianoteq.play_note(p, volume, 0.375)

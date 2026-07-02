@@ -26,7 +26,10 @@ bassoon = session.new_part("bassoon")
 
 
 def flute_part(clock: Clock):
-    clock.set_tempo_targets((160, 160, 100, 100, 130, 130, 70, 70), (0, 1, 1, 2, 2, 3, 3, 4), loop=True)
+    # looping tempo shapes now live on apply_tempo_envelope rather than set_tempo_targets(..., loop=True)
+    tempo_env = TempoEnvelope.from_levels_and_durations(
+        (160, 160, 100, 100, 130, 130, 70, 70), (1, 0, 1, 0, 1, 0, 1))
+    clock.apply_tempo_envelope(tempo_env, loop=True)
     while True:
         flute.play_note(int(70 + 10 * clock.rate), 0.8, 0.25, "staccato")
 

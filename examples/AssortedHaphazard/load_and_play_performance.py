@@ -25,7 +25,7 @@ session = Session.load_from_json("SavedFiles/shakEnsemble.json")
 performance = Performance.load_from_json("SavedFiles/perfShakoboe.json")
 
 session.tempo = 30
-session.set_tempo_target(150, 40, duration_units="time")
+session.set_tempo_target(150, Moment.after_time(40))
 
 while True:
     performance.play(ensemble=session, clock=session, blocking=True)
