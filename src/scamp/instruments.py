@@ -661,7 +661,7 @@ class ScampInstrument(SavesToJSON):
             note_id = next(ScampInstrument._note_id_generator)
             self._note_info_by_id[note_id] = {
                 "clock": clock,
-                "start_time_stamp": TimeStamp(clock),
+                "start_time_stamp": TimeStamp.now(clock),
                 "end_time_stamp": None,
                 "split_points": [],
                 "parameter_start_values": dict(other_param_start_values, pitch=start_pitch, volume=start_volume),
@@ -906,7 +906,7 @@ class ScampInstrument(SavesToJSON):
         with self._note_info_lock:
             note_id = note_id.note_id if isinstance(note_id, NoteHandle) else note_id
             note_info = self._note_info_by_id[note_id]
-            note_info["split_points"].append(TimeStamp(note_info["clock"]))
+            note_info["split_points"].append(TimeStamp.now(note_info["clock"]))
 
     def end_note(self, note_id: int | NoteHandle = None) -> None:
         """
@@ -944,7 +944,7 @@ class ScampInstrument(SavesToJSON):
                     note_info["parameter_change_segments"][param_name][-1].abort_if_running()
 
             # transcribe the note, if applicable
-            note_info["end_time_stamp"] = TimeStamp(clock)
+            note_info["end_time_stamp"] = TimeStamp.now(clock)
             if "no_transcribe" not in note_info["flags"]:
                 for transcriber in self._transcribers_to_notify:
                     transcriber.register_note(self, note_info)
@@ -1480,16 +1480,16 @@ class _ParameterChangeSegment(EnvelopeSegment):
         notate a note but not play it back, as in the case of a note that has been adjusted (where we playback -- but
         don't notate -- the adjusted version, while we run -- but don't play back -- the unadjusted version.)
         """
-        self.start_time_stamp = TimeStamp(self.clock)
+        self.start_time_stamp = TimeStamp.now(self.clock)
 
         # if this segment has no duration, no need to do any animation
         # just set it to the final value and return
         if self.duration == 0:
-            self.end_time_stamp = TimeStamp(self.clock)
+            self.end_time_stamp = TimeStamp.now(self.clock)
             self.do_change_parameter(self.end_level)
             return
 
-        self.start_time_stamp = TimeStamp(self.clock)
+        self.start_time_stamp = TimeStamp.now(self.clock)
         self.running = True  # used to kill the unsynchronized process when we abort or this synchronized one ends
 
         # we note down the clock we're running this on. If abort is called, this clock gets killed
@@ -1498,7 +1498,7 @@ class _ParameterChangeSegment(EnvelopeSegment):
         # if there's no change, or if we're skipping animation, just wait and finish
         if self.end_level == self.start_level or silent:
             wait(self.duration)
-            self.end_time_stamp = TimeStamp(self.clock)
+            self.end_time_stamp = TimeStamp.now(self.clock)
             self.do_change_parameter(self.end_level)
             self.running = False
             return
@@ -1533,13 +1533,13 @@ class _ParameterChangeSegment(EnvelopeSegment):
 
         # we only get here if it wasn't aborted while running, since that will call kill on the child clock
         self.running = False
-        self.end_time_stamp = TimeStamp(self.clock)
+        self.end_time_stamp = TimeStamp.now(self.clock)
         self.do_change_parameter(self.end_level)
 
     def abort_if_running(self):
         if self.running:
             # if we were running, we save the time stamp at which we aborted as the end time stamp
-            self.end_time_stamp = TimeStamp(self.clock)
+            self.end_time_stamp = TimeStamp.now(self.clock)
             self._run_clock.kill()  # kill the clock doing the "run" function
             # since the units of this envelope are beats in self.clock, see how far we got in the envelope by
             # subtracting converting the start and end time stamps to those beats and subtracting

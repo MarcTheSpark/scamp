@@ -20,7 +20,7 @@
 from __future__ import annotations
 from .performance import Performance
 from expenvelope import Envelope
-from cb2 import Clock, TempoEnvelope
+from cb2 import Clock, TempoEnvelope, TimeStamp
 from cb2.utilities import meaningfully_less_than, meaningfully_greater_than
 from .instruments import ScampInstrument
 from typing import Sequence
@@ -75,7 +75,7 @@ class Transcriber:
         # transcription. Safe from any thread — see Clock.while_scheduler_quiescent.
         with clock.while_scheduler_quiescent():
             self._transcriptions_in_progress.append(
-                (performance, clock, clock.beat(), units)
+                (performance, clock, TimeStamp.now(clock), units)
             )
 
         return performance
@@ -89,31 +89,40 @@ class Transcriber:
         """
         assert note_info["end_time_stamp"] is not None, "Cannot register unfinished note!"
         param_change_segments = note_info["parameter_change_segments"]
+        start_stamp = note_info["start_time_stamp"]
+        end_stamp = note_info["end_time_stamp"]
 
-        if note_info["start_time_stamp"].time_in_master == note_info["end_time_stamp"].time_in_master:
+        if start_stamp.time_in_master == end_stamp.time_in_master:
             return
 
         # loop through all the transcriptions in progress
-        for performance, clock, clock_start_beat, units in self._transcriptions_in_progress:
-            # figure out the start_beat and length relative to this transcription's clock and start beat
-            start_beat_in_clock = Transcriber._resolve_time_stamp(note_info["start_time_stamp"], clock, units)
-            end_beat_in_clock = Transcriber._resolve_time_stamp(note_info["end_time_stamp"], clock, units)
-
-            note_start_beat = start_beat_in_clock - clock_start_beat
-            note_length = end_beat_in_clock - start_beat_in_clock
+        for performance, clock, transcription_start_stamp, units in self._transcriptions_in_progress:
+            # To recover the note start beat and length in this transcription's clock, first subtract (from the
+            # transcription start time stamp and from each other), and then resolve the resulting TimeStampInterval
+            # to beats in the transcription clock.
+            note_start_beat = Transcriber._resolve_interval(start_stamp - transcription_start_stamp, clock, units)
+            note_length = Transcriber._resolve_interval(end_stamp - start_stamp, clock, units)
 
             # handle split points (if applicable) by creating a note length sections tuple
             note_length_sections = None
             if len(note_info["split_points"]) > 0:
                 note_length_sections = []
-                last_split = note_start_beat
+                last_split_stamp = start_stamp
                 for split_point in note_info["split_points"]:
-                    split_point_beat = Transcriber._resolve_time_stamp(split_point, clock, units)
-                    note_length_sections.append(split_point_beat - last_split)
-                    last_split = split_point_beat
-                # comparison with tolerance to avoid split points from floating point noise
-                if meaningfully_greater_than(end_beat_in_clock, last_split):
-                    note_length_sections.append(end_beat_in_clock - last_split)
+                    note_length_sections.append(
+                        Transcriber._resolve_interval(split_point - last_split_stamp, clock, units))
+                    last_split_stamp = split_point
+                # tolerant comparison on absolute beats (whose reconstruction noise scales with magnitude) so a
+                # negligible final sliver isn't recorded as its own section
+                if meaningfully_greater_than(Transcriber._resolve_time_stamp(end_stamp, clock, units),
+                                             Transcriber._resolve_time_stamp(last_split_stamp, clock, units)):
+                    # Note: this actually redundantly double converts the times stamps to beats,
+                    # first in the if condition, and then if it passes, in _resolve_interval. But it's
+                    # cleaner and easier to read this way, and we don't want to convert to the length
+                    # in beats first and check > 0 because that's a less tolerant absolute comparison
+                    note_length_sections.append(
+                        Transcriber._resolve_interval(end_stamp - last_split_stamp, clock, units)
+                    )
                 note_length_sections = tuple(note_length_sections)
 
             # get curves for all the parameters
@@ -121,8 +130,8 @@ class Transcriber:
             for param in note_info["parameter_start_values"]:
                 if param in param_change_segments and len(param_change_segments[param]) > 0:
                     levels = [note_info["parameter_start_values"][param]]
-                    # keep track of this in case of gaps between segments
-                    beat_of_last_level_recorded = start_beat_in_clock
+                    # the stamp of the last level we recorded, for filling gaps between segments
+                    last_level_stamp = start_stamp
                     durations = []
                     curve_shapes = []
                     for param_change_segment in param_change_segments[param]:
@@ -131,30 +140,34 @@ class Transcriber:
                                 param_change_segment.end_level == param_change_segment.start_level:
                             continue
 
-                        param_start_beat_in_clock = Transcriber._resolve_time_stamp(
-                            param_change_segment.start_time_stamp, clock, units)
-                        param_end_beat_in_clock = Transcriber._resolve_time_stamp(
-                            param_change_segment.end_time_stamp, clock, units)
+                        param_start_stamp = param_change_segment.start_time_stamp
+                        param_end_stamp = param_change_segment.end_time_stamp
 
-                        # if there's a gap between the last level we recorded and this segment, we need to fill it with
-                        # a flat segment that holds the last level recorded. Use a tolerant comparison: these beats are
-                        # reconstructed from scheduler-time TimeStamps and carry ~1e-12 of root-finding noise, so a bare
-                        # ">" would spuriously insert negligible filler segments (see near_equal in cb2.utilities).
-                        if meaningfully_greater_than(param_start_beat_in_clock, beat_of_last_level_recorded):
-                            durations.append(param_start_beat_in_clock - beat_of_last_level_recorded)
+                        # if there's a gap between the last level we recorded and this segment, fill it with a flat
+                        # segment holding the last level. Tolerant absolute-beat comparison (these beats carry
+                        # root-finding noise that scales with magnitude, so a bare ">" would spuriously insert a
+                        # negligible filler segment); the recorded duration itself is a snapped TimeStampInterval.
+                        if meaningfully_greater_than(
+                                Transcriber._resolve_time_stamp(param_start_stamp, clock, units),
+                                Transcriber._resolve_time_stamp(last_level_stamp, clock, units)):
+                            durations.append(
+                                Transcriber._resolve_interval(param_start_stamp - last_level_stamp, clock, units))
                             levels.append(levels[-1])
                             curve_shapes.append(0)
 
-                        durations.append(param_end_beat_in_clock - param_start_beat_in_clock)
+                        durations.append(
+                            Transcriber._resolve_interval(param_end_stamp - param_start_stamp, clock, units))
                         levels.append(param_change_segment.end_level)
                         curve_shapes.append(param_change_segment.curve_shape)
 
-                        beat_of_last_level_recorded = param_end_beat_in_clock
+                        last_level_stamp = param_end_stamp
 
-                    # again, if we end the curve early, then we need to add a flat filler segment (tolerant comparison,
-                    # for the same reason as the gap-fill above)
-                    if meaningfully_less_than(beat_of_last_level_recorded, note_start_beat + note_length):
-                        durations.append(note_start_beat + note_length - beat_of_last_level_recorded)
+                    # again, if the curve ends before the note does, add a flat filler segment out to the note end
+                    # (same tolerant-comparison rationale as the gap-fill above)
+                    if meaningfully_less_than(Transcriber._resolve_time_stamp(last_level_stamp, clock, units),
+                                              Transcriber._resolve_time_stamp(end_stamp, clock, units)):
+                        durations.append(
+                            Transcriber._resolve_interval(end_stamp - last_level_stamp, clock, units))
                         levels.append(levels[-1])
                         curve_shapes.append(0)
 
@@ -199,6 +212,13 @@ class Transcriber:
         assert units in ("beats", "time")
         return time_stamp.beat_in_clock(clock) if units == "beats" else time_stamp.time_in_clock(clock)
 
+    @staticmethod
+    def _resolve_interval(interval, clock, units):
+        # A TimeStampInterval projected into `clock`, in the transcription's units; snaps the difference of its
+        # endpoints to a nice decimal (see cb2.TimeStampInterval).
+        assert units in ("beats", "time")
+        return interval.beats_duration_in_clock(clock) if units == "beats" else interval.time_duration_in_clock(clock)
+
     def stop_transcribing(self, which_performance=None, tempo_envelope_tolerance=0.001) -> Performance:
         """
         Stops transcribing a Performance and returns it. Defaults to the oldest started performance, unless
@@ -221,7 +241,9 @@ class Transcriber:
             if transcription is None:
                 raise ValueError("Cannot stop transcribing given performance, as it was never started!")
 
-        transcribed_performance, transcription_clock, transcription_start_beat, units = transcription
+        transcribed_performance, transcription_clock, transcription_start_stamp, units = transcription
+        # the transcription start is now stored as a TimeStamp; resolve it to a beat for tempo extraction
+        transcription_start_beat = transcription_start_stamp.beat_in_clock(transcription_clock)
         if units == "beats":
             transcribed_performance.tempo_envelope = transcription_clock.extract_absolute_tempo_envelope(
                 transcription_start_beat, tolerance=tempo_envelope_tolerance
