@@ -214,7 +214,11 @@ class SpellingPolicy(SavesToJSON, NoteProperty):
         :param midi_num: a MIDI pitch value
         :return: a tuple of (name, octave, alteration)
         """
-        rounded_midi_num = int(round(midi_num))
+        # We first round to 10 decimal places and then round to the nearest int because otherwise floating point
+        # noise could cause an exact quartertone to sometimes round up (e.g. 60.500000000001 -> 61) and sometimes
+        # round down (e.g. 60.499999999999 -> 60). Collapsing the noise to an exact 60.5 first means round()'s
+        # half-to-even (banker's) rule resolves it deterministically to the same value every time.
+        rounded_midi_num = round(round(midi_num, 10))
         octave = int(rounded_midi_num / 12) - 1
         pitch_class = rounded_midi_num % 12
         step, alteration = self.step_alteration_pairs[pitch_class]
