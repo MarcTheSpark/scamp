@@ -49,10 +49,28 @@ import logging
 from ._metric_structure import MetricStructure
 from typing import Sequence, Type, Iterator, TYPE_CHECKING
 from cb2 import TempoEnvelope
+from cb2.utilities import snap_float_to_nice_decimal
+
 
 if TYPE_CHECKING:
     # Import abjad only for type checking, not at runtime
     import abjad
+
+
+def _snap_score_value(value):
+    """
+    Pull floating-point dust out of a finished score note's pitch/volume so the notation-ready model shows the
+    round numbers the user meant. Pretty extra TBH; mostly just useful for cleaning up the Score repr.
+    """
+    if isinstance(value, Envelope):
+        return type(value)([snap_float_to_nice_decimal(x) for x in value.levels],
+                           [snap_float_to_nice_decimal(x) for x in value.durations],
+                           list(value.curve_shapes), snap_float_to_nice_decimal(value.offset))
+    if isinstance(value, tuple):  # a chord: snap each member
+        return tuple(_snap_score_value(x) for x in value)
+    if isinstance(value, float):
+        return snap_float_to_nice_decimal(value)
+    return value  # int / None left as-is
 
 
 ##################################################################################################################
@@ -2291,8 +2309,8 @@ class NoteLike(ScoreComponent):
     def __init__(self, pitch: Envelope | float | tuple | None, volume: Envelope | float | None,
                  written_length: float, properties: NoteProperties):
 
-        self.pitch = pitch
-        self.volume = volume
+        self.pitch = _snap_score_value(pitch)
+        self.volume = _snap_score_value(volume)
         self.written_length = Fraction(written_length).limit_denominator()
         self.properties = properties if isinstance(properties, NoteProperties) else NoteProperties.interpret(properties)
 
