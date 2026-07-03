@@ -1315,6 +1315,12 @@ class Performance(SavesToJSON, _NoteFiltersMixin):
         return cls(**json_dict)
 
     def __repr__(self):
-        return "Performance([\n{}\n])".format(
-            textwrap.indent(",\n".join(str(x) for x in self.parts), "   ")
+        # Surface the tempo_envelope unless it's the trivial default (see TempoEnvelope.is_default). The tempo
+        # is otherwise invisible here — it lives only in export-time renderings (the MIDI conductor track, the
+        # notated tempo voice) — so any non-default tempo needs showing. Mirrors how NoteProperties reprs only
+        # its non-default fields.
+        tempo_repr = "" if self.tempo_envelope.is_default() \
+            else ", tempo_envelope={}".format(self.tempo_envelope)
+        return "Performance([\n{}\n]{})".format(
+            textwrap.indent(",\n".join(str(x) for x in self.parts), "   "), tempo_repr
         )
