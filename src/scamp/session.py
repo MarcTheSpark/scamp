@@ -154,7 +154,10 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
                 "server": pythonosc.osc_server.ThreadingOSCUDPServer((ip_address, port), dispatcher),
                 "dispatcher": dispatcher
             }
-            self.fork_unsynchronized(self._listeners["osc"][(ip_address, port)]["server"].serve_forever, args=(0.001, ))
+            threading.Thread(
+                target=self._listeners["osc"][(ip_address, port)]["server"].serve_forever,
+                args=(0.001,), daemon=True
+            ).start()
 
         self._listeners["osc"][(ip_address, port)]["dispatcher"].map(osc_address_pattern, callback_wrapper)
 
