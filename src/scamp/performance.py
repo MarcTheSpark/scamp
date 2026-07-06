@@ -30,7 +30,7 @@ from .note_properties import NoteProperties
 from .settings import engraving_settings
 from .quantization import quantize_performance_part, QuantizationScheme
 from .settings import quantization_settings
-from cb2 import Clock, TempoEnvelope, current_clock
+from clockblocks import Clock, TempoEnvelope, current_clock
 from .instruments import Ensemble, ScampInstrument
 from .score import Score, StaffGroup
 from .utilities import SavesToJSON, beat_is_before, beat_is_after

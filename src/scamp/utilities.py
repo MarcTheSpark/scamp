@@ -26,7 +26,7 @@ import itertools
 import functools
 from typing import Iterator, Type, Callable, Sequence, TypeVar
 from expenvelope.json_serializer import SavesToJSON, SavesToJSONMeta
-from cb2.utilities import meaningfully_less_than, meaningfully_greater_than
+from clockblocks.utilities import meaningfully_less_than, meaningfully_greater_than
 
 
 # -------------------------------------------- Utility Classes ----------------------------------------------

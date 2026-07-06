@@ -23,7 +23,7 @@ import re
 import os.path
 import atexit
 import functools
-import cb2 as clockblocks
+import clockblocks
 import threading
 import time
 import wave

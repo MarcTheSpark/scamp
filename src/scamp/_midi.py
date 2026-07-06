@@ -14,7 +14,7 @@
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 import atexit
-from cb2 import Clock
+from clockblocks import Clock
 import inspect
 from ._dependencies import rtmidi
 import threading

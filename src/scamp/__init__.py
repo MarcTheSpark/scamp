@@ -20,7 +20,7 @@ notation.
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
-from cb2 import (
+from clockblocks import (
     Clock, ClockFamilyOptions,
     TempoEnvelope, MetricPhaseTarget, Moment,
     DurationUnits, TempoUnits,

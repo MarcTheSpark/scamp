@@ -24,7 +24,7 @@ from .transcriber import Transcriber
 from ._midi import get_available_midi_input_devices, get_port_number_of_midi_device, \
     print_available_midi_input_devices, print_available_midi_output_devices, start_midi_listener
 from .instruments import Ensemble, ScampInstrument
-from cb2 import Clock, ClockFamilyOptions
+from clockblocks import Clock, ClockFamilyOptions
 from .utilities import SavesToJSON
 from ._dependencies import pynput, pythonosc
 from .spelling import SpellingPolicy

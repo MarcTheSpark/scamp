@@ -32,8 +32,8 @@ from .note_properties import NoteProperties
 from .playback_implementations import PlaybackImplementation, SoundfontPlaybackImplementation, \
     MIDIStreamPlaybackImplementation,  OSCPlaybackImplementation
 from .settings import engraving_settings, playback_settings
-from cb2 import wait, current_clock, Clock, ClockKilledError, DeadClockError, TimeStamp, Moment
-from cb2.utilities import meaningfully_less_than, meaningfully_greater_than
+from clockblocks import wait, current_clock, Clock, ClockKilledError, DeadClockError, TimeStamp, Moment
+from clockblocks.utilities import meaningfully_less_than, meaningfully_greater_than
 from expenvelope import EnvelopeSegment
 import logging
 from threading import Lock

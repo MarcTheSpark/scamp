@@ -48,8 +48,8 @@ from abc import ABC, abstractmethod
 import logging
 from ._metric_structure import MetricStructure
 from typing import Sequence, Type, Iterator, TYPE_CHECKING
-from cb2 import TempoEnvelope
-from cb2.utilities import snap_float_to_nice_decimal
+from clockblocks import TempoEnvelope
+from clockblocks.utilities import snap_float_to_nice_decimal
 
 
 if TYPE_CHECKING:

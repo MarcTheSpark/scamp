@@ -20,8 +20,8 @@
 from __future__ import annotations
 from .performance import Performance
 from expenvelope import Envelope
-from cb2 import Clock, TempoEnvelope, TimeStamp
-from cb2.utilities import meaningfully_less_than, meaningfully_greater_than
+from clockblocks import Clock, TempoEnvelope, TimeStamp
+from clockblocks.utilities import meaningfully_less_than, meaningfully_greater_than
 from .instruments import ScampInstrument
 from typing import Sequence
 
@@ -215,7 +215,7 @@ class Transcriber:
     @staticmethod
     def _resolve_interval(interval, clock, units):
         # A TimeStampInterval projected into `clock`, in the transcription's units; snaps the difference of its
-        # endpoints to a nice decimal (see cb2.TimeStampInterval).
+        # endpoints to a nice decimal (see clockblocks.TimeStampInterval).
         assert units in ("beats", "time")
         return interval.beats_duration_in_clock(clock) if units == "beats" else interval.time_duration_in_clock(clock)
 
