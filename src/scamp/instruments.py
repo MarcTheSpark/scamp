@@ -1473,8 +1473,8 @@ class _ParameterChangeSegment(EnvelopeSegment):
     def run(self, silent=False):
         """
         Runs the segment from start to finish, gradually changing the parameter.
-        This function runs as a synchronized clock process (it should be forked), and it starts a parallel,
-        unsynchronized process ("_animation_function") to do the actual calls to change parameter
+        This function runs as a synchronized clock process (it should be forked), and it schedules the
+        intermediate parameter changes as leaf actions on its clock (see below).
 
         :param silent: this flag causes none of the animation to actually happen. This is used when we're trying to
         notate a note but not play it back, as in the case of a note that has been adjusted (where we playback -- but

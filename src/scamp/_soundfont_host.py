@@ -180,14 +180,16 @@ class SoundfontHost(SavesToJSON):
         if recording_file_path:
             clock = clockblocks.current_clock()
 
+            master = clock.master if clock is not None else None
+
             def _timer_func():
-                if clock is None:
-                    return time.time()
-                else:
-                    if hasattr(clock.master, 'unsynced_time'):
-                        return max(clock.master.unsynced_time, clock.time_in_master())
-                    else:
-                        return clock.time_in_master()
+                # Runs on whichever thread issued the MIDI call (see _record_as_well), and every such thread is
+                # inside the clock system: a clock thread woken by its own event (note-ons/offs), or the
+                # scheduler thread running a leaf action (the cc / pitch-bend of an envelope — see
+                # NoteParameterAnimation.run). OSC and MIDI listener callbacks also qualify; they run under
+                # `while_scheduler_quiescent`. In all of these the committed time is the current event's
+                # scheduled time, so sample offsets track the score rather than OS jitter.
+                return master.time() if master is not None else time.time()
             self.synth = PlayAndRecSynth(recording_file_path,
                                          timer_func=_timer_func,
                                          time_range=recording_time_range)
