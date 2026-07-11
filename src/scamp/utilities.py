@@ -154,7 +154,7 @@ def beat_is_before(a: float, b: float, tolerance: float = BEAT_EPSILON) -> bool:
 
 def beat_is_after(a: float, b: float, tolerance: float = BEAT_EPSILON) -> bool:
     """
-    True if beat ``a` falls meaningfully after beat `b` (mirror of :func:`beat_is_before`).
+    True if beat ``a`` falls meaningfully after beat ``b`` (mirror of :func:`beat_is_before`).
     """
     return meaningfully_greater_than(a, b, rel_tol=0, abs_tol=tolerance)
 
