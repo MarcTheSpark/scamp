@@ -141,7 +141,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
             raise ImportError("Package python-osc not found; cannot set up osc listener.")
 
         def callback_wrapper(*args, **kwargs):
-            with self.while_scheduler_quiescent():
+            with self.hold_scheduler():
                 threading.current_thread().__clock__ = self
                 try:
                     callback_function(*args, **kwargs)
@@ -190,7 +190,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         if on_press is not None:
             # if on_press is defined, place a wrapper around it that wakes up the the Session when it's called
             def on_press_wrapper(key_argument):
-                with self.while_scheduler_quiescent():
+                with self.hold_scheduler():
                     threading.current_thread().__clock__ = self
                     try:
                         name, number = Session._name_and_number_from_key(key_argument)
@@ -204,7 +204,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         if on_release is not None:
             # if on_release is defined, place a wrapper around it that wakes up the the Session when it's called
             def on_release_wrapper(key_argument):
-                with self.while_scheduler_quiescent():
+                with self.hold_scheduler():
                     threading.current_thread().__clock__ = self
                     try:
                         name, number = Session._name_and_number_from_key(key_argument)
@@ -309,7 +309,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         # the current clock on the thread of the callback function
         if on_move is not None:
             def on_move_wrapper(x, y):
-                with self.while_scheduler_quiescent():
+                with self.hold_scheduler():
                     threading.current_thread().__clock__ = self
                     try:
                         on_move(x * x_scale, y * y_scale)
@@ -320,7 +320,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
 
         if on_scroll is not None:
             def on_scroll_wrapper(x, y, dx, dy):
-                with self.while_scheduler_quiescent():
+                with self.hold_scheduler():
                     threading.current_thread().__clock__ = self
                     try:
                         on_scroll(x * x_scale, y * y_scale, dx, dy)
@@ -334,7 +334,7 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
         # string rather than an enum that you have to go find in the pynput package.
         if on_press is not None or on_release is not None:
             def on_click_wrapper(x, y, button, pressed):
-                with self.while_scheduler_quiescent():
+                with self.hold_scheduler():
                     threading.current_thread().__clock__ = self
                     try:
                         if pressed:

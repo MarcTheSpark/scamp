@@ -70,10 +70,12 @@ class Transcriber:
             if self not in instrument._transcribers_to_notify:
                 instrument._transcribers_to_notify.append(self)
 
-        # Hold the scheduler quiescent so that, if called from a foreign thread (e.g. a pygame event
-        # handler), a concurrently-firing scheduled action can't observe a half-registered
-        # transcription. Safe from any thread — see Clock.while_scheduler_quiescent.
-        with clock.while_scheduler_quiescent():
+        # Hold the scheduler while registering. From a foreign thread (e.g. a pygame event handler)
+        # this does two things: it keeps a concurrently-firing scheduled action from seeing a
+        # half-registered transcription, and it rouses committed time to now, so the start TimeStamp
+        # below marks the real current moment rather than the last event. Safe from any thread —
+        # see Clock.hold_scheduler.
+        with clock.hold_scheduler():
             self._transcriptions_in_progress.append(
                 (performance, clock, TimeStamp.now(clock), units)
             )

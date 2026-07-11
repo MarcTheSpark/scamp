@@ -187,7 +187,7 @@ class SoundfontHost(SavesToJSON):
                 # inside the clock system: a clock thread woken by its own event (note-ons/offs), or the
                 # scheduler thread running a leaf action (the cc / pitch-bend of an envelope — see
                 # NoteParameterAnimation.run). OSC and MIDI listener callbacks also qualify; they run under
-                # `while_scheduler_quiescent`. In all of these the committed time is the current event's
+                # `hold_scheduler`. In all of these the committed time is the current event's
                 # scheduled time, so sample offsets track the score rather than OS jitter.
                 return master.time() if master is not None else time.time()
             self.synth = PlayAndRecSynth(recording_file_path,
