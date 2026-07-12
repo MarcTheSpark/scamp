@@ -340,10 +340,20 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
         return json_friendly_dict
 
     def get_spelling_policy(self, which_note=0):
+        """
+        The spelling policy to use for one of the notes of a chord, falling back to the last one given if
+        fewer policies were specified than there are notes.
+
+        :param which_note: index of the note within the chord
+        """
         return self.spelling_policies[which_note] if which_note < len(self.spelling_policies) \
             else self.spelling_policies[-1]
 
     def get_midi_cc_params(self):
+        """
+        Those extra playback parameters that name a MIDI control change, i.e. whose key is a number from
+        0 to 127, keyed by that number. (Values may be numbers or :class:`~expenvelope.envelope.Envelope`\\ s.)
+        """
         return {
             int(k): v
             for k, v in self.extra_playback_parameters.items()
@@ -351,12 +361,22 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
         }
 
     def get_midi_cc_start_values(self, digits_to_round_to=10):
+        """
+        The value each MIDI control change parameter starts out at, taking the start level of any parameter
+        given as an envelope.
+
+        :param digits_to_round_to: how many decimal places to round the values to
+        """
         return {
             k: round(v.start_level() if isinstance(v, Envelope) else v, digits_to_round_to)
             for k, v in self.get_midi_cc_params().items()
         }
 
     def get_extra_parameter_start_values(self):
+        """
+        The value each extra playback parameter starts out at, taking the start level of any parameter given
+        as an envelope.
+        """
         return {
             k: v.start_level() if isinstance(v, Envelope) else v
             for k, v in self.extra_playback_parameters.items()

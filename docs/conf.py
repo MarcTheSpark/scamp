@@ -37,6 +37,8 @@ import scamp
 import sphinx_rtd_theme
 import datetime
 import re
+import importlib
+import inspect
 
 
 ##################################################################################################################
@@ -54,8 +56,27 @@ def difference(a, b):
     return [x for x in a if x not in b]
 
 
+def reject_meta_private(member_names, class_fullname):
+    """
+    Drop members whose docstring says ``:meta private:``. Autodoc honors that marker when writing the body
+    of a class, but autosummary builds the Methods / Attributes tables from its own introspection, which
+    doesn't check for it — without this, a hidden member still shows up as an empty row in the table.
+    """
+    module_name, _, class_name = class_fullname.rpartition(".")
+    cls = getattr(importlib.import_module(module_name), class_name)
+
+    def is_private(name):
+        member = inspect.getattr_static(cls, name, None)
+        # a property's docstring lives on its getter
+        doc = member.fget.__doc__ if isinstance(member, property) else getattr(member, "__doc__", None)
+        return doc is not None and ":meta private:" in doc
+
+    return [name for name in member_names if not is_private(name)]
+
+
 jinja2.filters.FILTERS['intersect'] = intersect
 jinja2.filters.FILTERS['difference'] = difference
+jinja2.filters.FILTERS['reject_meta_private'] = reject_meta_private
 
 ##################################################################################################################
 #                                   Hack to allow certain named module attributes
@@ -296,7 +317,6 @@ epub_exclude_files = ['search.html']
 autodoc_member_order = 'bysource'
 autoclass_content = 'class'
 autosummary_generate = True
-autosummary_generate_overwrite = False  # Doesn't seem to work?
 autodoc_type_aliases = {
     'NotePropertiesCompatible': 'NotePropertiesCompatible',
     'PitchCompatible': 'PitchCompatible',

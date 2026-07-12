@@ -168,6 +168,10 @@ class ParamPlaybackAdjustment(SavesToJSON):
             else param_value * mul_amount + add_amount
 
     def uses_envelope(self):
+        """
+        Whether this adjustment varies over the course of the note, i.e. whether either the amount added or
+        the amount multiplied by is an :class:`~expenvelope.envelope.Envelope`.
+        """
         return isinstance(self.add_amount, Envelope) or isinstance(self.multiply, Envelope)
 
     def _to_dict(self):

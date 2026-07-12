@@ -1227,6 +1227,14 @@ class ScampInstrument(SavesToJSON):
 
     @property
     def note_info_by_id(self):
+        """
+        Dictionary mapping the id of each note currently sounding on this instrument to the bookkeeping
+        information kept about it (the clock that started it, its start/end time stamps, its current
+        parameter values, any ongoing parameter change segments, and its :class:`NoteProperties`).
+
+        This is exposed mostly for the benefit of custom :class:`~scamp.playback_implementations.PlaybackImplementation`
+        subclasses, which may need to consult the state of a note in progress.
+        """
         return self._note_info_by_id
 
 
