@@ -7,25 +7,28 @@
    :inherited-members:
    :undoc-members:
 
+   {# autodoc drops ":meta private:" members from the body; reject_meta_private does the same for the
+      summary tables below, which autosummary builds from its own introspection. #}
 
    {% block methods %}
    {% if methods %}
+   {% set shown_methods = methods | reject_meta_private(fullname) | reject('equalto', '__init__') | list %}
 
-   {% if methods | reject('equalto', '__init__') | difference(inherited_members) %}
+   {% if shown_methods | difference(inherited_members) %}
    .. rubric:: Methods
    .. autosummary::
    {% endif %}
 
-   {% for item in methods | reject('equalto', '__init__') | difference(inherited_members) %}
+   {% for item in shown_methods | difference(inherited_members) %}
       ~{{ name }}.{{ item }}
    {%- endfor %}
 
-   {% if methods | reject('equalto', '__init__') | intersect(inherited_members) %}
+   {% if shown_methods | intersect(inherited_members) %}
    .. rubric:: Inherited Methods
    .. autosummary::
    {% endif %}
 
-   {% for item in methods | reject('equalto', '__init__') | intersect(inherited_members) %}
+   {% for item in shown_methods | intersect(inherited_members) %}
       ~{{ name }}.{{ item }}
    {%- endfor %}
 
@@ -33,11 +36,12 @@
    {% endblock %}
 
    {% block attributes %}
-   {% if attributes %}
+   {% set shown_attributes = attributes | reject_meta_private(fullname) | list %}
+   {% if shown_attributes %}
    .. rubric:: Attributes
 
    .. autosummary::
-   {% for item in attributes %}
+   {% for item in shown_attributes %}
       ~{{ name }}.{{ item }}
    {%- endfor %}
    {% endif %}

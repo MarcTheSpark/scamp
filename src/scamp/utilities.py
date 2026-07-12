@@ -106,6 +106,12 @@ def resolve_path(path: str) -> str:
 
 
 def resolve_package_path(path: str) -> str:
+    """
+    Resolve a path given relative to the scamp package into an absolute one, accounting for the fact that,
+    in a PyInstaller-frozen application, package data sits next to the executable instead.
+
+    :param path: a path relative to the scamp package directory
+    """
     if getattr(sys, 'frozen', False):
         # Python is running from a binary executable made by PyInstaller (the bootloader adds 'frozen' to sys)
         package_dir = os.path.dirname(sys.executable)

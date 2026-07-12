@@ -355,6 +355,15 @@ class PlaybackSettings(_ScampSettings):
             print("{}: {}".format(a, b))
 
     def set_playback_adjustment(self, note_property: str, adjustment: str | NotePlaybackAdjustment):
+        """
+        Set the playback adjustment applied to every note carrying a given property, e.g. making all notes
+        marked "staccato" play back shorter.
+
+        :param note_property: the note property to attach the adjustment to, e.g. "articulation: staccato".
+            (A bare value like "staccato" is also understood, its category being inferred.)
+        :param adjustment: the adjustment to apply, either a :class:`~scamp.playback_adjustments.NotePlaybackAdjustment`
+            or a string to be parsed into one, e.g. "length * 0.5"
+        """
         from ._parsing import parse_property_key_and_value, parse_note_playback_adjustment
 
         key, value = parse_property_key_and_value(note_property)
@@ -371,6 +380,12 @@ class PlaybackSettings(_ScampSettings):
             self.adjustments[key][value] = parse_note_playback_adjustment(adjustment)
 
     def get_playback_adjustment(self, note_property: str):
+        """
+        The playback adjustment currently applied to notes carrying the given property, or None if there
+        is none.
+
+        :param note_property: the note property in question, e.g. "articulation: staccato"
+        """
         from ._parsing import parse_property_key_and_value
 
         key, value = parse_property_key_and_value(note_property)

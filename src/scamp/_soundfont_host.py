@@ -376,6 +376,14 @@ def get_soundfont_presets(which_soundfont="default"):
 
 
 def print_soundfont_presets(which_soundfont="default"):
+    """
+    Prints a list of all the presets available in the given soundfont; useful for finding the name
+    of the instrument you want to load. (Requires the sf2utils package.)
+
+    :param which_soundfont: the name of a soundfont that has been registered in
+        :code:`playback_settings.named_soundfonts`, or a path to a soundfont file. Defaults to the
+        soundfont named in :code:`playback_settings.default_soundfont`.
+    """
     print("PRESETS FOR {}".format("default ({})".format(playback_settings.default_soundfont)
                                   if which_soundfont == "default" else which_soundfont))
     for preset in get_soundfont_presets(which_soundfont):

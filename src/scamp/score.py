@@ -1692,6 +1692,9 @@ class Measure(ScoreComponent, ScoreContainer):
             return cls(voices, time_signature, show_time_signature=show_time_signature)
 
     def get_appropriate_clef(self, clef_choices: Sequence[str | tuple[str, Real]]):
+        """
+        Pick the best clef for this measure by comparing its average pitch against the given choices.
+        """
         # find the average pitch of this measure
         average_pitch = 0
         num_notes = 0

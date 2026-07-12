@@ -70,6 +70,10 @@ class Spanner(ABC, SavesToJSON, NoteProperty):
         return {k: v for k, v in self.formatting.items() if k in self.FORMATTING_SLOTS}
 
     def get_abjad_direction(self):
+        """
+        The abjad direction (up/down) corresponding to this spanner's placement, or None if no placement
+        was specified, leaving the choice to LilyPond.
+        """
         return af.direction_up() if self.formatting["placement"] == "above" \
             else af.direction_down() if self.formatting["placement"] == "below" else None
 
@@ -305,6 +309,9 @@ class StartDashes(Spanner):
         ),
 
     def get_abjad_direction(self):
+        """
+        The abjad direction (up/down) corresponding to this spanner's placement.
+        """
         # since dashes is generally used for stuff like "cresc.---" or "dim.---", it should generally default to
         # below the staff, so we need to override this method for dashes particularly
         return af.direction_up() if self.formatting["placement"] == "above" else af.direction_down()
