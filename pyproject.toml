@@ -18,8 +18,8 @@ authors = [
 ]
 
 dependencies = [
-    "pymusicxml>=0.5.7",
-    "expenvelope>=0.7.3",
+    "pymusicxml>=0.5.8",
+    "expenvelope>=0.8.0",
     "clockblocks>=1.0.0",
     "python-osc",
     "arpeggio",
