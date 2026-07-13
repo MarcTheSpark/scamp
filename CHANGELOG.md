@@ -22,24 +22,30 @@ for the full picture.
 ### Changed
 
 - **Requires clockblocks 1.0**, and with it: forked functions no longer receive the clock
-  as an argument, and tempo targets are expressed with a `Moment` (`after_beats(4)`,
-  `at_time(30)`, …) rather than a bare duration.
-- Note positions are transcribed via clockblocks' `TimeStamp`/`TimeStampInterval`, which
-  makes them correct when notes are played from foreign threads — a note triggered by a
-  MIDI, OSC, or keyboard callback is now recorded at the moment it actually sounded
-  instead of at the previous scheduler event.
-- Parameter animation (glissandi, dynamic envelopes, other continuous parameters) is
-  driven by scheduled leaf actions rather than a background unsynchronized thread.
-- Tolerant floating-point comparisons throughout the transcribe → quantize → score
-  pipeline, and floating-point dust is snapped out of finished score notes. Some scores
-  will quantize slightly differently — generally more correctly — than in 0.9.x.
+  as an argument, and tempo targets are expressed with a `Moment`
+  (`Moment.after_beats(4)`, `Moment.at_time(30)`, …) rather than a bare duration.
+- Note positions are transcribed via clockblocks' `TimeStamp`/`TimeStampInterval`. Notes
+  played from foreign threads (a MIDI, OSC, or keyboard callback) were already stamped at
+  the moment they actually sounded; this simply gets there through a clockblocks primitive
+  rather than scamp's own bookkeeping.
+- Parameter animation (glissandi, dynamic envelopes, other continuous parameters) is driven
+  by scheduled leaf actions rather than a background unsynchronized thread.
+- Tolerant floating-point comparisons throughout the transcribe → quantize → score pipeline,
+  and floating-point dust is snapped out of finished score notes, so `Performance` and
+  `Score` reprs show the durations and levels you actually asked for instead of their
+  floating-point residue. Notated output is unchanged; what moves is numeric detail, plus a
+  couple of sub-perceptible MIDI shifts (one tempo event by ~1ppm, six CC11 expression
+  events from 126 to 127).
+- `print_dependency_status()` — which reports, per optional dependency, whether the feature
+  it powers is available — gains a **LilyPond** row alongside FluidSynth, sf2utils,
+  python-osc, python-rtmidi, pynput, and abjad. Soundfont and LilyPond discovery messages
+  are clearer on first run.
 - `Performance`'s repr now surfaces a non-default tempo.
 - Settings renamed: `show_music_xml_command_line` → `music_xml_open_command`.
 - Settings subclasses are now dataclasses, and "auto" settings resolve lazily.
 
 ### Added
 
-- First-run experience polish: clearer soundfont/LilyPond discovery messages.
 - An example demonstrating keyboard input recorded to notation against a metronome.
 
 ### Removed
@@ -68,8 +74,8 @@ def melody():
     clock = current_clock()   # only if you actually need it
     ...
 s.fork(melody)
-s.set_tempo_target(120, after_beats(4))
-```
+s.set_tempo_target(120, Moment.after_beats(4))
+``` 
 
 ## Earlier versions
 

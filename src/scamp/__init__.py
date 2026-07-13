@@ -26,7 +26,7 @@ from clockblocks import (
     DurationUnits, TempoUnits,
     ClockblocksError, ClockKilledError, DeadClockError,
     WrongThreadError, NoActiveClockError, NotMasterClockError,
-    current_clock, wait, wait_forever, wait_for_children_to_finish, fork,
+    current_clock, wait, wait_until, wait_forever, wait_for_children_to_finish, fork,
     set_tempo, set_rate, set_beat_length,
     get_tempo, get_rate, get_beat_length,
     set_tempo_target, set_rate_target, set_beat_length_target,
