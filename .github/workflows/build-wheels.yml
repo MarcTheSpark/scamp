@@ -18,6 +18,16 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      extra_index_url:
+        description: >-
+          Additional package index for cibuildwheel's install test. Needed when
+          scamp's dependencies have been staged somewhere but aren't on PyPI yet
+          (e.g. https://test.pypi.org/simple/ during a rehearsal) — otherwise the
+          test venv can't resolve them and every wheel "fails" despite building
+          fine. Leave blank for a real release.
+        required: false
+        default: ''
 
 jobs:
   build_wheels:
@@ -58,6 +68,11 @@ jobs:
         env:
           CIBW_ARCHS: ${{ matrix.arch }}
           MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}
+          # Forwarded into the build/test environment (including the manylinux
+          # container), so the install test can reach a staged index. Only pip
+          # inside the throwaway test venv sees this; wheel contents are identical
+          # either way.
+          CIBW_ENVIRONMENT: ${{ inputs.extra_index_url && format('PIP_EXTRA_INDEX_URL={0}', inputs.extra_index_url) || '' }}
         # cibuildwheel reads its config from pyproject.toml's [tool.cibuildwheel]
         # sections. The `before-build` hooks defined there are what install /
         # download FluidSynth into _thirdparty/ on each platform.
