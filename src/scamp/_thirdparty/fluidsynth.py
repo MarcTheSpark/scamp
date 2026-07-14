@@ -669,18 +669,24 @@ class Synth:
         """
         driver = driver or self.get_setting('audio.driver')
         device = device or self.get_setting('audio.%s.device' % driver)
-        midi_driver = midi_driver or self.get_setting('midi.driver')
 
         self.setting('audio.driver', driver)
         self.setting('audio.%s.device' % driver, device)
         self.audio_driver = new_fluid_audio_driver(self.settings, self.synth)
-        self.setting('midi.driver', midi_driver)
-        self.router = new_fluid_midi_router(self.settings, fluid_synth_handle_midi_event, self.synth)
-        if new_fluid_cmd_handler:
-            new_fluid_cmd_handler(self.synth, self.router)
-        else:
-            fluid_synth_set_midi_router(self.synth, self.router)
-        self.midi_driver = new_fluid_midi_driver(self.settings, fluid_midi_router_handle_midi_event, self.router)
+
+        # A MIDI *input* driver is only created when one is explicitly requested. Nothing that plays
+        # notes needs it: the synth is driven directly through the API (noteon, cc, pitch_bend), not
+        # through the router. Creating one unconditionally is harmful on Windows, where the winmidi
+        # driver fails loudly on a machine with no MIDI input devices (the common case).
+        if midi_driver is not None:
+            self.setting('midi.driver', midi_driver)
+            self.router = new_fluid_midi_router(self.settings, fluid_synth_handle_midi_event, self.synth)
+            if new_fluid_cmd_handler:
+                new_fluid_cmd_handler(self.synth, self.router)
+            else:
+                fluid_synth_set_midi_router(self.synth, self.router)
+            self.midi_driver = new_fluid_midi_driver(self.settings, fluid_midi_router_handle_midi_event,
+                                                     self.router)
 
     def delete(self):
         if self.audio_driver:

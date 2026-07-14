@@ -59,6 +59,11 @@ for the full picture.
 - Enharmonic spelling is stable against floating-point noise.
 - The soundfont recording timer no longer depends on a code path that had been dead since
   parameter animation moved to scheduled actions.
+- No longer starts a FluidSynth MIDI *input* driver when creating a synth. Nothing in SCAMP read from
+  it, and on Windows machines with no MIDI input devices attached it printed alarming (but harmless)
+  errors on startup: `not enough MIDI in devices found. Expected:1 found:0` and
+  `Device "default" does not exists`. Playback was unaffected, but the messages made it look like
+  SCAMP had failed.
 
 ### Migrating
 
