@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Sustain pedal methods on `ScampInstrument`: `pedal_down(press_amount)`, `pedal_up()`, and
+  `pedal_change(duration, press_amount)` send CC 64 to all midi-based playback implementations.
+  `pedal_change` lifts and re-presses the pedal (re-press runs in a forked process, so the call
+  returns immediately), defaulting to the press amount of the last `pedal_down`/`pedal_change`.
+
 ## [0.10.0] - 2026-07-12
 
 This release moves SCAMP onto **clockblocks 1.0**, which was redesigned around a single

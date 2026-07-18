@@ -376,6 +376,9 @@ class ScampInstrument(SavesToJSON):
         # this lock stops multiple threads from simultaneously accessing the self._note_info_by_id
         self._note_info_lock = Lock()
 
+        # how far down the sustain pedal was last pressed, used as the default for pedal_change
+        self._last_pedal_press_amount = 1.0
+
         #: used when exporting to json to see if this is the top level object being exported, or part of an ensemble
         self._export_as_stand_alone = False
 
@@ -1123,6 +1126,44 @@ class ScampInstrument(SavesToJSON):
             if hasattr(playback_implementation, "cc"):
                 for chan in range(playback_implementation.num_channels):
                     playback_implementation.cc(chan, cc_number, value_from_0_to_1)
+
+    def pedal_down(self, press_amount: float = 1.0) -> None:
+        """
+        Presses the sustain pedal, by sending a CC 64 message to all midi-based playback implementations.
+
+        :param press_amount: how far down to press the pedal, from 0 to 1 (values in between allow half-pedaling,
+            if supported by the receiving device)
+        """
+        self._last_pedal_press_amount = press_amount
+        self.send_midi_cc(64, press_amount)
+
+    def pedal_up(self) -> None:
+        """
+        Releases the sustain pedal, by sending a CC 64 message of 0 to all midi-based playback implementations.
+        """
+        self.send_midi_cc(64, 0)
+
+    def pedal_change(self, duration: float = 0.2, press_amount: float = None) -> None:
+        """
+        Quickly lifts and re-presses the sustain pedal, clearing resonating notes. Returns immediately, with the
+        re-press happening in a forked process after the given duration.
+
+        :param duration: how long (in seconds, regardless of tempo) to keep the pedal up before re-pressing it
+        :param press_amount: how far down to re-press the pedal, from 0 to 1; defaults to the press amount of the
+            last call to :func:`pedal_down` or :func:`pedal_change`.
+        """
+        press_amount = press_amount if press_amount is not None else self._last_pedal_press_amount
+        self._last_pedal_press_amount = press_amount
+
+        def _pedal_changer():
+            self.send_midi_cc(64, 0)
+            wait(duration, units="time")
+            self.send_midi_cc(64, press_amount)
+
+        clock, _ = self._resolve_clock(None, False)
+        # fork on the master clock so that the re-press isn't killed if the
+        # current (child) clock ends, and so that "time" is true seconds
+        clock.master.fork(_pedal_changer, name="PEDAL_CHANGE")
 
     @property
     def clef_preference(self):
