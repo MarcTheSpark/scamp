@@ -6,7 +6,8 @@ there are either done, abandoned, or superseded; revisit only as reference.
 ## Summary
 
 1. [Test infrastructure & settings refactor](#test-infrastructure--settings-refactor) — pytest + syrupy migration, targeted unit tests, dataclass-based settings with per-`Session` overrides.
-2. [Assorted Fixes](#assorted-fixes)
+2. [Transcribable non-note events](#transcribable-non-note-events) — record `send_midi_cc` (pedaling, etc.) in `Performance`s; likely part of a broader "events not attached to notes" redesign.
+3. [Assorted Fixes](#assorted-fixes)
 
 Recently completed (2026-05-06): sourcehut → GitHub link migration across all five packages, and a full refresh of the installation docs (FluidSynth bundling, Python ≥ 3.12, `scamp[all]` extras, abjad pin, Mac LilyPond instructions, dependency-status testing snippet).
 
@@ -76,6 +77,18 @@ Three settings now use it:
 The legacy `"auto"` sentinel in old persisted JSON is translated to None on
 load (in `_from_dict`) so existing user config files migrate transparently.
 
+
+## Transcribable non-note events
+
+`ScampInstrument.send_midi_cc` (and the pedal methods built on it) go straight
+to the playback implementations — the `Transcriber` never sees them, so pedaling
+is lost from the resulting `Performance`/`Score`. Try to make these transcribed.
+
+This is probably part of a larger redesign: `Performance` currently only holds
+`PerformanceNote`s, so it needs a notion of events that aren't attached to
+notes (cc/pedal messages, maybe program changes, tempo-independent markers).
+Open questions: how such events survive quantization, and what they become at
+the `Score` stage (e.g. pedal marks as spanners) vs. playback-only.
 
 ## Assorted Fixes
 
