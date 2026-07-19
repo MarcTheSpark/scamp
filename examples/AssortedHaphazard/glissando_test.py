@@ -26,7 +26,7 @@ random.seed(1)
 
 session.start_transcribing()
 
-while session.time() < 12:
+while session.time < 12:
     gliss = Envelope(
         [random.random() * 20 + 60, random.random() * 20 + 60, random.random() * 20 + 60, random.random() * 20 + 60],
         [random.random()+0.5, random.random()+0.5, random.random()+0.5]

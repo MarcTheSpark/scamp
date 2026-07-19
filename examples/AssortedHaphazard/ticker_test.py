@@ -28,7 +28,7 @@ def wakethread():
 
 def ticker(clock):
     while True:
-        print(clock.beat())
+        print(clock.beat)
         clock.wait(0.1)
 
 

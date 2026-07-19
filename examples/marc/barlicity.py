@@ -158,7 +158,7 @@ class Barlicity(QtWidgets.QMainWindow):
         last_piano_note_pool = None
         self.piano.send_midi_cc(64, 1.0)
         while True:
-            which_beat = int(round((clock.beat() * 2) % len(piano_indispensabilities)))
+            which_beat = int(round((clock.beat * 2) % len(piano_indispensabilities)))
             this_indispensability = piano_indispensabilities[which_beat]
             note_pool = [piano_scale[i] for i in self.contained_points]
 
@@ -169,7 +169,7 @@ class Barlicity(QtWidgets.QMainWindow):
             last_piano_note_pool = note_pool
 
             syncopation_prob = 1 - ((self.circle_width / scale_factor - WIDTH_AVERAGE) / (2 * WIDTH_VARIATION) + 0.5)
-            piano_distillation_factor = piano_distillation_timeline.value_at(clock.time())
+            piano_distillation_factor = piano_distillation_timeline.value_at(clock.time)
 
             # spensability is either indispensability or dispensability, depending on whether it's syncopated
             spensability = this_indispensability if random.random() < syncopation_prob else 1 - this_indispensability
@@ -195,15 +195,15 @@ class Barlicity(QtWidgets.QMainWindow):
         octave_transposition = 0
 
         while True:
-            runniness = 0.02 + 0.98 * piano_distillation_timeline.value_at(clock.time())
-            which_beat = int(round((clock.beat()) % len(harpsichord_indispensabilities)))
+            runniness = 0.02 + 0.98 * piano_distillation_timeline.value_at(clock.time)
+            which_beat = int(round((clock.beat) % len(harpsichord_indispensabilities)))
             this_indispensability = harpsichord_indispensabilities[which_beat]
 
             if not running:
                 # if not running, a high runniness and a high indispensibility will tend to start a run
                 if random.random() < runniness * this_indispensability:
                     running = True
-                    octave_transposition = Barlicity.get_an_octave_transposition(clock.time())
+                    octave_transposition = Barlicity.get_an_octave_transposition(clock.time)
                     # play the first note "on the beat"
                     scale_index = random.randrange(len(harpsichord_scale) // 3) + len(harpsichord_scale) // 3
                     direction = random.choice([-1, 1])
@@ -235,7 +235,7 @@ class Barlicity(QtWidgets.QMainWindow):
     def set_scanner_position(self, dt):
         self.circle_width = scale_factor * (
                 WIDTH_AVERAGE + WIDTH_VARIATION *
-                math.sin(2 * math.pi * self.session.time() / WIDTH_VARIATION_PERIOD + WIDTH_START_PHASE)
+                math.sin(2 * math.pi * self.session.time / WIDTH_VARIATION_PERIOD + WIDTH_START_PHASE)
         )
 
         total_multiplier = 0

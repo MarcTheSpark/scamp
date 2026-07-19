@@ -11,13 +11,13 @@ output = []
 
 def part_a():
     while True:
-        output.append(f"A, {c.time()}")
+        output.append(f"A, {c.time}")
         wait(random.choice([1, 2, 3]))
 
 
 def part_b():
     while True:
-        output.append(f"B, {c.time()}")
+        output.append(f"B, {c.time}")
         wait(random.choice([1, 2, 3]))
 
 

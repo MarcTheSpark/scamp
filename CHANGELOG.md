@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `pedal_change` lifts and re-presses the pedal (re-press runs in a forked process, so the call
   returns immediately), defaulting to the press amount of the last `pedal_down`/`pedal_change`.
 
+### Changed
+
+- **Requires clockblocks >= 1.1 (and now caps at < 2):** the clock position accessors became
+  read-only properties there, so write `s.beat`, `s.time`, `s.absolute_rate` etc. without
+  parentheses. The old `s.beat()` spelling still works with a `DeprecationWarning` until
+  clockblocks 2.0. All bundled examples use the new spelling.
+
 ## [0.10.0] - 2026-07-12
 
 This release moves SCAMP onto **clockblocks 1.0**, which was redesigned around a single

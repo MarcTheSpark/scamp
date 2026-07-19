@@ -35,7 +35,7 @@ trombone = s.new_part("trombone")
 # first argument and then manipulated.
 def trumpet_part():
     # play eighth notes for three beats
-    while s.beat() < 3:
+    while s.beat < 3:
         trumpet.play_note(67, 1, 0.5)
 
     # tell the clock for this child process
@@ -47,7 +47,7 @@ def trumpet_part():
 
     # keep playing eighth notes until 12
     # beats pass in the parent session
-    while s.beat() < 12:
+    while s.beat < 12:
         trumpet.play_note(67, 1, 0.5)
 
 
@@ -59,7 +59,7 @@ s.set_tempo_target(100, Moment.after_beats(9))
 trumpet_clock = s.fork(trumpet_part)
 s.start_transcribing(clock=trumpet_clock)
 # Play quarter notes for 12 beats
-while s.beat() < 12:
+while s.beat < 12:
     trombone.play_note(60, 1, 1)
 
 # Stop recording and show the result

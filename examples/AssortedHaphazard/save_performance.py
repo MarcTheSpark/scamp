@@ -29,7 +29,7 @@ session.save_to_json("SavedFiles/shakEnsemble.json")
 
 def oboe_part(clock):
     while True:
-        oboe.play_note(75 + random.random() * 7 + 15 * math.sin(clock.beat() / 10), 0.4, 0.25)
+        oboe.play_note(75 + random.random() * 7 + 15 * math.sin(clock.beat / 10), 0.4, 0.25)
 
 
 def shaku_part(clock):

@@ -189,7 +189,7 @@ class SoundfontHost(SavesToJSON):
                 # NoteParameterAnimation.run). OSC and MIDI listener callbacks also qualify; they run under
                 # `hold_scheduler`. In all of these the committed time is the current event's
                 # scheduled time, so sample offsets track the score rather than OS jitter.
-                return master.time() if master is not None else time.time()
+                return master.time if master is not None else time.time()
             self.synth = PlayAndRecSynth(recording_file_path,
                                          timer_func=_timer_func,
                                          time_range=recording_time_range)

@@ -1,4 +1,4 @@
-from src.scamp import *
+from scamp import *
 import random
 
 s = Session()
@@ -7,7 +7,7 @@ s.fast_forward()
 violin = s.new_part("violin")
 
 s.start_transcribing()
-while s.beat() < 50:
+while s.beat < 50:
     violin.play_note(random.randint(80, 100), 0.5, 0.25)
     
 perf = s.stop_transcribing()

@@ -41,7 +41,7 @@ def move_upper_parts(old_bass_note, new_bass_note):
 
 s.start_transcribing()
 
-while s.beat() < 12:
+while s.beat < 12:
     if last_bass_degree is not None:
         move_upper_parts(last_bass_degree, bass_degree)
     last_bass_degree = bass_degree

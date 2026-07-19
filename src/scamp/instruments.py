@@ -1568,7 +1568,7 @@ class _ParameterChangeSegment(EnvelopeSegment):
         # disappear if the clock is killed.
         # the calculated `time_increment` is measured in second, so we have to use the clock's absolute rate
         # to convert these to beat targets on the clock.
-        seconds_per_beat = 1 / self.clock.absolute_rate()
+        seconds_per_beat = 1 / self.clock.absolute_rate
         num_steps = max(1, round(self.duration * seconds_per_beat / time_increment))
         for i in range(1, num_steps):
             beat_offset = self.duration * i / num_steps
@@ -1621,7 +1621,7 @@ class _ParameterChangeSegment(EnvelopeSegment):
         """
         Returns a reasonable temporal resolution, based on this clock's envelope and rate, assuming it's a pitch curve
         """
-        max_cents_per_second = self.max_absolute_slope() * 100 * self.clock.absolute_rate()
+        max_cents_per_second = self.max_absolute_slope() * 100 * self.clock.absolute_rate
         # cents / update * updates / sec = cents / sec   =>  updates_freq = cents_per_second / cents_per_update
         # we'll aim for 4 cents per update, since some say the JND is 5-6 cents
         update_freq = max_cents_per_second / 4.0
@@ -1631,7 +1631,7 @@ class _ParameterChangeSegment(EnvelopeSegment):
         """
         Returns a reasonable temporal resolution, based on this clock's envelope and rate, assuming it's a volume curve
         """
-        max_volume_per_second = self.max_absolute_slope() * self.clock.absolute_rate()
+        max_volume_per_second = self.max_absolute_slope() * self.clock.absolute_rate
         # based on the idea that for midi volumes, it's quantized from 0 to 127, so there's not much point in updating
         # in between those quantization levels. It's a decent enough rule even if not using midi output.
         update_freq = max_volume_per_second * 127

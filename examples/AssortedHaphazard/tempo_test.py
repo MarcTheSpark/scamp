@@ -32,8 +32,8 @@ session.set_tempo_target(89, Moment.after_beats(27), truncate=False)
 
 session.start_transcribing()
 
-while session.beat() < 30:
-    violin.play_note(70 + (session.beat() * 3) % 7, 1.0, 0.25)
+while session.beat < 30:
+    violin.play_note(70 + (session.beat * 3) % 7, 1.0, 0.25)
 
 performance = session.stop_transcribing()
 

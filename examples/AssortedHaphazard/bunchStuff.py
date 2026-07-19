@@ -35,7 +35,7 @@ def piano_part():
 # start the piano as a parallel process
 s.fork(piano_part)
 
-while s.time() < 20:  # for twenty seconds...
+while s.time < 20:  # for twenty seconds...
     # play random sine-wave glissandi via the SuperCollider synth with varying vibrato
     sine_waves.play_note(
         [random.uniform(70, 96), random.uniform(70, 96)],  # pitch is a glissando between two values
