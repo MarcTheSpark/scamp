@@ -7,7 +7,7 @@ there are either done, abandoned, or superseded; revisit only as reference.
 
 1. [Test infrastructure & settings refactor](#test-infrastructure--settings-refactor) — pytest + syrupy migration, targeted unit tests, dataclass-based settings with per-`Session` overrides.
 2. [Transcribable non-note events](#transcribable-non-note-events) — record `send_midi_cc` (pedaling, etc.) in `Performance`s; likely part of a broader "events not attached to notes" redesign.
-3. [Workspace mega-repo via git submodules](#workspace-mega-repo-via-git-submodules) — a root repo over the five package repos; natural home for docs tooling and the AI-tutor material.
+3. [Workspace mega-repo via git submodules](#workspace-mega-repo-via-git-submodules) — a GitHub superproject over the five package repos (pointers auto-bumped by CI); home for the workspace-level files, docs tooling, and the AI-tutor material.
 4. [Assorted Fixes](#assorted-fixes)
 
 Recently completed (2026-05-06): sourcehut → GitHub link migration across all five packages, and a full refresh of the installation docs (FluidSynth bundling, Python ≥ 3.12, `scamp[all]` extras, abjad pin, Mac LilyPond instructions, dependency-status testing snippet).
@@ -93,28 +93,39 @@ the `Score` stage (e.g. pedal marks as spanners) vs. playback-only.
 
 ## Workspace mega-repo via git submodules
 
-Turn the workspace root into its own git repo, with the five package repos
-(`clockblocks`, `expenvelope`, `pymusicxml`, `scamp`, `scamp_extensions`) as git
-submodules. The root currently isn't version-controlled at all, yet it accumulates
-real content: the uv-workspace `pyproject.toml` + `uv.lock`, `CLAUDE.md`,
-`release.sh`, `uploadDocs.sh`.
+Status 2026-07-19: leaning yes, not yet implemented. Full discussion — requirements,
+rejected alternatives (glue-only root repo, true monorepo, manually pinned
+submodules) — in `.claudeConvos/2026-07-19-workspace-root-github-repo.md`.
 
-The mega-repo is also probably the right home for the cross-package material that
-doesn't belong to any single package:
+The plan: the workspace root becomes a GitHub repo (superproject) with the five
+package repos as submodules, so `git clone --recurse-submodules` hands someone the
+whole interconnected workspace while each package keeps its standalone repo,
+identity, and one-directional independence. The superproject absorbs what's
+currently homeless at the root: the uv-workspace `pyproject.toml` + `uv.lock`,
+`CLAUDE.md`, `release.sh`, `uploadDocs.sh`, `scamp_tutor/` (in no repo at all
+today), and probably `.claudeConvos/`.
 
-- **Documentation tooling/builds** — the docs cover all five packages and deploy
-  from the workspace root (`uploadDocs.sh` rsyncs `scamp/docs/build` to
-  scamp.marcevanstein.com), so they're workspace-scoped, not scamp-scoped.
-- **The AI-tutor material** — `scamp_tutor/` (already at the root), plus the
-  generated bundles currently sitting untracked in the scamp repo
-  (`examples/_bundles/`, `examples/INDEX.md`, `docs/build_text/`,
-  `docs/tutor_project_instructions.md`). Deliberately left uncommitted in scamp
-  (2026-07-19) pending this restructuring.
+Key design points:
 
-Open questions: how the submodule-pinning workflow feels day-to-day (submodule
-pointers go stale unless bumped; CI and fresh clones need `--recurse-submodules`),
-and whether `.claudeConvos/` stays Nextcloud-synced-only or moves into the root
-repo too.
+- **Submodule pointers are rough convenience, not reproducibility pins** —
+  per-package releases are already tagged in the sub-repos. A scheduled GitHub
+  Action in the superproject (`git submodule update --remote`, commit, push, daily)
+  keeps them fresh with zero manual chore. No other CI: the superproject builds and
+  releases nothing.
+- **The AI-tutor material consolidates there** — `scamp_tutor/` plus the generated
+  bundles currently sitting untracked in this repo (`examples/_bundles/`,
+  `examples/INDEX.md`, `docs/build_text/`, `docs/tutor_project_instructions.md`),
+  deliberately left uncommitted here (2026-07-19) pending the move. Fetchability
+  via GitHub Pages or raw-content links, linked from scamp's README/docs.
+- **Docs tooling is workspace-scoped, not scamp-scoped** — the docs cover all five
+  packages and deploy from the root (`uploadDocs.sh` rsyncs `scamp/docs/build` to
+  scamp.marcevanstein.com).
+
+Open questions: public vs. private (public is needed for tutor fetching, but
+exposes `.claudeConvos/` — skim the notes before any first push, and update
+CLAUDE.md's "local-only" claim); whether `scamp_tutor` should instead fold into
+scamp's docs build (better discoverability, but couples tutor updates to scamp
+releases); auto-bump cadence (daily seems fine).
 
 ## Assorted Fixes
 
