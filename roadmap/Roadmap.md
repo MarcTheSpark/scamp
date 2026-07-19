@@ -7,7 +7,8 @@ there are either done, abandoned, or superseded; revisit only as reference.
 
 1. [Test infrastructure & settings refactor](#test-infrastructure--settings-refactor) — pytest + syrupy migration, targeted unit tests, dataclass-based settings with per-`Session` overrides.
 2. [Transcribable non-note events](#transcribable-non-note-events) — record `send_midi_cc` (pedaling, etc.) in `Performance`s; likely part of a broader "events not attached to notes" redesign.
-3. [Assorted Fixes](#assorted-fixes)
+3. [Workspace mega-repo via git submodules](#workspace-mega-repo-via-git-submodules) — a root repo over the five package repos; natural home for docs tooling and the AI-tutor material.
+4. [Assorted Fixes](#assorted-fixes)
 
 Recently completed (2026-05-06): sourcehut → GitHub link migration across all five packages, and a full refresh of the installation docs (FluidSynth bundling, Python ≥ 3.12, `scamp[all]` extras, abjad pin, Mac LilyPond instructions, dependency-status testing snippet).
 
@@ -89,6 +90,31 @@ This is probably part of a larger redesign: `Performance` currently only holds
 notes (cc/pedal messages, maybe program changes, tempo-independent markers).
 Open questions: how such events survive quantization, and what they become at
 the `Score` stage (e.g. pedal marks as spanners) vs. playback-only.
+
+## Workspace mega-repo via git submodules
+
+Turn the workspace root into its own git repo, with the five package repos
+(`clockblocks`, `expenvelope`, `pymusicxml`, `scamp`, `scamp_extensions`) as git
+submodules. The root currently isn't version-controlled at all, yet it accumulates
+real content: the uv-workspace `pyproject.toml` + `uv.lock`, `CLAUDE.md`,
+`release.sh`, `uploadDocs.sh`.
+
+The mega-repo is also probably the right home for the cross-package material that
+doesn't belong to any single package:
+
+- **Documentation tooling/builds** — the docs cover all five packages and deploy
+  from the workspace root (`uploadDocs.sh` rsyncs `scamp/docs/build` to
+  scamp.marcevanstein.com), so they're workspace-scoped, not scamp-scoped.
+- **The AI-tutor material** — `scamp_tutor/` (already at the root), plus the
+  generated bundles currently sitting untracked in the scamp repo
+  (`examples/_bundles/`, `examples/INDEX.md`, `docs/build_text/`,
+  `docs/tutor_project_instructions.md`). Deliberately left uncommitted in scamp
+  (2026-07-19) pending this restructuring.
+
+Open questions: how the submodule-pinning workflow feels day-to-day (submodule
+pointers go stale unless bumped; CI and fresh clones need `--recurse-submodules`),
+and whether `.claudeConvos/` stays Nextcloud-synced-only or moves into the root
+repo too.
 
 ## Assorted Fixes
 
