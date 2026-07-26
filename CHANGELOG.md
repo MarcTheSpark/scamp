@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `pedal_change` lifts and re-presses the pedal (re-press runs in a forked process, so the call
   returns immediately), defaulting to the press amount of the last `pedal_down`/`pedal_change`.
 
+- `get_beat()` and `get_time()` are re-exported from clockblocks, joining `get_tempo()` /
+  `get_rate()` / `get_beat_length()`. They read the position of the clock running on the calling
+  thread, so `while get_beat() < 16:` no longer needs `current_clock().beat`. Inside a `fork`,
+  they report that fork's position, not the Session's.
+
 ### Changed
 
 - **Requires clockblocks >= 1.1 (and now caps at < 2):** the clock position accessors became
