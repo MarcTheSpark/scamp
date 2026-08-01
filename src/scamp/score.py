@@ -967,8 +967,10 @@ class Score(ScoreComponent, ScoreContainer):
         so as not to conflict with another tempo marking upon arrival.
         """
         # the tempo needs to be expressly stated at the beginning, at any change of tempo direction,
-        # at the start of any stable plateau (i.e. saddle point) and at the end of the tempo envelope if not redundant
-        key_points = [0.0] + self.tempo_envelope.local_extrema(include_saddle_points=True)
+        # at the start of any stable plateau (i.e. saddle point), and at the end of the tempo envelope if not redundant
+        # (deduplicated, since e.g. a sudden tempo jump right at beat 0 is both the start and a local extremum, and
+        # only one metronome mark can be placed at a given beat)
+        key_points = sorted(set([0.0] + self.tempo_envelope.local_extrema(include_saddle_points=True)))
 
         # if the last segment changes tempo, we need to notate its end tempo
         if self.tempo_envelope.value_at(key_points[-1]) != self.tempo_envelope.end_level():

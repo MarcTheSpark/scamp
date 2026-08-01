@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Previously, the scheduler could move forward while the clock was winding down, leading to the transcriber
   sometimes reading the wrong beat. (The fix is implemented in clockblocks.)
 
+- **A tempo that jumps instantaneously right at beat 0 no longer places two conflicting metronome marks at
+  the same spot.**
+
 ## [0.11.0] - 2026-07-27
 
 ### Added
