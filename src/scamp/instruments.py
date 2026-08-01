@@ -450,28 +450,33 @@ class ScampInstrument(SavesToJSON):
         adjusted_pitch, adjusted_volume, adjusted_length, did_an_adjustment = \
             properties.apply_playback_adjustments(pitch, volume, length)
 
-        if did_an_adjustment:
-            # play, but don't transcribe the modified version (though only if the clock is not fast-forwarding)
-            if not clock.is_fast_forwarding():
-                clock.fork(self._do_play_note, name="DO_PLAY_NOTE",
-                           args=(adjusted_pitch, adjusted_volume, adjusted_length, properties),
-                           kwargs={"transcribe": False, "silent": silent})
-            # transcribe, but don't play the unmodified version
-            if blocking:
-                self._do_play_note(pitch, volume, length, properties, silent=True, transcribe=transcribe)
-            else:
-                clock.fork(self._do_play_note, name="DO_PLAY_NOTE",
-                           args=(pitch, volume, length, properties), kwargs={"silent": True, "transcribe": transcribe})
+        # A playback adjustment makes the heard and notated versions differ, so they play as two separate
+        # notes: an audible, adjusted one which is not transcribed, and a silent, unmodified one which is.
+        # With no adjustment the same note is both heard and notated.
+        # When fast-forwarding, playback adjustments are ignored, and the transcribed note is silent.
+        # Each forked note is described so that, if the clock that forked it ends before it's done, the resulting
+        # warning names the note rather than an internal clock.
+
+        # the adjusted note, only when we did an adjustment and aren't fast-forwarding
+        if did_an_adjustment and not clock.is_fast_forwarding():
+            playback_clock = clock.fork(
+                self._do_play_note, name="DO_PLAY_NOTE",
+                args=(adjusted_pitch, adjusted_volume, adjusted_length, properties),
+                kwargs={"transcribe": False, "silent": silent}
+            )
+            playback_clock.description = f"a playback adjustment on {self.name!r}"
+
+        # the transcribed, unmodified note, silenced when paired with an adjusted note or when fast-forwarding
+        transcribe_silent = did_an_adjustment or clock.is_fast_forwarding() or silent
+        if blocking:
+            self._do_play_note(pitch, volume, length, properties, silent=transcribe_silent, transcribe=transcribe)
         else:
-            # No adjustments, so no need to separate transcription from playback
-            # (However, if the clock is fast-forwarding, make it silent)
-            if blocking:
-                self._do_play_note(pitch, volume, length, properties,
-                                   silent=clock.is_fast_forwarding() or silent, transcribe=transcribe)
-            else:
-                clock.fork(self._do_play_note, name="DO_PLAY_NOTE",
-                           args=(pitch, volume, length, properties),
-                           kwargs={"silent": clock.is_fast_forwarding() or silent, "transcribe": transcribe})
+            transcription_clock = clock.fork(
+                self._do_play_note, name="DO_PLAY_NOTE",
+                args=(pitch, volume, length, properties),
+                kwargs={"silent": transcribe_silent, "transcribe": transcribe}
+            )
+            transcription_clock.description = f"a note on {self.name!r}"
 
     def _resolve_spelling_policies(self, properties: NoteProperties):
         """
@@ -857,7 +862,9 @@ class ScampInstrument(SavesToJSON):
                         except Exception as e:
                             raise e
 
-                clock.fork(do_animation_sequence, name="PARAM_ANIMATION_SEQUENCE({})".format(param_name))
+                animation_clock = clock.fork(do_animation_sequence,
+                                             name="PARAM_ANIMATION_SEQUENCE({})".format(param_name))
+                animation_clock.description = f"a change of {param_name!r} on {self.name!r}"
             else:
                 parameter_change_segment = _ParameterChangeSegment(
                     parameter_change_function, note_info["parameter_values"][param_name], target_value_or_values,
@@ -865,8 +872,10 @@ class ScampInstrument(SavesToJSON):
                     temporal_resolution=temporal_resolution)
                 with note_info["segments_list_lock"]:
                     segments_list.append(parameter_change_segment)
-                clock.fork(parameter_change_segment.run, name="PARAM_ANIMATION({})".format(param_name),
-                           kwargs={"silent": "silent" in note_info["flags"]})
+                animation_clock = clock.fork(parameter_change_segment.run,
+                                             name="PARAM_ANIMATION({})".format(param_name),
+                                             kwargs={"silent": "silent" in note_info["flags"]})
+                animation_clock.description = f"a change of {param_name!r} on {self.name!r}"
 
     def change_note_pitch(self, note_id: int | NoteHandle, target_value_or_values: float | Sequence[float],
                           transition_length_or_lengths: float | Sequence[float] = 0,
@@ -1163,7 +1172,8 @@ class ScampInstrument(SavesToJSON):
         clock, _ = self._resolve_clock(None, False)
         # fork on the master clock so that the re-press isn't killed if the
         # current (child) clock ends, and so that "time" is true seconds
-        clock.master.fork(_pedal_changer, name="PEDAL_CHANGE")
+        pedal_clock = clock.master.fork(_pedal_changer, name="PEDAL_CHANGE")
+        pedal_clock.description = f"a pedal change on {self.name!r}"
 
     @property
     def clef_preference(self):

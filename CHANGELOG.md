@@ -11,6 +11,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `terminate_forked_children()` is re-exported from clockblocks — the counterpart to
+  `wait_for_children_to_finish()` that ends a script's (or a forked part's) still-running forks where
+  they are. Either one answers the new warning below.
+
+### Changed
+
+- **A forked process (or script, or `with Session()` block) that ends with sub-forks still running now
+  cuts them off and warns, naming the clock or note affected.** Call `wait_for_children_to_finish()` to let them
+  play out, or `terminate_forked_children()` to end them deliberately (either silences the warning). Most
+  visibly, a `play_note(..., blocking=False)` that outlasts the function that started it is now cut short
+  instead of ringing on.
+
+### Fixed
+
+- **A note cut short by an ending clock is now consistently notated where it was actually cut off.** 
+  Previously, the scheduler could move forward while the clock was winding down, leading to the transcriber
+  sometimes reading the wrong beat. (The fix is implemented in clockblocks.)
+
 ## [0.11.0] - 2026-07-27
 
 ### Added
