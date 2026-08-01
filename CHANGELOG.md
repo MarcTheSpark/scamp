@@ -9,7 +9,7 @@ All notable user-facing changes to SCAMP are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.12.0] - 2026-08-01
 
 ### Added
 
@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   they are. Either one answers the new warning below.
 
 ### Changed
+
+- **Requires clockblocks >= 1.2.** The cut-off behavior below relies on `kill()` there now finishing a
+  clock's wind-down before it returns, so the cut lands at a deterministic beat. `terminate_forked_children` is
+  also a clockblocks 1.2 addition.
 
 - **A forked process (or script, or `with Session()` block) that ends with sub-forks still running now
   cuts them off and warns, naming the clock or note affected.** Call `wait_for_children_to_finish()` to let them
