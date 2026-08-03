@@ -56,7 +56,14 @@ piano.play_chord([61, 66], 1.0, 1.0, "b/#")
 # although it's a little weird to do so, if the pitches are out of order, spellings are mapped in the order given
 piano.play_chord([66, 61], 1.0, 1.0, "#/b")
 # if too few individual spellings are given, the last one is repeated for additional notes
-piano.play_chord([61, 66, 70, 73], 1.0, 1.0, "#/b")
+piano.play_chord([61, 66, 70, 73], 1.0, 2.0, "#/b")
+
+# chromatic scale, using sharps for all black keys then flats for all black keys
+# (# or b would cause the white keys to be spelled with double-accidentals)
+for pitch in range(60, 72):
+    piano.play_note(pitch, 1.0, 0.25, "sharps")
+for pitch in range(72, 84):
+    piano.play_note(pitch, 1.0, 0.25, "flats")
 
 performance = s.stop_transcribing()
 
