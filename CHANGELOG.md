@@ -9,6 +9,17 @@ All notable user-facing changes to SCAMP are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **A recorded tempo curve now reaches the moment you call `stop_transcribing`**, even when the recorded
+  clock is mid-wait or you stop from a different clock. Previously the extracted tempo envelope could end
+  early — at the beat the recorded clock last woke at — dropping the final stretch of tempo; recorded notes
+  past that point were left without a tempo curve.
+- **Instantaneous tempo changes no longer render as tiny accelerandi/ritardandi** in a transcribed score
+  (e.g. a looping stepwise `TempoEnvelope`). Relies on a matching fix in clockblocks.
+
 ## [0.12.0] - 2026-08-01
 
 ### Added

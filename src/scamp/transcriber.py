@@ -244,17 +244,22 @@ class Transcriber:
                 raise ValueError("Cannot stop transcribing given performance, as it was never started!")
 
         transcribed_performance, transcription_clock, transcription_start_stamp, units = transcription
-        # the transcription start is now stored as a TimeStamp; resolve it to a beat for tempo extraction
-        transcription_start_beat = transcription_start_stamp.beat_in_clock(transcription_clock)
-        if units == "beats":
-            transcribed_performance.tempo_envelope = transcription_clock.extract_absolute_tempo_envelope(
-                transcription_start_beat, tolerance=tempo_envelope_tolerance
-            )
-        elif transcription_clock.is_master():
-            # transcribing based on master time, so there can't be any tempo changes; just use a blank TempoEnvelope
-            transcribed_performance.tempo_envelope = TempoEnvelope()
-        else:
-            transcribed_performance.tempo_envelope = transcription_clock.parent.extract_absolute_tempo_envelope(
-                transcription_start_beat, tolerance=tempo_envelope_tolerance
-            )
+
+        # Hold the scheduler while snapshotting the clock chain's tempo so that resolving start beat
+        # and extracting tempo curve operate on a frozen, up-to-date scheduler. Safe from any thread,
+        # in particular an external thread while the transcription_clock is mid-wait
+        with transcription_clock.hold_scheduler():
+            # the transcription start is now stored as a TimeStamp; resolve it to a beat for tempo extraction
+            transcription_start_beat = transcription_start_stamp.beat_in_clock(transcription_clock)
+            if units == "beats":
+                transcribed_performance.tempo_envelope = transcription_clock.extract_absolute_tempo_envelope(
+                    transcription_start_beat, tolerance=tempo_envelope_tolerance
+                )
+            elif transcription_clock.is_master():
+                # transcribing based on master time, so there can't be any tempo changes; use a blank one
+                transcribed_performance.tempo_envelope = TempoEnvelope()
+            else:
+                transcribed_performance.tempo_envelope = transcription_clock.parent.extract_absolute_tempo_envelope(
+                    transcription_start_beat, tolerance=tempo_envelope_tolerance
+                )
         return transcribed_performance
