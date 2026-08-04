@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A blocking `play_note()` or `wait()` inside a keyboard/MIDI/OSC callback no longer hangs the session.**
+  Instead, it raises `SchedulerHeldError` (re-exported from clockblocks), pointing you to fork the timed
+  action so the callback returns immediately.
 - **A recorded tempo curve now reaches the moment you call `stop_transcribing`**, even when the recorded
   clock is mid-wait or you stop from a different clock. Previously the extracted tempo envelope could end
   early — at the beat the recorded clock last woke at — dropping the final stretch of tempo; recorded notes

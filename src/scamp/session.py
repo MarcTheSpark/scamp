@@ -61,8 +61,16 @@ class Session(Clock, Ensemble, Transcriber, SavesToJSON):
 
     def run_as_server(self) -> Session:
         """
-        Runs this session on a parallel thread so that it can act as a server. This is the approach that should be taken
-        if running scamp from an interactive terminal session. Simply type :code:`s = Session().run_as_server()`
+        Hands this session off to a background thread that waits forever, so the calling thread stays free.
+        This is the approach to take when driving scamp from an interactive terminal (REPL) session, where you
+        want the prompt to stay responsive: simply type :code:`s = Session().run_as_server()`.
+
+        Note the tradeoff: once handed off, the calling thread no longer owns the session's clock (its
+        ``current_clock()`` becomes ``None``), so subsequent work must be scheduled on the returned object
+        explicitly — e.g. ``s.fork(...)`` — rather than through the context-inferring module-level helpers
+        :func:`~scamp.fork` and :func:`~scamp.wait`. In a normal top-to-bottom script you don't need this at
+        all: the thread that creates the ``Session`` owns its clock, so just use ``wait``/``fork`` and, if you
+        need to keep the process alive at the end, ``s.wait_forever()``.
 
         :return: self
         """

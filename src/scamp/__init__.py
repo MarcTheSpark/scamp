@@ -25,7 +25,7 @@ from clockblocks import (
     TempoEnvelope, MetricPhaseTarget, Moment,
     DurationUnits, TempoUnits,
     ClockblocksError, ClockKilledError, DeadClockError,
-    WrongThreadError, NoActiveClockError, NotMasterClockError,
+    WrongThreadError, NoActiveClockError, NotMasterClockError, SchedulerHeldError,
     current_clock, wait, wait_until, wait_forever, wait_for_children_to_finish, terminate_forked_children, fork,
     set_tempo, set_rate, set_beat_length,
     get_tempo, get_rate, get_beat_length, get_beat, get_time,
