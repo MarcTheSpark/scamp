@@ -2,6 +2,8 @@
 SCAMP Example: Microtonal Playback and Notation
 
 Plays a few microtonal chords and notates them, turning on exact microtonal annotations.
+
+Tags: microtonality, notation, engraving settings
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

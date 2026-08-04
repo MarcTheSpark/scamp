@@ -5,6 +5,8 @@ Shows how the fourth (optional) properties argument to "play_note" can be used t
 notation, such as articulation and noteheads. All properties are ultimately converted into a NotePropertiesDictionary;
 If a string is given, it is parsed into key / value pairs. In many cases, e.g. with "staccato" below, SCAMP can infer
 that it is referring to an articulation.
+
+Tags: note properties, articulations, noteheads, voices, staff text, dynamics, playback adjustments
 """
 
 

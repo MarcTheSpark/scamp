@@ -3,6 +3,8 @@ SCAMP Example: Playback Implementations
 
 Shows how to create parts that use different implementations for playback. This assumes that you are connecting to
 a midi device on port zero.
+
+Tags: playback implementations, osc playback, midi output, silent part
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

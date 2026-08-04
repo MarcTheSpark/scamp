@@ -3,6 +3,8 @@ SCAMP Example: Random Durations and Rests
 
 Loops a C major arpeggio twice, but with random, floating-point durations.
 Also sometimes adds a rest of up to a second between notes.
+
+Tags: randomness, continuous time, rests
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

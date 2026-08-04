@@ -3,6 +3,8 @@ SCAMP Example: Blocking False
 
 Demonstrating the ability to have non-blocking calls to play_note. This plays two notes that each last
 for two beats, but overlapping by one beat.
+
+Tags: blocking=False, overlapping notes
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

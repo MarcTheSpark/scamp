@@ -3,6 +3,8 @@ SCAMP Example: Simplified Quantization
 
 Same as last example except that a restriction on the max beat divisor is
 imposed on the quantization, rendering simpler -- if somewhat less accurate -- results.
+
+Tags: quantization, quantization settings
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

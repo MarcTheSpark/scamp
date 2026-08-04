@@ -5,6 +5,8 @@ The trombone part plays quarter notes at the overall tempo of the session, which
 the default starting tempo of 60 BPM to 100 BPM. Meanwhile, the trumpet part plays eighth notes and runs in a
 child process that initially runs at the same speed as its parent (it inherits the parent's acceleration), but
 then slows down to half speed within the accelerating parent process.
+
+Tags: polytempo, fork, tempo change, Moment
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

@@ -6,6 +6,8 @@ suppress=True flag under register_keyboard_listener)
 
 Demonstration of receiving computer keyboard events and using them to play notes based on the key number. Any key
 whose number code lies within a reasonable range triggers the playback of a note of that MIDI pitch.
+
+Tags: keyboard input, live interaction
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

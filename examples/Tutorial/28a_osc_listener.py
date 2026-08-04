@@ -5,6 +5,8 @@ Sets up an osc listener using Session.register_osc_listener, which takes in OSC 
 horrific bagpipe cluster. To run this example, first run this script, and then run 28b_osc_sender.py, which sends
 messages to trigger playback. (Of course, the real value of this is that incoming OSC messages can come from anywhere
 and can therefore be used to modify an ongoing SCAMP process.)
+
+Tags: osc input, live interaction
 """
 
 

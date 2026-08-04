@@ -2,6 +2,8 @@
 SCAMP Example: Tempo Change
 
 Same as Hello World example, but at half-tempo.
+
+Tags: tempo change, basics
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

@@ -6,6 +6,8 @@ Plays a simple C Major arpeggio, and generates notation for it in three differen
     - with a 3/8 time signature for the first measure followed by 2/4
     - with alternating 3/8 and 2/4 time signatures
     - with a list of bar lengths determining time signatures
+
+Tags: time signatures, notation
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

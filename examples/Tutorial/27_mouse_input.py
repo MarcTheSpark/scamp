@@ -8,6 +8,8 @@ Demonstration of receiving computer mouse events and using them to play notes ba
 Notes are started on mouse down and released on mouse up.  Left click plays a piano note, and right click plays
 a flute note. X position controls pitch, Y controls volume. By moving the mouse after clicking, the pitch can be bent
 up and down and the volume can be changed.
+
+Tags: mouse input, live interaction
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

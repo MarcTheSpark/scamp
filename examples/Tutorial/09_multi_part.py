@@ -2,6 +2,8 @@
 SCAMP Example: Multi-Part Music
 
 Plays two coordinated but independent parallel parts, one for oboe and one for bassoon.
+
+Tags: multiple parts, fork
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

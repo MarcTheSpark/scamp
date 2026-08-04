@@ -2,6 +2,8 @@
 SCAMP Example: Generating Notation
 
 Plays a simple C Major arpeggio, and generates notation for it.
+
+Tags: notation, transcription, musicxml, lilypond, engraving settings
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
