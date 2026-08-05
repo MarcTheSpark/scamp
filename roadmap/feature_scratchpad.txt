@@ -1,0 +1,9 @@
+- multi-staff instruments, e.g. piano, where a decision function takes the note pitch, volume, duration, properties
+and assigns the note to a staff. Defaults like piano, organ, and harp, with a default decision function based on above
+or below middle-C. Can do ligeti-like splits where top staff is black keys, bottom is white. Model on scamp_extensions'
+multi_staff_instrument.py, and will supercede it
+- multi_preset instrument: similar decision function structure perhaps, or maybe more like scamp_extensions'
+multi_preset_instrument.py. At any rate, allows an instrument like violin to route to different playback implementations
+depending on pitch, volume, duration, or properties.
+- Key signature support (easy is to apply per part, harder is to apply at particular times, because we need to build the
+free floating notation timeline.
