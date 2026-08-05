@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`Performance.export_to_midi_file()` now applies playback adjustments**, so the exported MIDI reflects what
+  would be *heard* — staccato shortening notes, accents/sfz raising velocity — rather than the bare notated
+  values. Realtime playback already did this; MIDI export was the odd one out. Velocities are clamped to the
+  valid MIDI range, so an adjustment pushing volume above 1.0 caps at 127 instead of corrupting the file.
+
 ### Fixed
 
 - **Setting an instrument's `default_spelling_policy` to a string (e.g. `"E major"`) now works.** Passing a

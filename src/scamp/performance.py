@@ -750,44 +750,51 @@ class PerformancePart(SavesToJSON, _NoteFiltersMixin):
                 note_id = next(note_id_generator)
                 t = note.start_beat
 
+                # Apply playback adjustments (e.g. staccato shortening, sfz accents) so the exported MIDI renders
+                # what would be *heard*, not merely what is notated.
+                pitch, volume, length, _ = note.properties.apply_playback_adjustments(
+                    note.pitch, note.volume, note.length
+                )
+                length_sum = sum(length) if hasattr(length, "__len__") else length
+
                 cc_start_values = note.properties.get_midi_cc_start_values()
-                starting_pitch = note.pitch.start_level() if isinstance(note.pitch, Envelope) else note.pitch
+                starting_pitch = pitch.start_level() if isinstance(pitch, Envelope) else pitch
                 int_pitch = int(starting_pitch)
-                pitch_bend = "variable" if isinstance(note.pitch, Envelope) else starting_pitch - int_pitch
+                pitch_bend = "variable" if isinstance(pitch, Envelope) else starting_pitch - int_pitch
 
                 channel = mcm.assign_note_to_channel(
                     note_id, int_pitch, pitch_bend,
                     "variable" if any(isinstance(x, Envelope) for x in note.properties.get_midi_cc_params().values())
-                    or isinstance(note.volume, Envelope)
+                    or isinstance(volume, Envelope)
                     else cc_start_values
                 )
                 # Go through all of cc_start_values and send the appropriate midi messages to get it started
                 # If it's an envelope, then schedule all of the cc messages
 
-                if isinstance(note.pitch, Envelope):
-                    for i in range(int(note.length_sum() / envelope_precision)):
+                if isinstance(pitch, Envelope):
+                    for i in range(int(length_sum / envelope_precision)):
                         midi_file.addPitchWheelEvent(
                             track_num, channel, t + i * envelope_precision,
-                            int(max(-8192, min(8191, (note.pitch.value_at(
+                            int(max(-8192, min(8191, (pitch.value_at(
                                 i * envelope_precision) - int_pitch) * 8192 / pitch_bend_range)))
                         )
                 else:
                     midi_file.addPitchWheelEvent(
                         track_num, channel, t, int(max(-8192, min(8192, pitch_bend * 8192 / pitch_bend_range))))
 
-                if isinstance(note.volume, Envelope):
-                    start_volume = note.volume.max_level()
-                    for i in range(int(note.length_sum() / envelope_precision)):
+                if isinstance(volume, Envelope):
+                    start_volume = volume.max_level()
+                    for i in range(int(length_sum / envelope_precision)):
                         midi_file.addControllerEvent(
                             track_num, channel, t + i * envelope_precision, 11,
-                            int(max(0, min(127, (note.volume.value_at(i * envelope_precision) / start_volume) * 127)))
+                            int(max(0, min(127, (volume.value_at(i * envelope_precision) / start_volume) * 127)))
                         )
                 else:
-                    start_volume = note.volume
+                    start_volume = volume
 
                 for cc_num, cc_value in note.properties.get_midi_cc_params().items():
                     if isinstance(cc_value, Envelope):
-                        for i in range(int(note.length_sum() / envelope_precision)):
+                        for i in range(int(length_sum / envelope_precision)):
                             midi_file.addControllerEvent(
                                 track_num, channel, t + i * envelope_precision, cc_num,
                                 int(max(0, min(127, (cc_value.value_at(i * envelope_precision) * 127))))
@@ -798,12 +805,13 @@ class PerformancePart(SavesToJSON, _NoteFiltersMixin):
                             int(max(0, min(127, cc_value * 127)))
                         )
 
-                midi_file.addNote(track_num, channel, int_pitch, t, note.length_sum(), int(start_volume * 127))
+                midi_file.addNote(track_num, channel, int_pitch, t, length_sum,
+                                  int(max(0, min(127, start_volume * 127))))
 
                 def cutoff_note(which=note_id):
                     mcm.end_note(which)
 
-                event_cue.append((t + note.length_sum(), cutoff_note))
+                event_cue.append((t + length_sum, cutoff_note))
                 event_cue.sort(key=lambda cue_event: cue_event[0])
         while len(event_cue) > 0:
             event = event_cue.pop(0)
