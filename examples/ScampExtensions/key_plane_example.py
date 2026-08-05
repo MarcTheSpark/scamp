@@ -1,3 +1,13 @@
+"""
+SCAMP Example: Key Plane
+
+Maps the computer keyboard onto a 2D grid of pitches with scamp_extensions' KeyPlane; each key press
+starts a flute note whose pitch and volume come from its row and column.
+
+Tags: keyboard input, HID, scamp_extensions, live interaction
+"""
+
+
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 #  This file is part of SCAMP (Suite for Computer-Assisted Music in Python)                      #
 #  Copyright © 2020 Marc Evanstein <marc@marcevanstein.com>.                                     #
@@ -20,15 +30,19 @@ from scamp import *
 
 s = Session()
 
-piano = s.new_part("piano")
+flute = s.new_part("flute")
+
+notes = {}
 
 
 def callback(coordinates, press_or_release, modifiers):
     if press_or_release == "press":
         print("Press at:", coordinates, "with modifiers", modifiers)
-        piano.play_note(remap(coordinates[0], 40, 80), remap(coordinates[1], 0.3, 1), 0.25, blocking=False)
+        notes[coordinates] = flute.start_note(remap(coordinates[0], 60, 96), remap(coordinates[1], 0.3, 1))
     else:
         print("Release at:", coordinates, "with modifiers", modifiers)
+        if notes[coordinates]:
+            notes[coordinates].end()
 
 
 KeyPlane(callback, normalize_coordinates=True).start(blocking=True, suppress=True)

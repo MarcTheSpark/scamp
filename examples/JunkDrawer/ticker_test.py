@@ -1,10 +1,5 @@
 """
-SCAMP Example: Record and Export MIDI
-
-Records glissandi with microtonal pitches and playback params (fast-forwarded),
-then exports the performance as a MIDI file.
-
-Tags: midi export, fast-forward, glissando, playback params
+Scratch test of clockblocks tempo changes made from a foreign thread.
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
@@ -23,29 +18,27 @@ Tags: midi export, fast-forward, glissando, playback params
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
-import random
-from scamp import *
+from clockblocks import *
+import threading
+import time
+
+bob = Clock("master")
 
 
-random.seed(0)
-s = Session()
-s.set_rate_target(2, Moment.after_time(10))
-s.fast_forward_to_beat(float("inf"))
-clar = s.new_part("clarinet")
-piano = s.new_part("piano")
-
-performance = s.start_transcribing()
+def wakethread():
+    time.sleep(1.5)
+    ticker_clock.tempo = 10
 
 
-def piano_part():
+def ticker():
     while True:
-        piano.play_note(random.randint(40, 58), random.uniform(0.3, 0.8), 0.5, "staccato")
+        print(get_beat())
+        wait(0.1)
 
 
-fork(piano_part)
+ticker_clock = bob.fork(ticker)
+threading.Thread(target=wakethread).start()
+bob.wait(1)
+bob.wait(4)
 
-for p in [random.randint(50, 80) for _ in range(30)]:
-    clar.play_note([p, p + 1, p - 2], Envelope([0.8, 0.1, 1.0], [0.1, 1.0]), random.uniform(0.1, 2),
-                   f"param_10: {random.uniform(0, 1)}" if random.random() < 0.5 else "param_10: [0, 1]")
-
-s.stop_transcribing().export_to_midi_file("midi_export.mid")
+print("done")

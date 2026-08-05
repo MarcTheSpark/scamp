@@ -29,22 +29,22 @@ s = Session()
 piano = s.new_part("piano")
 
 
-def child(clock: Clock):
-    clock.apply_tempo_function(lambda b: 90 + 60 * math.sin(b / 5))
+def child():
+    apply_tempo_function(lambda b: 90 + 60 * math.sin(b / 5))
     global grand_child_clock
-    grand_child_clock = clock.fork(grand_child)
+    grand_child_clock = fork(grand_child)
     while True:
         wait(1)
 
 
-def grand_child(clock: Clock):
-    clock.rate = 2
+def grand_child():
+    set_rate(2)
     while True:
         piano.play_note(103, 1, 1)
         piano.play_note(103, 1, 1)
         piano.play_note(103, 1, 1)
         piano.play_note(103, 1, 1)
-        clock.rate = 1 / clock.rate
+        set_rate(1 / get_rate())
 
 
 def play_wiggle(p, transposition=0):

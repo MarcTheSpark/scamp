@@ -1,9 +1,9 @@
 """
-SCAMP Example: Ensemble without a Session
+SCAMP Example: Server session plays and renders scores.
 
-Uses a bare Ensemble for playback (no musical time), with commented-out save/load to JSON.
+Runs the session as a server, repeatedly recording short fragments and popping up a score for each.
 
-Tags: ensemble, save and load
+Tags: run_as_server, transcription, notation
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
@@ -21,35 +21,27 @@ Tags: ensemble, save and load
 #  You should have received a copy of the GNU General Public License along with this program.    #
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
+import random
+import time
+from scamp import *
 
-from scamp import Ensemble
+s = Session().run_as_server()
 
-
-def construct_ensemble():
-    global piano, flute, strings, ensemble
-    ensemble = Ensemble()
-
-    ensemble.print_default_soundfont_presets()
-
-    piano = ensemble.new_part("piano")
-    flute = ensemble.new_part("flute")
-    strings = ensemble.new_part("strings", (0, 40))
+piano = s.new_part("piano")
 
 
-def play_some_stuff():
-    while True:
-        piano.play_note(65, 0.5, 1.0)
-        flute.play_note(70, 0.5, 0.25)
-        strings.play_note([75, 73], 0.5, 1.0, blocking=True)
+def some_music():
+    for _ in range(6):
+        piano.play_note(random.randint(60, 70), 1.0, random.choice([0.5, 1.0, 1.5]))
 
 
-construct_ensemble()
+while True:
+    # wait some random length of time
+    time.sleep(random.uniform(1, 3))
+    s.start_transcribing()
+    s.fork(some_music)
+    time.sleep(8)
+    performance = s.stop_transcribing()
+    performance.to_score().show()
 
-# # ------- Use this line to save the Ensemble so that it can be reloaded -------
-# ensemble.save_to_json("SavedFiles/savedEnsemble.json")
 
-# # ------- Use this line to reloaded the Ensemble from the saved file -------
-# ensemble = Ensemble.load_from_json("SavedFiles/savedEnsemble.json")
-# piano, flute, strings = ensemble.instruments
-
-play_some_stuff()

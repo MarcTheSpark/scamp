@@ -17,8 +17,8 @@
                 "_unspecified_": [
                     {
                         "_type": "PerformanceNote",
-                        "length": 0.2217148929550934,
-                        "pitch": 78,
+                        "length": 2.5,
+                        "pitch": 97,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -28,61 +28,34 @@
                                 }
                             ]
                         },
-                        "start_beat": 0.2401030779413329,
-                        "volume": 1.0
-                    },
-                    {
-                        "_type": "PerformanceNote",
-                        "length": 0.25031846182490725,
-                        "pitch": 68,
-                        "properties": {
-                            "_type": "NoteProperties",
-                            "spelling_policies": [
-                                {
-                                    "_type": "SpellingPolicy",
-                                    "key": "C"
-                                }
+                        "start_beat": -0.3690806035033809,
+                        "volume": {
+                            "_type": "Envelope",
+                            "curve_shapes": [
+                                0,
+                                2,
+                                0,
+                                0
+                            ],
+                            "durations": [
+                                0.15,
+                                0.85,
+                                0.15,
+                                1.35
+                            ],
+                            "levels": [
+                                1.0,
+                                0.2,
+                                1.0,
+                                1.0,
+                                1.0
                             ]
-                        },
-                        "start_beat": 3.4618179708964263,
-                        "volume": 1.0
-                    },
-                    {
-                        "_type": "PerformanceNote",
-                        "length": 0.239102187833236,
-                        "pitch": 70,
-                        "properties": {
-                            "_type": "NoteProperties",
-                            "spelling_policies": [
-                                {
-                                    "_type": "SpellingPolicy",
-                                    "key": "C"
-                                }
-                            ]
-                        },
-                        "start_beat": 4.7121364327213335,
-                        "volume": 1.0
-                    },
-                    {
-                        "_type": "PerformanceNote",
-                        "length": 0.23341715987579548,
-                        "pitch": 82,
-                        "properties": {
-                            "_type": "NoteProperties",
-                            "spelling_policies": [
-                                {
-                                    "_type": "SpellingPolicy",
-                                    "key": "C"
-                                }
-                            ]
-                        },
-                        "start_beat": 7.951238620554566,
-                        "volume": 1.0
+                        }
                     },
                     {
                         "_type": "PerformanceNote",
                         "length": 2.5,
-                        "pitch": 78,
+                        "pitch": 97,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -92,7 +65,118 @@
                                 }
                             ]
                         },
-                        "start_beat": 10.184655780430365,
+                        "start_beat": 2.630919396496619,
+                        "volume": {
+                            "_type": "Envelope",
+                            "curve_shapes": [
+                                0,
+                                2,
+                                0,
+                                0
+                            ],
+                            "durations": [
+                                0.15,
+                                0.85,
+                                0.15,
+                                1.35
+                            ],
+                            "levels": [
+                                1.0,
+                                0.2,
+                                1.0,
+                                1.0,
+                                1.0
+                            ]
+                        }
+                    },
+                    {
+                        "_type": "PerformanceNote",
+                        "length": 2.5,
+                        "pitch": 90,
+                        "properties": {
+                            "_type": "NoteProperties",
+                            "spelling_policies": [
+                                {
+                                    "_type": "SpellingPolicy",
+                                    "key": "C"
+                                }
+                            ]
+                        },
+                        "start_beat": 5.6309193964966155,
+                        "volume": {
+                            "_type": "Envelope",
+                            "curve_shapes": [
+                                0,
+                                2,
+                                0,
+                                0
+                            ],
+                            "durations": [
+                                0.15,
+                                0.85,
+                                0.15,
+                                1.35
+                            ],
+                            "levels": [
+                                1.0,
+                                0.2,
+                                1.0,
+                                1.0,
+                                1.0
+                            ]
+                        }
+                    },
+                    {
+                        "_type": "PerformanceNote",
+                        "length": 2.5,
+                        "pitch": 99,
+                        "properties": {
+                            "_type": "NoteProperties",
+                            "spelling_policies": [
+                                {
+                                    "_type": "SpellingPolicy",
+                                    "key": "C"
+                                }
+                            ]
+                        },
+                        "start_beat": 8.630919396496612,
+                        "volume": {
+                            "_type": "Envelope",
+                            "curve_shapes": [
+                                0,
+                                2,
+                                0,
+                                0
+                            ],
+                            "durations": [
+                                0.15,
+                                0.85,
+                                0.15,
+                                1.35
+                            ],
+                            "levels": [
+                                1.0,
+                                0.2,
+                                1.0,
+                                1.0,
+                                1.0
+                            ]
+                        }
+                    },
+                    {
+                        "_type": "PerformanceNote",
+                        "length": 2.5,
+                        "pitch": 87,
+                        "properties": {
+                            "_type": "NoteProperties",
+                            "spelling_policies": [
+                                {
+                                    "_type": "SpellingPolicy",
+                                    "key": "C"
+                                }
+                            ]
+                        },
+                        "start_beat": 12.130919396496612,
                         "volume": {
                             "_type": "Envelope",
                             "curve_shapes": [
@@ -135,7 +219,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 96.58416735778071,
+                        "pitch": 91.01241344546087,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -151,7 +235,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 96.44440013613445,
+                        "pitch": 92.4401128728323,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -167,7 +251,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 92.46574493798606,
+                        "pitch": 96.44451155040517,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -183,7 +267,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 94.21018117031866,
+                        "pitch": 96.28868802348772,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -199,7 +283,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 91.73218529397712,
+                        "pitch": 93.94631250046653,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -215,7 +299,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 94.74754334616604,
+                        "pitch": 90.5143503901126,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -231,7 +315,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 96.64997398371023,
+                        "pitch": 95.2580492033918,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -247,7 +331,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 94.25934041907315,
+                        "pitch": 95.89556521313492,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -263,7 +347,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 92.86198176615059,
+                        "pitch": 91.56656759923442,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -279,7 +363,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 90.74962708708264,
+                        "pitch": 95.32251788067084,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -295,7 +379,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 95.80080237414774,
+                        "pitch": 91.57542602404,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -311,7 +395,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 93.25291764531751,
+                        "pitch": 91.06108014504484,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -327,7 +411,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 90.31947959609465,
+                        "pitch": 92.67869323079947,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -343,7 +427,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 91.93401691448739,
+                        "pitch": 92.16156576292144,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -359,7 +443,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 90.35785124326611,
+                        "pitch": 90.11167650004359,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -375,7 +459,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 94.78523790970833,
+                        "pitch": 92.87868911557058,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -391,7 +475,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 93.10846279721103,
+                        "pitch": 92.5518079937662,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -407,7 +491,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 91.95165595122386,
+                        "pitch": 93.2760626914247,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -423,7 +507,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 94.68016820839777,
+                        "pitch": 90.46636246813168,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -439,7 +523,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 89.89612751244172,
+                        "pitch": 91.57484679228067,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -455,7 +539,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 93.11079063500623,
+                        "pitch": 94.03132912231813,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -471,7 +555,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 91.423389635647,
+                        "pitch": 95.31757192716182,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -487,7 +571,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 89.88044593396857,
+                        "pitch": 91.79620905317219,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -503,7 +587,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 88.7346130229835,
+                        "pitch": 88.48766358362462,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -519,7 +603,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 88.1562599676107,
+                        "pitch": 90.03427727031567,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -535,7 +619,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 91.12970726659249,
+                        "pitch": 93.14728165635105,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -551,7 +635,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 90.8953139215912,
+                        "pitch": 89.18943702701486,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -567,7 +651,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 93.380311185017,
+                        "pitch": 93.01201056602892,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -583,7 +667,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 93.85095281309077,
+                        "pitch": 91.28740994668154,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -599,7 +683,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 93.66612328397291,
+                        "pitch": 91.17782325379203,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -615,7 +699,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 87.31875461281696,
+                        "pitch": 87.93640366124097,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -631,7 +715,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 87.04235285715227,
+                        "pitch": 86.94967997700412,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -647,7 +731,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 91.34117490527011,
+                        "pitch": 90.39234569524477,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -663,7 +747,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 88.18927341494015,
+                        "pitch": 86.57747928284071,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -679,7 +763,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 86.03083714974306,
+                        "pitch": 91.02117684248039,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -695,7 +779,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 85.58807632297356,
+                        "pitch": 92.3226364183741,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -711,7 +795,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 90.86368099981443,
+                        "pitch": 87.34107376482248,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -727,7 +811,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 86.59855885687442,
+                        "pitch": 86.04507312571685,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -743,7 +827,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 87.47849193069541,
+                        "pitch": 85.3458680450085,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -759,7 +843,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 89.00080725004725,
+                        "pitch": 89.97290899939513,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -775,7 +859,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 84.37974266592433,
+                        "pitch": 88.75500553800997,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -791,7 +875,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 84.39470182143522,
+                        "pitch": 83.73715385571685,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -807,7 +891,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 89.15498236966377,
+                        "pitch": 86.06406506662375,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -823,7 +907,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 83.50780152797144,
+                        "pitch": 83.11270810346865,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -839,7 +923,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 87.33710127275127,
+                        "pitch": 88.37253720741987,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -855,7 +939,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 87.21479592929927,
+                        "pitch": 86.91237245814665,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -871,7 +955,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 82.56701800377411,
+                        "pitch": 82.37896815744705,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -887,7 +971,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 84.97939513899354,
+                        "pitch": 85.99065525989654,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -903,7 +987,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 84.12555899611164,
+                        "pitch": 87.01738841664691,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -919,7 +1003,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 81.34464233068648,
+                        "pitch": 81.67416084094498,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -935,7 +1019,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 83.06079506524357,
+                        "pitch": 81.76830123474151,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -951,7 +1035,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 80.91452750658115,
+                        "pitch": 86.52483288993734,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -967,7 +1051,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 82.46063157805219,
+                        "pitch": 85.76434762302978,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -983,7 +1067,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 85.10768848577133,
+                        "pitch": 81.3088726079899,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -999,7 +1083,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 82.3533855355586,
+                        "pitch": 82.4449643492829,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -1015,7 +1099,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 80.41132593615991,
+                        "pitch": 83.2212062707801,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -1031,7 +1115,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 81.32355368083508,
+                        "pitch": 81.53704067348464,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -1047,7 +1131,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 84.94871244061395,
+                        "pitch": 82.28392670433574,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -1063,7 +1147,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 79.27457124587426,
+                        "pitch": 79.07489459804026,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [
@@ -1079,7 +1163,7 @@
                     {
                         "_type": "PerformanceNote",
                         "length": 0.25,
-                        "pitch": 83.44828289831034,
+                        "pitch": 83.91739113495176,
                         "properties": {
                             "_type": "NoteProperties",
                             "spelling_policies": [

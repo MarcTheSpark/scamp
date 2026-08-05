@@ -1,3 +1,13 @@
+"""
+SCAMP Example: L-System
+
+Example usage of the from :class:`~scamp_extensions.process.l_system.LSystem` class, which allows you to set a
+vocabulary of symbols, set their rewrite rules and meanings, and evolve and play the resulting L-System.
+
+Tags: l systems, algorithmic composition, scamp_extensions, rhythm, percussion
+"""
+
+
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 #  This file is part of SCAMP (Suite for Computer-Assisted Music in Python)                      #
 #  Copyright © 2020 Marc Evanstein <marc@marcevanstein.com>.                                     #

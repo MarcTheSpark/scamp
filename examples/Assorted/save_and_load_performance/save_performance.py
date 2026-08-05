@@ -63,6 +63,6 @@ s.wait(15)
 performance = s.stop_transcribing()
 print("Stopped transcribing. Saving transcription.")
 
-performance.save_to_json("SavedFiles/perfShakoboe.json")
+performance.save_to_json("perfShakoboe.json")
 
 s.wait_forever()

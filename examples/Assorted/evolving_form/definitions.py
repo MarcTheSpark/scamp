@@ -1,7 +1,7 @@
 """
 SCAMP Example: Scamp Cooking: Definitions
 
-Shared dynamics envelopes and bar-line helpers for ScampCooking.py.
+Shared dynamics envelopes and bar-line helpers for evolving_form.py.
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

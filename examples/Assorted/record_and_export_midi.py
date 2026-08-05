@@ -1,5 +1,10 @@
 """
-Scratch test of clockblocks tempo changes made from a foreign thread.
+SCAMP Example: Record and Export MIDI
+
+Records glissandi with microtonal pitches and playback params (fast-forwarded),
+then exports the performance as a MIDI file.
+
+Tags: midi export, fast-forward, glissando, playback params
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
@@ -18,27 +23,33 @@ Scratch test of clockblocks tempo changes made from a foreign thread.
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
-from clockblocks import Clock
-import threading
-import time
-
-bob = Clock("master")
+import random
+from scamp import *
 
 
-def wakethread():
-    time.sleep(1.5)
-    ticker_clock.tempo = 10
+random.seed(0)
+
+s = Session()
+s.set_rate_target(2, Moment.after_time(10))
+
+# s.fast_forward()
+
+clar = s.new_part("clarinet")
+piano = s.new_part("piano")
+
+performance = s.start_transcribing()
 
 
-def ticker(clock):
+def piano_part():
     while True:
-        print(clock.beat)
-        clock.wait(0.1)
+        piano.play_note(random.randint(40, 58), random.uniform(0.3, 0.8), 0.5, "staccato")
 
 
-ticker_clock = bob.fork(ticker)
-threading.Thread(target=wakethread).start()
-bob.wait(1)
-bob.wait(4)
+piano_clock = fork(piano_part)
 
-print("done")
+for p in [random.randint(50, 80) for _ in range(30)]:
+    clar.play_note([p, p + 1, p - 2], Envelope([0.8, 0.1, 1.0], [0.1, 1.0]), random.uniform(0.1, 2),
+                   f"param_10: {random.uniform(0, 1)}" if random.random() < 0.5 else "param_10: [0, 1]")
+
+piano_clock.kill()
+s.stop_transcribing().export_to_midi_file("midi_export.mid")

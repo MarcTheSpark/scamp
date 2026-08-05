@@ -36,14 +36,16 @@ INDEX_PATH = EXAMPLES_DIR / "INDEX.md"
 # Folders in presentation order, each with a one-line blurb for its section heading.
 FOLDERS = {
     "Tutorial": "The curated, progressively-ordered teaching set. Prefer these for canonical, minimal usage.",
-    "AssortedHaphazard": "A grab bag of real and experimental scripts showing idiomatic patterns at larger scale "
-                         "(includes `OldTutorialExamples/` and `osc/`).",
-    "Demos": "Self-contained demos, some spanning several files or connecting to external software "
-             "(Max, Pianoteq, SuperCollider).",
-    "marc": "The composer's large interactive pieces -- long, but real.",
-    "Reconstructions": "Recreations of existing works.",
-    "LowQuality": "Uncurated scratch scripts, kept for reference only. Not indexed by feature.",
+    "Assorted": "A grab bag of real and experimental scripts showing idiomatic patterns at larger scale, "
+                "some spanning several files or connecting to external software (Max, SuperCollider).",
+    "ScampExtensions": "Examples exercising the optional `scamp_extensions` package "
+                       "(scales, pitch-class sets, rhythm, interaction helpers).",
+    "Compositions": "Full pieces and reconstructions of existing works -- long, but real.",
+    "JunkDrawer": "Uncurated scratch scripts, kept for reference only. Not indexed by feature.",
 }
+
+# Folder whose scripts are listed but left out of the feature table and API scan.
+UNINDEXED = "JunkDrawer"
 
 DOCSTRING_RE = re.compile(r'"""(.*?)"""', re.DOTALL)
 
@@ -132,9 +134,9 @@ def main():
             if summary is None:
                 print(f"WARNING: {rel} has no docstring; skipping", file=sys.stderr)
                 continue
-            api = scan_api(path, callables, classes) if folder != "LowQuality" else []
+            api = scan_api(path, callables, classes) if folder != UNINDEXED else []
             entries[folder].append((rel, summary, tags, api))
-            if folder != "LowQuality":
+            if folder != UNINDEXED:
                 for tag in tags:
                     tag_map.setdefault(tag, []).append(rel)
 

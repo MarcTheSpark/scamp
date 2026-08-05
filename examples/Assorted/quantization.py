@@ -1,9 +1,9 @@
 """
-SCAMP Example: Qt Interactive
+SCAMP Example: Quantization Comparison
 
-A draggable PyQt rectangle controls the pitch and speed of live playback in a server session.
+Records a loose piano improvisation against a metronome, then plays back the quantized version.
 
-Tags: gui, run_as_server, live interaction
+Tags: quantization, transcription, randomness
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
@@ -23,44 +23,51 @@ Tags: gui, run_as_server, live interaction
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
 from scamp import *
-
-from PyQt5 import QtCore, QtWidgets
-
-
-class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, parent=None):
-        super(MainWindow, self).__init__(parent)
-        scene = QtWidgets.QGraphicsScene(self)
-        view = QtWidgets.QGraphicsView(scene)
-        # view.setSceneRect(QtCore.QRectF(0, 0, 500, 500))
-        scene.setSceneRect(QtCore.QRectF(0, 0, 800, 800))
-
-        self.setCentralWidget(view)
-
-        self.rect_item = QtWidgets.QGraphicsRectItem(QtCore.QRectF(0, 0, 100, 100))
-        self.rect_item.setFlag(QtWidgets.QGraphicsItem.ItemIsMovable, True)
-        scene.addItem(self.rect_item)
+import random
 
 
-if __name__ == '__main__':
-    import sys
-    app = QtWidgets.QApplication(sys.argv)
-    w = MainWindow()
-    w.setFixedSize(QtCore.QSize(800, 800))
-    w.show()
+s = Session()
 
-    s = Session().run_as_server()
-    piano = s.new_part("piano")
-    s.start_transcribing()
+drum = s.new_part("metronome", (0, 116))
+piano = s.new_part("piano")
 
-    speed_response = Envelope([2, 0.1], [800], [-5])
+s.start_transcribing()
 
-    def play_notes():
-        while True:
-            piano.play_note((1-w.rect_item.y()/800) * 40 + 60, 1.0, speed_response.value_at(w.rect_item.x()))
 
-    s.fork(play_notes)
+recording = True
 
-    app.exec_()
+random.seed(4)
 
-    s.stop_transcribing().to_score().show()
+
+def piano_part():
+    while recording:
+        if random.random() < 0.5:
+            piano.play_note(50 + random.random()*20, 0.5, random.random() * 1.5)
+        else:
+            piano.play_chord([50 + random.random()*20, 50 + random.random()*20], 0.5, random.random() * 1.5)
+
+
+s.fork(piano_part)
+
+print("Making Recording...", end="")
+for _ in range(8):
+    drum.play_note(80, 1, 1)
+
+recording = False
+performance = s.stop_transcribing()
+quantized_performance = performance.quantized(
+    QuantizationScheme([
+        MeasureQuantizationScheme.from_time_signature("4/4", max_divisor=5, max_divisor_indigestibility=3)
+    ])
+)
+
+print("Done")
+
+while True:
+    print("Replaying recording with quantization")
+    wait(1)
+    quantized_performance.play()
+
+    print("Replaying recording without quantization")
+    wait(1)
+    performance.play()

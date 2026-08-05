@@ -28,7 +28,7 @@ def check_chord_tone(interval_with_bass):
 def move_upper_parts(old_bass_note, new_bass_note):
     bass_motion = new_bass_note - old_bass_note
     bass_motion_mod = bass_motion % 7
-    print(bass_motion, bass_motion_mod)
+
     if bass_motion_mod == 0:
         return
     elif bass_motion_mod in [1, 6]:

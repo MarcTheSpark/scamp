@@ -19,6 +19,7 @@ from scamp_extensions.pitch import Scale, ScaleType
 from fractions import Fraction
 
 s = Session()
+
 clarinet = s.new_part("clarinet")
 
 scales = {
@@ -31,14 +32,14 @@ scales = {
     "D Acoustic": Scale.melodic_minor(50, modal_shift=3),  # the "acoustic" scale is a mode of the melodic minor
     "Microtonal example 2:": Scale.from_start_pitch_and_cent_or_ratio_intervals(
         55, ["200.", "5/4", "200., 5/4", "3/2", "7/4", "2"]),
-    "Bohlen Pierce from Scala File": Scale.from_scala_file("data/bohlen_12.scl", 48)
+    "Bohlen Pierce from Scala File": Scale.from_scala_file("bohlen_12.scl", 48)
 }
 
 for scale_name, scale in scales.items():
     print("Playing notes of the {} scale.".format(scale_name))
     for scale_degree in range(0, 16):
-        clarinet.play_note(scale.degree_to_pitch(scale_degree), 1.0, 0.25)
+        clarinet.play_note(scale[scale_degree], 1.0, 0.25)
 
     print("Playing chords from the {} scale.".format(scale_name))
     for scale_degree in range(0, 16):
-        clarinet.play_chord([scale.degree_to_pitch(x) for x in range(scale_degree, scale_degree + 5, 2)], 1.0, 0.25)
+        clarinet.play_chord(scale[list(range(scale_degree, scale_degree + 5, 2))], 1.0, 0.25)

@@ -1,7 +1,7 @@
 """
 SCAMP Example: Scamp Cooking: Formal Parameters
 
-Formal-parameter envelopes for ScampCooking.py; run directly to plot them.
+Formal-parameter envelopes for evolving_form.py; run directly to plot them.
 
 Tags: envelopes, plotting
 """

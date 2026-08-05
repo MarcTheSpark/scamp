@@ -30,10 +30,15 @@ s = Session()
 shaku = s.new_part("shakuhachi")
 oboe = s.new_part("oboe")
 
-recorded_performance = Performance.load_from_json("SavedFiles/perfShakoboe.json")
+recorded_performance = Performance.load_from_json("perfShakoboe.json")
 
-s.tempo = 30
-s.set_tempo_target(150, Moment.after_time(40))
+s.tempo = 60
+s.set_tempo_target(300, Moment.after_time(40))
 
 while True:
+    print("(Re)starting performance.")
+    # by default, the performance plays on the currently active clock, forking all parts according to
+    # the tempo envelope at recording time. So the acceleration inside the recording is compounded with
+    # the gradual session-wide acceleration here.
+    # also, by default, we use the currently active session for the instruments.
     recorded_performance.play()
