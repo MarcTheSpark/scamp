@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Setting an instrument's `default_spelling_policy` to a string (e.g. `"E major"`) now works.** Passing a
+  string to `new_part(default_spelling_policy=...)`, or assigning one after the fact, previously stored the raw
+  string instead of a `SpellingPolicy`, breaking spelling at transcription time; strings and alteration tuples
+  are now interpreted the same way the `Ensemble`-level default already was.
 - **Reloading a saved `Performance` that carried a non-trivial recorded tempo curve no longer plays back at
   the wrong tempo (or appears to hang).** The `TempoEnvelope` JSON round-trip was inverting the curve; relies
   on a matching fix in clockblocks. Note that saved-performance JSON now stores tempo-curve levels as tempo

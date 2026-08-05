@@ -111,7 +111,7 @@ class Ensemble(SavesToJSON):
         inst.name_count = 0
         return inst
 
-    def new_silent_part(self, name: str = None, default_spelling_policy: SpellingPolicy = None,
+    def new_silent_part(self, name: str = None, default_spelling_policy: SpellingPolicy | str | tuple = None,
                         clef_preference="from_name") -> ScampInstrument:
         """
         Creates and returns a new ScampInstrument for this Ensemble with no PlaybackImplementations.
@@ -142,7 +142,7 @@ class Ensemble(SavesToJSON):
 
     def new_part(self, name: str = None, preset="auto", soundfont: str = "default", num_channels: int = 8,
                  audio_driver: str = "default", max_pitch_bend: int = "default",
-                 note_on_and_off_only: bool = False, default_spelling_policy: SpellingPolicy = None,
+                 note_on_and_off_only: bool = False, default_spelling_policy: SpellingPolicy | str | tuple = None,
                  clef_preference="from_name", volume_cc_num: int = 11) -> ScampInstrument:
         """
         Creates and returns a new ScampInstrument for this Ensemble that uses a SoundfontPlaybackImplementation. Unless
@@ -191,7 +191,7 @@ class Ensemble(SavesToJSON):
 
     def new_midi_part(self, name: str = None, midi_output_device: int | str = None,
                       num_channels: int = 8, midi_output_name: str = None, max_pitch_bend: int = "default",
-                      note_on_and_off_only: bool = False, default_spelling_policy: SpellingPolicy = None,
+                      note_on_and_off_only: bool = False, default_spelling_policy: SpellingPolicy | str | tuple = None,
                       clef_preference="from_name", start_channel: int = 0,
                       volume_cc_num: int = 11) -> ScampInstrument:
         """
@@ -234,7 +234,7 @@ class Ensemble(SavesToJSON):
 
     def new_osc_part(self, name: str = None, port: int = None, ip_address: str = "127.0.0.1",
                      message_prefix: str = None, osc_message_addresses: dict = "default",
-                     default_spelling_policy: SpellingPolicy = None, clef_preference="from_name") -> ScampInstrument:
+                     default_spelling_policy: SpellingPolicy | str | tuple = None, clef_preference="from_name") -> ScampInstrument:
         """
         Creates and returns a new ScampInstrument for this Ensemble that uses a OSCPlaybackImplementation. This means
         that when notes are played by this instrument, osc messages are sent out to the specified address
@@ -357,7 +357,8 @@ class ScampInstrument(SavesToJSON):
     _note_id_generator = itertools.count()
     _change_param_call_counter = itertools.count()
 
-    def __init__(self, name: str = None, ensemble: Ensemble = None, default_spelling_policy: SpellingPolicy = None,
+    def __init__(self, name: str = None, ensemble: Ensemble = None,
+                 default_spelling_policy: SpellingPolicy | str | tuple = None,
                  clef_preference="from_name", playback_implementations: Sequence[PlaybackImplementation] = None):
         super().__init__()
         self.name = "" if name is None else name
@@ -371,7 +372,7 @@ class ScampInstrument(SavesToJSON):
 
         # A policy for spelling notes used as the default for this instrument. Overrides any broader defaults.
         # (Has a getter and setter method allowing constructor strings to be passed.)
-        self._default_spelling_policy = default_spelling_policy
+        self.default_spelling_policy = default_spelling_policy
 
         # this lock stops multiple threads from simultaneously accessing the self._note_info_by_id
         self._note_info_lock = Lock()
@@ -1239,20 +1240,15 @@ class ScampInstrument(SavesToJSON):
     @property
     def default_spelling_policy(self):
         """
-        The default spelling policy for notes played back by this instrument. (Can be set with either a
-        :class:`~scamp.spelling.SpellingPolicy` or a string, which is passed to
-        :func:`~scamp.spelling.SpellingPolicy.from_string`)
+        The default spelling policy for notes played back by this instrument. (Can be set with a
+        :class:`~scamp.spelling.SpellingPolicy`, or a string or tuple interpretable as such via
+        :func:`~scamp.spelling.SpellingPolicy.interpret`)
         """
         return self._default_spelling_policy
 
     @default_spelling_policy.setter
-    def default_spelling_policy(self, value: SpellingPolicy | str):
-        if value is None or isinstance(value, SpellingPolicy):
-            self._default_spelling_policy = value
-        elif isinstance(value, str):
-            self._default_spelling_policy = SpellingPolicy.from_string(value)
-        else:
-            raise ValueError("Spelling policy not understood.")
+    def default_spelling_policy(self, value: SpellingPolicy | str | tuple):
+        self._default_spelling_policy = SpellingPolicy.interpret(value) if value is not None else None
 
     """
     --------------------------------------------- To / from JSON -------------------------------------------------
