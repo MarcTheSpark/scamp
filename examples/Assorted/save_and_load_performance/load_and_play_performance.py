@@ -1,9 +1,10 @@
 """
-SCAMP Example: Save a Performance
+SCAMP Example: Load and Play a Performance
 
-Saves an Ensemble and a recorded Performance to JSON, for the load_and_play_performance example.
+Loads the Ensemble and Performance saved by save_performance.py and plays the
+performance back under a gradually accelerating tempo.
 
-Tags: save and load, transcription
+Tags: save and load, performance playback, tempo change
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
@@ -23,49 +24,16 @@ Tags: save and load, transcription
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
 from scamp import *
-import random
-import math
 
+s = Session()
 
-session = Session()
+shaku = s.new_part("shakuhachi")
+oboe = s.new_part("oboe")
 
-shaku = session.new_part("shakuhachi")
-oboe = session.new_part("oboe")
+recorded_performance = Performance.load_from_json("SavedFiles/perfShakoboe.json")
 
-session.save_to_json("SavedFiles/shakEnsemble.json")
+s.tempo = 30
+s.set_tempo_target(150, Moment.after_time(40))
 
-
-def oboe_part(clock):
-    while True:
-        oboe.play_note(75 + random.random() * 7 + 15 * math.sin(clock.beat / 10), 0.4, 0.25)
-
-
-def shaku_part(clock):
-    assert isinstance(clock, Clock)
-    pentatonic = [0, 2, 4, 7, 9]
-    while True:
-        if random.random() < 0.5:
-            shaku.play_note(66 + random.choice(pentatonic) + 12*random.randint(0, 2),
-                            Envelope([1.0, 0.2, 1.0, 1.0], [0.15, 0.85, 0.15], [0, 2, 0]),
-                            2.5, blocking=True)
-            clock.wait(0.5 + random.choice([0, 0.5]))
-        else:
-            shaku.play_note(66 + random.choice(pentatonic) + 12*random.randint(0, 2), 1.0, 0.2*(1+random.random()*0.3))
-            clock.wait(random.choice([1, 2, 3]))
-
-
-session.fork(oboe_part)
-session.fork(shaku_part)
-
-session.set_tempo_target(300, Moment.after_time(30))
-
-session.wait(15)
-session.start_transcribing()
-print("Starting transcription...")
-session.wait(15)
-performance = session.stop_transcribing()
-print("Finished. Saving transcription.")
-
-performance.save_to_json("SavedFiles/perfShakoboe.json")
-
-session.wait_forever()
+while True:
+    recorded_performance.play()

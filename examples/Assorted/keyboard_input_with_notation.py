@@ -6,6 +6,7 @@ suppress=True flag under register_keyboard_listener)
 
 Demonstration of receiving computer keyboard events and using them to play notes based on the key number.
 Any key whose number code lies within a reasonable range triggers the playback of a note of that MIDI pitch.
+Escape
 
 Tags: keyboard input, start_note, live interaction, notation
 """
@@ -44,7 +45,6 @@ def key_down(name, number):
 
 
 def key_up(name, number):
-    print(number)
     if number == 27:
         s.kill()
 
@@ -62,7 +62,13 @@ fork(metro)
 
 # note: suppress=True causes keyboard events to be consumed by this script, effectively disabling the keyboard
 s.register_keyboard_listener(on_press=key_down, on_release=key_up, suppress=True)
-try:
-    s.wait_forever()
-except ClockKilledError:
-    s.stop_transcribing().to_score().show()
+
+with s:
+    # the context manager captures clock (session) kill gracefully, but we also need to
+    # catch a KeyboardInterrupt if we want to build the score on ctrl-C
+    try:
+        wait_forever()
+    except KeyboardInterrupt:
+        pass
+
+s.stop_transcribing().to_score().show()

@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Reloading a saved `Performance` that carried a non-trivial recorded tempo curve no longer plays back at
+  the wrong tempo (or appears to hang).** The `TempoEnvelope` JSON round-trip was inverting the curve; relies
+  on a matching fix in clockblocks. Note that saved-performance JSON now stores tempo-curve levels as tempo
+  (bpm) rather than beat length — files written by older versions should be re-saved to migrate.
 - **A blocking `play_note()` or `wait()` inside a keyboard/MIDI/OSC callback no longer hangs the session.**
   Instead, it raises `SchedulerHeldError` (re-exported from clockblocks), pointing you to fork the timed
   action so the callback returns immediately.
