@@ -35,12 +35,12 @@ INDEX_PATH = EXAMPLES_DIR / "INDEX.md"
 
 # Folders in presentation order, each with a one-line blurb for its section heading.
 FOLDERS = {
-    "Tutorial": "The curated, progressively-ordered teaching set. Prefer these for canonical, minimal usage.",
-    "Assorted": "A grab bag of real and experimental scripts showing idiomatic patterns at larger scale, "
-                "some spanning several files or connecting to external software (Max, SuperCollider).",
+    "Tutorial": "A curated, teaching set introducing the key features of SCAMP.",
+    "Assorted": "A grab bag of scripts showing idiomatic patterns, and methods of connecting SCAMP with "
+                "other frameworks and software (MIDI input/output, PyQt, Max, SuperCollider).",
     "ScampExtensions": "Examples exercising the optional `scamp_extensions` package "
-                       "(scales, pitch-class sets, rhythm, interaction helpers).",
-    "Compositions": "Full pieces and reconstructions of existing works -- long, but real.",
+                       "(scales, playback utilities, algorithmic power tools).",
+    "Compositions": "Full pieces and reconstructions of existing works.",
     "JunkDrawer": "Uncurated scratch scripts, kept for reference only. Not indexed by feature.",
 }
 

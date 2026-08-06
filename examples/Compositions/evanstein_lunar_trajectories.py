@@ -1,4 +1,6 @@
 """
+SCAMP Example: Lunar Trajectories
+
 Interactive piano script for the first movement of "Lunar Trajectories".
 The `notes` list below is a list of all the notes played by the middle arpeggio part in the first movement
 of the Moonlight Sonata, in order. If a pitch is in that list, then when it is depressed, the piano reacts

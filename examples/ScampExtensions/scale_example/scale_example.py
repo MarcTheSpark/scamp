@@ -1,3 +1,14 @@
+"""
+SCAMP Example: Scales
+
+Demo of the scamp_extensions Scale object, a highly flexible representation of a scale that can be indexed into
+infinitely in both directions from a root note. Scales can be microtonal (and even loaded from a scala file), and are
+constructed from intervals that can be expressed as either a frequency ratio, a distance in cents, or a combination
+of the two. Scales can also be transposed and modally rotated.
+
+Tags: scamp_extensions, scale, harmony, pitch, key
+"""
+
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 #  This file is part of SCAMP (Suite for Computer-Assisted Music in Python)                      #
 #  Copyright © 2020 Marc Evanstein <marc@marcevanstein.com>.                                     #
@@ -18,7 +29,7 @@ from scamp import *
 from scamp_extensions.pitch import Scale, ScaleType
 from fractions import Fraction
 
-s = Session()
+s = Session(tempo=100)
 
 clarinet = s.new_part("clarinet")
 
@@ -30,10 +41,13 @@ scales = {
     "C half-whole Octatonic": Scale.octatonic(48, whole_step_first=False),  # different means of construction
     "C Melodic Minor": Scale.melodic_minor(48),
     "D Acoustic": Scale.melodic_minor(50, modal_shift=3),  # the "acoustic" scale is a mode of the melodic minor
+    "Overtone Series": Scale(ScaleType(*(Fraction(n, 1) for n in range(2, 32))), 40, cycle=False),
     "Microtonal example 2:": Scale.from_start_pitch_and_cent_or_ratio_intervals(
         55, ["200.", "5/4", "200., 5/4", "3/2", "7/4", "2"]),
     "Bohlen Pierce from Scala File": Scale.from_scala_file("bohlen_12.scl", 48)
 }
+
+scales["Bohlen Pierce Transposed"] = scales["Bohlen Pierce from Scala File"].transposed(7)
 
 for scale_name, scale in scales.items():
     print("Playing notes of the {} scale.".format(scale_name))

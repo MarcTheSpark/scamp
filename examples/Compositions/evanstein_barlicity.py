@@ -2,9 +2,11 @@
 SCAMP Example: Barlicity
 
 A large interactive piece built on harmonicity and indispensability (barlicity extension),
-with multidimensional-scaling visualization in Qt.
+with multidimensional-scaling visualization in Qt. This was the initial script for the piece,
+which ultimately became the notated work for piano and electronics that you can view here:
+https://www.youtube.com/watch?v=xMpET9KKOrw
 
-Tags: algorithmic composition, scamp_extensions, gui, visualization, indispensability, barlow
+Tags: algorithmic composition, scamp_extensions, gui integration, visualization, indispensability, barlow
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

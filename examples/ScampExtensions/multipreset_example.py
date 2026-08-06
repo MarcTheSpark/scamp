@@ -1,3 +1,12 @@
+"""
+SCAMP Example: MultiPresetInstrument
+
+Demo of the MultiPresetInstrument, a convenience meta-instrument for subsuming several different playing techniques
+and their associated notations under a single instrument interface.
+
+Tags: presets, playback implementations, scamp_extensions, notation
+"""
+
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 #  This file is part of SCAMP (Suite for Computer-Assisted Music in Python)                      #
 #  Copyright © 2020 Marc Evanstein <marc@marcevanstein.com>.                                     #
