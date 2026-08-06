@@ -37,9 +37,10 @@ and check out the "tutorial" examples found `here <https://github.com/MarcTheSpa
    narrative/experienced_setup
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Learning Resources:
 
+   examples/index
    narrative/kadenze
    narrative/tutorial_videos
    narrative/note_properties

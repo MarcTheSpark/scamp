@@ -5,10 +5,11 @@ build
 dist
 *.egg-info
 *__pycache__
-docs/build
+docs_build
 docs/build_text
 docs/make.bat
 docs/Makefile
+docs/examples
 docs/scamp.rst
 docs/clockblocks.rst
 docs/expenvelope.rst

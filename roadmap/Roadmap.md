@@ -101,7 +101,7 @@ Key design points:
   deliberately left uncommitted here (2026-07-19) pending the move. Fetchability
   via GitHub Pages or raw-content links, linked from scamp's README/docs.
 - **Docs tooling is workspace-scoped, not scamp-scoped** — the docs cover all five
-  packages and deploy from the root (`uploadDocs.sh` rsyncs `scamp/docs/build` to
+  packages and deploy from the root (`uploadDocs.sh` rsyncs `scamp/docs_build` to
   scamp.marcevanstein.com).
 
 Open questions: public vs. private (public is needed for tutor fetching, but
