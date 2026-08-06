@@ -13,12 +13,12 @@ for arg in "$@"; do
 done
 
 # Run from the package root regardless of where we were invoked from.
-cd "$(dirname "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)")"
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # Remove the generated API rst we're about to rebuild. Hand-written sources, the
 # examples/ tree, and the build_text tutor bundle are preserved. (find reports the
 # kept, non-empty directories as "not empty" -- harmless, hence || true.)
-find docs/* ! \( -iname "conf.py" -or -iname "makePackageRSTs.py" -or -iname "audit_docstring_coverage.py" \
+find docs/* ! \( -iname "conf.py" -or -iname "makePackageRSTs.py" \
     -or -iname "build_examples_docs.py" \
     -or -path "*_static/*" -or -path "*_templates/*" -or -path "*narrative/*" \
     -or -path "*examples/*" -or -path "*build_text/*" -or -path "*index.rst" \) -delete || true
