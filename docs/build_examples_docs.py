@@ -18,9 +18,11 @@ Generate the docs "Examples" section from the example scripts.
 
 Writes docs/examples/index.rst (a Tutorial list in order, plus alphabetical, collapsible
 tag groups) and one page per unit: a standalone script, or a dedicated subfolder shown as
-a code box per script with a single folder-zip download. Each page also offers a download
-(the .py, or a .zip when companion files are needed). The JunkDrawer is left out. Reuses
-the docstring/tag parsing from examples/regenerate_index.py.
+a code box per script with a single folder-zip download. Each page offers a download (the
+.py, or a .zip when companion files are needed) and embeds any captured media: an audio
+player (_static/media/<rel>.mp3), score images (<rel>*.svg), and hand-authored YouTube
+videos (example_media.toml). The JunkDrawer is left out. Reuses the docstring/tag parsing
+from examples/regenerate_index.py.
 
 Run from anywhere: python3 build_examples_docs.py
 """
@@ -28,15 +30,28 @@ Run from anywhere: python3 build_examples_docs.py
 import re
 import sys
 import shutil
+import tomllib
 import zipfile
 import pathlib
 
 DOCS_DIR = pathlib.Path(__file__).parent
 EXAMPLES_DIR = DOCS_DIR.parent / "examples"
 OUT_DIR = DOCS_DIR / "examples"
+MEDIA_DIR = DOCS_DIR / "_static" / "media"          # audio/scores, captured by render_example_media.py
+MEDIA_MANIFEST_PATH = DOCS_DIR / "example_media.toml"  # hand-authored video (YouTube) entries
 
 sys.path.insert(0, str(EXAMPLES_DIR))
 from regenerate_index import parse_docstring, FOLDERS  # noqa: E402
+
+
+def _load_manifest():
+    if MEDIA_MANIFEST_PATH.exists():
+        with open(MEDIA_MANIFEST_PATH, "rb") as f:
+            return tomllib.load(f)
+    return {}
+
+
+MEDIA_MANIFEST = _load_manifest()
 
 # Folders to surface, in presentation order; the JunkDrawer is deliberately excluded.
 INCLUDED = [f for f in FOLDERS if f != "JunkDrawer"]
@@ -68,9 +83,43 @@ def source_body(path):
 
 
 def script_entry(path):
-    """The per-script bits shown in a code box: (filename, summary, source body)."""
+    """The per-script bits shown in a code box: filename, summary, source, rel path."""
     summary, _ = parse_docstring(path)
-    return {"name": path.name, "summary": summary or "", "body": source_body(path)}
+    return {"name": path.name, "summary": summary or "", "body": source_body(path),
+            "rel": path.relative_to(EXAMPLES_DIR)}
+
+
+def media_html(rel):
+    """Raw-HTML rst embedding a script's audio (.mp3), score (.svg) and/or YouTube
+    video for the docs page, or [] if it has none. Paths are relative to the built
+    example page (examples/<slug>.html); media lives under the site's _static/."""
+    mp3 = MEDIA_DIR / rel.with_suffix(".mp3")
+    svgs = sorted((MEDIA_DIR / rel).parent.glob(rel.with_suffix("").name + "*.svg"))
+    video = MEDIA_MANIFEST.get(rel.as_posix(), {}).get("youtube")
+    if not (mp3.exists() or svgs or video):
+        return []
+
+    def url(p):
+        return "../_static/media/" + p.relative_to(MEDIA_DIR).as_posix()
+
+    # audio first on its own line, then any score stacked underneath it in a thin box
+    out = [".. raw:: html", ""]
+    if mp3.exists():
+        out.append(f'   <div style="margin:0.6em 0"><audio controls preload="none" '
+                   f'src="{url(mp3)}" style="width:100%;max-width:520px"></audio></div>')
+    for vid in ([video] if isinstance(video, str) else (video or [])):
+        out.append('   <div style="position:relative;padding-bottom:56.25%;height:0;'
+                   'max-width:640px;margin:0.6em 0">'
+                   f'<iframe src="https://www.youtube-nocookie.com/embed/{vid}" '
+                   'style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" '
+                   'allowfullscreen></iframe></div>')
+    for svg in svgs:
+        out.append(f'   <div style="border:1px solid #ccc;padding:8px;margin:0.6em 0;'
+                   f'display:inline-block;max-width:100%">'
+                   f'<img src="{url(svg)}" alt="score" '
+                   f'style="max-width:100%;height:auto;display:block"></div>')
+    out.append("")
+    return out
 
 
 def companion_files(path):
@@ -186,6 +235,8 @@ def write_example_page(unit):
     out.append(write_download(unit))
     out.append("")
     multi = len(unit["scripts"]) > 1
+    if not multi:                                   # single script: media under the header
+        out += media_html(unit["scripts"][0]["rel"])
     if unit["summary"] and not multi:
         out += [unit["summary"], ""]
     if unit["tags"]:
@@ -193,6 +244,8 @@ def write_example_page(unit):
     for script in unit["scripts"]:
         if multi and script["summary"]:
             out += [script["summary"], ""]
+        if multi:                                   # folder page: each script's media by its box
+            out += media_html(script["rel"])
         out.append(".. code-block:: python")
         out.append(f"   :caption: {script['name']}")
         out.append("")

@@ -1,0 +1,33 @@
+# Per-example overrides for render_example_audio.py.
+#
+# Keys are example paths relative to examples/. Both fields are optional:
+#   timeout = <seconds>   cutoff for this example (else the --timeout default)
+#   fade    = <seconds>   fade-out applied WHEN the recording is cut off
+#                         (else the --fade default of 5; set 0 to disable)
+#
+# Timeouts were chosen by reading each script: infinite loops get long enough to
+# repeat a few times; finite pieces get long enough to play out.
+
+["Assorted/guitar_arpeggios.py"]
+timeout = 25   # ~2.5 turns of the four-chord arpeggio loop (loops forever)
+
+["Assorted/metric_phase.py"]
+timeout = 45   # the accelerating chromatic runs; the metronome loops forever
+
+["Assorted/quantization.py"]
+timeout = 30   # the 8-beat recording plus one quantized/unquantized comparison
+
+["Assorted/run_as_server_render_scores.py"]
+timeout = 25   # a couple of the random recorded fragments (server loops forever)
+
+["Assorted/save_and_load_performance/save_performance.py"]
+timeout = 30   # the two-part texture accelerating toward tempo 300
+
+["Assorted/save_and_load_performance/load_and_play_performance.py"]
+timeout = 35   # a couple of playbacks under the accelerando (loops forever)
+
+["Assorted/evolving_form/evolving_form.py"]
+timeout = 90   # excerpt of the ~3-minute piece (only the cello sounds via SoundFont)
+
+["ScampExtensions/time_varying_parameter_example.py"]
+timeout = 90   # lets the ~60-beat form play out
