@@ -4,9 +4,9 @@ Download official FluidSynth Windows release artifacts and extract the runtime
 DLLs into src/scamp/_thirdparty/windows_libs/.
 
 Usage:
-    python3 scripts/fetch_fluidsynth_libs.py                 # fetch all windows targets
-    python3 scripts/fetch_fluidsynth_libs.py windows-x64
-    python3 scripts/fetch_fluidsynth_libs.py --version 2.5.4 --inspect
+    python3 scripts/wheel_building/fetch_fluidsynth_libs.py                 # fetch all windows targets
+    python3 scripts/wheel_building/fetch_fluidsynth_libs.py windows-x64
+    python3 scripts/wheel_building/fetch_fluidsynth_libs.py --version 2.5.4 --inspect
 
 The script is stdlib-only.
 

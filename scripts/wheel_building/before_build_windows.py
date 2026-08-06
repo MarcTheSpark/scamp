@@ -36,7 +36,7 @@ def main() -> int:
             if child.is_file() and ".so" in child.name and child.name != ".gitkeep":
                 child.unlink()
 
-    fetch = REPO_ROOT / "scripts" / "fetch_fluidsynth_libs.py"
+    fetch = REPO_ROOT / "scripts" / "wheel_building" / "fetch_fluidsynth_libs.py"
     return subprocess.call([sys.executable, str(fetch), "windows-x64"])
 
 

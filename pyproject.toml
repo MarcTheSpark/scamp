@@ -94,12 +94,12 @@ test-command = "python -c \"import scamp; print(scamp.__version__)\""
 # libfluidsynth via try_system_fluidsynth_first.)
 manylinux-x86_64-image = "quay.io/pypa/manylinux_2_34_x86_64:latest"
 manylinux-aarch64-image = "quay.io/pypa/manylinux_2_34_aarch64:latest"
-before-build = "bash {project}/scripts/ci/before_build_linux.sh"
+before-build = "bash {project}/scripts/wheel_building/before_build_linux.sh"
 # auditwheel repair (run automatically after build) will copy libfluidsynth.so.3
 # and its transitive deps into the wheel under scamp/.libs/.
 
 [tool.cibuildwheel.macos]
-before-build = "bash {project}/scripts/ci/before_build_macos.sh"
+before-build = "bash {project}/scripts/wheel_building/before_build_macos.sh"
 # delocate-wheel runs automatically after build. We deliberately ship per-arch
 # wheels (one for arm64, one for x86_64) rather than a universal2 wheel —
 # Homebrew installs are arch-specific, so producing a universal wheel from a
@@ -109,4 +109,4 @@ before-build = "bash {project}/scripts/ci/before_build_macos.sh"
 # Just download the official prebuilt DLLs; nothing else to do. Windows wheels
 # don't get a delocate/auditwheel pass — the DLLs we drop in via package_data
 # end up adjacent to the Python files in site-packages.
-before-build = "python {project}/scripts/ci/before_build_windows.py"
+before-build = "python {project}/scripts/wheel_building/before_build_windows.py"

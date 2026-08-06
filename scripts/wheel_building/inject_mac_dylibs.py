@@ -29,9 +29,9 @@ Workflow:
         #    your Intel-Mac stash was built against):
         pipx run wheel tags --remove --platform-tag=macosx_12_0_x86_64 dist/scamp-*-py3-none-linux_x86_64.whl
         # c) Inject the stashed dylibs:
-        python3 scripts/inject_mac_dylibs.py \
+        python3 scripts/wheel_building/inject_mac_dylibs.py \
             --wheel dist/scamp-*-py3-none-macosx_12_0_x86_64.whl \
-            --stash scripts/intel-mac-dylibs.tar.gz \
+            --stash scripts/wheel_building/intel-mac-dylibs.tar.gz \
             --output dist/
 
 The script extracts the wheel, lays the stash on top, recomputes the

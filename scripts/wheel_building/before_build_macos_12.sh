@@ -16,11 +16,11 @@
 # tag, delocate's check, and pip's install logic all agree.
 #
 # Usage from the repo root:
-#     export CIBW_BEFORE_BUILD_MACOS="bash {project}/scripts/ci/before_build_macos_12.sh"
+#     export CIBW_BEFORE_BUILD_MACOS="bash {project}/scripts/wheel_building/before_build_macos_12.sh"
 #     MACOSX_DEPLOYMENT_TARGET=12.0 pipx run cibuildwheel --platform macos --archs x86_64
 #
 # Or to bypass cibuildwheel and call this directly:
-#     bash scripts/ci/before_build_macos_12.sh
+#     bash scripts/wheel_building/before_build_macos_12.sh
 set -euo pipefail
 
 THIRDPARTY_DIR="$(cd "$(dirname "$0")/../../src/scamp/_thirdparty" && pwd)"
