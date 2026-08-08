@@ -10,7 +10,7 @@ from scamp import *
 import random
 
 s = Session()
-s.fast_forward()
+# s.fast_forward()
 
 violin = s.new_part("violin")
 

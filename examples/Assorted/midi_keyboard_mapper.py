@@ -1,4 +1,6 @@
 """
+SCAMP Example: MIDI Keyboard Mapper
+
 A script written at the request of Paul Timmermans, in which different pitches or ranges of pitches
 on the keyboard can be mapped to particular instruments and chords. The heart of the script is the
 dictionary `pitch_to_instrument_and_pitches`, which expresses, for each key, which pitches and on

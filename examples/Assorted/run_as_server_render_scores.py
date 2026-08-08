@@ -1,5 +1,5 @@
 """
-SCAMP Example: Server session plays and renders scores.
+SCAMP Example: Run as Server and Render Scores
 
 Runs the session as a server, repeatedly recording short fragments and popping up a score for each.
 
@@ -35,13 +35,15 @@ def some_music():
         piano.play_note(random.randint(60, 70), 1.0, random.choice([0.5, 1.0, 1.5]))
 
 
-while True:
+score_num = 1
+
+for _ in range(3):
     # wait some random length of time
     time.sleep(random.uniform(1, 3))
     s.start_transcribing()
     s.fork(some_music)
     time.sleep(8)
     performance = s.stop_transcribing()
-    performance.to_score().show()
-
+    performance.to_score(title=f"Score #{score_num}").show()
+    score_num += 1
 

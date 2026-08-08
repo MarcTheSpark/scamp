@@ -51,4 +51,3 @@ violin.play_chord([62, 74], 1.0, 4.25, {
 
 performance = s.stop_transcribing()
 performance.to_score().show()
-performance.to_score().show_xml()

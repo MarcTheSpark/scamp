@@ -1,5 +1,5 @@
 """
-SCAMP Example: Scamp Cooking: Formal Parameters
+SCAMP Example: Formal Parameters
 
 Formal-parameter envelopes for evolving_form.py; run directly to plot them.
 

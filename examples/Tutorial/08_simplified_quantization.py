@@ -1,8 +1,10 @@
 """
 SCAMP Example: Simplified Quantization
 
-Same as last example except that a restriction on the max beat divisor is
-imposed on the quantization, rendering simpler -- if somewhat less accurate -- results.
+Same as last example except that we see two different levers for simplifying the notation: `max_divisor`
+(which defaults to 8) sets a hard cap on how finely we can divide the beat. `simplicity_preference`
+(which defaults to 2), rather than setting a hard cap, amplifies the error calculation for complicated
+divisors, leading to simpler beat divisions unless the complicated division is a very good match.
 
 Tags: quantization, quantization settings
 """
@@ -25,6 +27,9 @@ Tags: quantization, quantization settings
 
 from scamp import *
 import random
+
+# fixed random seed for reproducibility
+random.seed(47)
 
 s = Session()
 violin = s.new_part("Violin")

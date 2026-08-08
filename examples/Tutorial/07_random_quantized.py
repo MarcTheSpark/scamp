@@ -26,6 +26,9 @@ Tags: quantization, notation, randomness, continuous time
 from scamp import *
 import random
 
+# fixed random seed for reproducibility
+random.seed(42)
+
 s = Session()
 violin = s.new_part("Violin")
 

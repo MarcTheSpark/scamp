@@ -1,8 +1,7 @@
 """
-SCAMP Example: Evolving form
+SCAMP Example: Evolving Form
 
-A piece for cello, pianoteq (MIDI), and SuperCollider (OSC), shaped by envelope-driven
-formal parameters. See definitions.py and formal_parameters.py.
+The main script for the piece, drawing upon definitions.py and formal_parameters.py.
 
 Tags: playback implementations, envelopes, algorithmic composition, tempo change, musical form
 """

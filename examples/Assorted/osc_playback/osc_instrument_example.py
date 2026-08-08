@@ -1,7 +1,5 @@
 """
-Uses an OSCPlaycorderInstrument to send messages to a running SuperCollider script at OSCListenerPython.scd
-To test out, run all the code blocks in OSCListenerPython.scd, make sure that the port below matches the
-result of NetAddr.langPort, and then run this script.
+The main python script, which talks to the OSC listener in SuperCollider
 
 Tags: osc playback, supercollider, playback params
 """
@@ -26,11 +24,11 @@ from scamp import *
 import random
 
 
-session = Session()
+s = Session()
 
 # The port here must match the result of NetAddr.langPort in SuperCollider
-fm_sines = session.new_osc_part("fm_sines", 57120)
-hihat = session.new_osc_part("hihat", 57120)
+fm_sines = s.new_osc_part("fm_sines", 57120)
+hihat = s.new_osc_part("hihat", 57120)
 
 
 def fm_sines_part():
@@ -47,8 +45,8 @@ def hihat_part():
         hihat.play_note(80 + random.random() * 40, random.random(), 0.25)
 
 
-session.fork(fm_sines_part)
-session.fork(hihat_part)
-session.wait_forever()
+s.fork(fm_sines_part)
+s.fork(hihat_part)
+s.wait_forever()
 
 

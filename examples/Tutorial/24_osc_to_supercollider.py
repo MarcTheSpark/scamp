@@ -26,6 +26,8 @@ Tags: osc playback, supercollider, engraving settings
 from scamp import *
 import random
 
+random.seed(42)
+
 s = Session()
 
 # on the other end, an OSC receiver is setup to play notes that take vibrato and OSC messages as well as the usual
