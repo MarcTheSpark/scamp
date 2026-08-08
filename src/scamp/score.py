@@ -1147,6 +1147,8 @@ class Score(ScoreComponent, ScoreContainer):
         key_points, guide_marks = self._get_tempo_key_points_and_guide_marks()
 
         measure_start = 0  # running counter of the beat at the start of the measure
+        open_dashes = None  # label of an in-progress accel/rit dashed line, carried across measures
+        dashes_count = 0    # gives each dashed line a distinct label
         # go through each measure and add the tempo annotations
         for xml_measure, score_measure in zip(xml_score.parts[0].measures, self.staves[0].measures):
             # if there's no more key points or guide marks, we're done
@@ -1166,6 +1168,13 @@ class Score(ScoreComponent, ScoreContainer):
             # loop through the key points until there are none left or there are none left in this measure
             while len(key_points) > 0 and key_points[0] - measure_start < score_measure.length:
                 key_point = key_points.pop(0)
+
+                # a running accel/rit dashed line ends here, where the next tempo arrives
+                if open_dashes is not None:
+                    this_measure_annotations.append(
+                        (pymusicxml.StopDashes(open_dashes, staff=1), key_point - measure_start))
+                    open_dashes = None
+
                 key_point_tempo = self.tempo_envelope.tempo_at(key_point)
                 next_key_point_tempo = self.tempo_envelope.tempo_at(key_points[0], from_left=True) \
                     if len(key_points) > 0 else None
@@ -1182,10 +1191,14 @@ class Score(ScoreComponent, ScoreContainer):
                      key_point - measure_start)
                 )
 
-                # add the accel or rit if needed
+                # accel/rit: an italic word with a dashed line running to the next key point
                 if change_indicator is not None:
-                    this_measure_annotations.append((pymusicxml.TextAnnotation(change_indicator, italic=True, staff=1),
-                                                     key_point - measure_start))
+                    dashes_count += 1
+                    this_measure_annotations.append(
+                        (pymusicxml.StartDashes(dashes_count, staff=1,
+                                                text=pymusicxml.TextAnnotation(change_indicator, italic=True)),
+                         key_point - measure_start))
+                    open_dashes = dashes_count
 
             # loop through the guide marks until there are none left or there are none left in this measure
             while len(guide_marks) > 0 and guide_marks[0][0] - measure_start < score_measure.length:

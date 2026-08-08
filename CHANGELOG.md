@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Accelerando and ritardando markings in exported MusicXML now draw a dashed line** running from the word
+  to the tempo it arrives at, rather than showing the bare "accel."/"rit." word on its own.
 - **`Performance.export_to_midi_file()` now applies playback adjustments**, so the exported MIDI reflects what
   would be *heard* — staccato shortening notes, accents/sfz raising velocity — rather than the bare notated
   values. Realtime playback already did this; MIDI export was the odd one out. Velocities are clamped to the
