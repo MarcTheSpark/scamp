@@ -962,7 +962,8 @@ class Score(ScoreComponent, ScoreContainer):
     def _get_tempo_key_points_and_guide_marks(self):
         """
         Returns a list of where the key tempo points are and a list of tuples representing the locations of any
-        guide marks and the tempos that they indicate at those point. The reason for this is that occasionally a
+        guide marks and the tempos that they indicate at those point
+        . The reason for this is that occasionally a
         guide mark might be indicating the final tempo of a rit or accel, but be placed a tiny bit before that moment
         so as not to conflict with another tempo marking upon arrival.
         """
@@ -1172,16 +1173,18 @@ class Score(ScoreComponent, ScoreContainer):
                 change_indicator = None if next_key_point_tempo is None or next_key_point_tempo == key_point_tempo \
                     else "accel." if next_key_point_tempo > key_point_tempo else "rit."
 
-                # add the metronome mark, adjusting the tempo based on the metronome_mark_beat_length
+                # add the metronome mark, adjusting the tempo based on the metronome_mark_beat_length.
+                # staff=1 keeps it above the top staff -- otherwise some readers drop a staff-less
+                # tempo mark down toward the bottom staff of the system.
                 this_measure_annotations.append(
                     (pymusicxml.MetronomeMark(metronome_mark_beat_length,
-                                              round(key_point_tempo / metronome_mark_beat_length, 1)),
+                                              round(key_point_tempo / metronome_mark_beat_length, 1), staff=1),
                      key_point - measure_start)
                 )
 
                 # add the accel or rit if needed
                 if change_indicator is not None:
-                    this_measure_annotations.append((pymusicxml.TextAnnotation(change_indicator, italic=True),
+                    this_measure_annotations.append((pymusicxml.TextAnnotation(change_indicator, italic=True, staff=1),
                                                      key_point - measure_start))
 
             # loop through the guide marks until there are none left or there are none left in this measure
@@ -1191,7 +1194,7 @@ class Score(ScoreComponent, ScoreContainer):
                 this_measure_annotations.append(
                     (pymusicxml.MetronomeMark(metronome_mark_beat_length,
                                               round(guide_mark_tempo / metronome_mark_beat_length, 1),
-                                              parentheses="yes", font_size="5"),
+                                              staff=1, parentheses="yes", font_size="5"),
                      guide_mark_location - measure_start)
                 )
 

@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Tempo and metronome marks in exported MusicXML now carry an explicit assignment to sit above the top 
+  staff.** They previously carried no staff assignment, so some readers drifted a mark down toward a lower 
+  staff of the system.
 - **Setting an instrument's `default_spelling_policy` to a string (e.g. `"E major"`) now works.** Passing a
   string to `new_part(default_spelling_policy=...)`, or assigning one after the fact, previously stored the raw
   string instead of a `SpellingPolicy`, breaking spelling at transcription time; strings and alteration tuples
