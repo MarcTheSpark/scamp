@@ -511,7 +511,7 @@ class TempoSettings(_ScampSettings):
 
     guide_mark_resolution: float = 0.125
     guide_mark_sensitivity: float = 0.08
-    include_guide_marks: bool = True
+    include_guide_marks: bool = False
     parenthesize_guide_marks: bool = True
 
     _settings_name = "Tempo settings"

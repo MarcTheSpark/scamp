@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Tempo guide marks are now off by default.** The parenthetical interpolated tempos shown between explicit
+  tempo targets during an accel./rit. are no longer drawn; set `engraving_settings.tempo.include_guide_marks = True`
+  to bring them back.
 - **Accelerando and ritardando markings in exported MusicXML now draw a dashed line** running from the word
   to the tempo it arrives at, rather than showing the bare "accel."/"rit." word on its own.
 - **`Performance.export_to_midi_file()` now applies playback adjustments**, so the exported MIDI reflects what
