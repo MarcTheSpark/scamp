@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A tuplet on a compound beat (e.g. the 1.5-quarter beat of a 5/8 or 3/8 measure) no longer crashes
+  notation export** with `AssignabilityError` / "does not resolve to single note type". Affects both LilyPond 
+  (abjad) and MusicXML output. Notes spanning several tuplet subdivisions on a compound beat now also tend 
+  to notate as a single dotted note rather than tied notes.
 - **Tempo and metronome marks in exported MusicXML now carry an explicit assignment to sit above the top 
   staff.** They previously carried no staff assignment, so some readers drifted a mark down toward a lower 
   staff of the system.
