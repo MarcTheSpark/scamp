@@ -1,0 +1,25 @@
+# Hand-authored media for the generated example pages (build_examples_docs.py).
+#
+# Key each table by an example's path under examples/: a single-file example by its
+# .py path, a folder example by its directory. Fields:
+#
+#   video   a YouTube URL (or bare id), or a list of them, embedded on the page.
+#   order   the sequence of media below the title/description, by filename:
+#             <name>.py   that script's code box
+#             <name>.mp3  that recording's audio player
+#             <name>.svg  that score image
+#             video       all videos declared above
+#           Media present in the folder but not listed here is left out. With no
+#           order, the default is: videos, then each script's scores, audio, code box.
+# The title, description, and tags always stay at the top of the page.
+
+["Compositions/evanstein_lunar_trajectories.py"]
+video = "https://www.youtube.com/watch?v=RmIetxLhGu4"
+
+["Assorted/save_and_load_performance"]
+order = [
+    "save_performance.py",
+    "save_performance.mp3",
+    "load_and_play_performance.py",
+    "load_and_play_performance.mp3",
+]

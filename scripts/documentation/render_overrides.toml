@@ -1,9 +1,13 @@
-# Per-example overrides for render_example_audio.py.
+# Per-example overrides for render_example_media.py.
 #
-# Keys are example paths relative to examples/. Both fields are optional:
+# Keys are example paths relative to examples/. All fields are optional:
 #   timeout = <seconds>   cutoff for this example (else the --timeout default)
 #   fade    = <seconds>   fade-out applied WHEN the recording is cut off
 #                         (else the --fade default of 5; set 0 to disable)
+#   scale      = <int>    verovio score scale, i.e. notation size (else --scale, 60)
+#   skip_audio = true     don't record audio -- it's made by hand (e.g. needs SuperCollider)
+#   skip_score = true     don't capture the score -- it's made by hand
+#                         (set both to leave the example alone entirely)
 #
 # Timeouts were chosen by reading each script: infinite loops get long enough to
 # repeat a few times; finite pieces get long enough to play out.
@@ -17,9 +21,6 @@ timeout = 45   # the accelerating chromatic runs; the metronome loops forever
 ["Assorted/quantization.py"]
 timeout = 30   # the 8-beat recording plus one quantized/unquantized comparison
 
-["Assorted/run_as_server_render_scores.py"]
-timeout = 25   # a couple of the random recorded fragments (server loops forever)
-
 ["Assorted/save_and_load_performance/save_performance.py"]
 timeout = 30   # the two-part texture accelerating toward tempo 300
 
@@ -27,7 +28,20 @@ timeout = 30   # the two-part texture accelerating toward tempo 300
 timeout = 35   # a couple of playbacks under the accelerando (loops forever)
 
 ["Assorted/evolving_form/evolving_form.py"]
-timeout = 90   # excerpt of the ~3-minute piece (only the cello sounds via SoundFont)
+skip_audio = true   # full sound needs SuperCollider; audio rendered by hand
+scale = 40
 
 ["ScampExtensions/time_varying_parameter_example.py"]
 timeout = 90   # lets the ~60-beat form play out
+
+["Assorted/octava.py"]
+scale = 40
+
+# SuperCollider examples: their real sound needs SuperCollider running, so the audio is
+# rendered by hand. The score is transcribed by SCAMP, so we still auto-capture it.
+["Tutorial/24_osc_to_supercollider.py"]
+skip_audio = true
+
+["Assorted/osc_playback/osc_instrument_example.py"]
+skip_audio = true
+skip_score = true   # (an OSC instrument demo -- no score to capture)
