@@ -5,8 +5,9 @@ playback, and an .svg of any score it shows.
 
 Each example runs in a subprocess with ``playback_settings.recording_file_path``
 pointed at a temporary .wav (transcoded to .mp3 with ffmpeg), while ``Score.show``
-is redirected to export MusicXML and render it to SVG with verovio. Playback is
-real time, so this is a slow batch job.
+is redirected to export MusicXML and render it to SVG with verovio, and
+``Envelope.show_plot`` is redirected to save its matplotlib plot as an SVG the same
+way. Playback is real time, so this is a slow batch job.
 
 Non-terminating scripts that play on their own (``wait_forever`` loops, servers)
 are recorded and cut off at the timeout; cut recordings are faded out. Scripts
@@ -14,7 +15,7 @@ that wait on live input (keyboard, mouse, MIDI, OSC, stdin) or run a GUI event
 loop are skipped. A long piece only shows its score at the end, so if the real-time audio
 pass is cut off before then (or skip_audio means there's no audio pass), the score is
 captured in a second, fast-forwarded pass -- fast-forward transcribes silently, so a long
-piece renders its score in seconds. Per-example timeout/fade/scale overrides, and
+piece renders its score in seconds. Per-example timeout/fade/scale/plot_scale overrides, and
 skip_audio/skip_score flags for examples whose audio or score is made by hand, live in
 render_overrides.toml.
 Output goes to docs/_static/media/, mirroring the example paths, and is picked up
@@ -58,14 +59,18 @@ UNRECORDABLE_MARKERS = (
 )
 
 # Runs in the subprocess: point recording at the wav, render any shown Score to SVG
-# via verovio, suppress other notation/plot popups, then run the example as __main__.
+# via verovio and any Envelope.show_plot to SVG via matplotlib, suppress other notation
+# popups, then run the example as __main__.
 RUNNER = r"""
 import sys, os, runpy, tempfile, warnings
 warnings.filterwarnings("ignore")
 example, wav, score_base, scale = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
 fast = sys.argv[5] == "1"
+plot_scale = float(sys.argv[6])
 sys.path.insert(0, os.path.dirname(example))
 import scamp
+import matplotlib                                   # backend forced to Agg via MPLBACKEND
+matplotlib.rcParams["figure.figsize"] = (6.0 * plot_scale, 3.6 * plot_scale)  # captured Envelope plot size
 if wav:
     scamp.playback_settings.recording_file_path = wav
 if fast:
@@ -116,6 +121,32 @@ if _Score is not None:
 _Performance = getattr(scamp, "Performance", None)
 if _Performance is not None and hasattr(_Performance, "show"):
     _Performance.show = lambda self, *a, **k: None
+
+# Redirect Envelope.show_plot to an SVG by wrapping the real method and swapping plt.show for
+# a saver (so we reuse its plotting logic + title). Plots get a ".plot" infix (<base>.plot.svg,
+# <base>.plot-2.svg ...) so the docs can lay them out inline, apart from the block scores.
+_plot_count = [0]
+_Envelope = getattr(scamp, "Envelope", None)
+if _Envelope is not None and score_base:
+    import matplotlib.pyplot as plt
+    _orig_show_plot = _Envelope.show_plot
+    def _capture_plot(self, title=None, *a, **k):
+        def _save():
+            # No .title sidecar: show_plot draws the title into the SVG itself.
+            _plot_count[0] += 1
+            suffix = "" if _plot_count[0] == 1 else "-%d" % _plot_count[0]
+            out = score_base + ".plot" + suffix + ".svg"
+            plt.gcf().savefig(out, format="svg", bbox_inches="tight")
+            plt.close("all")
+        _real_show = plt.show
+        plt.show = _save
+        try:
+            _orig_show_plot(self, title, *a, **k)
+        finally:
+            plt.show = _real_show
+    _Envelope.show_plot = _capture_plot
+elif _Envelope is not None:
+    _Envelope.show_plot = lambda self, *a, **k: None  # score capture off -> suppress popups
 if "abjad" in open(example).read():          # don't pop a PDF viewer / hang on lilypond
     try:
         import abjad
@@ -157,7 +188,7 @@ def examples_to_render(name_filter):
             yield path
 
 
-def render(path, timeout, fade, scale, skip_audio=False, skip_score=False):
+def render(path, timeout, fade, scale, plot_scale, skip_audio=False, skip_score=False):
     """Render one example to mp3/svg. Returns a status string for the summary.
     skip_audio/skip_score leave the audio/score to be made by hand instead.
 
@@ -195,7 +226,7 @@ def render(path, timeout, fade, scale, skip_audio=False, skip_score=False):
         Returns (cut, returncode, stderr)."""
         proc = subprocess.Popen(
             [sys.executable, "-c", RUNNER, str(path), wav_arg, score_base,
-             str(scale), "1" if fast else "0"],
+             str(scale), "1" if fast else "0", str(plot_scale)],
             cwd=tmp_cwd, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
         )
         try:
@@ -211,7 +242,14 @@ def render(path, timeout, fade, scale, skip_audio=False, skip_score=False):
             return True, proc.returncode, err
 
     def captured():
-        return [] if skip_score else sorted(mp3.parent.glob(mp3.stem + "*.svg"))
+        """Score SVGs from this run (Envelope plots, tagged with a .plot infix, excluded)."""
+        if skip_score:
+            return []
+        plots = set(mp3.parent.glob(mp3.stem + ".plot*.svg"))
+        return sorted(p for p in mp3.parent.glob(mp3.stem + "*.svg") if p not in plots)
+
+    def captured_plots():
+        return [] if skip_score else sorted(mp3.parent.glob(mp3.stem + ".plot*.svg"))
 
     try:
         cut = audio = fast_score = False
@@ -239,7 +277,7 @@ def render(path, timeout, fade, scale, skip_audio=False, skip_score=False):
                 tail = err.decode(errors="replace").strip().splitlines()
                 return "score error: " + (tail[-1] if tail else f"exit {rc}")
 
-        scores = captured()
+        scores, plots = captured(), captured_plots()
         if skip_audio:
             status = "audio skipped"
         elif audio:
@@ -250,6 +288,8 @@ def render(path, timeout, fade, scale, skip_audio=False, skip_score=False):
             status += f" +{len(scores)} score" + ("s" if len(scores) > 1 else "")
             if fast_score:
                 status += " (ff)"
+        if plots:
+            status += f" +{len(plots)} plot" + ("s" if len(plots) > 1 else "")
         if skip_score:
             status += " (score manual)"
         return status
@@ -267,6 +307,8 @@ def main():
                         help="default fade-out (seconds) applied to cut recordings (default: 5)")
     parser.add_argument("--scale", type=int, default=60,
                         help="default verovio score scale, i.e. notation size (default: 60)")
+    parser.add_argument("--plot-scale", type=float, default=1.0,
+                        help="default Envelope plot size multiplier (default: 1.0)")
     parser.add_argument("--force", action="store_true",
                         help="re-render even if the outputs already exist")
     args = parser.parse_args()
@@ -293,6 +335,7 @@ def main():
             status = render(path, override.get("timeout", args.timeout),
                             override.get("fade", args.fade),
                             override.get("scale", args.scale),
+                            override.get("plot_scale", args.plot_scale),
                             skip_audio, skip_score)
         key = status.split(":")[0].split(" (")[0].split(" +")[0]
         counts[key] = counts.get(key, 0) + 1

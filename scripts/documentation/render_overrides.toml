@@ -5,6 +5,7 @@
 #   fade    = <seconds>   fade-out applied WHEN the recording is cut off
 #                         (else the --fade default of 5; set 0 to disable)
 #   scale      = <int>    verovio score scale, i.e. notation size (else --scale, 60)
+#   plot_scale = <float>  Envelope plot size multiplier (else --plot-scale, 1.0)
 #   skip_audio = true     don't record audio -- it's made by hand (e.g. needs SuperCollider)
 #   skip_score = true     don't capture the score -- it's made by hand
 #                         (set both to leave the example alone entirely)
@@ -30,6 +31,9 @@ timeout = 35   # a couple of playbacks under the accelerando (loops forever)
 ["Assorted/evolving_form/evolving_form.py"]
 skip_audio = true   # full sound needs SuperCollider; audio rendered by hand
 scale = 40
+
+["Assorted/evolving_form/formal_parameters.py"]
+plot_scale = 0.5   # its 8 plots are small enough to sit two-plus per row
 
 ["ScampExtensions/time_varying_parameter_example.py"]
 timeout = 90   # lets the ~60-beat form play out

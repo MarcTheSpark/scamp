@@ -166,9 +166,24 @@ def score_pages(script):
 
     scores = {}
     for p in base.parent.glob(prefix + "*.svg"):
+        if p.name[len(prefix):].startswith(".plot"):
+            continue  # an Envelope plot -> handled by plot_images, laid out inline
         score, page = index(p)
         scores.setdefault(score, []).append((page, p))
     return [[p for _, p in sorted(pages)] for _, pages in sorted(scores.items())]
+
+
+def plot_images(script):
+    """This script's captured Envelope plots (matplotlib SVGs), in call order. Files are
+    <base>.plot.svg, <base>.plot-2.svg, ...; see render_example_media.py."""
+    base = (MEDIA_DIR / script["rel"]).with_suffix("")
+    prefix = base.name + ".plot"
+
+    def num(p):
+        m = re.match(r"^-(\d+)$", p.name[len(prefix):-len(".svg")])
+        return int(m.group(1)) if m else 1
+
+    return sorted(base.parent.glob(prefix + "*.svg"), key=num)
 
 
 def _media_url(p):
@@ -225,6 +240,20 @@ def score_block_html(pages, label=""):
     return score_html(pages[0], label) if len(pages) == 1 else score_pager_html(pages, label)
 
 
+def plot_html(p):
+    """One Envelope plot as an inline figure, so several flow side by side and wrap.
+    No caption -- the plot's title is already drawn into the SVG."""
+    return (f'<figure style="display:inline-block;vertical-align:top;margin:0.2em 0.4em">'
+            f'<img src="{_media_url(p)}" alt="envelope plot" '
+            f'style="max-width:100%;height:auto;display:block"></figure>')
+
+
+def plot_gallery_html(plots):
+    """A script's Envelope plots flowing inline, wrapping to the next row as needed."""
+    return ('<div style="margin:0.4em 0">'
+            + "".join(plot_html(p) for p in plots) + '</div>')
+
+
 def video_html(vid):
     return ('<div style="position:relative;padding-bottom:56.25%;height:0;'
             'max-width:640px;margin:0.6em 0">'
@@ -273,6 +302,8 @@ def order_item(token, unit, by_name, vids, multi):
     if token.endswith(".mp3") and p.exists():
         return raw_block(audio_html(p))
     if token.endswith(".svg") and p.exists():
+        if ".plot" in token[:-len(".svg")]:
+            return raw_block(plot_html(p))
         return raw_block(score_html(p))
     return raw_block(video_html(_yt_id(token)))
 
@@ -294,6 +325,9 @@ def body_lines(unit):
     for s in scripts:
         for pages in score_pages(s):            # explicit score titles are labeled, singular or not
             out += raw_block(score_block_html(pages, score_label(pages[0])))
+        plots = plot_images(s)
+        if plots:
+            out += raw_block(plot_gallery_html(plots))
         if audio_path(s).exists():
             out += raw_block(audio_html(audio_path(s)))
         out += code_block(s, caption_for(s, multi))
