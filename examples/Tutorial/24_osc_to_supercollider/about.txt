@@ -1,0 +1,9 @@
+SCAMP Example: OSC to SuperCollider
+
+Playing back notes by sending OSC messages to the SuperCollider, which receives them and spawns
+Synths in response. Start SuperCollider and run the code blocks in `receive_from_supercollider.scd`, then
+run `osc_to_supercollider.py`.
+
+Note that the easy way to receive note events from SCAMP in SuperCollider specifically is with the ScampUtils quark, as demonstrated by `receive_from_supercollider_scamputils.scd`. 
+
+Tags: osc playback, supercollider, engraving settings

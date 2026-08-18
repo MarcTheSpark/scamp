@@ -1,9 +1,12 @@
 """
-SCAMP Example: OSC Sender
+SCAMP Example: OSC Listener
 
-This doesn't really use SCAMP; it is merely a python script that sends out a few choice osc messages of the sort that
-28a_osc_listener.py is designed to respond to.
+Listener script, which uses :func:`~scamp.session.Session.register_osc_listener` to register
+callback functions that play notes and bagpipe clusters.
+
+Tags: osc input, live interaction
 """
+
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 #  This file is part of SCAMP (Suite for Computer-Assisted Music in Python)                      #
@@ -21,31 +24,32 @@ This doesn't really use SCAMP; it is merely a python script that sends out a few
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
-from pythonosc import udp_client
-import time
+from scamp import *
+
+s = Session()
+
+piano = s.new_part("piano")
+flute = s.new_part("flute")
+bagpipe = s.new_part("bagpipe")
 
 
-client = udp_client.SimpleUDPClient("127.0.0.1", 5995)
+# ------------------ CALLBACK FUNCTIONS -----------------
+# Note that all notes are played with blocking=False.
+# Callback functions run with the scheduler frozen, so must not pass time.
 
-# play a chromatic scale on the piano
-for x in range(65, 85):
-    client.send_message("/play_note/piano", [x, 0.5, 0.1])
-    time.sleep(0.1)
+def play_note_callback(osc_address, pitch, volume, length):
+    if osc_address.split("/")[-1] == "piano":
+        piano.play_note(pitch, volume, length, blocking=False)
+    elif osc_address.split("/")[-1] == "flute":
+        flute.play_note(pitch, volume, length, blocking=False)
 
-# play a horrifying bagpipe cluster
-client.send_message("/play_bagpipe_cluster", [])
-time.sleep(0.5)
 
-# play a chromatic scale on the flute
-for x in range(65, 85):
-    client.send_message("/play_note/flute", [x, 0.5, 0.1])
-    time.sleep(0.1)
+def bagpipe_callback(osc_address):
+    bagpipe.play_chord([70, 71, 72, 73, 74, 75, 76], 0.5, 0.2, blocking=False)
 
-# play another horrifying bagpipe cluster
-client.send_message("/play_bagpipe_cluster", [])
-time.sleep(0.5)
 
-# play a chromatic scale alternating between flute and piano
-for x in range(65, 85):
-    client.send_message("/play_note/" + ("flute", "piano")[x % 2], [x, 0.5, 0.1])
-    time.sleep(0.1)
+s.register_osc_listener(5995, "/play_note/*", play_note_callback)
+s.register_osc_listener(5995, "/play_bagpipe_cluster", bagpipe_callback)
+
+
+s.wait_forever()

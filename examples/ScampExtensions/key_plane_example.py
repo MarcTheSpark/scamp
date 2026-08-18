@@ -38,7 +38,7 @@ notes = {}
 def callback(coordinates, press_or_release, modifiers):
     if press_or_release == "press":
         print("Press at:", coordinates, "with modifiers", modifiers)
-        notes[coordinates] = flute.start_note(remap(coordinates[0], 60, 96), remap(coordinates[1], 0.3, 1))
+        notes[coordinates] = flute.start_note(remap(coordinates[0], 60, 96, 0, 1), remap(coordinates[1], 0.3, 1, 0, 1))
     else:
         print("Release at:", coordinates, "with modifiers", modifiers)
         if notes[coordinates]:

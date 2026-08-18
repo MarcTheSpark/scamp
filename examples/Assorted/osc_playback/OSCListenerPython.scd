@@ -1,5 +1,5 @@
 NetAddr.langPort;  // Run this line to get the port to send to from Python
-MarcUtilities.setOutputLimiter(0.4, 0.4)
+
 ( // Define the Synths
 
 // Simple FM Sine thing

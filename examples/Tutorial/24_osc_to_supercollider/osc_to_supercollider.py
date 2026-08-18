@@ -1,8 +1,7 @@
 """
 SCAMP Example: OSC to SuperCollider
 
-Plays back notes by sending OSC messages to the corresponding SuperCollider process.
-Start SuperCollider and run the code blocks in osc_to_supercollider.scd before running this script.
+Plays back notes by sending OSC messages to the SuperCollider process.
 
 Tags: osc playback, supercollider, engraving settings
 """

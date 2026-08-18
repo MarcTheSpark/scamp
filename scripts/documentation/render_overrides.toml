@@ -43,7 +43,7 @@ scale = 40
 
 # SuperCollider examples: their real sound needs SuperCollider running, so the audio is
 # rendered by hand. The score is transcribed by SCAMP, so we still auto-capture it.
-["Tutorial/24_osc_to_supercollider.py"]
+["Tutorial/24_osc_to_supercollider/osc_to_supercollider.py"]
 skip_audio = true
 
 ["Assorted/osc_playback/osc_instrument_example.py"]

@@ -13,9 +13,6 @@
 #           order, the default is: videos, then each script's scores, audio, code box.
 # The title, description, and tags always stay at the top of the page.
 
-["Compositions/evanstein_lunar_trajectories.py"]
-video = "https://www.youtube.com/watch?v=RmIetxLhGu4"
-
 ["Assorted/save_and_load_performance"]
 order = [
     "save_performance.py",
@@ -23,3 +20,27 @@ order = [
     "load_and_play_performance.py",
     "load_and_play_performance.mp3",
 ]
+
+["Assorted/midi_keyboard_mapper.py"]
+video = "https://youtu.be/ViO8l6WWdPo"
+
+["ScampExtensions/key_plane_example.py"]
+video = "https://youtu.be/XLG8ooIxS2A"
+
+["ScampExtensions/indispensibility_example.py"]
+video = "https://youtu.be/436LmCJ5BmY"
+
+["Tutorial/26_keyboard_input.py"]
+video = "https://youtu.be/UtSBJ9rk5yw"
+
+["Tutorial/27_mouse_input.py"]
+video = "https://youtu.be/FINAf7UJ5mU"
+
+["Assorted/conway.py"]
+video = "https://youtu.be/aPeQs0qtUnI"
+
+["Compositions/evanstein_barlicity.py"]
+video = "https://youtu.be/qfzm87piCmo"
+
+["Compositions/evanstein_lunar_trajectories.py"]
+video = "https://www.youtube.com/watch?v=RmIetxLhGu4"
