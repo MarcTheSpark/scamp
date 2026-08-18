@@ -284,18 +284,23 @@ def create_markup(text: str):
     return abjad.Markup(text)
 
 
-def create_metronome_mark(duration, tempo, **kwargs):
+def create_metronome_mark(duration, tempo, align_right=False, **kwargs):
     """
     Create an abjad MetronomeMark.
 
     :param duration: Duration as float, int, Fraction, or abjad.Duration (will be converted if needed)
     :param tempo: Tempo value (usually an integer BPM)
+    :param align_right: if True, right-align the mark on its leaf (used for a mark riding the last
+        leaf of a measure so it sits at the closing barline). Returns a bundle rather than a bare mark.
     :param kwargs: Additional keyword arguments passed to abjad.MetronomeMark
     """
     abjad = get_abjad()
     if not isinstance(duration, abjad.Duration):
         duration = make_abjad_duration(duration)
-    return abjad.MetronomeMark(duration, tempo, **kwargs)
+    mark = abjad.MetronomeMark(duration, tempo, **kwargs)
+    if align_right:
+        return abjad.bundle(mark, r"\tweak self-alignment-X #right")
+    return mark
 
 
 def create_lilypond_literal(text: str, site: Optional[str] = None):
@@ -737,8 +742,10 @@ def create_tempo_voice(score_measure, displacements, metronome_mark_beat_length)
              for _ in range(int(round(score_measure.length / min_skip)))]
 
     # maps the beat of any of the key points and guide marks we will run into to the skip object
-    # that most nearly approximates its position
-    mark_beats_to_skip_objects = {x: skips[int(x / min_skip)] for x in displacements}
+    # that most nearly approximates its position. A mark landing exactly on the closing barline
+    # (x == measure length) has no skip of its own, so it anchors to the last skip -- the caller
+    # right-aligns it so it still reads at the barline.
+    mark_beats_to_skip_objects = {x: skips[min(int(x / min_skip), len(skips) - 1)] for x in displacements}
 
     # Now combine skips when possible for cleaner output
     def combine_skips_as_possible(chunk, combination_size):

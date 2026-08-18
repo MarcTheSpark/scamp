@@ -1021,17 +1021,24 @@ class Score(ScoreComponent, ScoreContainer):
 
         measure_start = 0  # running counter of the beat at the start of the measure
         rit_or_accel_spanner_start = None  # for storing the starting leaf of a rit or accel spanner
+        score_measures = self.staves[0].measures
+        score_length = self.length()
 
         # go through each measure and add the tempo annotations
-        for abjad_measure, score_measure in zip(top_staff, self.staves[0].measures):
+        for abjad_measure, score_measure in zip(top_staff, score_measures):
             # if there's no more key points or guide marks, we're done
             if len(key_points) + len(guide_marks) == 0:
                 break
+
+            # A key point landing exactly on the closing barline (the end of an accel/rit) has no
+            # following measure to host a downbeat mark, so let the final measure take it at its end.
+            is_final_measure = score_measure is score_measures[-1]
 
             # filter down to the key points and guide marks in this measure
             key_point_and_guide_mark_displacements = [
                 x - measure_start for x in key_points + [x[0] for x in guide_marks]
                 if 0 <= x - measure_start < score_measure.length
+                or (is_final_measure and x - measure_start == score_measure.length and x <= score_length)
             ]
 
             tempo_voice, mark_beats_to_skip_objects = Score._make_skip_voice_and_dict_from_mark_displacements(
@@ -1056,9 +1063,12 @@ class Score(ScoreComponent, ScoreContainer):
                                            and _is_single_note_length(measure_beat_lengths[0]) else 1.0
 
             # loop through the key points until there are none left or there are none left in this measure
-            while len(key_points) > 0 and key_points[0] - measure_start < score_measure.length:
+            while len(key_points) > 0 and (key_points[0] - measure_start < score_measure.length
+                                           or (is_final_measure and key_points[0] <= score_length)):
                 key_point = key_points.pop(0)
                 this_point_skip_object = mark_beats_to_skip_objects[key_point]
+                # a key point on the closing barline has no skip of its own; it rides the last skip
+                at_final_barline = key_point - measure_start >= score_measure.length
 
                 # if we had started an accel or rit spanner, end it here
                 if rit_or_accel_spanner_start is not None:
@@ -1077,11 +1087,13 @@ class Score(ScoreComponent, ScoreContainer):
 
                 # add the metronome mark, adjusting the tempo based on the metronome_mark_beat_length
                 # (note: for some reason abjad insists on either integer tempos or some nonsense involving custom
-                # tempo markups in order to allow floats)
+                # tempo markups in order to allow floats). A barline mark rides the last skip, so right-align
+                # it to sit at the barline.
                 af.attach(
                     af.create_metronome_mark(
                         0.25 * metronome_mark_beat_length,
-                        round(key_point_tempo / metronome_mark_beat_length)
+                        round(key_point_tempo / metronome_mark_beat_length),
+                        align_right=at_final_barline
                     ),
                     this_point_skip_object
                 )
@@ -1149,13 +1161,18 @@ class Score(ScoreComponent, ScoreContainer):
         measure_start = 0  # running counter of the beat at the start of the measure
         open_dashes = None  # label of an in-progress accel/rit dashed line, carried across measures
         dashes_count = 0    # gives each dashed line a distinct label
+        score_measures = self.staves[0].measures
+        score_length = self.length()
         # go through each measure and add the tempo annotations
-        for xml_measure, score_measure in zip(xml_score.parts[0].measures, self.staves[0].measures):
+        for xml_measure, score_measure in zip(xml_score.parts[0].measures, score_measures):
             # if there's no more key points or guide marks, we're done
             if len(key_points) + len(guide_marks) == 0:
                 break
             # list of annotations we're adding to this measure
             this_measure_annotations = []
+            # A key point landing exactly on the closing barline (the end of an accel/rit) has no
+            # following measure to host a downbeat mark, so let the final measure take it at its end.
+            is_final_measure = score_measure is score_measures[-1]
 
             # figure out which kind of note to use as the metronome mark beat in this measure, e.g. dotted quarter in
             # compound meter. Basically if all the beats are the same length, and it's a viable note length, we use
@@ -1166,7 +1183,8 @@ class Score(ScoreComponent, ScoreContainer):
                                            and _is_single_note_length(measure_beat_lengths[0]) else 1.0
 
             # loop through the key points until there are none left or there are none left in this measure
-            while len(key_points) > 0 and key_points[0] - measure_start < score_measure.length:
+            while len(key_points) > 0 and (key_points[0] - measure_start < score_measure.length
+                                           or (is_final_measure and key_points[0] <= score_length)):
                 key_point = key_points.pop(0)
 
                 # a running accel/rit dashed line ends here, where the next tempo arrives

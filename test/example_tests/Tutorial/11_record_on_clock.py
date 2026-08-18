@@ -45,21 +45,21 @@ def trumpet_part():
     # ensures that we land perfectly on a beat
     current_clock().set_rate_target(0.5, Moment.after_time(6), align_to=MetricPhaseTarget(0))
 
-    # keep playing eighth notes until 12
+    # keep playing eighth notes until 19
     # beats pass in the parent session
-    while s.beat < 12:
+    while s.beat < 19:
         trumpet.play_note(67, 1, 0.5)
 
 
 # Have the session as a whole speed up to
-# 100 BPM over the first nine beats
-s.set_tempo_target(100, Moment.after_beats(9))
+# 100 BPM over the first nineteen beats
+s.set_tempo_target(100, Moment.after_beats(19))
 # fork returns the Clock associated
 # with the newly forked process
 trumpet_clock = s.fork(trumpet_part)
 s.start_transcribing(clock=trumpet_clock)
-# Play quarter notes for 12 beats
-while s.beat < 12:
+# Play quarter notes for 19 beats
+while s.beat < 19:
     trombone.play_note(60, 1, 1)
 
 # Stop recording and show the result

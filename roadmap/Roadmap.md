@@ -120,7 +120,8 @@ Done in eight bite-sized steps so each one ships independently.
 
 1. **Run existing tests under pytest, unchanged.** Add `pytest` as a dev dep,
    parametrize over the example `.py` files, keep `test_examples.py` working in
-   parallel.
+   parallel. Also inject fast-forwarding from the harness (an autouse fixture),
+   so the example copies don't each have to call it — right now 29/31 do it by hand.
 2. **Fix the determinism leak.** `get_example_result` resets
    `engraving_settings` but not `playback_settings` or `quantization_settings`.
    Reset all three.

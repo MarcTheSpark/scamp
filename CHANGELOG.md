@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A tempo change that arrives exactly on the final barline is no longer dropped from notation.** An accel.
+  or rit. ending on the last beat previously lost both its dashed line and its arrival tempo mark; the mark now
+  appears, right-aligned to the closing barline, in both MusicXML and LilyPond output.
 - **A tuplet on a compound beat (e.g. the 1.5-quarter beat of a 5/8 or 3/8 measure) no longer crashes
   notation export** with `AssignabilityError` / "does not resolve to single note type". Affects both LilyPond 
   (abjad) and MusicXML output. Notes spanning several tuplet subdivisions on a compound beat now also tend 
