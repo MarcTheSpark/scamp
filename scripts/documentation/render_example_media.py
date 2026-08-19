@@ -84,33 +84,37 @@ if fast:
     scamp.Session.__init__ = _fast_forward_init
 
 _score_count = [0]
+def _render_xml_svg(xml, title=None):
+    # Render a MusicXML file to per-page SVGs via verovio -- shared by Score.show
+    # capture and the pymusicxml export_to_file capture below.
+    import verovio
+    tk = verovio.toolkit()
+    tk.setOptions({"adjustPageHeight": True, "footer": "none", "header": "none",
+                   "scale": scale, "pageMarginTop": 10, "pageMarginBottom": 10,
+                   "pageMarginLeft": 10, "pageMarginRight": 10})
+    # An explicitly-given title (not one of the random default-pool ones) is written
+    # to a .title sidecar, so the docs can label it when a script shows several scores.
+    defaults = scamp.engraving_settings.default_titles
+    defaults = [defaults] if isinstance(defaults, str) else (defaults or [])
+    given_title = title if title and title not in defaults else None
+    if tk.loadFile(xml):
+        _score_count[0] += 1
+        # Each show() call is one score; the pages verovio split it across share a
+        # filename stem (-p2, -p3 ...) so the docs group them into one arrow-key pager.
+        # Separate scores from separate show() calls keep the -2, -3 ... numbering.
+        score_suffix = "" if _score_count[0] == 1 else "-%d" % _score_count[0]
+        for page in range(1, tk.getPageCount() + 1):
+            page_suffix = "" if page == 1 else "-p%d" % page
+            out = score_base + score_suffix + page_suffix + ".svg"
+            open(out, "w").write(tk.renderToSVG(page))
+            if given_title:
+                open(out[:-4] + ".title", "w").write(given_title)
+
 def _capture_score(self, *a, **k):
     try:
-        import verovio
         xml = tempfile.mktemp(suffix=".musicxml")
         self.export_music_xml(xml)
-        tk = verovio.toolkit()
-        tk.setOptions({"adjustPageHeight": True, "footer": "none", "header": "none",
-                       "scale": scale, "pageMarginTop": 10, "pageMarginBottom": 10,
-                       "pageMarginLeft": 10, "pageMarginRight": 10})
-        # An explicitly-given title (not one of the random default-pool ones) is written
-        # to a .title sidecar, so the docs can label it when a script shows several scores.
-        title = getattr(self, "title", None)
-        defaults = scamp.engraving_settings.default_titles
-        defaults = [defaults] if isinstance(defaults, str) else (defaults or [])
-        given_title = title if title and title not in defaults else None
-        if tk.loadFile(xml):
-            _score_count[0] += 1
-            # Each show() call is one score; the pages verovio split it across share a
-            # filename stem (-p2, -p3 ...) so the docs group them into one arrow-key pager.
-            # Separate scores from separate show() calls keep the -2, -3 ... numbering.
-            score_suffix = "" if _score_count[0] == 1 else "-%d" % _score_count[0]
-            for page in range(1, tk.getPageCount() + 1):
-                page_suffix = "" if page == 1 else "-p%d" % page
-                out = score_base + score_suffix + page_suffix + ".svg"
-                open(out, "w").write(tk.renderToSVG(page))
-                if given_title:
-                    open(out[:-4] + ".title", "w").write(given_title)
+        _render_xml_svg(xml, getattr(self, "title", None))
     except Exception as e:
         sys.stderr.write("score capture failed: %r\n" % e)
 
@@ -118,6 +122,21 @@ _Score = getattr(scamp, "Score", None)
 if _Score is not None:
     _Score.show = _capture_score if score_base else (lambda self, *a, **k: None)
     _Score.show_xml = _Score.show
+# Some examples (key_sig.py) export a score straight through pymusicxml, bypassing
+# Score.show; capture that written file the same way so they still render an SVG.
+if score_base:
+    try:
+        import pymusicxml
+        _orig_pmx_export = pymusicxml.Score.export_to_file
+        def _capture_pmx_export(self, file_path, *a, **k):
+            _orig_pmx_export(self, file_path, *a, **k)
+            try:
+                _render_xml_svg(file_path, getattr(self, "title", None))
+            except Exception as e:
+                sys.stderr.write("score capture failed: %r\n" % e)
+        pymusicxml.Score.export_to_file = _capture_pmx_export
+    except Exception:
+        pass
 _Performance = getattr(scamp, "Performance", None)
 if _Performance is not None and hasattr(_Performance, "show"):
     _Performance.show = lambda self, *a, **k: None
