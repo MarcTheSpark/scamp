@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Harmonic noteheads now export as diamonds in MusicXML.** The `harmonic`, `harmonic-black`, and
+  `harmonic-mixed` notehead types previously came out as ordinary noteheads in many readers; they now render
+  correctly as (hollow, filled, and duration-dependent) diamond noteheads.
 - **A tempo change that arrives exactly on the final barline is no longer dropped from notation.** An accel.
   or rit. ending on the last beat previously lost both its dashed line and its arrival tempo mark; the mark now
   appears, right-aligned to the closing barline, in both MusicXML and LilyPond output.

@@ -141,9 +141,9 @@ def _set_abjad_note_head_styles(self, abjad_note_or_chord):
 notehead_name_to_xml_type = {
     "normal": "normal",
     "diamond": "diamond",
-    "harmonic": "open mi",
-    "harmonic-black": "filled mi",
-    "harmonic-mixed": "mi",
+    "harmonic": "open diamond",
+    "harmonic-black": "filled diamond",
+    "harmonic-mixed": "diamond",
     "triangle": "triangle",
     "slash": "slash",
     "cross": "cross",
