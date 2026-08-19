@@ -335,6 +335,45 @@ class StopDashes(Spanner):
         return af.create_stop_text_span(),
 
 
+class StartOctaveLine(Spanner):
+
+    """
+    Start octave-shift line spanner (an "8va"/"8vb" bracket with a dashed line and terminal hook).
+
+    :param label: See :class:`Spanner`.
+    :param formatting: See :class:`Spanner`. Formatting can consist of {"placement": "above"/"below",
+        "octaves": [signed int, +1 = 8va, -1 = 8vb, +2 = 15ma], "dash_length": [tenths], "space_length": [tenths]}
+    """
+
+    START_MID_OR_STOP = "start"
+    FORMATTING_SLOTS = {"placement", "octaves", "dash_length", "space_length"}
+
+    def to_pymusicxml(self):
+        return pymusicxml.StartOctaveLine(label=self.label, **self._get_xml_consistent_formatting())
+
+    def to_abjad(self):
+        return af.create_ottava(self.formatting["octaves"] if self.formatting["octaves"] else 1),
+
+
+class StopOctaveLine(Spanner):
+
+    """
+    Stop octave-shift line spanner.
+
+    :param label: See :class:`Spanner`.
+    :param formatting: See :class:`Spanner`. Formatting can consist of {"placement": "above"/"below"}
+    """
+
+    START_MID_OR_STOP = "stop"
+    FORMATTING_SLOTS = {"placement"}
+
+    def to_pymusicxml(self):
+        return pymusicxml.StopOctaveLine(label=self.label, **self._get_xml_consistent_formatting())
+
+    def to_abjad(self):
+        return af.create_ottava(0, site='after'),
+
+
 class StartTrill(Spanner):
 
     """

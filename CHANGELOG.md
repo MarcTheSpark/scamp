@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`StartOctaveLine` / `StopOctaveLine` spanners** for octave-shift signs ("8va"/"8vb"/"15ma"). These export
+  a real `<octave-shift>` in MusicXML — drawn natively with a dashed line and terminal hook — and an `\ottava`
+  in LilyPond, rather than faking the sign with a dashed bracket. Use `StartOctaveLine(octaves=1)` for 8va,
+  `octaves=-1` for 8vb, `octaves=2` for 15ma.
+
 ### Changed
 
 - **Tempo guide marks are now off by default.** The parenthetical interpolated tempos shown between explicit

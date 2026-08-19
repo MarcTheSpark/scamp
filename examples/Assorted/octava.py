@@ -32,9 +32,9 @@ def apply_octava_to_part(part, threshold=90):
                 if last_note.pitch <= threshold and next_note.pitch <= threshold:
                     this_note.properties.texts.append(StaffText("8va", italic=True))
                 elif last_note.pitch <= threshold:
-                    this_note.properties.spanners.append(StartBracket(text="8va", line_type="dashed"))
+                    this_note.properties.spanners.append(StartOctaveLine(octaves=1))
             elif this_note.pitch <= threshold and last_note.pitch > threshold:
-                this_note.properties.spanners.append(StopBracket())
+                this_note.properties.spanners.append(StopOctaveLine())
     for note in part_notes:
         if note.pitch > threshold:
             note.pitch -= 12

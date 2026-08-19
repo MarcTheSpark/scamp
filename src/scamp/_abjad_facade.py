@@ -384,6 +384,12 @@ def create_stop_hairpin():
     return abjad.StopHairpin()
 
 
+def create_ottava(n: int, site: str = 'before'):
+    """Create an Ottava indicator (\\ottava n)."""
+    abjad = get_abjad()
+    return abjad.Ottava(n=n, site=site)
+
+
 def create_start_slur():
     """Create a StartSlur."""
     abjad = get_abjad()
