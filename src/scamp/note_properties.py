@@ -131,7 +131,7 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
             "regex": r"^voice$",
             "default": None,
             "regularization_function": None,
-            "merger_function": lambda p1, p2: p2,
+            "merger_function": lambda p1, p2: p1 if p2 is None else p2,
             "chord_merger_critical": True
         },
         {
@@ -147,7 +147,7 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
             "regex": r"^starts_tie$",
             "default": False,
             "regularization_function": None,
-            "merger_function": lambda p1, p2: p1,
+            "merger_function": lambda p1, p2: p1 or p2,
             "chord_merger_critical": True
         },
         {
@@ -155,7 +155,7 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
             "regex": r"^ends_tie$",
             "default": False,
             "regularization_function": None,
-            "merger_function": lambda p1, p2: p2,
+            "merger_function": lambda p1, p2: p1 or p2,
             "chord_merger_critical": True
         },
         {
