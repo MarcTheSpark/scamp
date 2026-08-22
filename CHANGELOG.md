@@ -17,8 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a real `<octave-shift>` in MusicXML — drawn natively with a dashed line and terminal hook — and an `\ottava`
   in LilyPond, rather than faking the sign with a dashed bracket. Use `StartOctaveLine(octaves=1)` for 8va,
   `octaves=-1` for 8vb, `octaves=2` for 15ma.
+- **A warning when a named or numbered voice contains overlapping notes**, which can't be kept in a single
+  notated voice and so get split off into extra voices.
 
 ### Changed
+
+- **Overlapping / multi-voice parts are laid out more stably.** Staff and rendered-voice assignments are now
+  decided up front from the whole quantized part: a line stays on one staff and voice instead of hopping
+  between them, moving only at a real break (a measure of silence), and voices sharing a staff are ordered by
+  pitch (higher = upper voice).
 
 - **Tempo guide marks are now off by default.** The parenthetical interpolated tempos shown between explicit
   tempo targets during an accel./rit. are no longer drawn; set `engraving_settings.tempo.include_guide_marks = True`

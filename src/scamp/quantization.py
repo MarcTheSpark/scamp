@@ -29,6 +29,7 @@ from .settings import quantization_settings, engraving_settings
 from expenvelope import Envelope
 from numbers import Number
 from typing import Sequence, Iterator, TYPE_CHECKING
+import logging
 import textwrap
 from . import _abjad_facade as af
 
@@ -746,6 +747,12 @@ def quantize_performance_part(part: PerformancePart, quantization_scheme: Quanti
         _collapse_chords(voice)
         # break the voice into a list of non-overlapping voices. If there was no overlap, this has length 1
         non_overlapping_voices = _separate_into_non_overlapping_voices(voice)
+
+        # warn if overlapping notes exist in a named or numbered voice, since it's not possible
+        # to keep them in the same notated voice
+        if len(non_overlapping_voices) > 1 and voice_name != "_unspecified_":
+            logging.warning("Voice '{}' contains overlapping notes and can't be kept in a single notation voice; "
+                            "the overlap will be split off into extra voices.".format(voice_name))
 
         for i, new_voice in enumerate(non_overlapping_voices):
             if i == 0:

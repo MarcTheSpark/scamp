@@ -28,7 +28,7 @@ from expenvelope import Envelope
 from .quantization import QuantizationRecord, QuantizationScheme, QuantizedMeasure, TimeSignature
 from . import performance as performance_module  # to distinguish it from variables named performance
 from .utilities import prime_factor, floor_x_to_pow_of_y, is_x_pow_of_y, ceil_to_multiple, floor_to_multiple, \
-    beat_is_before
+    beat_is_before, beat_is_after
 from ._engraving_translations import length_to_note_type, get_xml_notehead, get_lilypond_notehead_tweaks, \
     articulation_to_xml_element_name, notations_to_xml_notations_element, attach_abjad_notation_to_note, \
     xml_barline_to_lilypond
@@ -39,11 +39,12 @@ from pymusicxml.score_components import _XMLNote, MusicXMLComponent
 from ._dependencies import get_abjad
 from . import _abjad_facade as af
 import math
+import re
 from fractions import Fraction
 from copy import deepcopy
 from itertools import accumulate, count
 import textwrap
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 from abc import ABC, abstractmethod
 import logging
 from ._metric_structure import MetricStructure
@@ -1252,9 +1253,13 @@ class Score(ScoreComponent, ScoreContainer):
                                       **lilypond_file_args)
 
 
-# used in arranging voices in a part
+# Named tuples used in arranging voices in a part.
+# Explicitly numbered voices are pinned to a fixed lane, and rank ahead of all of other voices
 _NumberedVoiceFragment = namedtuple("_NumberedVoiceFragment", "voice_num start_measure_num measures_with_quantizations")
-_NamedVoiceFragment = namedtuple("_NamedVoiceFragment", "average_pitch start_measure_num measures_with_quantizations")
+# For other voices, "priority" ranks how deliberate a voice is (lower = higher priority):
+# 1 = a user-named voice, 2 = overage from a named/numbered voice that self-overlaps, 3 = the unspecified catch-all.
+_NamedVoiceFragment = namedtuple("_NamedVoiceFragment",
+                                 "priority average_pitch start_measure_num measures_with_quantizations")
 
 
 class StaffGroup(ScoreComponent, ScoreContainer):
@@ -1315,7 +1320,43 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         )
 
     @staticmethod
-    def _construct_voice_fragment(voice_name, notes, start_measure_num, measure_quantizations):
+    def _classify_voice(voice_name, all_voice_names):
+        """
+        Classifies a quantized voice by how deliberate it is, returning (priority, split_by_measure).
+
+        Quantization splits a self-overlapping source voice into extra "overage" voices named base_2, base_3,
+        etc. (see _quantize_performance_part). Such a voice is detected here by a trailing _<k> whose base is
+        itself a voice. Deliberate voices (numbered, or user-named) are kept whole so their phrases don't jump
+        lanes; they can only change lange when there is a whole empty measure in between. Overage and the
+        unspecified catch-all are notation artifacts, so they may be split per measure and re-slotted freely
+        to keep each measure's voices in pitch order.
+
+        :return: (priority, split_by_measure). priority 1 = named, 2 = overage, 3 = unspecified; None for a
+            numbered voice, which is pinned to a fixed lane rather than ordered by priority.
+        """
+        base = voice_name
+        is_overage = False
+
+        # check for a _1, _2, etc. postfix to an existing voice name, indicating an overage voice
+        match = re.fullmatch(r"(.*)_(\d+)", voice_name)
+        if match and match.group(1) in all_voice_names:
+            base = match.group(1)
+            is_overage = True
+
+        # lowest priority: anything unspecified (split by measure)
+        if base == "_unspecified_":
+            return 3, True
+        # medium priority: overage from a named or numbered voice (split by measure)
+        if is_overage:
+            return 2, True
+        # numbered voice: handled first, outside of the priority system (don't split by measure)
+        if base.isdigit():
+            return None, False
+        # named voice: highest priority (don't split by measure)
+        return 1, False
+
+    @staticmethod
+    def _construct_voice_fragment(voice_name, priority, notes, start_measure_num, measure_quantizations):
         average_pitch = sum(note.average_pitch() for note in notes) / len(notes)
 
         # split the notes into measures, breaking notes that span a barline in two
@@ -1342,135 +1383,172 @@ class StaffGroup(ScoreComponent, ScoreContainer):
             notes = remaining_notes
             measures_with_quantizations.append((this_measure_notes, measure_quantization))
 
-        # then decide based on the name of the voice whether it is from a numbered voice, which gets treated differently
-        try:
-            # numbered voice
-            voice_num = int(voice_name)
-            return _NumberedVoiceFragment(voice_num - 1, start_measure_num, measures_with_quantizations)
-        except ValueError:
-            # not a numbered voice, so we want to order voices mostly by pitch
-            return _NamedVoiceFragment(average_pitch, start_measure_num, measures_with_quantizations)
+        # a numbered voice is a direct request for a specific lane
+        # everything else gets placed into lane according to priority and average pitch
+        if priority is None:
+            return _NumberedVoiceFragment(int(voice_name) - 1, start_measure_num, measures_with_quantizations)
+        else:
+            return _NamedVoiceFragment(priority, average_pitch, start_measure_num, measures_with_quantizations)
 
     @staticmethod
     def _separate_voices_into_fragments(quantized_performance_part):
         """
-        Splits the part's voices into fragments where divisions occur whenever there is a measure break at a rest.
-        If there's a measure break but not a rest, we're probably in the middle of a melodic gesture, so don't want to
-        separate. If there's a rest but not a measure break then we should also probably keep the notes together in a
-        single voice, since they were specified to be in the same voice.
+        Splits each of the part's voices into fragments. A deliberate voice (numbered or user-named) breaks only
+        where a whole measure of it is silent, so its phrases stay whole and don't jump rendered voice or staff.
+        A notation artifact (overage split off a self-overlapping voice, or the unspecified catch-all) breaks at
+        every barline a note doesn't sound across, so its measures can re-slot freely to keep each measure's
+        voices in pitch order. (Fragments are the unit later allocated to lanes/staves.)
 
         :param quantized_performance_part: a quantized PerformancePart
-        :return: a tuple of (numbered_fragments, named_fragments), where the numbered_fragments come from numbered voices
-            and are of the form (voice_num, notes_list, start_measure_num, end_measure_num, measure_quantization_schemes),
-            while the named_fragments are of the form (notes_list, start_measure_num, end_measure_num,
-            measure_quantization_schemes)
+        :return: a list of _NumberedVoiceFragment / _NamedVoiceFragment
         """
         fragments = []
+        all_voice_names = set(quantized_performance_part.voices)
 
         for voice_name, note_list in quantized_performance_part.voices.items():
-            # first we make an enumeration iterator for the measures
             if len(note_list) == 0:
                 continue
-
             note_list = deepcopy(note_list)
+            priority, split_by_measure = StaffGroup._classify_voice(voice_name, all_voice_names)
 
             quantization_record = quantized_performance_part.voice_quantization_records[voice_name]
             assert isinstance(quantization_record, QuantizationRecord)
-            measure_quantization_iterator = enumerate(quantization_record.quantized_measures)
+            measures = quantization_record.quantized_measures
 
-            # the idea is that we build a current_fragment up until we encounter a rest at a barline
-            # when that happens, we save the old fragment and start a new one
-            current_fragment = []
-            fragment_measure_quantizations = []
-            current_measure_num, current_measure = next(measure_quantization_iterator)
-            fragment_start_measure = 0
+            # mark which measures the voice sounds in, and which barlines a note sounds across ("tied")
+            active = [False] * len(measures)
+            # indicates if a measure should stay connected with / in the same lane as the next measure (assuming
+            # they both have content). Always true when we're not splitting by measure. Otherwise true if there's
+            # a note across the barline.
+            tied = [not split_by_measure] * len(measures)
+            for note in note_list:
+                for i, measure in enumerate(measures):
+                    measure_end = measure.start_beat + measure.measure_length
+                    if beat_is_before(note.start_beat, measure_end) and beat_is_after(note.end_beat, measure.start_beat):
+                        active[i] = True
+                    if split_by_measure and beat_is_before(note.start_beat, measure_end) \
+                            and beat_is_after(note.end_beat, measure_end):
+                        tied[i] = True
 
-            for performance_note in note_list:
-                # update so that current_measure is the measure that performance_note starts in
-                while performance_note.start_beat >= current_measure.start_beat + current_measure.measure_length:
-                    # we're past the old measure, so increment to next measure
-                    current_measure_num, current_measure = next(measure_quantization_iterator)
-                    # if this measure break coincides with a rest, then we start a new fragment
-                    if len(current_fragment) > 0 and current_fragment[-1].end_beat < performance_note.start_beat:
-                        fragments.append(StaffGroup._construct_voice_fragment(
-                            voice_name, current_fragment, fragment_start_measure, fragment_measure_quantizations
-                        ))
-                        # reset all the fragment-building variables
-                        current_fragment = []
-                        fragment_measure_quantizations = []
-                        fragment_start_measure = current_measure_num
-                    elif len(current_fragment) == 0:
-                        # don't mark the start measure until we actually have a note!
-                        fragment_start_measure = current_measure_num
-
-                # add the new note to the current fragment
-                current_fragment.append(performance_note)
-
-                # make sure that fragment_measure_quantizations has a copy of the measure this note starts in
-                if len(fragment_measure_quantizations) == 0 or fragment_measure_quantizations[-1] != current_measure:
-                    fragment_measure_quantizations.append(current_measure)
-
-                # now we move forward to the end of the note, and update the measure we're on
-                # (Note the > rather than a >= sign. For the end of the note, it has to actually cross the barline.)
-                while performance_note.end_beat > current_measure.start_beat + current_measure.measure_length:
-                    current_measure_num, current_measure = next(measure_quantization_iterator)
-                    # when we cross into a new measure, add it to the measure quantizations
-                    fragment_measure_quantizations.append(current_measure)
-
-            # once we're done going through the voice, save the last fragment and move on
-            if len(current_fragment) > 0:
-                fragments.append(StaffGroup._construct_voice_fragment(
-                    voice_name, current_fragment, fragment_start_measure, fragment_measure_quantizations)
-                )
+            # walk the measures, closing off a fragment at a silent measure or an untied barline between active
+            # ones (deliberate voices have tied all True, so they only break at silent measures)
+            fragment_start = None
+            for i in range(len(measures)):
+                if not active[i]:
+                    continue
+                if fragment_start is None:
+                    fragment_start = i
+                # consolidate/split if:
+                # - last measure
+                # - going into an inactive measure
+                # - not tied / connected with the next measure due to being a named/number voice
+                if i + 1 == len(measures) or not active[i + 1] or not tied[i]:
+                    fragment_measures = measures[fragment_start:i + 1]
+                    fragment_end_beat = fragment_measures[-1].start_beat + fragment_measures[-1].measure_length
+                    fragment_notes = [note for note in note_list
+                                      if not beat_is_before(note.start_beat, fragment_measures[0].start_beat)
+                                      and beat_is_before(note.start_beat, fragment_end_beat)]
+                    fragments.append(StaffGroup._construct_voice_fragment(
+                        voice_name, priority, fragment_notes, fragment_start, fragment_measures))
+                    fragment_start = None
 
         return fragments
 
     @staticmethod
     def _create_measure_voice_grid(fragments, num_measures):
-        numbered_fragments = []
-        named_fragments = []
-        while len(fragments) > 0:
-            fragment = fragments.pop()
-            if isinstance(fragment, _NumberedVoiceFragment):
-                numbered_fragments.append(fragment)
-            else:
-                named_fragments.append(fragment)
+        """
+        Places fragments into grid[measure][lane] cells. Lanes group into staves by lane // mvp, so a lane's
+        parity within its staff sets stem direction. Two priorities apply on different axes: which staff a
+        fragment lands in follows time (earlier-entering music on top), while its lane within a shared staff
+        follows pitch (higher voice on top). So allocation is two passes: assign a staff by entry time, then a
+        lane within that staff by pitch. Numbered voices pin to an exact lane throughout.
+        """
+        mvp = engraving_settings.max_voices_per_part
+        numbered_fragments = [f for f in fragments if isinstance(f, _NumberedVoiceFragment)]
+        named_fragments = [f for f in fragments if isinstance(f, _NamedVoiceFragment)]
 
+        def measure_span(fragment):
+            return range(fragment.start_measure_num,
+                         fragment.start_measure_num + len(fragment.measures_with_quantizations))
+
+        def entry_beat(fragment):
+            # start_beat of the fragment's earliest note; a fragment always starts with a note,
+            # so its first measure is never empty
+            return min(note.start_beat for note in fragment.measures_with_quantizations[0][0])
+
+        def lowest_free_lane(occupancy, span):
+            # occupancy maps lane -> set of which measures are already occupied for that lane
+            lane = 0
+            while any(measure_num in occupancy[lane] for measure_num in span):
+                # if any measure for the span we're testing shows up in the occupancy set for this lane,
+                # then it's occupied; move on to the next lane
+                lane += 1
+            return lane
+
+        # (lane, fragment) pairs to write into the grid at the end.
+        # We start with numbered voices already pinned to their voice_num.
+        placements = [(fragment.voice_num, fragment) for fragment in numbered_fragments]
+
+        # --------------------- Pass 1: Place named fragments into staves by entry time --------------------
+
+        # Goal: Populate a fragments_by_staff dict mapping staff -> the named fragments in that staff.
+        fragments_by_staff = defaultdict(list)
+
+        # First, create an occupancy map showing, for each lane, which measure indices are already occupied.
+        # Preload it with the numbered fragments, since the named fragments have to work around them.
+        occupancy = defaultdict(set)  # lane -> measures occupied in that lane
+        for lane, fragment in placements:
+            occupancy[lane].update(measure_span(fragment))
+
+        # Second, walk through the names fragments sorted first by entry time, then from high to low pitch
+        # and place them in the first available lane. NB: The lane assignment for a named fragments here is
+        # not necessarily its final lane assignment. We're just trying to pin down which staff it ends up in
+        # (lane // max_voices_per_part), and then in Pass 2, we will reorder by pitch within that staff.
+        fragments_by_entry_time = sorted(
+            named_fragments, key=lambda frag: (frag.start_measure_num, entry_beat(frag), -frag.average_pitch)
+        )
+        for fragment in fragments_by_entry_time:
+            span = measure_span(fragment)  # get the measure span
+            lane = lowest_free_lane(occupancy, span)  # find the lowest available lane
+            occupancy[lane].update(span)  # update occupance map
+            fragments_by_staff[lane // mvp].append(fragment)  # assign this fragment to its staff
+
+        # ---------------- Pass 2: Sort fragments within each staff by priority and length (then pitch) ---------------
+        # Higher priority (e.g. named) voice fragments get placed first, then within a priority, longer fragments
+        # get placed first, since they need more space, then as a final tie break, higher pitched fragments go first
+
+        for staff, staff_fragments in fragments_by_staff.items():
+            # for each staff, keep track of the occupancy of its max_voices_per_part lanes
+            staff_occupancy = defaultdict(set)
+
+            # again, place the numbered fragments we need to work around first
+            for fragment in numbered_fragments:
+                if fragment.voice_num // mvp == staff:
+                    staff_occupancy[fragment.voice_num % mvp].update(measure_span(fragment))
+
+            # walk the named fragments in this staff by priority > length > pitch.
+            staff_fragments_by_priority_then_pitch = sorted(
+                staff_fragments, key=lambda frag: \
+                    (frag.priority, -len(frag.measures_with_quantizations), -frag.average_pitch)
+            )
+
+            for fragment in staff_fragments_by_priority_then_pitch:
+                span = measure_span(fragment)
+                local_lane = lowest_free_lane(staff_occupancy, span)
+                assert local_lane < mvp  # pass 1 capped overlap at mvp per staff, so a local lane is always free
+                staff_occupancy[local_lane].update(span)
+                placements.append((staff * mvp + local_lane, fragment))
+
+        # write each fragment's cells down its lane, padding rows with None as needed. grid[measure][lane] is a
+        # (notes, quantization) cell, or None where that lane is empty in that measure.
         measure_grid = [[] for _ in range(num_measures)]
-
-        def is_cell_free(which_measure, which_voice):
-            return len(measure_grid[which_measure]) <= which_voice or measure_grid[which_measure][which_voice] is None
-
-        # sort by measure number (i.e. fragment[2]) then by voice number (i.e. fragment[0])
-        numbered_fragments.sort(key=lambda frag: (frag.start_measure_num, frag.voice_num))
-        # sort by measure number, then by highest to lowest pitch, then by longest to shortest fragment
-        named_fragments.sort(key=lambda frag: (frag.start_measure_num, -frag.average_pitch,
-                                               -len(frag.measures_with_quantizations)))
-
-        for fragment in numbered_fragments:
-            assert isinstance(fragment, _NumberedVoiceFragment)
+        for lane, fragment in placements:
             measure_num = fragment.start_measure_num
             for measure_with_quantization in fragment.measures_with_quantizations:
-                while len(measure_grid[measure_num]) <= fragment.voice_num:
+                while len(measure_grid[measure_num]) <= lane:
                     measure_grid[measure_num].append(None)
-                measure_grid[measure_num][fragment.voice_num] = measure_with_quantization
+                measure_grid[measure_num][lane] = measure_with_quantization
                 measure_num += 1
-
-        for fragment in named_fragments:
-            assert isinstance(fragment, _NamedVoiceFragment)
-            measure_range = range(fragment.start_measure_num,
-                                  fragment.start_measure_num + len(fragment.measures_with_quantizations))
-            voice_num = 0
-            while not all(is_cell_free(measure_num, voice_num) for measure_num in measure_range):
-                voice_num += 1
-
-            measure_num = fragment.start_measure_num
-            for measure_with_quantization in fragment.measures_with_quantizations:
-                while len(measure_grid[measure_num]) <= voice_num:
-                    measure_grid[measure_num].append(None)
-                measure_grid[measure_num][voice_num] = measure_with_quantization
-                measure_num += 1
-
         return measure_grid
 
     @classmethod
