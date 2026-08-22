@@ -18,7 +18,8 @@ Then:
 4. [Test infrastructure & settings refactor](#test-infrastructure--settings-refactor) — pytest + syrupy migration, targeted unit tests, dataclass-based settings with per-`Session` overrides.
 5. [Transcribable non-note events](#transcribable-non-note-events) — record `send_midi_cc` (pedaling, etc.) in `Performance`s; likely part of a broader "events not attached to notes" redesign. Stuff like clef changes and key sig changes.
 6. [MPE for external MIDI](#mpe-for-external-midi) — make microtonal pitch bend render on third-party synths (real-time stream + file export), and get a reliably-wide bend range there.
-7. [Assorted Fixes](#assorted-fixes)
+7. [Separate overlapping voices before quantizing](#separate-overlapping-voices-before-quantizing) — flip the order so each notated voice quantizes on its own, not on a shared grid.
+8. [Assorted Fixes](#assorted-fixes)
 
 Recently completed (2026-05-06): sourcehut → GitHub link migration across all five packages, and a full refresh of the installation docs (FluidSynth bundling, Python ≥ 3.12, `scamp[all]` extras, abjad pin, Mac LilyPond instructions, dependency-status testing snippet).
 
@@ -204,6 +205,33 @@ the RPN that sets pitch-bend *range*, which is why external MIDI still defaults 
 whereas SCAMP is a **multi-instrument** ensemble, so mapping an ensemble onto MPE (likely
 one zone per port) needs a real decision. Defaults (flag location, ±24 vs ±48, on/off by
 default) still TBD.
+
+## Separate overlapping voices before quantizing
+
+Today the order is backwards. `_quantize_performance_part` (quantization.py) walks each
+source voice and **quantizes the whole voice first**, then `_collapse_chords`, then
+`_separate_into_non_overlapping_voices` splits it into monophonic streams. So overlapping
+notes that end up in *different* notated voices influence one another's quantization, and
+every stream split off a voice is forced onto **one shared `QuantizationRecord`** (all the
+`base`, `base_2`, `base_3` overage voices point at the same record) — they never get their
+own subdivision choices.
+
+The fix: **separate into non-overlapping voices first, then quantize each independently.**
+Each stream gets its own record, chosen for its own rhythm. This is cleaner and should
+improve notation of self-overlapping voices.
+
+Notes / open questions:
+- Records are already stored **per voice** (`part.voice_quantization_records` is a dict
+  keyed by voice name; each `QuantizationRecord` holds per-measure `quantized_measures`),
+  so the storage already supports independent records — it's the *computation* order that's
+  shared, not the schema.
+- Separation is greedy-by-onset and would run on **raw** (pre-quantization) times, which is
+  arguably more correct (true overlap, not quantized overlap).
+- `_collapse_chords` currently sits between the two steps; decide where it lands (probably
+  still before separation, so a true chord isn't torn into two voices).
+- Voices sharing a staff still need compatible barlines; independent per-voice subdivision
+  within a measure is fine (different tuplets per voice are legal), but confirm the
+  `QuantizationScheme` measure/time-signature choices stay consistent across a part's voices.
 
 ## Assorted Fixes
 
