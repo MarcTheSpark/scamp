@@ -530,6 +530,10 @@ class EngravingSettings(_ScampSettings):
         dotted-eighth or an eighth inside of a 2:3 tuplet. If this is set to True, we allow the latter option.
     :ivar max_voices_per_part: integer specifying how many voices we allow in a single staff before creating extra
         staves to accommodate them.
+    :ivar pitch_order_voices_within_measure: if True, voices within a particular staff and measure are reordered
+        according to pitch (higher pitch = upper, stem-up voice) to reduce crossed stems. A voice is only reordered
+        at a barline no note ties across, so ties are never broken. Set False to keep each named voice in a fixed
+        rendered voice number for its whole duration.
     :ivar max_dots_allowed: integer specifying how many dots we allow a note to have before it's just too many dots.
     :ivar beat_hierarchy_spacing: Should be >= 1. Larger numbers treat the various nested levels of beat subdivision as
         further apart, leading to a greater tendency to show the beat structure rather than combine tie notes into
@@ -577,6 +581,7 @@ class EngravingSettings(_ScampSettings):
 
     allow_duple_tuplets_in_compound_time: bool = False
     max_voices_per_part: int = 4
+    pitch_order_voices_within_measure: bool = True
     max_dots_allowed: int = 3
     beat_hierarchy_spacing: float = 2.4
     num_divisions_penalty: float = 0.6

@@ -1549,7 +1549,62 @@ class StaffGroup(ScoreComponent, ScoreContainer):
                     measure_grid[measure_num].append(None)
                 measure_grid[measure_num][lane] = measure_with_quantization
                 measure_num += 1
+
+        if engraving_settings.pitch_order_voices_within_measure:
+            # (measure_num, lane) cells pinned by a numbered voice, which the reorder must leave untouched
+            numbered_cells = set()
+            for fragment in numbered_fragments:
+                measure_num = fragment.start_measure_num
+                for _ in fragment.measures_with_quantizations:
+                    numbered_cells.add((measure_num, fragment.voice_num))
+                    measure_num += 1
+            StaffGroup._pitch_order_voices_within_measures(measure_grid, mvp, numbered_cells)
         return measure_grid
+
+    @staticmethod
+    def _pitch_order_voices_within_measures(measure_grid, mvp, numbered_cells):
+        """
+        Reorders the voices sharing a staff, measure by measure, so higher pitches take the upper (stem-up)
+        voices. A staff-measure is left as allocated when either (a) one of its voices ties across a barline --
+        moving a tied voice would split the tie between two rendered voices -- or (b) it contains a numbered
+        voice, whose lane is a guaranteed pin. Otherwise ties and numbered pins are always preserved.
+        """
+        def average_pitch(cell):
+            notes = cell[0]
+            return sum(note.average_pitch() for note in notes) / len(notes)
+
+        def ties_across_barline(cell):
+            notes = cell[0]
+            return notes[0].properties.ends_tie or notes[-1].properties.starts_tie
+
+        # depending on how many voices are present, we order high-to-low differently
+        voice_pitch_order_by_count = {
+            1: (1,),
+            2: (1, 2),
+            3: (1, 3, 2),
+            4: (1, 3, 4, 2)
+        }
+
+        # for each measure...
+        for measure_num, measure_row in enumerate(measure_grid):
+            # pick out the group of lanes representing each staff (hence range jumps by mvp)
+            for staff_start in range(0, len(measure_row), mvp):
+                lanes = range(staff_start, min(staff_start + mvp, len(measure_row)))
+                active = [(lane, measure_row[lane]) for lane in lanes if measure_row[lane] is not None]
+                if len(active) <= 1 or any(not cell[0] for _, cell in active):
+                    continue
+                # a numbered voice's lane is a guaranteed pin, so leave its staff-measure as allocated
+                if any((measure_num, lane) in numbered_cells for lane, _ in active):
+                    continue
+                # a voice tied across a barline can't move without splitting the tie between two voices
+                if any(ties_across_barline(cell) for _, cell in active):
+                    continue
+                active.sort(key=lambda lane_cell: -average_pitch(lane_cell[1]))
+                for lane in lanes:
+                    measure_row[lane] = None
+                # voice_pitch_order_by_count gives 1-based voice numbers; the lane is that minus one
+                for (_, cell), voice_number in zip(active, voice_pitch_order_by_count[len(active)]):
+                    measure_row[staff_start + voice_number - 1] = cell
 
     @classmethod
     def _from_measure_voice_grid(cls, measure_bins, quantization_record: QuantizationRecord, name: str = None,

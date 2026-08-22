@@ -25,7 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Overlapping / multi-voice parts are laid out more stably.** Staff and rendered-voice assignments are now
   decided up front from the whole quantized part: a line stays on one staff and voice instead of hopping
   between them, moving only at a real break (a measure of silence), and voices sharing a staff are ordered by
-  pitch (higher = upper voice).
+  pitch (higher = upper voice). Within a staff, voices are additionally reordered measure by measure so higher
+  pitches take the upper (stem-up) voices, keeping stems from crossing; this happens only where no note ties
+  across the barline, so ties are never broken. Set `engraving_settings.pitch_order_voices_within_measure = False`
+  to keep each named voice in a fixed rendered-voice number instead.
 
 - **Tempo guide marks are now off by default.** The parenthetical interpolated tempos shown between explicit
   tempo targets during an accel./rit. are no longer drawn; set `engraving_settings.tempo.include_guide_marks = True`
