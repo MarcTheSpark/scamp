@@ -71,13 +71,13 @@ def test_results():
     old_engraving_settings = engraving_settings.duplicate()
     engraving_settings.glissandi.control_point_policy = "grace"
     engraving_settings.ignore_empty_parts = False
-    engraving_settings.max_voices_per_part = 1
+    engraving_settings.max_voices_per_staff = 1
     out = (
         performance,
         performance.to_score(time_signature="2/4")
     )
     engraving_settings.glissandi.control_point_policy = old_engraving_settings.glissandi.control_point_policy
     engraving_settings.ignore_empty_parts = old_engraving_settings.ignore_empty_parts
-    engraving_settings.max_voices_per_part = old_engraving_settings.max_voices_per_part
+    engraving_settings.max_voices_per_staff = old_engraving_settings.max_voices_per_staff
     return out
 

@@ -60,12 +60,12 @@ performance = s.stop_transcribing()
 
 
 def test_results():
-    old_mvpp = engraving_settings.max_voices_per_part
-    engraving_settings.max_voices_per_part = 1
+    old_mvpp = engraving_settings.max_voices_per_staff
+    engraving_settings.max_voices_per_staff = 1
     out = (
         performance,
         performance.to_score(max_divisor=6, simplicity_preference=3)
     )
-    engraving_settings.max_voices_per_part = old_mvpp
+    engraving_settings.max_voices_per_staff = old_mvpp
     return out
 

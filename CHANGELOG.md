@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`engraving_settings.max_voices_per_part` has been renamed `max_voices_per_staff`**, which describes it more
+  accurately (it's the voice limit per staff, above which extra staves are added). The old name still works as a
+  deprecated alias, and a value saved under the old name in your settings file migrates automatically on load.
+  Values outside 1–4 are now rejected with a warning, falling back to the default of 4.
+
 - **Overlapping / multi-voice parts are laid out more stably.** Staff and rendered-voice assignments are now
   decided up front from the whole quantized part: a line stays on one staff and voice instead of hopping
   between them, moving only at a real break (a measure of silence), and voices sharing a staff are ordered by

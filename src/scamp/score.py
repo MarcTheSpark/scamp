@@ -1457,13 +1457,13 @@ class StaffGroup(ScoreComponent, ScoreContainer):
     @staticmethod
     def _create_measure_voice_grid(fragments, num_measures):
         """
-        Places fragments into grid[measure][lane] cells. Lanes group into staves by lane // mvp, so a lane's
+        Places fragments into grid[measure][lane] cells. Lanes group into staves by lane // mvs, so a lane's
         parity within its staff sets stem direction. Two priorities apply on different axes: which staff a
         fragment lands in follows time (earlier-entering music on top), while its lane within a shared staff
         follows pitch (higher voice on top). So allocation is two passes: assign a staff by entry time, then a
         lane within that staff by pitch. Numbered voices pin to an exact lane throughout.
         """
-        mvp = engraving_settings.max_voices_per_part
+        mvs = engraving_settings.max_voices_per_staff
         numbered_fragments = [f for f in fragments if isinstance(f, _NumberedVoiceFragment)]
         named_fragments = [f for f in fragments if isinstance(f, _NamedVoiceFragment)]
 
@@ -1503,7 +1503,7 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         # Second, walk through the names fragments sorted first by entry time, then from high to low pitch
         # and place them in the first available lane. NB: The lane assignment for a named fragments here is
         # not necessarily its final lane assignment. We're just trying to pin down which staff it ends up in
-        # (lane // max_voices_per_part), and then in Pass 2, we will reorder by pitch within that staff.
+        # (lane // max_voices_per_staff), and then in Pass 2, we will reorder by pitch within that staff.
         fragments_by_entry_time = sorted(
             named_fragments, key=lambda frag: (frag.start_measure_num, entry_beat(frag), -frag.average_pitch)
         )
@@ -1511,20 +1511,20 @@ class StaffGroup(ScoreComponent, ScoreContainer):
             span = measure_span(fragment)  # get the measure span
             lane = lowest_free_lane(occupancy, span)  # find the lowest available lane
             occupancy[lane].update(span)  # update occupance map
-            fragments_by_staff[lane // mvp].append(fragment)  # assign this fragment to its staff
+            fragments_by_staff[lane // mvs].append(fragment)  # assign this fragment to its staff
 
         # ---------------- Pass 2: Sort fragments within each staff by priority and length (then pitch) ---------------
         # Higher priority (e.g. named) voice fragments get placed first, then within a priority, longer fragments
         # get placed first, since they need more space, then as a final tie break, higher pitched fragments go first
 
         for staff, staff_fragments in fragments_by_staff.items():
-            # for each staff, keep track of the occupancy of its max_voices_per_part lanes
+            # for each staff, keep track of the occupancy of its max_voices_per_staff lanes
             staff_occupancy = defaultdict(set)
 
             # again, place the numbered fragments we need to work around first
             for fragment in numbered_fragments:
-                if fragment.voice_num // mvp == staff:
-                    staff_occupancy[fragment.voice_num % mvp].update(measure_span(fragment))
+                if fragment.voice_num // mvs == staff:
+                    staff_occupancy[fragment.voice_num % mvs].update(measure_span(fragment))
 
             # walk the named fragments in this staff by priority > length > pitch.
             staff_fragments_by_priority_then_pitch = sorted(
@@ -1535,9 +1535,9 @@ class StaffGroup(ScoreComponent, ScoreContainer):
             for fragment in staff_fragments_by_priority_then_pitch:
                 span = measure_span(fragment)
                 local_lane = lowest_free_lane(staff_occupancy, span)
-                assert local_lane < mvp  # pass 1 capped overlap at mvp per staff, so a local lane is always free
+                assert local_lane < mvs  # pass 1 capped overlap at mvs per staff, so a local lane is always free
                 staff_occupancy[local_lane].update(span)
-                placements.append((staff * mvp + local_lane, fragment))
+                placements.append((staff * mvs + local_lane, fragment))
 
         # write each fragment's cells down its lane, padding rows with None as needed. grid[measure][lane] is a
         # (notes, quantization) cell, or None where that lane is empty in that measure.
@@ -1558,11 +1558,11 @@ class StaffGroup(ScoreComponent, ScoreContainer):
                 for _ in fragment.measures_with_quantizations:
                     numbered_cells.add((measure_num, fragment.voice_num))
                     measure_num += 1
-            StaffGroup._pitch_order_voices_within_measures(measure_grid, mvp, numbered_cells)
+            StaffGroup._pitch_order_voices_within_measures(measure_grid, mvs, numbered_cells)
         return measure_grid
 
     @staticmethod
-    def _pitch_order_voices_within_measures(measure_grid, mvp, numbered_cells):
+    def _pitch_order_voices_within_measures(measure_grid, mvs, numbered_cells):
         """
         Reorders the voices sharing a staff, measure by measure, so higher pitches take the upper (stem-up)
         voices and stems cross less. Voices that can't move stay put: a numbered voice (its lane is a guaranteed
@@ -1586,9 +1586,9 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         voice_visual_order = (1, 3, 4, 2)
 
         for measure_num, measure_voices_column in enumerate(measure_grid):
-            # a staff owns a block of mvp consecutive lanes, so step through the row mvp lanes at a time
-            for staff_start in range(0, len(measure_voices_column), mvp):
-                staff_lanes = range(staff_start, min(staff_start + mvp, len(measure_voices_column)))
+            # a staff owns a block of mvs consecutive lanes, so step through the row mvs lanes at a time
+            for staff_start in range(0, len(measure_voices_column), mvs):
+                staff_lanes = range(staff_start, min(staff_start + mvs, len(measure_voices_column)))
                 occupied = [lane for lane in staff_lanes if measure_voices_column[lane] is not None]
 
                 # voices that can't move: a numbered pin, or one tied across a barline
@@ -1618,14 +1618,14 @@ class StaffGroup(ScoreComponent, ScoreContainer):
     def _from_measure_voice_grid(cls, measure_bins, quantization_record: QuantizationRecord, name: str = None,
                                  clef_choices: Sequence[str | tuple[str, Real]] = None):
         """
-        Creates a StaffGroup with Staves that accommodate engraving_settings.max_voices_per_part voices each
+        Creates a StaffGroup with Staves that accommodate engraving_settings.max_voices_per_staff voices each
 
         :param measure_bins: a list of voice lists (can be many voices each)
         :param quantization_record: a QuantizationRecord
         :param name: name for the staff group; the staves will get named, e.g. "piano [1]", "piano [2]", etc.
         """
         num_staffs_required = 1 if len(measure_bins) == 0 else \
-            int(max(math.ceil(len(x) / engraving_settings.max_voices_per_part) for x in measure_bins))
+            int(max(math.ceil(len(x) / engraving_settings.max_voices_per_staff) for x in measure_bins))
 
         # create a bunch of dummy bins for the different measures of each staff
         #             measures ->      staffs -v
@@ -1634,10 +1634,10 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         staves = [[None] * len(measure_bins) for _ in range(num_staffs_required)]
 
         for measure_num, measure_voices in enumerate(measure_bins):
-            # this breaks up the measure's voices into groups of length max_voices_per_part
+            # this breaks up the measure's voices into groups of length max_voices_per_staff
             # (the last group might have fewer)
-            voice_groups = [measure_voices[i:i + engraving_settings.max_voices_per_part]
-                            for i in range(0, len(measure_voices), engraving_settings.max_voices_per_part)]
+            voice_groups = [measure_voices[i:i + engraving_settings.max_voices_per_staff]
+                            for i in range(0, len(measure_voices), engraving_settings.max_voices_per_staff)]
 
             for staff_num in range(len(staves)):
                 # for each staff, check if this measure has enough voices to even reach that staff

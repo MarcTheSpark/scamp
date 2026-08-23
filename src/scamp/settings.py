@@ -34,6 +34,7 @@ import logging
 import json
 import platform
 import subprocess
+import warnings
 
 
 class _ScampSettings(SavesToJSON):
@@ -57,6 +58,10 @@ class _ScampSettings(SavesToJSON):
     # so subsequent processes don't pay the resolution cost again.
     _resolvers: dict = {}
     _persist_after_resolve: set = set()
+
+    # old name -> current name, so a value stored under the old name
+    # in a saved JSON file migrates to the new field on load.
+    _renamed_fields: dict = {}
 
     @classmethod
     def _factory_default(cls, key):
@@ -143,12 +148,17 @@ class _ScampSettings(SavesToJSON):
         """
         field_names = {f.name for f in fields(cls)}
         resolvers = cls._resolvers
+        renamed_fields = cls._renamed_fields
         rewrite_file = False
         kwargs = {}
 
         json_filename = cls._json_path.split("/")[-1] if cls._json_path is not None else "settings"
 
         for key, value in settings_dict.items():
+            # carry a value stored under a field's old name over to its new name
+            if key in renamed_fields and renamed_fields[key] not in settings_dict:
+                key = renamed_fields[key]
+                rewrite_file = True
             if key not in field_names:
                 if not suppress_warnings:
                     logging.warning(f"Removing unexpected key \"{key}\" in {json_filename}.")
@@ -528,8 +538,9 @@ class EngravingSettings(_ScampSettings):
     :ivar allow_duple_tuplets_in_compound_time: There are two ways to express a division of a beat in compound time in
         two: with a duple tuplet or with dotted notes. For instance, half of a beat in 3/8 can be represented as a
         dotted-eighth or an eighth inside of a 2:3 tuplet. If this is set to True, we allow the latter option.
-    :ivar max_voices_per_part: integer specifying how many voices we allow in a single staff before creating extra
-        staves to accommodate them.
+    :ivar max_voices_per_staff: integer (from 1 to 4) specifying how many voices we allow in a single staff before
+        creating extra staves to accommodate them. (Formerly named ``max_voices_per_part``, which still works but
+        is deprecated.)
     :ivar pitch_order_voices_within_measure: if True, voices within a particular staff and measure are reordered
         according to pitch (higher pitch = upper, stem-up voice) to reduce crossed stems. A voice is only reordered
         at a barline no note ties across, so ties are never broken. Set False to keep each named voice in a fixed
@@ -580,7 +591,7 @@ class EngravingSettings(_ScampSettings):
     """
 
     allow_duple_tuplets_in_compound_time: bool = False
-    max_voices_per_part: int = 4
+    max_voices_per_staff: int = 4
     pitch_order_voices_within_measure: bool = True
     max_dots_allowed: int = 3
     beat_hierarchy_spacing: float = 2.4
@@ -677,6 +688,20 @@ class EngravingSettings(_ScampSettings):
         "lilypond_dir": lambda self: _resolve_lilypond_dir(),
     }
     _persist_after_resolve = {"lilypond_dir"}
+    _renamed_fields = {"max_voices_per_part": "max_voices_per_staff"}
+
+    @property
+    def max_voices_per_part(self):
+        """Deprecated alias for :attr:`max_voices_per_staff`."""
+        warnings.warn("'max_voices_per_part' has been renamed 'max_voices_per_staff'; the old name still works "
+                      "but is deprecated.", DeprecationWarning, stacklevel=2)
+        return self.max_voices_per_staff
+
+    @max_voices_per_part.setter
+    def max_voices_per_part(self, value):
+        warnings.warn("'max_voices_per_part' has been renamed 'max_voices_per_staff'; the old name still works "
+                      "but is deprecated.", DeprecationWarning, stacklevel=2)
+        self.max_voices_per_staff = value
 
     def set_music_xml_application(self, application_name: str = None, persist: bool = False) -> None:
         """
@@ -724,9 +749,9 @@ class EngravingSettings(_ScampSettings):
             return None
 
     def _validate_attribute(self, key, value):
-        if key == "max_voices_per_part" and not (isinstance(value, int) and 1 <= value <= 4):
-            fallback = EngravingSettings._factory_default("max_voices_per_part")
-            logging.warning("Invalid value \"{}\" for max_voices_per_part: must be an integer from 1 to 4. defaulting "
+        if key == "max_voices_per_staff" and not (isinstance(value, int) and 1 <= value <= 4):
+            fallback = EngravingSettings._factory_default("max_voices_per_staff")
+            logging.warning("Invalid value \"{}\" for max_voices_per_staff: must be an integer from 1 to 4. defaulting "
                             "to {}".format(value, fallback))
             return fallback
         elif key == "default_composers" and not isinstance(value, (list, str, type(None))):

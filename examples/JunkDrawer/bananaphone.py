@@ -34,7 +34,7 @@ violin2 = s.new_part("violin2")
 
 bass_banjo = s.new_part("banjass", (0, 105))
 
-engraving_settings.max_voices_per_part = 1
+engraving_settings.max_voices_per_staff = 1
 engraving_settings.glissandi.control_point_policy = "grace"
 
 
