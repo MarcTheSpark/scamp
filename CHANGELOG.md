@@ -47,6 +47,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Reading an "auto"-resolved setting no longer persists your other in-session settings changes to disk.**
+  The first read of a lazily-resolved setting (e.g. `engraving_settings.lilypond_dir`, or
+  `playback_settings.default_audio_driver`) caches the resolved value to the settings JSON — but it was rewriting
+  the *whole* settings file, so any unrelated value you'd set that session (like `engraving_settings.max_voices_per_staff`)
+  got silently persisted too. Only the resolved field is now written back; everything else on disk is left untouched.
 - **Harmonic noteheads now export as diamonds in MusicXML.** The `harmonic`, `harmonic-black`, and
   `harmonic-mixed` notehead types previously came out as ordinary noteheads in many readers; they now render
   correctly as (hollow, filled, and duration-dependent) diamond noteheads.

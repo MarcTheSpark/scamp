@@ -87,7 +87,7 @@ class _ScampSettings(SavesToJSON):
             value = resolvers[name](self)
             object.__setattr__(self, name, value)
             if name in type(self)._persist_after_resolve and self._is_root_setting:
-                self.make_persistent()
+                self._persist_resolved_field(name, value)
             return value
         raise AttributeError(name)
 
@@ -116,6 +116,27 @@ class _ScampSettings(SavesToJSON):
         scripts in the future.
         """
         self.save_to_json(resolve_path(self._json_path))
+
+    def _persist_resolved_field(self, name, value) -> None:
+        """
+        Write a single resolved field back to the settings JSON, leaving every other key on
+        disk untouched. Used after a lazy resolver fires (see ``__getattr__``): we want to
+        store the resolved value so the probe doesn't rerun next session, without making permanent
+        any unrelated, in-memory changes the user may have made this session. Falls back to
+        a full rewrite if the on-disk file is missing or unreadable.
+        """
+        path = resolve_path(self._json_path)
+        try:
+            with open(path, "r") as file:
+                on_disk = json.load(file)
+        except (FileNotFoundError, ValueError, json.decoder.JSONDecodeError):
+            self.make_persistent()
+            return
+        # replace the single field with the value we want to persist
+        on_disk[name] = value
+        # Encode through the same machinery save_to_json uses
+        with open(path, "w") as file:
+            json.dump(on_disk, file, default=SavesToJSON._encoder_default, sort_keys=True, indent=4)
 
     @classmethod
     def factory_default(cls):
