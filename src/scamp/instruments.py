@@ -331,7 +331,7 @@ class Ensemble(SavesToJSON):
 
 
 NotePropertiesCompatible: TypeAlias = str | dict | NoteProperty | NoteProperties | Sequence['NotePropertiesCompatible']
-PitchCompatible: TypeAlias = float | Envelope | Sequence[float] | Sequence[Sequence[float]]
+PitchCompatible: TypeAlias = float | Envelope | Sequence[float] | Sequence[Sequence[float]] | None
 VolumeCompatible: TypeAlias = float | Envelope | Sequence[float] | Sequence[Sequence[float]]
 DurationCompatible: TypeAlias = float | tuple[float, ...]
 
