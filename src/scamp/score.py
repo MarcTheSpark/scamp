@@ -28,11 +28,12 @@ from expenvelope import Envelope
 from .quantization import QuantizationRecord, QuantizationScheme, QuantizedMeasure, TimeSignature
 from . import performance as performance_module  # to distinguish it from variables named performance
 from .utilities import prime_factor, floor_x_to_pow_of_y, is_x_pow_of_y, ceil_to_multiple, floor_to_multiple, \
-    beat_is_before, beat_is_after
+    is_before, is_after
 from ._engraving_translations import length_to_note_type, get_xml_notehead, get_lilypond_notehead_tweaks, \
     articulation_to_xml_element_name, notations_to_xml_notations_element, attach_abjad_notation_to_note, \
     xml_barline_to_lilypond
 from .note_properties import NoteProperties
+from .spanners import _StartOctaveLine, _StopOctaveLine
 from .text import StaffText
 import pymusicxml
 from pymusicxml.score_components import _XMLNote, MusicXMLComponent
@@ -42,7 +43,7 @@ import math
 import re
 from fractions import Fraction
 from copy import deepcopy
-from itertools import accumulate, count
+from itertools import accumulate, count, groupby
 import textwrap
 from collections import namedtuple, defaultdict
 from abc import ABC, abstractmethod
@@ -1309,7 +1310,14 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         assert quantized_performance_part.is_quantized()
 
         fragments = StaffGroup._separate_voices_into_fragments(quantized_performance_part)
-        measure_voice_grid = StaffGroup._create_measure_voice_grid(fragments, quantized_performance_part.num_measures())
+        # organize into placements, which are (lane, fragment) pairs
+        placements = StaffGroup._place_fragments(fragments)
+        # apply octave lines now that voices are organized into staves (staff = lane // mvs)
+        # (octave lines operate on a staff-wide basis, and notes must be adjusted accordingly)
+        StaffGroup._apply_octave_lines(placements, engraving_settings.max_voices_per_staff)
+        # finally break it up into a measure_voice_grid[measures][voices]
+        measure_voice_grid = StaffGroup._create_measure_voice_grid(
+            placements, quantized_performance_part.num_measures())
         staff_group_name = quantized_performance_part.name
         if quantized_performance_part.name_count() > 0:
             staff_group_name += " [{}]".format(quantized_performance_part.name_count() + 1)
@@ -1424,10 +1432,10 @@ class StaffGroup(ScoreComponent, ScoreContainer):
             for note in note_list:
                 for i, measure in enumerate(measures):
                     measure_end = measure.start_beat + measure.measure_length
-                    if beat_is_before(note.start_beat, measure_end) and beat_is_after(note.end_beat, measure.start_beat):
+                    if is_before(note.start_beat, measure_end) and is_after(note.end_beat, measure.start_beat):
                         active[i] = True
-                    if split_by_measure and beat_is_before(note.start_beat, measure_end) \
-                            and beat_is_after(note.end_beat, measure_end):
+                    if split_by_measure and is_before(note.start_beat, measure_end) \
+                            and is_after(note.end_beat, measure_end):
                         tied[i] = True
 
             # walk the measures, closing off a fragment at a silent measure or an untied barline between active
@@ -1446,8 +1454,8 @@ class StaffGroup(ScoreComponent, ScoreContainer):
                     fragment_measures = measures[fragment_start:i + 1]
                     fragment_end_beat = fragment_measures[-1].start_beat + fragment_measures[-1].measure_length
                     fragment_notes = [note for note in note_list
-                                      if not beat_is_before(note.start_beat, fragment_measures[0].start_beat)
-                                      and beat_is_before(note.start_beat, fragment_end_beat)]
+                                      if not is_before(note.start_beat, fragment_measures[0].start_beat)
+                                      and is_before(note.start_beat, fragment_end_beat)]
                     fragments.append(StaffGroup._construct_voice_fragment(
                         voice_name, priority, fragment_notes, fragment_start, fragment_measures))
                     fragment_start = None
@@ -1455,10 +1463,10 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         return fragments
 
     @staticmethod
-    def _create_measure_voice_grid(fragments, num_measures):
+    def _place_fragments(fragments):
         """
-        Places fragments into grid[measure][lane] cells. Lanes group into staves by lane // mvs, so a lane's
-        parity within its staff sets stem direction. Two priorities apply on different axes: which staff a
+        Decides the (lane, fragment) placement of every fragment. Lanes group into staves by lane // mvs, so a
+        lane's parity within its staff sets stem direction. Two priorities apply on different axes: which staff a
         fragment lands in follows time (earlier-entering music on top), while its lane within a shared staff
         follows pitch (higher voice on top). So allocation is two passes: assign a staff by entry time, then a
         lane within that staff by pitch. Numbered voices pin to an exact lane throughout.
@@ -1539,8 +1547,87 @@ class StaffGroup(ScoreComponent, ScoreContainer):
                 staff_occupancy[local_lane].update(span)
                 placements.append((staff * mvs + local_lane, fragment))
 
-        # write each fragment's cells down its lane, padding rows with None as needed. grid[measure][lane] is a
-        # (notes, quantization) cell, or None where that lane is empty in that measure.
+        return placements
+
+    @staticmethod
+    def _apply_octave_lines(placements, mvs):
+        """
+        Turns the octave_displacement note property into octave-shift lines. First, group the voices by staff,
+        and then for each staff:
+
+        1) Go through each note collect all the spans of time where an octave shift of some size is present on a note
+        2) Go back through the notes and apply the strongest octave shift present at its onset. This can mean
+            overwriting the octave shift explicitly passed to it because a stronger shift is present in another voice.
+            In this case, emit a warning.
+        3) Go back through the notes in the staff (from all voices, sorted by (start_beat, end_beat)) and group them
+           by octave displacement (possibly changed in step 2). Create octave line spanners for each run.
+
+        :param placements: (lane, fragment) pairs from _place_fragments; a fragment's staff is lane // mvs.
+        """
+        # gather each staff's notes, split by voice (each placed lane is one rendered voice)
+        voices_by_staff = defaultdict(lambda: defaultdict(list))
+        for lane, fragment in placements:
+            for measure_notes, _ in fragment.measures_with_quantizations:
+                voices_by_staff[lane // mvs][lane].extend(measure_notes)
+
+        for staff in voices_by_staff.values():
+            for voice_notes in staff.values():
+                voice_notes.sort(key=lambda n: n.start_beat)
+
+            # note down all of the shift spans for every note under an octave shift.
+            # (These are half-open interval, including start beat, but not end beat).
+            shift_spans = [(note.start_beat, note.end_beat, note.properties.octave_displacement)
+                           for voice_notes in staff.values()
+                           for note in voice_notes
+                           if note.properties.octave_displacement != 0]
+
+            def covers(start, end, beat):  # half-open: a note struck as the shift releases isn't under it
+                return not is_before(beat, start) and is_before(beat, end)
+
+            # Go through each note in each voice in each staff, and observe the displacements are active at its onset
+            # (coming from from any note in any voice). The winning displacement is the largest, and if tied, the
+            # positive one. If the winning displacement came from a different note, overwrite this note's
+            # displacement and increment clobbered, so that we can warn below.
+            staff_notes = []
+            clobbered = 0
+            for voice_notes in staff.values():
+                previous = 0
+                for note in voice_notes:  # sorted by start_beat above
+                    if note.properties.ends_tie:
+                        winner = previous
+                    else:
+                        active = [displacement for start, end, displacement in shift_spans
+                                  if covers(start, end, note.start_beat)]
+                        # sort by absolute size of the ottava, preference to positive in a tie
+                        winner = max(active, key=lambda d: (abs(d), d)) if active else 0
+                        if winner != note.properties.octave_displacement:
+                            # only possible if there is another note displacing this note that won
+                            clobbered += 1
+                    # overwrites if this note's original displacement go clobbered
+                    note.properties.octave_displacement = winner
+                    previous = winner  # store in case of tie
+                    staff_notes.append(note)
+            if clobbered:
+                logging.warning("{} note(s) on a staff fall under an octave line from another voice and have been "
+                                "displaced along with it.".format(clobbered))
+
+            # draw one bracket per run of consecutive same-shift notes, in onset order across the staff, riding
+            # over any rests between them.
+            staff_notes.sort(key=lambda n: (n.start_beat, n.end_beat))
+            for displacement, group in groupby(staff_notes, key=lambda n: n.properties.octave_displacement):
+                if displacement != 0:
+                    run = list(group)
+                    run[0].properties.spanners.append(_StartOctaveLine(octaves=displacement))
+                    run[-1].properties.spanners.append(_StopOctaveLine())
+
+    @staticmethod
+    def _create_measure_voice_grid(placements, num_measures):
+        """
+        Writes placed (lane, fragment) pairs into grid[measure][lane] cells. Each cell contains either a
+        (notes, quantization) tuple or None if the lane is empty in that measure. Finally, unless disabled,
+        reorders each staff's voices by pitch measure by measure.
+        """
+        mvs = engraving_settings.max_voices_per_staff
         measure_grid = [[] for _ in range(num_measures)]
         for lane, fragment in placements:
             measure_num = fragment.start_measure_num
@@ -1552,12 +1639,14 @@ class StaffGroup(ScoreComponent, ScoreContainer):
 
         if engraving_settings.pitch_order_voices_within_measure:
             # (measure_num, lane) cells pinned by a numbered voice, which the reorder must leave untouched
+            # (a numbered fragment is placed at lane == its voice number)
             numbered_cells = set()
-            for fragment in numbered_fragments:
-                measure_num = fragment.start_measure_num
-                for _ in fragment.measures_with_quantizations:
-                    numbered_cells.add((measure_num, fragment.voice_num))
-                    measure_num += 1
+            for lane, fragment in placements:
+                if isinstance(fragment, _NumberedVoiceFragment):
+                    measure_num = fragment.start_measure_num
+                    for _ in fragment.measures_with_quantizations:
+                        numbered_cells.add((measure_num, lane))
+                        measure_num += 1
             StaffGroup._pitch_order_voices_within_measures(measure_grid, mvs, numbered_cells)
         return measure_grid
 
@@ -2019,7 +2108,7 @@ class Voice(ScoreComponent, ScoreContainer):
             notes_from_this_beat = []
 
             while len(notes) > 0 and \
-                    beat_is_before(notes[0].start_beat,
+                    is_before(notes[0].start_beat,
                                    beat_quantization.start_beat_in_measure + beat_quantization.length):
                 # go through all the notes in this beat
                 notes_from_this_beat.append(notes.pop(0))
@@ -2036,7 +2125,7 @@ class Voice(ScoreComponent, ScoreContainer):
         notes_and_rests = []
         t = 0
         for note in notes:
-            if beat_is_before(t, note.start_beat):
+            if is_before(t, note.start_beat):
                 notes_and_rests.append(performance_module.PerformanceNote(t, note.start_beat - t, None, None, {}))
             notes_and_rests.append(note)
             t = note.end_beat
@@ -2745,8 +2834,12 @@ class NoteLike(ScoreComponent):
     def to_music_xml(self, source_id_dict=None) -> Sequence[_XMLNote]:
         if self.is_rest():
             return pymusicxml.Rest(self.written_length),
-        elif self.is_chord():
-            start_pitches = tuple(p.start_level() if isinstance(p, Envelope) else p for p in self.pitch)
+        # octave lines shift the written (notated) pitch down/up; the <octave-shift> restores the sounding
+        # octave. (The LilyPond backend leaves pitch alone and lets \ottava do the visual displacement.)
+        octave_shift = 12 * self.properties.octave_displacement
+        if self.is_chord():
+            start_pitches = tuple((p.start_level() if isinstance(p, Envelope) else p) - octave_shift
+                                  for p in self.pitch)
 
             directions = self._get_xml_microtonal_annotation(start_pitches)
             # add text annotations from properties
@@ -2768,7 +2861,8 @@ class NoteLike(ScoreComponent):
             if self.does_glissando():
                 grace_points = self._get_grace_points(engraving_settings.glissandi.max_inner_graces_music_xml)
                 for t in grace_points:
-                    pitch_values = [p.value_at(t) if isinstance(p, Envelope) else p for p in self.pitch]
+                    pitch_values = [(p.value_at(t) if isinstance(p, Envelope) else p) - octave_shift
+                                    for p in self.pitch]
                     these_pitches = tuple(self.properties.get_spelling_policy(i).resolve_music_xml_pitch(p)
                                           for i, p in enumerate(pitch_values))
 
@@ -2783,7 +2877,7 @@ class NoteLike(ScoreComponent):
                         ))
 
         else:
-            start_pitch = self.pitch.start_level() if isinstance(self.pitch, Envelope) else self.pitch
+            start_pitch = (self.pitch.start_level() if isinstance(self.pitch, Envelope) else self.pitch) - octave_shift
 
             directions = self._get_xml_microtonal_annotation(start_pitch)
             # add text annotations from properties
@@ -2804,14 +2898,15 @@ class NoteLike(ScoreComponent):
             if self.does_glissando():
                 grace_points = self._get_grace_points(engraving_settings.glissandi.max_inner_graces_music_xml)
                 for t in grace_points:
-                    this_pitch = self.properties.get_spelling_policy().resolve_music_xml_pitch(self.pitch.value_at(t))
+                    gliss_pitch = self.pitch.value_at(t) - octave_shift
+                    this_pitch = self.properties.get_spelling_policy().resolve_music_xml_pitch(gliss_pitch)
                     # only add a grace note if it differs in pitch from the last note / grace note
                     if this_pitch != out[-1].pitch:
                         out.append(pymusicxml.GraceNote(
                             this_pitch, 0.5, stemless=True,
                             notehead=(get_xml_notehead(self.properties.noteheads[0])
                                       if self.properties.noteheads[0] != "normal" else None),
-                            directions=self._get_xml_microtonal_annotation(self.pitch.value_at(t)),
+                            directions=self._get_xml_microtonal_annotation(gliss_pitch),
                             velocity=self._get_xml_velocity(t)
                         ))
 

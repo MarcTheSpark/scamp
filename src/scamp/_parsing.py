@@ -26,6 +26,12 @@ def _join_with_quotes_and_slashes(list_of_strings):
     return " / ".join('"{}"'.format(x) for x in list_of_strings)
 
 
+_octave_string_to_displacement = {
+    "8va": 1, "8vb": -1,
+    "15ma": 2, "15mb": -2, "15va": 2, "15vb": -2,
+    "22ma": 3, "22mb": -3
+}
+
 grammar = r"""
 number = r'[+-]?([0-9]*[.])?[0-9]+'
 list_expression = "[" (list_expression / number) ("," (list_expression / number))* "]"
@@ -82,10 +88,12 @@ spelling_policies = spelling_policy_key? spelling_policy ("/" spelling_policy)* 
 
 voice = "voice" ":" r'[^,]*' &("," / EOF)
 
+octaves = r'(8va|8vb|15ma|15mb|15va|15vb|22ma|22mb)' &("," / EOF)
+
 extra_playback_parameter = r'param_\w+' ":" number_or_list
 
-property = articulations / notations / noteheads / playback_adjustments / dynamics / 
-           spelling_policies / extra_playback_parameter / voice / spanners / texts
+property = articulations / notations / noteheads / playback_adjustments / dynamics /
+           spelling_policies / extra_playback_parameter / voice / octaves / spanners / texts
 properties = property ("," property)* EOF
 """.format(
     # Note: we reverse the lists of articulations, notations, and noteheads so that items like "tremolo3" are searched
@@ -276,6 +284,9 @@ class PropertiesVisitor(PTNodeVisitor):
 
     def visit_voice(self, node, children):
         return {"voice": children[-1]}
+
+    def visit_octaves(self, node, children):
+        return {"octave_displacement": _octave_string_to_displacement[str(node)]}
 
     def visit_properties(self, node, children):
         return PropertiesVisitor.merge_dicts(*children)

@@ -13,10 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`StartOctaveLine` / `StopOctaveLine` spanners** for octave-shift signs ("8va"/"8vb"/"15ma"). These export
-  a real `<octave-shift>` in MusicXML — drawn natively with a dashed line and terminal hook — and an `\ottava`
-  in LilyPond, rather than faking the sign with a dashed bracket. Use `StartOctaveLine(octaves=1)` for 8va,
-  `octaves=-1` for 8vb, `octaves=2` for 15ma.
+- **Octave-line note property** (`"8va"`, `"8vb"`, `"15ma"`, `"15mb"`, `"22ma"`, `"22mb"`). Mark notes with it and
+  adjacent marked notes are automatically joined into a single octave-shift bracket, with the notated octave handled
+  for you — a real `<octave-shift>` (dashed line and terminal hook) in MusicXML and an `\ottava` in LilyPond. Octave
+  lines are staff-wide, as in standard notation; for independent lines per voice, put the voices on separate staves
+  with `engraving_settings.max_voices_per_staff = 1`.
 - **A warning when a named or numbered voice contains overlapping notes**, which can't be kept in a single
   notated voice and so get split off into extra voices.
 

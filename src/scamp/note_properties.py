@@ -135,6 +135,15 @@ class NoteProperties(SimpleNamespace, SavesToJSON, NoteProperty):
             "chord_merger_critical": True
         },
         {
+            # signed octave displacement (# of octaves) for conversion into ottava in the score
+            "key": "octave_displacement",
+            "regex": r"^octave_displacement$",
+            "default": 0,
+            "regularization_function": None,
+            "merger_function": lambda p1, p2: p1 if p2 == 0 else p2,
+            "chord_merger_critical": True
+        },
+        {
             "key": "extra_playback_parameters",
             "regex": r"^extra_playback_parameters$",
             "default": {},

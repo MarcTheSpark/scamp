@@ -150,7 +150,7 @@ def memoize(obj: Callable) -> Callable:
 BEAT_EPSILON = 1e-10
 
 
-def beat_is_before(a: float, b: float, tolerance: float = BEAT_EPSILON) -> bool:
+def is_before(a: float, b: float, tolerance: float = BEAT_EPSILON) -> bool:
     """
     True if beat `a` falls meaningfully before beat `b` — i.e. `a < b` by more than
     `tolerance`, not merely by reconstruction noise.
@@ -158,9 +158,9 @@ def beat_is_before(a: float, b: float, tolerance: float = BEAT_EPSILON) -> bool:
     return meaningfully_less_than(a, b, rel_tol=0, abs_tol=tolerance)
 
 
-def beat_is_after(a: float, b: float, tolerance: float = BEAT_EPSILON) -> bool:
+def is_after(a: float, b: float, tolerance: float = BEAT_EPSILON) -> bool:
     """
-    True if beat ``a`` falls meaningfully after beat ``b`` (mirror of :func:`beat_is_before`).
+    True if beat ``a`` falls meaningfully after beat ``b`` (mirror of :func:`is_before`).
     """
     return meaningfully_greater_than(a, b, rel_tol=0, abs_tol=tolerance)
 

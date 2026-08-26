@@ -335,10 +335,11 @@ class StopDashes(Spanner):
         return af.create_stop_text_span(),
 
 
-class StartOctaveLine(Spanner):
+class _StartOctaveLine(Spanner):
 
     """
-    Start octave-shift line spanner (an "8va"/"8vb" bracket with a dashed line and terminal hook).
+    Start of an octave-shift line (an "8va"/"8vb" bracket). Internal: produced from the ``octave``
+    note property; users set that instead of constructing this directly.
 
     :param label: See :class:`Spanner`.
     :param formatting: See :class:`Spanner`. Formatting can consist of {"placement": "above"/"below",
@@ -355,10 +356,10 @@ class StartOctaveLine(Spanner):
         return af.create_ottava(self.formatting["octaves"] if self.formatting["octaves"] else 1),
 
 
-class StopOctaveLine(Spanner):
+class _StopOctaveLine(Spanner):
 
     """
-    Stop octave-shift line spanner.
+    End of an octave-shift line. Internal: produced from the ``octave`` note property.
 
     :param label: See :class:`Spanner`.
     :param formatting: See :class:`Spanner`. Formatting can consist of {"placement": "above"/"below"}
