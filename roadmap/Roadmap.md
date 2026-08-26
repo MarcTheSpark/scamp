@@ -7,8 +7,10 @@ only as reference.
 ## Summary
 
 - **[Notation & voices](#notation--voices)** — quantize overlapping voices
-  independently; transcribe non-note events (pedaling, etc.); a small idea for
-  tagging unspecified-voice notes by their forking clock.
+  independently; pack voices into lanes by beat so one can reuse another's freed
+  lane; a `staff:` annotation + automatic grand-staff assignment; transcribe
+  non-note events (pedaling, etc.); a small idea for tagging unspecified-voice
+  notes by their forking clock.
 - **[Playback](#playback)** — MPE so microtonal pitch bend survives on external
   synths.
 - **[Tests & settings](#tests--settings)** — pytest + syrupy migration, targeted
@@ -17,6 +19,9 @@ only as reference.
   and give it (and the workspace-level files) a real repo. This cluster is the
   near-term focus.
 - **[Assorted fixes](#assorted-fixes)** — small standalone items.
+- **[Longer-term enhancements](#longer-term-enhancements)** — bigger, less-urgent
+  efforts: an architecture-wide review for simplification/decoupling, and a Nauert
+  Q-grid quantizer supporting nested tuplets.
 
 ## Notation & voices
 
@@ -46,6 +51,52 @@ Notes / open questions:
 - Voices sharing a staff still need compatible barlines; independent per-voice subdivision
   within a measure is fine (different tuplets per voice are legal), but confirm the
   `QuantizationScheme` measure/time-signature choices stay consistent across a part's voices.
+
+### Pack voices into lanes by beat, and let one voice reuse another's freed lane
+
+Lane allocation (`_place_fragments`, score.py) blocks lanes **per measure**: `measure_span`
+returns a fragment's whole measure range and `lowest_free_lane` rejects a lane sharing *any*
+measure. So a line that ends mid-measure and a different line that starts later *in the same
+measure* are treated as colliding and pushed to separate lanes/staves, even with a rest between
+them — e.g. voice A on beats 0–5 and voice C on beats 6–11 both touch measure 1, so C never
+reuses A's vacated lane.
+
+The measure granularity isn't arbitrary: the grid holds **one `(notes, quantization)` cell per
+`(measure, lane)`** (`measure_grid[measure][lane] = ...`), so two fragments in a lane must not
+share a measure or they'd collide in that cell. Fix is two parts:
+
+1. **Block occupancy by beat, not measure.** Two fragments may share a lane as long as they never
+   share a beat.
+2. **Merge cells.** When a fragment lands in a lane another already occupies in that measure, union
+   their notes into the one cell. Quantization reconciles for free: every voice is quantized under
+   the same part-wide `QuantizationScheme`, so a `QuantizedMeasure`'s beat skeleton is identical
+   across voices — only each `QuantizedBeat.divisor` differs. With beat-granular blocking each beat
+   in a merged cell has exactly one owner, so the merge just takes each beat's `QuantizedBeat` from
+   whichever fragment owns it. No re-quantization.
+
+The only thing given up is merging two lines that hand off *mid-beat* (blocked, since they'd share
+a beat) — which shouldn't read as one rendered voice anyway. Dovetails with the
+separate-overlapping-voices item above (both want per-stream quantization that later co-habits a
+measure).
+
+### `staff:` annotation, and automatic staff assignment
+
+Add a `"staff: ..."` note annotation alongside the existing `"voice: ..."`, to force notes
+onto a particular staff. Today staff is derived from lane (`lane // max_voices_per_staff`), so
+a user has no direct control — `staff:` would pin a stream to a named/numbered staff regardless
+of lane packing, the staff-level analogue of what numbered voices do for lanes.
+
+Fold in a longstanding frustration: single-staff piano notation. Certain instruments (piano,
+harp, …) should get **automatic staff assignment** — an instrument-level default that splits its
+notes across a grand staff instead of cramming everything onto one, unless the user says otherwise.
+
+Open questions:
+- How the two interact: an explicit `staff:` should win over the automatic split.
+- What drives the auto split — a pitch threshold (~middle C), or something that keeps a voice
+  intact rather than tearing a line across the break. Probably per-note is too naive; assign a
+  whole voice/stream to a staff by its range.
+- Where the instrument default lives (an `Ensemble`/`ScampInstrument` setting) and how a
+  numbered/named staff maps onto the grand staff's two (or more) staves.
 
 ### Transcribable non-note events
 
@@ -190,6 +241,27 @@ exposes `.claudeConvos/` — skim the notes before any first push, and update
 CLAUDE.md's "local-only" claim); whether `scamp_tutor` should instead fold into
 scamp's docs build (better discoverability, but couples tutor updates to scamp
 releases); auto-bump cadence (daily seems fine).
+
+## Longer-term enhancements
+
+Bigger, less-urgent efforts that don't fit the near-term clusters above.
+
+### Architecture review for simplification & decoupling
+
+Do a full pass over the codebase aimed at simplifying and decoupling the architecture
+rather than adding features. Look for tight coupling between the pipeline stages
+(`Session`/`Performance`/`Score`, playback, quantization), over-large classes, and places
+where dependency inversion would let a stage depend on an interface instead of a concrete
+sibling. Goal is a cleaner, more testable core — dovetails with the targeted-unit-test work
+under [Tests & settings](#tests--settings), which is easier once the hotspots are decoupled.
+
+### Nauert Q-grid quantizer with nested tuplets
+
+Add a quantizer based on Nauert's Q-grid algorithm (as in abjad's `nauert` package) as an
+alternative to the current scheme. The main draw is **nested tuplets**, which SCAMP's
+quantizer doesn't produce today. Open questions: whether it slots in behind the existing
+`QuantizationScheme` interface or sits alongside it, and how its output maps onto the
+`Score` model's `Tuplet` nesting.
 
 ## Assorted fixes
 
