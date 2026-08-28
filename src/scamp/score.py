@@ -1235,7 +1235,40 @@ class Score(ScoreComponent, ScoreContainer):
             this_measure_annotations.sort(key=lambda x: x[1])
             xml_measure.directions_with_displacements = this_measure_annotations
             measure_start += score_measure.length
+
+        self._place_octave_lines(xml_score)
         return xml_score
+
+    def _place_octave_lines(self, xml_score):
+        """
+        Places octave-shift lines as measure-level directions, positioned by beat. A line is staff-wide and
+        can span notes in several voices, so anchoring it to notes would let voice serialization (all of
+        voice 1, then a backup, then voice 2, ...) scramble its start/stop; placing it as an independent
+        stream avoids this.
+        """
+        for xml_part, staff in zip(xml_score.parts, self.staves):
+            if not staff.octave_lines:
+                continue
+            measure_start = 0
+            # walk the measures one by one in the scamp staff and pymusicxml part
+            for xml_measure, score_measure in zip(xml_part.measures, staff.measures):
+                measure_end = measure_start + score_measure.length
+                # we'll add the octave lines to the xml_measure's directions_with_displacements list
+                annotations = list(xml_measure.directions_with_displacements)
+                for start_beat, end_beat, displacement in staff.octave_lines:
+                    placement = "below" if displacement < 0 else "above"
+                    # the start goes in this measure if it's in the half-open interval [measure_start, measure_end)
+                    if not is_before(start_beat, measure_start) and is_before(start_beat, measure_end):
+                        annotations.append((pymusicxml.StartOctaveLine(octaves=displacement, placement=placement),
+                                            start_beat - measure_start))
+                    # half-open interval (measure_start, measure_end] so a stop landing on the closing barline
+                    # belongs to this measure
+                    if is_after(end_beat, measure_start) and not is_after(end_beat, measure_end):
+                        annotations.append((pymusicxml.StopOctaveLine(octaves=displacement, placement=placement),
+                                            end_beat - measure_start))
+                annotations.sort(key=lambda x: x[1])
+                xml_measure.directions_with_displacements = annotations
+                measure_start = measure_end
 
     # Override the signatures of these three methods for the Score class, so they wrap as file by default
 
@@ -1314,7 +1347,7 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         placements = StaffGroup._place_fragments(fragments)
         # apply octave lines now that voices are organized into staves (staff = lane // mvs)
         # (octave lines operate on a staff-wide basis, and notes must be adjusted accordingly)
-        StaffGroup._apply_octave_lines(placements, engraving_settings.max_voices_per_staff)
+        staff_octave_runs = StaffGroup._apply_octave_lines(placements, engraving_settings.max_voices_per_staff)
         # finally break it up into a measure_voice_grid[measures][voices]
         measure_voice_grid = StaffGroup._create_measure_voice_grid(
             placements, quantized_performance_part.num_measures())
@@ -1322,10 +1355,14 @@ class StaffGroup(ScoreComponent, ScoreContainer):
         if quantized_performance_part.name_count() > 0:
             staff_group_name += " [{}]".format(quantized_performance_part.name_count() + 1)
 
-        return StaffGroup._from_measure_voice_grid(
+        staff_group = StaffGroup._from_measure_voice_grid(
             measure_voice_grid, quantized_performance_part._get_longest_quantization_record(),
             name=staff_group_name, clef_choices=quantized_performance_part.clef_preference
         )
+        # hand each staff its octave lines (staff index = lane // mvs) for the MusicXML export to place
+        for staff_index, staff in enumerate(staff_group.staves):
+            staff.octave_lines = staff_octave_runs.get(staff_index, [])
+        return staff_group
 
     @staticmethod
     def _classify_voice(voice_name, all_voice_names):
@@ -1570,7 +1607,9 @@ class StaffGroup(ScoreComponent, ScoreContainer):
             for measure_notes, _ in fragment.measures_with_quantizations:
                 voices_by_staff[lane // mvs][lane].extend(measure_notes)
 
-        for staff in voices_by_staff.values():
+        # each staff's octave lines as (start_beat, end_beat, displacement), keyed by staff index
+        staff_octave_runs = defaultdict(list)
+        for staff_index, staff in voices_by_staff.items():
             for voice_notes in staff.values():
                 voice_notes.sort(key=lambda n: n.start_beat)
 
@@ -1611,14 +1650,25 @@ class StaffGroup(ScoreComponent, ScoreContainer):
                 logging.warning("{} note(s) on a staff fall under an octave line from another voice and have been "
                                 "displaced along with it.".format(clobbered))
 
-            # draw one bracket per run of consecutive same-shift notes, in onset order across the staff, riding
-            # over any rests between them.
+            # One bracket per run of consecutive same-shift notes, in onset order across the staff, riding
+            # over any rests between them. We record the run's beat span (for the MusicXML export, which
+            # places lines as measure-level directions) and also tag the boundary notes with spanners (for
+            # the abjad/LilyPond export, which attaches indicators directly to notes). It's a bit awkward to
+            # have two sources of truth, but it arises from the fact that MusicXML parses voices sequentially,
+            # whereas lilypond first merges them into a shared timeline. So the spanners that work for lilypond
+            # can fail for MusicXML, if the _StopOctaveLine ends up in an earlier voice than the _StartOctaveLine
+            # (which can happen because of the clobbering above)
             staff_notes.sort(key=lambda n: (n.start_beat, n.end_beat))
             for displacement, group in groupby(staff_notes, key=lambda n: n.properties.octave_displacement):
                 if displacement != 0:
                     run = list(group)
+                    # for the MusicXML export; see above
+                    staff_octave_runs[staff_index].append((run[0].start_beat, run[-1].end_beat, displacement))
+                    # for the abjad export; see above
                     run[0].properties.spanners.append(_StartOctaveLine(octaves=displacement))
                     run[-1].properties.spanners.append(_StopOctaveLine())
+
+        return staff_octave_runs
 
     @staticmethod
     def _create_measure_voice_grid(placements, num_measures):
@@ -1814,6 +1864,9 @@ class Staff(ScoreComponent, ScoreContainer):
     def __init__(self, measures: Sequence[Measure], name: str = None):
         ScoreContainer.__init__(self, measures, "measures", Measure)
         self.name = name
+        # staff-wide octave lines as (start_beat, end_beat, displacement); used by the MusicXML export
+        # machinery to emit measure-level directions so voice serialization can't scramble them.
+        self.octave_lines = []
 
     @property
     def measures(self) -> Sequence[Measure]:
@@ -2834,11 +2887,8 @@ class NoteLike(ScoreComponent):
     def to_music_xml(self, source_id_dict=None) -> Sequence[_XMLNote]:
         if self.is_rest():
             return pymusicxml.Rest(self.written_length),
-        # octave lines shift the written (notated) pitch down/up; the <octave-shift> restores the sounding
-        # octave. (The LilyPond backend leaves pitch alone and lets \ottava do the visual displacement.)
-        octave_shift = 12 * self.properties.octave_displacement
         if self.is_chord():
-            start_pitches = tuple((p.start_level() if isinstance(p, Envelope) else p) - octave_shift
+            start_pitches = tuple((p.start_level() if isinstance(p, Envelope) else p)
                                   for p in self.pitch)
 
             directions = self._get_xml_microtonal_annotation(start_pitches)
@@ -2861,7 +2911,7 @@ class NoteLike(ScoreComponent):
             if self.does_glissando():
                 grace_points = self._get_grace_points(engraving_settings.glissandi.max_inner_graces_music_xml)
                 for t in grace_points:
-                    pitch_values = [(p.value_at(t) if isinstance(p, Envelope) else p) - octave_shift
+                    pitch_values = [(p.value_at(t) if isinstance(p, Envelope) else p)
                                     for p in self.pitch]
                     these_pitches = tuple(self.properties.get_spelling_policy(i).resolve_music_xml_pitch(p)
                                           for i, p in enumerate(pitch_values))
@@ -2877,7 +2927,7 @@ class NoteLike(ScoreComponent):
                         ))
 
         else:
-            start_pitch = (self.pitch.start_level() if isinstance(self.pitch, Envelope) else self.pitch) - octave_shift
+            start_pitch = (self.pitch.start_level() if isinstance(self.pitch, Envelope) else self.pitch)
 
             directions = self._get_xml_microtonal_annotation(start_pitch)
             # add text annotations from properties
@@ -2898,7 +2948,7 @@ class NoteLike(ScoreComponent):
             if self.does_glissando():
                 grace_points = self._get_grace_points(engraving_settings.glissandi.max_inner_graces_music_xml)
                 for t in grace_points:
-                    gliss_pitch = self.pitch.value_at(t) - octave_shift
+                    gliss_pitch = self.pitch.value_at(t)
                     this_pitch = self.properties.get_spelling_policy().resolve_music_xml_pitch(gliss_pitch)
                     # only add a grace note if it differs in pitch from the last note / grace note
                     if this_pitch != out[-1].pitch:

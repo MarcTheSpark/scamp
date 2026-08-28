@@ -58,7 +58,7 @@ class Spanner(ABC, SavesToJSON, NoteProperty):
 
     @abstractmethod
     def to_pymusicxml(self):
-        """Converts this to a pymusicxml spanner type."""
+        """Converts this to a pymusicxml spanner type (or None if it has no note-attached MusicXML form)."""
         pass
 
     @abstractmethod
@@ -350,7 +350,9 @@ class _StartOctaveLine(Spanner):
     FORMATTING_SLOTS = {"placement", "octaves", "dash_length", "space_length"}
 
     def to_pymusicxml(self):
-        return pymusicxml.StartOctaveLine(label=self.label, **self._get_xml_consistent_formatting())
+        # octave lines are emitted as measure-level directions (see Score._place_octave_lines),
+        # not attached to notes; only the abjad path reads this spanner
+        return None
 
     def to_abjad(self):
         return af.create_ottava(self.formatting["octaves"] if self.formatting["octaves"] else 1),
@@ -369,7 +371,8 @@ class _StopOctaveLine(Spanner):
     FORMATTING_SLOTS = {"placement"}
 
     def to_pymusicxml(self):
-        return pymusicxml.StopOctaveLine(label=self.label, **self._get_xml_consistent_formatting())
+        # see _StartOctaveLine.to_pymusicxml
+        return None
 
     def to_abjad(self):
         return af.create_ottava(0, site='after'),
