@@ -3,7 +3,7 @@ SCAMP Example: Metric Phase
 
 Rate targets aligned to metric phase, so accelerations and decelerations land on downbeats.
 
-Tags: tempo change, metric phase, Moment
+Tags: time/tempo, time/clocks
 """
 
 from scamp import *

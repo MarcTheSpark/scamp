@@ -3,7 +3,7 @@ SCAMP Example: Guitar Arpeggios
 
 Fingerpicking-style guitar arpeggios built from overlapping held notes.
 
-Tags: overlapping notes, blocking=False
+Tags: time/clocks
 """
 
 from scamp import *

@@ -4,7 +4,7 @@ SCAMP Example: Pitch Spelling
 Demonstrates the ability to define note pitch spelling using the optional properties argument to "play_note". This can
 be done by explicitly setting it, or by defining the key in which it resides.
 
-Tags: pitch spelling, note properties
+Tags: pitch/spelling, notation/properties
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

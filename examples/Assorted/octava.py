@@ -4,7 +4,7 @@ SCAMP Example: Ottava
 A short passage of random notes for violin and piano, which uses the optional note properties argument to `play_note`
 to apply ottava when notes are very high or very low.
 
-Tags: note properties, octave line, fork
+Tags: notation/spanners, time/clocks
 """
 
 from scamp import *

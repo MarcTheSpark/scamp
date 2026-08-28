@@ -6,7 +6,7 @@ same voice, and numbered voices determine exactly which voice they go in. By def
 staff, but this can easily become quite messy. Set `engraving_settings.max_voices_per_staff` to limit the number of
 voices per staff, placing overflow voices on separate staves.
 
-Tags: note properties, voices, engraving_settings
+Tags: notation/properties, notation/engraving
 """
 
 from scamp import *

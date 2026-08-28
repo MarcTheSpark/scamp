@@ -6,7 +6,7 @@ infinitely in both directions from a root note. Scales can be microtonal (and ev
 constructed from intervals that can be expressed as either a frequency ratio, a distance in cents, or a combination
 of the two. Scales can also be transposed and modally rotated.
 
-Tags: scamp_extensions, scale, harmony, pitch, key
+Tags: scamp_extensions, pitch/scales, pitch/microtonal
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

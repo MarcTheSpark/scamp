@@ -3,7 +3,7 @@ SCAMP Example: Hello World
 
 Plays a C major arpeggio.
 
-Tags: play_note, basics
+Tags: basics
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

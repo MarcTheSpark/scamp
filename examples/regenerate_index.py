@@ -16,18 +16,19 @@
 """
 Regenerate INDEX.md from the examples' own docstrings.
 
-Each example carries a short docstring (summary, plus an optional "Tags:" line of
-comma-separated feature tags). This script collects them, scans each file for usage of
-scamp's public API, and writes INDEX.md: a feature -> examples table (inverted from the
-tags) followed by per-folder entries. Adding an example therefore means writing one file
-with its docstring -- never editing the index by hand.
+An example is one script, or one subfolder (several files making a single example). Its
+summary and "Tags:" line come from the script's docstring, or -- for a subfolder -- from
+its about.txt. Tags are nested "domain/facet" (e.g. notation/spanners); a bare tag with no
+slash is its own top-level domain. This script collects them, scans each example's source
+for usage of scamp's public API, and writes INDEX.md: a feature -> examples section
+(grouped by domain, inverted from the tags) followed by per-folder entries. Adding an
+example therefore means writing one script (or about.txt) -- never editing the index by hand.
 
 Run from anywhere: python3 regenerate_index.py
 (Requires scamp importable, for the public-API name list.)
 """
 
 import re
-import sys
 import pathlib
 
 EXAMPLES_DIR = pathlib.Path(__file__).parent
@@ -49,6 +50,17 @@ UNINDEXED = "JunkDrawer"
 
 DOCSTRING_RE = re.compile(r'"""(.*?)"""', re.DOTALL)
 
+# Domain presentation order for the feature section; unlisted domains follow, alphabetized.
+DOMAIN_ORDER = ["basics", "time", "pitch", "envelopes", "notation", "playback",
+                "interactive", "composition", "scamp_extensions",
+                "save and load", "visualization"]
+
+
+def split_tag(tag):
+    """"domain/facet" -> ("domain", "facet"); a bare tag -> ("domain", None)."""
+    domain, _, facet = tag.partition("/")
+    return domain.strip(), (facet.strip() or None)
+
 
 def parse_docstring(path):
     """Return (summary, tags) from the file's first docstring; tags is a possibly-empty list."""
@@ -67,6 +79,23 @@ def parse_docstring(path):
             body.append(ln)
     summary = " ".join(ln for ln in body if ln).strip()
     return summary, tags
+
+
+def parse_about(folder):
+    """(summary, tags) from a folder's about.txt, or None if absent. Same shape as a
+    docstring: an optional 'SCAMP Example:' title line, a body, and a 'Tags:' line."""
+    about = folder / "about.txt"
+    if not about.exists():
+        return None
+    tags, body = [], []
+    for ln in (ln.strip() for ln in about.read_text().splitlines()):
+        if ln.startswith("Tags:"):
+            tags = [t.strip() for t in ln[len("Tags:"):].split(",") if t.strip()]
+        elif ln.startswith("SCAMP Example:"):
+            continue
+        else:
+            body.append(ln)
+    return " ".join(ln for ln in body if ln).strip(), tags
 
 
 def collect_api_names():
@@ -89,9 +118,9 @@ def collect_api_names():
     return callables, classes
 
 
-def scan_api(path, callables, classes, limit=12):
-    """Names of public scamp API actually used in the file, capped at `limit`."""
-    text = path.read_text()
+def scan_api(paths, callables, classes, limit=12):
+    """Public scamp API names used across the given file(s), capped at `limit`."""
+    text = "\n".join(p.read_text() for p in paths)
     used = {n for n in callables if re.search(rf"\b{re.escape(n)}\s*\(", text)}
     used |= {n for n in classes if re.search(rf"\b{re.escape(n)}\b", text)}
     listed = sorted(used)
@@ -100,54 +129,122 @@ def scan_api(path, callables, classes, limit=12):
     return listed
 
 
+def collect_units(catroot):
+    """Example units under a category folder: a standalone script, or a subfolder (one
+    example spanning several files). Returns (display, pyfiles, summary, tags) tuples,
+    sorted by path -- a subfolder's display path ends in '/'."""
+    files, subfolders = [], {}
+    for path in sorted(catroot.rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
+        if path.parent == catroot:
+            files.append(path)
+        else:
+            subfolders.setdefault(path.parent, []).append(path)
+
+    units = []
+    for path in files:
+        summary, tags = parse_docstring(path)
+        units.append((path.relative_to(EXAMPLES_DIR).as_posix(), [path], summary or "", tags))
+    for d in sorted(subfolders):
+        pys = sorted(subfolders[d])
+        summary, tags = folder_meta(d, pys)
+        units.append((d.relative_to(EXAMPLES_DIR).as_posix() + "/", pys, summary, tags))
+    return sorted(units, key=lambda u: u[0])
+
+
+def folder_meta(d, pys):
+    """(summary, tags) for a subfolder unit: about.txt is authoritative when present,
+    else the folder-named (or lone) script supplies them; tags fall back to the union
+    across scripts."""
+    def merged_tags():
+        merged = []
+        for p in pys:
+            for t in parse_docstring(p)[1]:
+                if t not in merged:
+                    merged.append(t)
+        return merged
+
+    about = parse_about(d)
+    if about is not None:
+        summary, tags = about
+        return summary, (tags or merged_tags())
+    main = next((p for p in pys if p.stem == d.name), None) or (pys[0] if len(pys) == 1 else None)
+    if main is not None:
+        summary, tags = parse_docstring(main)
+        return summary or "", tags
+    return "", merged_tags()
+
+
 HEADER = """\
 # SCAMP Examples Index
 
 <!-- GENERATED FILE - do not edit. Regenerate with: python3 regenerate_index.py -->
 
-A map of every example script in this folder, for humans and AI assistants alike.
-Each entry gives a one-line summary (from the example's own docstring), its feature
-tags, and the scamp API it exercises. Paths are relative to `scamp/examples/`.
+A map of every example in this folder, for humans and AI assistants alike. Each entry
+gives a one-line summary, its feature tags, and the scamp API it exercises. An example is
+one script, or one subfolder (several files making a single example). Paths are relative
+to `scamp/examples/`.
 
-**How to use it:** scan the *Feature -> examples* table to jump to a topic, then read
-the per-folder entries for detail. `Tutorial/` is the curated teaching set -- prefer it
-for canonical, minimal usage.
+**How to use it:** scan the *Feature -> examples* section (grouped by domain) to jump to
+a topic, then read the per-folder entries for detail. `Tutorial/` is the curated teaching
+set -- prefer it for canonical, minimal usage.
 
-**To add an example:** just add the file, with a short docstring ending in a
-`Tags: comma, separated, features` line -- then rerun `regenerate_index.py`.
+**To add an example:** add a script whose docstring ends in a `Tags: comma, separated`
+line (nested as `domain/facet`); for a multi-file example, put the summary and tags in the
+folder's `about.txt` instead. Then rerun `regenerate_index.py`.
 """
 
 
 def main():
     callables, classes = collect_api_names()
 
-    entries = {}   # folder -> list of (relpath, summary, tags, api)
-    tag_map = {}   # tag -> list of relpath, in folder-priority order
+    entries = {}   # folder -> list of (display, summary, tags, api)
+    tag_map = {}   # tag -> list of display, in folder-priority order
     for folder in FOLDERS:
-        folder_path = EXAMPLES_DIR / folder
         entries[folder] = []
-        for path in sorted(folder_path.rglob("*.py")):
-            if "__pycache__" in path.parts:
-                continue
-            rel = path.relative_to(EXAMPLES_DIR).as_posix()
-            summary, tags = parse_docstring(path)
-            if summary is None:
-                print(f"WARNING: {rel} has no docstring; skipping", file=sys.stderr)
-                continue
-            api = scan_api(path, callables, classes) if folder != UNINDEXED else []
-            entries[folder].append((rel, summary, tags, api))
-            if folder != UNINDEXED:
-                for tag in tags:
-                    tag_map.setdefault(tag, []).append(rel)
+        if folder == UNINDEXED:
+            # Scratch drawer: list every script on its own, no feature table, no API scan.
+            for path in sorted((EXAMPLES_DIR / folder).rglob("*.py")):
+                if "__pycache__" in path.parts:
+                    continue
+                summary, tags = parse_docstring(path)
+                entries[folder].append((path.relative_to(EXAMPLES_DIR).as_posix(),
+                                        summary or "", tags, []))
+            continue
+        for display, pyfiles, summary, tags in collect_units(EXAMPLES_DIR / folder):
+            api = scan_api(pyfiles, callables, classes)
+            entries[folder].append((display, summary, tags, api))
+            for tag in tags:
+                tag_map.setdefault(tag, []).append(display)
+
+    # Invert the flat tag map into domain -> {facet -> files} (plus files on bare domains).
+    domains = {}
+    for tag, files in tag_map.items():
+        domain, facet = split_tag(tag)
+        node = domains.setdefault(domain, {"files": [], "facets": {}})
+        if facet is None:
+            node["files"] = files
+        else:
+            node["facets"][facet] = files
+
+    def domain_key(d):
+        return (DOMAIN_ORDER.index(d) if d in DOMAIN_ORDER else len(DOMAIN_ORDER), d)
 
     out = [HEADER]
 
     out.append("\n## Feature -> examples\n")
-    out.append("| Feature | Examples |")
-    out.append("| --- | --- |")
-    for tag in sorted(tag_map, key=str.lower):
-        files = ", ".join(f"`{f}`" for f in tag_map[tag])
-        out.append(f"| {tag} | {files} |")
+    out.append("Grouped by domain. Within each entry, `Tutorial/` examples come first.\n")
+    for domain in sorted(domains, key=domain_key):
+        node = domains[domain]
+        out.append(f"### {domain}\n")
+        if node["files"]:
+            out.append(", ".join(f"`{f}`" for f in node["files"]) + "\n")
+        for facet in sorted(node["facets"], key=str.lower):
+            files = ", ".join(f"`{f}`" for f in node["facets"][facet])
+            out.append(f"- **{facet}** — {files}")
+        if node["facets"]:
+            out.append("")
 
     for folder, blurb in FOLDERS.items():
         out.append(f"\n## `{folder}/`\n")

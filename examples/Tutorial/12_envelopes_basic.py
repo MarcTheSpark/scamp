@@ -3,7 +3,7 @@ SCAMP Example: Envelopes (basic)
 
 Create and plot two simple envelopes, one with evenly-spaced linear segments, and one with uneven, curved segments.
 
-Tags: envelopes, plotting
+Tags: envelopes
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

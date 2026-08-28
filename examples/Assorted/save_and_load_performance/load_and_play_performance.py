@@ -4,7 +4,6 @@ SCAMP Example: Load and Play a Performance
 Loads the Ensemble and Performance saved by save_performance.py and plays the
 performance back under a gradually accelerating tempo.
 
-Tags: save and load, performance playback, tempo change
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

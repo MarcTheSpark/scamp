@@ -4,7 +4,7 @@ SCAMP Example: Key Plane
 Maps the computer keyboard onto a 2D grid of pitches with scamp_extensions' KeyPlane; each key press
 starts a flute note whose pitch and volume come from its row and column.
 
-Tags: keyboard input, HID, scamp_extensions, live interaction
+Tags: interactive/input, scamp_extensions
 """
 
 

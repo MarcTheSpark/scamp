@@ -4,7 +4,7 @@ SCAMP Example: Quantization of Random Floating-Point Durations
 Similar to the "Random Durations and Rests" example, except that now we generate
 notation. Since the lengths are floating point, quantization occurs in the call to "to_score"
 
-Tags: quantization, notation, randomness, continuous time
+Tags: notation/quantization
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

@@ -3,7 +3,7 @@ SCAMP Example: Quantization Comparison
 
 Records a loose piano improvisation against a metronome, then plays back the quantized version.
 
-Tags: quantization, transcription, randomness
+Tags: notation/quantization
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

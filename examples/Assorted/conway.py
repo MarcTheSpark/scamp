@@ -21,7 +21,7 @@ Conway's Game of Life sonified, with a pygame window used for visualization
 instead of matplotlib. Original by Raphael Radna; visualization ported to
 pygame.
 
-Tags: algorithmic composition, scale, visualization, simulation
+Tags: composition/algorithmic, pitch/scales, visualization
 """
 
 import numpy

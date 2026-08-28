@@ -4,7 +4,7 @@ SCAMP Example: TimeVaryingParameter Example
 A script using the context-sensitive :class:`~expenvelope.envelope.Envelope` wrapper :class:`TimeVaryingParameter`,
 which reads into the underlying envelope at the current clock's beat or time when called.
 
-Tags: scamp_extensions, TimeVaryingParameter, musical form
+Tags: scamp_extensions, envelopes, composition/form
 """
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 #  This file is part of SCAMP (Suite for Computer-Assisted Music in Python)                      #

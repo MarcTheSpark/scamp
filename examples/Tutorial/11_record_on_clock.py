@@ -4,7 +4,7 @@ SCAMP Example: Record on Clock
 Same as previous example, except that the performance is recorded from the point of view of the
 trumpet part, resulting in the same sound notated in reference to a different changing tempo curve.
 
-Tags: transcription on clock, polytempo
+Tags: time/clocks
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

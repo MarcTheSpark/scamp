@@ -4,7 +4,7 @@ SCAMP EXAMPLE: Live MIDI input and output
 Demonstration of receiving and sending live midi input to and from a midi keyboard. Every note received by the keyboard
 is immediately sent back to the keyboard a perfect fifth higher.
 
-Tags: midi input, midi output, live interaction
+Tags: playback/external, interactive/input
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

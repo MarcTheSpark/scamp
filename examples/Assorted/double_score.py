@@ -3,7 +3,7 @@ SCAMP Example: Double Score
 
 Records two performances, turns them into scores, renders to abjad, and sticks them together!
 
-Tags: multiple scores, abjad, lilypond, fork
+Tags: notation/output, time/clocks
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

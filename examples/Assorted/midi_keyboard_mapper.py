@@ -6,7 +6,7 @@ on the keyboard can be mapped to particular instruments and chords. The heart of
 dictionary `pitch_to_instrument_and_pitches`, which expresses, for each key, which pitches and on
 which instrument should be played.
 
-Tags: midi input, midi output, live interaction
+Tags: playback/external, interactive/input
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

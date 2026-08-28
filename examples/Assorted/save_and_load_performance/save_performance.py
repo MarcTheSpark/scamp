@@ -3,7 +3,6 @@ SCAMP Example: Save a Performance
 
 Saves an Ensemble and a recorded Performance to JSON, for the load_and_play_performance example.
 
-Tags: save and load, transcription
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

@@ -3,7 +3,7 @@ SCAMP Example: Key Signature via pymusicxml
 
 Adds a key signature by exporting through pymusicxml and setting it on the first measure.
 
-Tags: key signature, musicxml, pymusicxml
+Tags: notation/output
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

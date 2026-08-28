@@ -7,7 +7,7 @@ Plays a simple C Major arpeggio, and generates notation for it in three differen
     - with alternating 3/8 and 2/4 time signatures
     - with a list of bar lengths determining time signatures
 
-Tags: time signatures, notation
+Tags: notation/engraving
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

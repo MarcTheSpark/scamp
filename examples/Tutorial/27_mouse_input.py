@@ -9,7 +9,7 @@ Notes are started on mouse down and released on mouse up.  Left click plays a pi
 a flute note. X position controls pitch, Y controls volume. By moving the mouse after clicking, the pitch can be bent
 up and down and the volume can be changed.
 
-Tags: mouse input, live interaction
+Tags: interactive/input
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

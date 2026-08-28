@@ -17,8 +17,9 @@
 Generate the docs "Examples" section from the example scripts.
 
 Writes docs/examples/index.rst (a Tutorial list in order, plus alphabetical, collapsible
-tag groups) and one page per unit: a standalone script, or a dedicated subfolder shown as
-a code box per script with a single folder-zip download. Each page links to the source on
+tag groups), a per-tag landing page so the sidebar can offer expandable tag groups (non-
+tutorial examples only), and one page per unit: a standalone script, or a dedicated subfolder
+shown as a code box per script with a single folder-zip download. Each page links to the source on
 GitHub, offers a download (the .py, or a .zip when companion files are needed), and embeds
 any captured media: an audio player (_static/media/<rel>.mp3), score images (<rel>*.svg),
 and hand-authored videos (example_media.toml).
@@ -255,11 +256,9 @@ def plot_gallery_html(plots):
 
 
 def video_html(vid):
-    return ('<div style="position:relative;padding-bottom:56.25%;height:0;'
-            'max-width:640px;margin:0.6em 0">'
-            f'<iframe src="https://www.youtube-nocookie.com/embed/{vid}" '
-            'style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" '
-            'allowfullscreen></iframe></div>')
+    return (f'<iframe src="https://www.youtube-nocookie.com/embed/{vid}" '
+            'style="width:100%;max-width:640px;aspect-ratio:16/9;border:0;'
+            'display:block;margin:0.6em 0" allowfullscreen></iframe>')
 
 
 def raw_block(html):
@@ -462,7 +461,11 @@ def github_line(unit):
 
 def write_example_page(unit):
     title = unit["title"]
-    out = [title, "=" * len(title), "", github_line(unit), "", write_download(unit), ""]
+    # Tutorial pages (and any tagless one) have no by-tag home, so mark them :orphan: to
+    # stay out of the sidebar -- they're reached from the gallery's numbered list instead.
+    orphan = unit["folder"] == "Tutorial" or not unit["tags"]
+    out = ([":orphan:", ""] if orphan else []) + [
+        title, "=" * len(title), "", github_line(unit), "", write_download(unit), ""]
     if unit["summary"]:
         out += [unit["summary"], ""]
     if unit["tags"]:
@@ -471,7 +474,29 @@ def write_example_page(unit):
     (OUT_DIR / f"{unit['name']}.rst").write_text("\n".join(out) + "\n")
 
 
-def write_index(units):
+def tag_pages(units):
+    """Non-tutorial examples grouped by tag, for the sidebar -- a page per tag so the RTD
+    sidebar shows expandable tag groups. Returns [(tag, slug, [units])] sorted by tag. An
+    example under several tags appears in each group; tutorial examples are left out (the
+    gallery's numbered list already covers them)."""
+    groups = {}
+    for u in units:
+        if u["folder"] == "Tutorial":
+            continue
+        for tag in u["tags"]:
+            groups.setdefault(tag, []).append(u)
+    return [(tag, "tag_" + slugify(tag), groups[tag]) for tag in sorted(groups, key=str.lower)]
+
+
+def write_tag_pages(pages):
+    for tag, slug, members in pages:
+        out = [tag, "=" * len(tag), "", f"Examples tagged **{tag}**.", "",
+               ".. toctree::", "   :maxdepth: 1", ""]
+        out += [f"   {u['name']}" for u in members]
+        (OUT_DIR / f"{slug}.rst").write_text("\n".join(out) + "\n")
+
+
+def write_index(units, pages):
     tutorial = [u for u in units if u["folder"] == "Tutorial"]
     tag_map = {}
     for u in units:
@@ -517,10 +542,10 @@ def write_index(units):
         out.append("   </ul></details>")
         out.append("")
 
-    # Hidden toctree so Sphinx builds every example page and the sidebar works.
+    # Hidden toctree of the per-tag pages: keeps them out of the page body (the by-tag
+    # details above already list everything) while giving the sidebar its expandable groups.
     out += [".. toctree::", "   :hidden:", ""]
-    for u in units:
-        out.append(f"   {u['name']}")
+    out += [f"   {slug}" for _, slug, _ in pages]
     out.append("")
     (OUT_DIR / "index.rst").write_text("\n".join(out) + "\n")
 
@@ -530,9 +555,11 @@ def main():
         shutil.rmtree(OUT_DIR)
     OUT_DIR.mkdir()
     units = collect()
+    pages = tag_pages(units)
     for unit in units:
         write_example_page(unit)
-    write_index(units)
+    write_tag_pages(pages)
+    write_index(units, pages)
     print(f"docs/examples/: {len(units)} example pages "
           f"({sum(1 for u in units if u['folder'] == 'Tutorial')} tutorial)")
 

@@ -3,7 +3,7 @@ SCAMP Example: Piano Phase
 
 Steve Reich's Piano Phase: the same figure forked at 100 vs. 98 BPM, transcribed on one clock.
 
-Tags: polytempo, fork, quantization, quantization settings, reconstruction
+Tags: time/clocks, notation/quantization, composition/algorithmic
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

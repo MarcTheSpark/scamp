@@ -3,7 +3,7 @@ SCAMP Example: Voice Leading
 
 Rule-based four-part voice leading over a scale, spelled in E major.
 
-Tags: voice leading, scale, pitch spelling, scamp_extensions
+Tags: pitch/spelling, pitch/scales, scamp_extensions
 """
 
 from scamp import *

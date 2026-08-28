@@ -1,7 +1,6 @@
 """
 The main python script, which talks to the OSC listener in SuperCollider
 
-Tags: osc playback, supercollider, playback params
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

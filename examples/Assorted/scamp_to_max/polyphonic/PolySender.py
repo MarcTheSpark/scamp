@@ -4,7 +4,7 @@ SCAMP Example: Max Sender (polyphonic)
 Sends overlapping glissando notes over OSC to Max. See the accompanying Max patch, which receives and routes
 those messages using a poly object.
 
-Tags: osc playback, max/msp, overlapping notes, playback params
+Tags: playback/external, time/clocks, playback/parameters
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

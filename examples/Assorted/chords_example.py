@@ -3,7 +3,7 @@ SCAMP Example: Chords and Noteheads
 
 Chords with per-note noteheads, and a start_chord handle whose pitches change over time.
 
-Tags: chords, noteheads, note handles, note properties, engraving settings
+Tags: notation/properties, notation/engraving, playback/handles
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

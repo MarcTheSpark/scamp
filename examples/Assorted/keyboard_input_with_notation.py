@@ -8,7 +8,7 @@ Demonstration of receiving computer keyboard events and using them to play notes
 Any key whose number code lies within a reasonable range triggers the playback of a note of that MIDI pitch.
 Escape
 
-Tags: keyboard input, start_note, live interaction, notation
+Tags: interactive/input, notation/output
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

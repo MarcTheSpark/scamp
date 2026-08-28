@@ -4,7 +4,6 @@ SCAMP Example: OSC Listener
 Listener script, which uses :func:`~scamp.session.Session.register_osc_listener` to register
 callback functions that play notes and bagpipe clusters.
 
-Tags: osc input, live interaction
 """
 
 

@@ -6,7 +6,7 @@ Same as last example except that we see two different levers for simplifying the
 (which defaults to 2), rather than setting a hard cap, amplifies the error calculation for complicated
 divisors, leading to simpler beat divisions unless the complicated division is a very good match.
 
-Tags: quantization, quantization settings
+Tags: notation/quantization
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

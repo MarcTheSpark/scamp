@@ -6,7 +6,7 @@ notation, such as articulation and noteheads. All properties are ultimately conv
 If a string is given, it is parsed into key / value pairs. In many cases, e.g. with "staccato" below, SCAMP can infer
 that it is referring to an articulation.
 
-Tags: note properties, articulations, noteheads, voices, staff text, dynamics, playback adjustments
+Tags: notation/properties, playback/adjustments
 """
 
 

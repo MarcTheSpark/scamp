@@ -4,7 +4,7 @@ SCAMP Example: Performance Post-Processing
 Post-processes a recorded Performance of a random walk of thirds and fifths, so that every time three consecutive
 notes are a triad, they are slurred together and spelled consistently.
 
-Tags: performance post-processing, note properties, spelling
+Tags: notation/spanners, pitch/spelling
 """
 
 from scamp import *

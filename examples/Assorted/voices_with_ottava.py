@@ -5,7 +5,7 @@ Same as the voices example, but with ottava applied to certain voices. These ott
 voices are (by default) placed on the same staff, so the largest octave line wins and a warning is emitted. To avoid
 this conflict, set `engraving_settings.max_voices_per_staff = 1` to place each voice in a separate staff.
 
-Tags: note properties, voices, engraving_settings, ottava
+Tags: notation/properties, notation/engraving, notation/spanners
 """
 
 from scamp import *
@@ -46,9 +46,8 @@ wait_for_children_to_finish()
 perf = s.stop_transcribing()
 
 # default: allow 4 voices per staff, resulting in conflicting octave lines; largest displacement wins
-perf.to_score().show()
+perf.to_score(title="Awful version: 4 voices with conflicting octava in a single voice.").show()
 
 # use this setting to force each voice onto its own staff to avoid conflicting octave lines
 engraving_settings.max_voices_per_staff = 1
-perf.to_score().show()
-
+perf.to_score(title="Using `engraving_settings.max_voices_per_staff = 1`").show()

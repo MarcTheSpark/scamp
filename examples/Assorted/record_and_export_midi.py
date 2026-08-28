@@ -4,7 +4,7 @@ SCAMP Example: Record and Export MIDI
 Records glissandi with microtonal pitches and playback params (fast-forwarded),
 then exports the performance as a MIDI file.
 
-Tags: midi export, fast-forward, glissando, playback params
+Tags: time/clocks, pitch/glissando, pitch/microtonal, playback/parameters, notation/output
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

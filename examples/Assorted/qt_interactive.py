@@ -5,7 +5,7 @@ A draggable PyQt rectangle drives live playback in a server session. Moving the 
 fires a callback that sets the tempo of the clock running the note loop; its vertical position
 still sets the pitch.
 
-Tags: gui integration, run_as_server, live interaction, callback
+Tags: interactive/gui, interactive/input
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

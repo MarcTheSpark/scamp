@@ -11,7 +11,7 @@ notes that follow that pitch (transposed back up or down by however many octaves
 Every pitch class appears in the first movement, so we don't have the issue of searching for a pitch class
 that doesn't occur.
 
-Tags: midi input, midi output, live interaction
+Tags: playback/external, interactive/input
 """
 
 

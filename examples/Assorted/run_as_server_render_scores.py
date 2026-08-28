@@ -3,7 +3,7 @@ SCAMP Example: Run as Server and Render Scores
 
 Runs the session as a server, repeatedly recording short fragments and popping up a score for each.
 
-Tags: run_as_server, transcription, notation
+Tags: interactive/gui, notation/output
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

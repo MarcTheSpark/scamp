@@ -3,7 +3,7 @@ SCAMP Example: Indispensability
 
 Mouse position controls a rhythmic texture based on Barlow's beat indispensability (barlicity extension).
 
-Tags: mouse input, rhythm, scamp_extensions, live interaction, indispensability, barlow
+Tags: interactive/input, composition/algorithmic, scamp_extensions
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

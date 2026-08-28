@@ -3,7 +3,6 @@ SCAMP Example: Evolving Form
 
 The main script for the piece, drawing upon definitions.py and formal_parameters.py.
 
-Tags: playback implementations, envelopes, algorithmic composition, tempo change, musical form
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

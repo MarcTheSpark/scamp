@@ -8,7 +8,7 @@ keep the spanners straight by providing a label.
 
 On the other hand, implementations of MusicXML in many notation programs mangle spanner input. So there's that.
 
-Tags: spanners, slurs, hairpins, dynamics, notation, musicxml
+Tags: notation/spanners
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

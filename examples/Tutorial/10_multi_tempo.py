@@ -6,7 +6,7 @@ the default starting tempo of 60 BPM to 100 BPM. Meanwhile, the trumpet part pla
 child process that initially runs at the same speed as its parent (it inherits the parent's acceleration), but
 then slows down to half speed within the accelerating parent process.
 
-Tags: polytempo, fork, tempo change, Moment
+Tags: time/clocks, time/tempo
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

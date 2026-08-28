@@ -4,7 +4,7 @@ SCAMP Example: Leaf Loops
 Generative process behind Marc Evanstein's "Leaf Loops" for violin and viola. The shapes, note attack points,
 and worm shape for several different leaves are found in the LeafPoints directory.
 
-Tags: midi output, algorithmic composition, musical form, gui integration, visualization
+Tags: playback/external, composition/algorithmic, composition/form, visualization
 """
 
 import pygame

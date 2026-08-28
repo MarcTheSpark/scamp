@@ -3,7 +3,6 @@ SCAMP Example: OSC to SuperCollider
 
 Plays back notes by sending OSC messages to the SuperCollider process.
 
-Tags: osc playback, supercollider, engraving settings
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

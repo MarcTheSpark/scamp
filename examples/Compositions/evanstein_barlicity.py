@@ -6,7 +6,7 @@ with multidimensional-scaling visualization in Qt. This was the initial script f
 which ultimately became the notated work for piano and electronics that you can view here:
 https://www.youtube.com/watch?v=xMpET9KKOrw
 
-Tags: algorithmic composition, scamp_extensions, gui integration, visualization, indispensability, barlow
+Tags: composition/algorithmic, scamp_extensions, visualization, playback/external
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

@@ -4,7 +4,7 @@ SCAMP Example: Max Sender (monophonic)
 Sends monophonic notes with an extra playback parameter over OSC to Max. See the accompanying Max patch, which
 shows how to receive and route those messages.
 
-Tags: osc playback, max/msp, playback params
+Tags: playback/external, playback/parameters
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
