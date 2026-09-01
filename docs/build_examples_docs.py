@@ -16,10 +16,11 @@
 """
 Generate the docs "Examples" section from the example scripts.
 
-Writes docs/examples/index.rst (a Tutorial list in order, plus alphabetical, collapsible
-tag groups), a per-tag landing page so the sidebar can offer expandable tag groups (non-
-tutorial examples only), and one page per unit: a standalone script, or a dedicated subfolder
-shown as a code box per script with a single folder-zip download. Each page links to the source on
+Writes docs/examples/index.rst (a Tutorial list in order, plus collapsible groups nested
+by tag domain/facet), a landing page per domain and per facet so the sidebar nests
+domain -> facet (non-tutorial examples only), and one page per unit: a standalone script,
+or a dedicated subfolder shown as a code box per script with a single folder-zip download.
+Each page links to the source on
 GitHub, offers a download (the .py, or a .zip when companion files are needed), and embeds
 any captured media: an audio player (_static/media/<rel>.mp3), score images (<rel>*.svg),
 and hand-authored videos (example_media.toml).
@@ -52,7 +53,7 @@ GITHUB_BASE = "https://github.com/MarcTheSpark/scamp"
 GITHUB_BRANCH = "master"
 
 sys.path.insert(0, str(EXAMPLES_DIR))
-from regenerate_index import parse_docstring, FOLDERS  # noqa: E402
+from regenerate_index import parse_docstring, FOLDERS, split_tag, DOMAIN_ORDER  # noqa: E402
 
 
 def _load_manifest():
@@ -474,34 +475,72 @@ def write_example_page(unit):
     (OUT_DIR / f"{unit['name']}.rst").write_text("\n".join(out) + "\n")
 
 
-def tag_pages(units):
-    """Non-tutorial examples grouped by tag, for the sidebar -- a page per tag so the RTD
-    sidebar shows expandable tag groups. Returns [(tag, slug, [units])] sorted by tag. An
-    example under several tags appears in each group; tutorial examples are left out (the
-    gallery's numbered list already covers them)."""
-    groups = {}
+def domain_order_key(d):
+    return (DOMAIN_ORDER.index(d) if d in DOMAIN_ORDER else len(DOMAIN_ORDER), d)
+
+
+def tag_tree(units, include_tutorial):
+    """domain -> {facet_or_None: [units]}, from the tags on each unit. A standalone tag
+    (no '/') sits under facet None. Tutorial examples are included only when asked -- the
+    sidebar leaves them out (the gallery's numbered list already covers them)."""
+    tree = {}
     for u in units:
-        if u["folder"] == "Tutorial":
+        if u["folder"] == "Tutorial" and not include_tutorial:
             continue
         for tag in u["tags"]:
-            groups.setdefault(tag, []).append(u)
-    return [(tag, "tag_" + slugify(tag), groups[tag]) for tag in sorted(groups, key=str.lower)]
+            domain, facet = split_tag(tag)
+            tree.setdefault(domain, {}).setdefault(facet, []).append(u)
+    return tree
 
 
-def write_tag_pages(pages):
-    for tag, slug, members in pages:
-        out = [tag, "=" * len(tag), "", f"Examples tagged **{tag}**.", "",
-               ".. toctree::", "   :maxdepth: 1", ""]
-        out += [f"   {u['name']}" for u in members]
-        (OUT_DIR / f"{slug}.rst").write_text("\n".join(out) + "\n")
+def write_tag_pages(units):
+    """Write a page per facet (listing its examples) plus a landing page per multi-facet
+    domain (a toctree of its facets), so the sidebar nests domain -> facet. Returns the
+    ordered top-level slugs for the gallery's hidden toctree."""
+    tree = tag_tree(units, include_tutorial=False)
+    top = []
+    for domain in sorted(tree, key=domain_order_key):
+        facets = tree[domain]
+        if set(facets) == {None}:                      # a standalone tag: domain == tag
+            slug = "tag_" + slugify(domain)
+            _write_tag_page(domain, domain, slug, facets[None])
+            top.append(slug)
+            continue
+        facet_slugs = []
+        for facet in sorted((f for f in facets if f), key=str.lower):
+            slug = "tag_" + slugify(f"{domain}/{facet}")
+            _write_tag_page(facet, f"{domain}/{facet}", slug, facets[facet])
+            facet_slugs.append(slug)
+        dslug = "domain_" + slugify(domain)
+        _write_domain_page(domain, dslug, facet_slugs)
+        top.append(dslug)
+    return top
 
 
-def write_index(units, pages):
+def _write_tag_page(title, full_tag, slug, members):
+    """A leaf page: the examples carrying one tag. Titled by facet so the sidebar reads
+    cleanly under its domain; the body names the full domain/facet tag."""
+    out = [title, "=" * len(title), "", f"Examples tagged **{full_tag}**.", "",
+           ".. toctree::", "   :maxdepth: 1", ""]
+    out += [f"   {u['name']}" for u in members]
+    (OUT_DIR / f"{slug}.rst").write_text("\n".join(out) + "\n")
+
+
+def _write_domain_page(domain, slug, facet_slugs):
+    """A grouping page: a toctree of a domain's facet pages (nothing is tagged bare)."""
+    out = [domain, "=" * len(domain), "", f"Examples grouped under **{domain}**, by facet.",
+           "", ".. toctree::", "   :maxdepth: 1", ""]
+    out += [f"   {s}" for s in facet_slugs]
+    (OUT_DIR / f"{slug}.rst").write_text("\n".join(out) + "\n")
+
+
+def _li(u):
+    return f'<li><a href="{u["name"]}.html">{u["display"]}</a></li>'
+
+
+def write_index(units, top_slugs):
     tutorial = [u for u in units if u["folder"] == "Tutorial"]
-    tag_map = {}
-    for u in units:
-        for tag in u["tags"]:
-            tag_map.setdefault(tag, []).append(u)
+    tree = tag_tree(units, include_tutorial=True)
 
     out = [
         "Examples",
@@ -524,28 +563,40 @@ def write_index(units, pages):
             line += f" — {u['summary']}"
         out.append(line)
     out += ["", "By tag", "------", "",
-            "Click a tag to expand the examples that demonstrate it.", ""]
+            "Click a domain to expand its facets, then a facet for the examples.", ""]
     out += [".. raw:: html", "",
             "   <style>",
-            "   details.example-tag { margin: 0.2em 0; }",
-            "   details.example-tag > summary { cursor: pointer; font-weight: bold; }",
+            "   details.example-tag, details.example-domain { margin: 0.2em 0; }",
+            "   details.example-domain > summary { cursor: pointer; font-weight: bold; }",
+            "   details.example-tag > summary { cursor: pointer; }",
+            "   details.example-domain > div { margin-left: 1.2em; }",
             "   details.example-tag ul { margin: 0.3em 0 0.6em 1.2em; }",
             "   </style>", ""]
-    for tag in sorted(tag_map, key=str.lower):
-        entries = tag_map[tag]
-        out.append(".. raw:: html")
-        out.append("")
-        out.append(f'   <details class="example-tag"><summary>{tag} '
-                   f'({len(entries)})</summary><ul>')
-        for u in entries:
-            out.append(f'   <li><a href="{u["name"]}.html">{u["display"]}</a></li>')
-        out.append("   </ul></details>")
-        out.append("")
 
-    # Hidden toctree of the per-tag pages: keeps them out of the page body (the by-tag
-    # details above already list everything) while giving the sidebar its expandable groups.
+    # One collapsible per domain; multi-facet domains nest a collapsible per facet inside.
+    for domain in sorted(tree, key=domain_order_key):
+        facets = tree[domain]
+        html = []
+        if set(facets) == {None}:                      # standalone tag
+            members = facets[None]
+            html.append(f'<details class="example-tag"><summary>{domain} ({len(members)})</summary><ul>')
+            html += [_li(u) for u in members]
+            html.append("</ul></details>")
+        else:
+            distinct = {id(u) for members in facets.values() for u in members}
+            html.append(f'<details class="example-domain"><summary>{domain} ({len(distinct)})</summary><div>')
+            for facet in sorted((f for f in facets if f), key=str.lower):
+                members = facets[facet]
+                html.append(f'<details class="example-tag"><summary>{facet} ({len(members)})</summary><ul>')
+                html += [_li(u) for u in members]
+                html.append("</ul></details>")
+            html.append("</div></details>")
+        out += [".. raw:: html", ""] + [f"   {ln}" for ln in html] + [""]
+
+    # Hidden toctree of the top-level pages (domain landing pages and standalone tags);
+    # each domain page nests its facet pages, so the sidebar mirrors the domain/facet tree.
     out += [".. toctree::", "   :hidden:", ""]
-    out += [f"   {slug}" for _, slug, _ in pages]
+    out += [f"   {slug}" for slug in top_slugs]
     out.append("")
     (OUT_DIR / "index.rst").write_text("\n".join(out) + "\n")
 
@@ -555,11 +606,10 @@ def main():
         shutil.rmtree(OUT_DIR)
     OUT_DIR.mkdir()
     units = collect()
-    pages = tag_pages(units)
     for unit in units:
         write_example_page(unit)
-    write_tag_pages(pages)
-    write_index(units, pages)
+    top_slugs = write_tag_pages(units)
+    write_index(units, top_slugs)
     print(f"docs/examples/: {len(units)} example pages "
           f"({sum(1 for u in units if u['folder'] == 'Tutorial')} tutorial)")
 
