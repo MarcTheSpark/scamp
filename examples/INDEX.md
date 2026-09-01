@@ -26,7 +26,7 @@ Grouped by domain. Within each entry, `Tutorial/` examples come first.
 
 ### time
 
-- **clocks** — `Tutorial/03_blocking_false.py`, `Tutorial/09_multi_part.py`, `Tutorial/10_multi_tempo.py`, `Tutorial/11_record_on_clock.py`, `Assorted/double_score.py`, `Assorted/guitar_arpeggios.py`, `Assorted/metric_phase.py`, `Assorted/octava.py`, `Assorted/record_and_export_midi.py`, `Assorted/scamp_to_max/polyphonic/`, `Compositions/reich_piano_phase.py`
+- **clocks** — `Tutorial/03_blocking_false.py`, `Tutorial/09_multi_part.py`, `Tutorial/10_multi_tempo.py`, `Tutorial/11_record_on_clock.py`, `Assorted/double_score.py`, `Assorted/guitar_arpeggios.py`, `Assorted/metric_phase.py`, `Assorted/octave_lines.py`, `Assorted/record_and_export_midi.py`, `Assorted/scamp_to_max/polyphonic/`, `Compositions/reich_piano_phase.py`
 - **tempo** — `Tutorial/02_tempo_change.py`, `Tutorial/10_multi_tempo.py`, `Assorted/evolving_form/`, `Assorted/metric_phase.py`, `Assorted/save_and_load_performance/`
 
 ### pitch
@@ -42,11 +42,11 @@ Grouped by domain. Within each entry, `Tutorial/` examples come first.
 
 ### notation
 
-- **engraving** — `Tutorial/05_notation.py`, `Tutorial/06_time_signature.py`, `Tutorial/18_microtonal.py`, `Tutorial/24_osc_to_supercollider/`, `Assorted/chords_example.py`, `Assorted/voices.py`, `Assorted/voices_with_ottava.py`
+- **engraving** — `Tutorial/05_notation.py`, `Tutorial/06_time_signature.py`, `Tutorial/18_microtonal.py`, `Tutorial/24_osc_to_supercollider/`, `Assorted/chords_example.py`, `Assorted/voices.py`, `Assorted/voices_with_octave_lines.py`
 - **output** — `Tutorial/05_notation.py`, `Assorted/double_score.py`, `Assorted/key_sig.py`, `Assorted/keyboard_input_with_notation.py`, `Assorted/record_and_export_midi.py`, `Assorted/run_as_server_render_scores.py`
-- **properties** — `Tutorial/20_note_properties.py`, `Tutorial/21_pitch_spelling.py`, `Tutorial/22_staff_text.py`, `Tutorial/23_special_notations.py`, `Assorted/chords_example.py`, `Assorted/voices.py`, `Assorted/voices_with_ottava.py`
+- **properties** — `Tutorial/20_note_properties.py`, `Tutorial/21_pitch_spelling.py`, `Tutorial/22_staff_text.py`, `Tutorial/23_special_notations.py`, `Assorted/chords_example.py`, `Assorted/voices.py`, `Assorted/voices_with_octave_lines.py`
 - **quantization** — `Tutorial/07_random_quantized.py`, `Tutorial/08_simplified_quantization.py`, `Assorted/quantization.py`, `Compositions/reich_piano_phase.py`
-- **spanners** — `Tutorial/29_spanners.py`, `Assorted/octava.py`, `Assorted/post_processing.py`, `Assorted/voices_with_ottava.py`
+- **spanners** — `Tutorial/29_spanners.py`, `Assorted/octave_lines.py`, `Assorted/post_processing.py`, `Assorted/voices_with_octave_lines.py`
 
 ### playback
 
@@ -164,7 +164,7 @@ A grab bag of scripts showing idiomatic patterns, and methods of connecting SCAM
   <br>*tags:* time/tempo, time/clocks — *API:* `MetricPhaseTarget`, `Moment`, `Session`, `current_clock`, `fork`, `new_part`, `play_note`, `set_rate_target`, `set_rate_targets`, `wait_for_children_to_finish`
 - **`Assorted/midi_keyboard_mapper.py`** — A script written at the request of Paul Timmermans, in which different pitches or ranges of pitches on the keyboard can be mapped to particular instruments and chords. The heart of the script is the dictionary `pitch_to_instrument_and_pitches`, which expresses, for each key, which pitches and on which instrument should be played.
   <br>*tags:* playback/external, interactive/input — *API:* `Session`, `end`, `new_midi_part`, `new_part`, `print_available_midi_input_devices`, `print_available_midi_output_devices`, `register_midi_listener`, `split`, `start_chord`, `start_note`, `wait_forever`
-- **`Assorted/octava.py`** — A short passage of random notes for violin and piano, which uses the optional note properties argument to `play_note` to apply ottava when notes are very high or very low.
+- **`Assorted/octave_lines.py`** — A short passage of random notes for violin and piano, which uses the optional note properties argument to `play_note` to apply ottava when notes are very high or very low.
   <br>*tags:* notation/spanners, time/clocks — *API:* `Session`, `fork`, `new_part`, `play_note`, `start_transcribing`, `to_score`, `wait`, `wait_for_children_to_finish`
 - **`Assorted/osc_playback/`** — Uses a new_osc_part to send messages to a running SuperCollider script at OSCListenerPython.scd. To test out, run all the code blocks in OSCListenerPython.scd, make sure that the port below matches the result of NetAddr.langPort, and then run this script.
   <br>*tags:* playback/external, playback/parameters — *API:* `Session`, `fork`, `new_osc_part`, `play_note`, `wait`, `wait_forever`
@@ -188,7 +188,7 @@ A grab bag of scripts showing idiomatic patterns, and methods of connecting SCAM
   <br>*tags:* pitch/spelling, pitch/scales, scamp_extensions — *API:* `Session`, `Voice`, `new_part`, `play_chord`, `play_note`, `start_transcribing`, `to_score`
 - **`Assorted/voices.py`** — Demonstration of how to place notes in specific voices within a staff/part. Named voices keep notes together in the same voice, and numbered voices determine exactly which voice they go in. By default SCAMP allows up to four voices per staff, but this can easily become quite messy. Set `engraving_settings.max_voices_per_staff` to limit the number of voices per staff, placing overflow voices on separate staves.
   <br>*tags:* notation/properties, notation/engraving — *API:* `Session`, `fork`, `new_part`, `play_note`, `start_transcribing`, `to_score`, `wait`, `wait_for_children_to_finish`
-- **`Assorted/voices_with_ottava.py`** — Same as the voices example, but with ottava applied to certain voices. These ottava contradict one another when the voices are (by default) placed on the same staff, so the largest octave line wins and a warning is emitted. To avoid this conflict, set `engraving_settings.max_voices_per_staff = 1` to place each voice in a separate staff.
+- **`Assorted/voices_with_octave_lines.py`** — Same as the voices example, but with ottava applied to certain voices. These ottava contradict one another when the voices are (by default) placed on the same staff, so the largest octave line wins and a warning is emitted. To avoid this conflict, set `engraving_settings.max_voices_per_staff = 1` to place each voice in a separate staff.
   <br>*tags:* notation/properties, notation/engraving, notation/spanners — *API:* `Session`, `fork`, `new_part`, `play_note`, `start_transcribing`, `to_score`, `wait`, `wait_for_children_to_finish`
 
 ## `ScampExtensions/`

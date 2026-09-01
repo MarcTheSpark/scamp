@@ -38,8 +38,11 @@ plot_scale = 0.5   # its 8 plots are small enough to sit two-plus per row
 ["ScampExtensions/time_varying_parameter_example.py"]
 timeout = 90   # lets the ~60-beat form play out
 
-["Assorted/octava.py"]
-scale = 40
+["Assorted/octave_lines.py"]
+skip_score = true   # octave lines render wrong in verovio, so the score SVG is made by hand
+
+["Assorted/voices_with_octave_lines.py"]
+skip_score = true   # same -- hand-authored score SVGs
 
 ["Tutorial/19_playback_implementations.py"]
 skip_audio = true   # real sound needs an external MIDI synth + SuperCollider; audio rendered by hand

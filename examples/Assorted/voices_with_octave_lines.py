@@ -1,5 +1,5 @@
 """
-SCAMP Example: Multiple Voices with Ottava
+SCAMP Example: Multiple Voices with Octave Lines
 
 Same as the voices example, but with ottava applied to certain voices. These ottava contradict one another when the
 voices are (by default) placed on the same staff, so the largest octave line wins and a warning is emitted. To avoid
@@ -46,7 +46,7 @@ wait_for_children_to_finish()
 perf = s.stop_transcribing()
 
 # default: allow 4 voices per staff, resulting in conflicting octave lines; largest displacement wins
-perf.to_score(title="Awful version: 4 voices with conflicting octava in a single voice.").show()
+perf.to_score(title="Awful version: 4 voices with conflicting octave lines in one staff.").show()
 
 # use this setting to force each voice onto its own staff to avoid conflicting octave lines
 engraving_settings.max_voices_per_staff = 1

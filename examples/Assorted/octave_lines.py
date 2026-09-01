@@ -1,5 +1,5 @@
 """
-SCAMP Example: Ottava
+SCAMP Example: Octave Lines
 
 A short passage of random notes for violin and piano, which uses the optional note properties argument to `play_note`
 to apply ottava when notes are very high or very low.
