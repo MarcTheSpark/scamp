@@ -336,3 +336,17 @@ python_use_unqualified_type_names = True
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
 
+
+# -- Regenerate the examples gallery before each build -----------------------
+# build_examples_docs (next to this file) writes examples/*.rst from the example
+# tags. Running it on builder-inited (before sources are read) keeps the gallery
+# in sync with the tags automatically, so no manual pre-step is needed.
+import os
+import sys as _sys
+_sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import build_examples_docs  # noqa: E402
+
+
+def setup(app):
+    app.connect("builder-inited", lambda app: build_examples_docs.main())
+
