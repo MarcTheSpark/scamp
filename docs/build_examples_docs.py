@@ -462,9 +462,8 @@ def github_line(unit):
 
 def write_example_page(unit):
     title = unit["title"]
-    # Tutorial pages (and any tagless one) have no by-tag home, so mark them :orphan: to
-    # stay out of the sidebar -- they're reached from the gallery's numbered list instead.
-    orphan = unit["folder"] == "Tutorial" or not unit["tags"]
+    # Only a tagless page has no by-tag home; mark it :orphan: so Sphinx doesn't warn.
+    orphan = not unit["tags"]
     out = ([":orphan:", ""] if orphan else []) + [
         title, "=" * len(title), "", github_line(unit), "", write_download(unit), ""]
     if unit["summary"]:
@@ -479,14 +478,11 @@ def domain_order_key(d):
     return (DOMAIN_ORDER.index(d) if d in DOMAIN_ORDER else len(DOMAIN_ORDER), d)
 
 
-def tag_tree(units, include_tutorial):
+def tag_tree(units):
     """domain -> {facet_or_None: [units]}, from the tags on each unit. A standalone tag
-    (no '/') sits under facet None. Tutorial examples are included only when asked -- the
-    sidebar leaves them out (the gallery's numbered list already covers them)."""
+    (no '/') sits under facet None. Tutorial and non-tutorial examples alike are grouped."""
     tree = {}
     for u in units:
-        if u["folder"] == "Tutorial" and not include_tutorial:
-            continue
         for tag in u["tags"]:
             domain, facet = split_tag(tag)
             tree.setdefault(domain, {}).setdefault(facet, []).append(u)
@@ -497,7 +493,7 @@ def write_tag_pages(units):
     """Write a page per facet (listing its examples) plus a landing page per multi-facet
     domain (a toctree of its facets), so the sidebar nests domain -> facet. Returns the
     ordered top-level slugs for the gallery's hidden toctree."""
-    tree = tag_tree(units, include_tutorial=False)
+    tree = tag_tree(units)
     top = []
     for domain in sorted(tree, key=domain_order_key):
         facets = tree[domain]
@@ -540,7 +536,7 @@ def _li(u):
 
 def write_index(units, top_slugs):
     tutorial = [u for u in units if u["folder"] == "Tutorial"]
-    tree = tag_tree(units, include_tutorial=True)
+    tree = tag_tree(units)
 
     out = [
         "Examples",
