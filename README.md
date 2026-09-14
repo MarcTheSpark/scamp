@@ -129,3 +129,11 @@ To install the latest development version directly from GitHub:
 ```
 pip install git+https://github.com/MarcTheSpark/scamp_extensions
 ```
+
+## Cloning the repository (contributors)
+
+Most users should just `pip install scamp` (above). However, if you do clone this repo, note that it uses 
+[Git LFS](https://git-lfs.com/) for its binary/media assets, and that some of these are necessary for basic 
+functionality. **Install Git LFS before cloning** (`git lfs install`), or run `git lfs pull` afterward, so 
+those files are fetched in full. Without LFS you get small text pointer files instead; in particular the 
+bundled soundfont won't load, so playback will fail.
