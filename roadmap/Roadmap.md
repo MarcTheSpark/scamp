@@ -12,7 +12,8 @@ only as reference.
   non-note events (pedaling, etc.); a small idea for tagging unspecified-voice
   notes by their forking clock.
 - **[Playback](#playback)** — MPE so microtonal pitch bend survives on external
-  synths.
+  synths; a demand-driven tick driver for parameter animation to stop concurrent
+  automation from jittering everything else's timing.
 - **[Tests & settings](#tests--settings)** — pytest + syrupy migration, targeted
   unit tests, per-`Session` settings.
 - **[AI tutor & workspace home](#ai-tutor--workspace-home)** — mature the tutor
@@ -134,6 +135,34 @@ the RPN that sets pitch-bend *range*, which is why external MIDI still defaults 
 whereas SCAMP is a **multi-instrument** ensemble, so mapping an ensemble onto MPE (likely
 one zone per port) needs a real decision. Defaults (flag location, ±24 vs ±48, on/off by
 default) still TBD.
+
+### Demand-driven tick driver for parameter animation
+
+Concurrent parameter automation degrades timing for everything else. Each animation currently
+schedules its own updates as leaf events on the shared scheduler thread, at its own rate and
+onset phase, so timestamps rarely coincide — ~200 updates/sec become ~200 distinct scheduler
+wakes/sec, and `play_note` forks one clock per animated parameter on top of that. The scheduler
+pays its cost per *wake* (each an OS timed-wait that can return late and contend for the GIL),
+not per event, so this shows up as jitter and drift on unrelated notes (measured: a hihat's
+onset stdev went 0.28 ms alone → 13 ms alongside a real animated example).
+
+The fix: replace per-animation scheduling with **one demand-driven tick per clock family**. A
+single recurring tick (default 20 ms) walks a registry of active `(note, param)` animations and
+samples each envelope live at that clock's current beat. Because it's one driver, concurrent
+animations coincide by construction (one wake drains them all), and because it samples live
+against beat positions it tracks each note's beat-defined lifetime through tempo changes — with
+one beat-anchored endpoint per note for the exact final value. Reference-counted, so it costs
+nothing when nothing is animating. `play_note` forks one clock instead of N.
+
+`playback_settings.animation_tick_interval` becomes the single rate knob (replacing the older
+`max_animation_rate` idea). The main trade is that pitch sampling drops to the tick rate —
+inaudible for OSC/synth, coarser for fast wide MIDI pitch bends; the knob covers it.
+
+Validated as a prototype (2026-08-25) against real clockblocks and a monkeypatched scamp load
+(jitter 8–13 ms → 2.3 ms), but **not yet applied** — endpoint-vs-note-end ordering after
+fork-removal was only proven standalone and needs a real `test_examples.py` golden run before
+trusting. Full design, measurements, and the scheduler-livelock gotcha to avoid:
+`.claudeConvos/2026-08-25-param-animation-tick-driver.md`.
 
 ## Tests & settings
 
