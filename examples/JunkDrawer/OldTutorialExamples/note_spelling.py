@@ -2,8 +2,6 @@
 SCAMP Example: Note Spelling
 
 Ways to control pitch spelling: session/instrument defaults, keys, and per-note settings.
-
-Tags: pitch spelling, note properties
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

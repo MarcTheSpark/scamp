@@ -2,8 +2,6 @@
 SCAMP Example: Fifteen-Sixteen
 
 Quantizes a rhythm against 15/16 and other changing time signatures.
-
-Tags: quantization, quantization settings, time signatures, fast-forward
 """
 
 from scamp import *

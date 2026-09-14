@@ -2,8 +2,6 @@
 SCAMP Example: Articulations
 
 Articulations (staccato, accent, tenuto, ...) via the properties argument.
-
-Tags: articulations, note properties, notation
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

@@ -2,8 +2,6 @@
 SCAMP Example: Multiple Tempos
 
 Three wind parts on independent looping and functional tempo envelopes.
-
-Tags: polytempo, tempo function, fork
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

@@ -1,9 +1,7 @@
 """
 SCAMP Example: Tempo Change
 
-Same as Hello World example, but at half-tempo.
-
-Tags: time/tempo, basics
+Same as Hello World example, but repeatedly, with changing tempi.
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
@@ -22,19 +20,27 @@ Tags: time/tempo, basics
 #  If not, see <http://www.gnu.org/licenses/>.                                                   #
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
-# import the scamp namespace
 from scamp import *
-# construct a session object
+
 s = Session()
-# change to half of default tempo
-s.tempo = 30
+
+# Start with an initial tempo of 100
+s.tempo = 100
 
 # add a new violin part to the session
 violin = s.new_part("Violin")
-# looping through the MIDI pitches
-# of a C major arpeggio...
+
+
 for pitch in [60, 64, 67, 72]:
-    # play each pitch sequentially
-    # with volume of 1 (full volume)
-    # and duration of half a beat
+    violin.play_note(pitch, 1, 0.5)
+
+# you can change tempo at any time; not just at the beginning
+s.tempo = 40
+for pitch in [60, 64, 67, 72]:
+    violin.play_note(pitch, 1, 0.5)
+
+# you can also do an accelerando/decelerando, specifying
+# a moment at which to reach the goal tempo
+set_tempo_target(150, Moment.after_beats(6))
+for pitch in [60, 64, 67, 72] * 4:
     violin.play_note(pitch, 1, 0.5)

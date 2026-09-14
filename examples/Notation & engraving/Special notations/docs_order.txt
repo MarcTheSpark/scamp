@@ -1,0 +1,8 @@
+Tutorial/20_note_properties.py
+Tutorial/22_staff_text.py
+Tutorial/23_special_notations.py
+Tutorial/29_spanners.py
+voices.py
+voices_with_octave_lines.py
+Tutorial/18_microtonal.py
+post_processing.py

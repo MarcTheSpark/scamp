@@ -1,5 +1,3 @@
 SCAMP Example: OSC Listening
 
 Run `osc_listener.py` first, which uses Session.register_osc_listener to listen for OSC messages and play back notes and horrific bagpipe clusters. Then run `osc_sender.py` which simulates an external program sending OSC messages to to the listener script, leading to the aforementioned notes and horrific bagpipe clusters.
-
-Tags: interactive/input

@@ -2,8 +2,6 @@
 SCAMP Example: Nested Clocks
 
 Child and grandchild clocks with a sinusoidal tempo function and rate flipping.
-
-Tags: nested clocks, tempo function, fork
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

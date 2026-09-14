@@ -3,8 +3,6 @@ SCAMP Example: Special Notations
 
 Ornaments, tremolo and other single-note notations. These notational details are passed to the
 fourth, optional "properties" argument of play_note.
-
-Tags: notation/properties, playback/adjustments
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

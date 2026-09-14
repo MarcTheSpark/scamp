@@ -4,8 +4,6 @@ SCAMP Example: Volume Envelope
 Plots an envelope representing a forte-piano-crescendo dynamic, and then uses it to affect the dynamics of a note's
 playback. This example shows that an Envelope can be passed to the volume argument of "play_note", just like it can
 to the pitch argument. (The list short-hand also works, by the way.)
-
-Tags: envelopes
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

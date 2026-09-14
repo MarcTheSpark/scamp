@@ -2,8 +2,6 @@
 SCAMP Example: Envelopes (advanced)
 
 A more comprehensive list of ways to construct and modify Envelopes.
-
-Tags: envelopes
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

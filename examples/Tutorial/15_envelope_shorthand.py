@@ -2,8 +2,6 @@
 SCAMP Example: Envelope Shorthand
 
 Plays two glissandi by passing lists instead of envelopes to the pitch argument of play_note.
-
-Tags: pitch/glissando, envelopes
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

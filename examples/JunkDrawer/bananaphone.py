@@ -2,8 +2,6 @@
 SCAMP Example: Bananaphone, so-named because it was a demo for Raphael Radna, aka Raffi.
 
 Three-part texture (two violins and a "bass banjo") accelerating from tempo 60 to 300.
-
-Tags: fork, tempo change, glissando, overlapping notes, engraving settings
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

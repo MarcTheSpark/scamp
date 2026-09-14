@@ -2,8 +2,6 @@
 SCAMP Example: Glissando Engraving
 
 Random glissandi and chord glissandi, quantized, saved to JSON, then reloaded and replayed.
-
-Tags: glissando, quantization, quantization settings, save and load
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

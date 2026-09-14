@@ -5,5 +5,3 @@ Synths in response. Start SuperCollider and run the code blocks in `receive_from
 run `osc_to_supercollider.py`.
 
 Note that the easy way to receive note events from SCAMP in SuperCollider specifically is with the ScampUtils quark, as demonstrated by `receive_from_supercollider_scamputils.scd`. 
-
-Tags: playback/external, notation/engraving

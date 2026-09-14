@@ -2,8 +2,6 @@
 SCAMP Example: Ensemble without a Session
 
 Uses a bare Ensemble for playback (no musical time), with commented-out save/load to JSON.
-
-Tags: ensemble, save and load
 """
 from clockblocks import current_clock
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

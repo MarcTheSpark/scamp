@@ -2,8 +2,6 @@
 SCAMP Example: Glissando from Envelope
 
 Plays a glissando by passing an Envelope to the pitch parameter of play_note.
-
-Tags: pitch/glissando, envelopes
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

@@ -16,22 +16,26 @@
 """
 Generate the docs "Examples" section from the example scripts.
 
-Writes docs/examples/index.rst (a Tutorial list in order, plus collapsible groups nested
-by tag domain/facet), a landing page per domain and per facet so the sidebar nests
-domain -> facet (non-tutorial examples only), and one page per unit: a standalone script,
-or a dedicated subfolder shown as a code box per script with a single folder-zip download.
-Each page links to the source on
-GitHub, offers a download (the .py, or a .zip when companion files are needed), and embeds
-any captured media: an audio player (_static/media/<rel>.mp3), score images (<rel>*.svg),
-and hand-authored videos (example_media.toml).
+The topic structure comes from the examples directory tree (see regenerate_index.py): each
+topic is a top-level folder, its sections are the sub-folders, and each folder's
+docs_order.txt sets the order and any cross-listings. This writes docs/examples/index.rst
+(an ordered Tutorial list, then a By-topic list of the topic pages), one topic page per
+topic (inline section headings, each listing its examples as links), and one page per
+example holding the description, source, media and download. The topic pages only link to
+examples, so an example can appear on several of them without duplication, and the sidebar
+stays flat (topic pages don't expand into examples). Each example page carries a "Topics:"
+crossref to every section it appears in. Tutorial example pages sit in the Tutorial toctree
+so they show in the sidebar; the rest are :orphan:, reached from the topic pages. Each page
+links to the source on GitHub, offers a download (the .py, or a .zip when companion files
+are needed), and embeds any captured media: an audio player, score images, and hand-authored
+videos (example_media.toml).
 
 A single-file example takes its description from the file's own docstring and gets one
 unlabeled code box. A folder example takes its title/description from an about.txt if
-present (else the folder-named script), merges tags across every file, and shows one code
-box per file captioned "name: description". Any SuperCollider (.scd) scripts get code
-boxes after the Python ones, labeled by filename. example_media.toml can pin a per-example
-``order`` of media by filename (leaving out anything not listed). The JunkDrawer is left
-out. Reuses the docstring/tag parsing from examples/regenerate_index.py.
+present (else the folder-named script) and shows one code box per file captioned
+"name: description". Any SuperCollider (.scd) scripts get code boxes after the Python ones,
+labeled by filename. example_media.toml can pin a per-example ``order`` of media by filename
+(leaving out anything not listed). The JunkDrawer is left out.
 
 Run from anywhere: python3 build_examples_docs.py
 """
@@ -42,6 +46,7 @@ import shutil
 import tomllib
 import zipfile
 import pathlib
+import urllib.parse
 
 DOCS_DIR = pathlib.Path(__file__).parent
 EXAMPLES_DIR = DOCS_DIR.parent / "examples"
@@ -53,7 +58,9 @@ GITHUB_BASE = "https://github.com/MarcTheSpark/scamp"
 GITHUB_BRANCH = "master"
 
 sys.path.insert(0, str(EXAMPLES_DIR))
-from regenerate_index import parse_docstring, FOLDERS, split_tag, DOMAIN_ORDER  # noqa: E402
+from regenerate_index import (  # noqa: E402
+    slugify, title_of, parse_docstring, parse_about, ordered_items, iter_units,
+    topic_dirs, example_locations, TUTORIAL_DIR)
 
 
 def _load_manifest():
@@ -65,40 +72,7 @@ def _load_manifest():
 
 MEDIA_MANIFEST = _load_manifest()
 
-# Folders to surface, in presentation order; the JunkDrawer is deliberately excluded.
-INCLUDED = [f for f in FOLDERS if f != "JunkDrawer"]
-
 LICENSE_DELIM = re.compile(r"^#\s*\++\s*#\s*$")
-TITLE_RE = re.compile(r"SCAMP Example:\s*(.+)", re.IGNORECASE)
-
-
-def slugify(text):
-    """A flat, unique doc name from a path (with any .py suffix already removed)."""
-    return re.sub(r"[^0-9a-z]+", "_", text.lower()).strip("_")
-
-
-def title_of(path):
-    """The 'SCAMP Example: ...' title if present, else a title-cased file stem."""
-    m = TITLE_RE.search(path.read_text())
-    return m.group(1).strip() if m else path.stem.replace("_", " ")
-
-
-def parse_about(folder):
-    """(title, description, tags) from a folder's about.txt, or None if absent.
-    Same shape as an example docstring: a 'SCAMP Example:' title line, a body, and a
-    'Tags:' line, in any order."""
-    about = folder / "about.txt"
-    if not about.exists():
-        return None
-    title, tags, body = None, [], []
-    for ln in (ln.strip() for ln in about.read_text().splitlines()):
-        if ln.startswith("Tags:"):
-            tags = [t.strip() for t in ln[len("Tags:"):].split(",") if t.strip()]
-        elif ln.startswith("SCAMP Example:"):
-            title = ln[len("SCAMP Example:"):].strip()
-        else:
-            body.append(ln)
-    return title, " ".join(ln for ln in body if ln).strip(), tags
 
 
 def source_body(path):
@@ -115,7 +89,7 @@ def source_body(path):
 def script_entry(path, lang="python"):
     """The per-script bits shown in a code box: filename, summary, source, rel path, lexer.
     Only Python scripts carry a docstring summary."""
-    summary = parse_docstring(path)[0] if lang == "python" else None
+    summary = parse_docstring(path) if lang == "python" else None
     return {"name": path.name, "summary": summary or "", "body": source_body(path),
             "rel": path.relative_to(EXAMPLES_DIR), "lang": lang}
 
@@ -168,7 +142,10 @@ def score_pages(script):
 
     scores = {}
     for p in base.parent.glob(prefix + "*.svg"):
-        if p.name[len(prefix):].startswith(".plot"):
+        rest = p.name[len(prefix):]
+        if rest[:1] not in (".", "-"):
+            continue  # a longer-named sibling (voices vs voices_with_octave_lines), not ours
+        if rest.startswith(".plot"):
             continue  # an Envelope plot -> handled by plot_images, laid out inline
         score, page = index(p)
         scores.setdefault(score, []).append((page, p))
@@ -189,8 +166,10 @@ def plot_images(script):
 
 
 def _media_url(p):
-    # relative to the built example page (examples/<slug>.html); media lives under _static/
-    return "../_static/media/" + p.relative_to(MEDIA_DIR).as_posix()
+    # relative to the built example page (examples/<slug>.html); media lives under _static/.
+    # Topic/section dirs carry spaces and '&', so percent-encode the path for the src attr.
+    rel = p.relative_to(MEDIA_DIR).as_posix()
+    return "../_static/media/" + urllib.parse.quote(rel)
 
 
 def audio_html(p):
@@ -354,65 +333,57 @@ def companion_files(path):
 
 
 def collect():
-    """Group the example scripts into units: a standalone script, or a dedicated
-    subfolder holding one or more scripts plus its companion files."""
-    units = []
-    for folder in INCLUDED:
-        catroot = EXAMPLES_DIR / folder
-        subfolders = {}  # dir -> [script paths]
-        for path in sorted(catroot.rglob("*.py")):
-            if "__pycache__" in path.parts:
-                continue
-            if path.parent == catroot:
-                units.append(file_unit(folder, path))
-            else:
-                subfolders.setdefault(path.parent, []).append(path)
-        for d in sorted(subfolders):
-            units.append(folder_unit(folder, d, sorted(subfolders[d])))
+    """Every example unit, keyed by its path under examples/ (a script's .py path, or a
+    folder example's directory). Walks the whole tree; JunkDrawer is excluded by iter_units."""
+    units = {}
+    for path in iter_units(EXAMPLES_DIR):
+        u = folder_unit(path) if path.is_dir() else file_unit(path)
+        units[u["key"]] = u
     return units
 
 
-def file_unit(folder, path):
+def _folder_pys(d):
+    return sorted(p for p in d.rglob("*.py") if "__pycache__" not in p.parts)
+
+
+def file_unit(path):
     rel = path.relative_to(EXAMPLES_DIR)
-    summary, tags = parse_docstring(path)
+    summary = parse_docstring(path)
     return {
-        "folder": folder, "kind": "file", "name": slugify(rel.as_posix()[:-len(".py")]),
+        "kind": "file", "name": slugify(rel.as_posix()[:-len(".py")]),
         "display": rel.as_posix(), "reldir": rel.parent.as_posix(),
         "media_dir": MEDIA_DIR / rel.parent, "key": rel.as_posix(),
-        "title": title_of(path), "summary": summary or "", "tags": tags,
+        "is_tutorial": rel.parts[0] == TUTORIAL_DIR,
+        "title": title_of(path), "summary": summary or "",
+        "needs_ext": "scamp_extensions" in path.read_text(),
         "scripts": [script_entry(path)], "extra": scd_entries(companion_files(path)),
         "download": ("file", path),
     }
 
 
-def folder_unit(folder, d, paths):
-    """A subfolder shown as one page: a code box per script, one folder zip. Title and
-    top description come from an about.txt if present, else the folder-named script; tags
-    are merged across every script (and about.txt)."""
+def folder_unit(d):
+    """One page for a folder example (several scripts + companions): a code box per script,
+    one folder zip. Title/summary come from about.txt if present, else the folder-named (or
+    lone) script."""
+    paths = _folder_pys(d)
     reldir = d.relative_to(EXAMPLES_DIR).as_posix()
     main = next((p for p in paths if p.stem == d.name), None)
     ordered = ([main] + [p for p in paths if p is not main]) if main else paths
     about = parse_about(d)
-
-    tags = []
-    for source in ([p for p in ordered] + ([None] if about else [])):
-        source_tags = about[2] if source is None else parse_docstring(source)[1]
-        for t in source_tags:
-            if t not in tags:
-                tags.append(t)
-
     if about:
         title, summary = about[0] or d.name.replace("_", " ").title(), about[1]
     elif len(paths) == 1:                       # a lone script keeps its own top description
-        title, summary = title_of(ordered[0]), (parse_docstring(ordered[0])[0] or "")
+        title, summary = title_of(ordered[0]), parse_docstring(ordered[0])
     elif main:                                  # multi w/o about.txt: descriptions ride the boxes
         title, summary = title_of(main), ""
     else:
         title, summary = d.name.replace("_", " ").title(), ""
     return {
-        "folder": folder, "kind": "folder", "name": slugify(reldir),
+        "kind": "folder", "name": slugify(reldir),
         "display": reldir + "/", "reldir": reldir, "media_dir": MEDIA_DIR / reldir,
-        "key": reldir, "title": title, "summary": summary, "tags": tags,
+        "key": reldir, "is_tutorial": reldir.split("/", 1)[0] == TUTORIAL_DIR,
+        "title": title, "summary": summary,
+        "needs_ext": any("scamp_extensions" in p.read_text() for p in paths),
         "scripts": [script_entry(p) for p in ordered],
         "extra": scd_entries(d.rglob("*.scd")), "download": ("folder", d),
     }
@@ -460,139 +431,131 @@ def github_line(unit):
     return f"*Example script:* `examples/{unit['display']} <{url}>`__"
 
 
-def write_example_page(unit):
+# ---- topic structure ------------------------------------------------------
+#
+def first_sentence(text):
+    """The description's first sentence -- the one-liner shown next to an index-page link.
+    A leading parenthetical (e.g. a warning) is skipped so the preview is the real summary.
+    The example's own page shows the full description."""
+    text = re.sub(r"^\s*\([^)]*\)\s*", "", text)
+    m = re.match(r"\s*(.+?[.!?])(\s|$)", text, re.DOTALL)
+    return m.group(1).strip() if m else text.strip()
+
+
+def _topic_entry(u):
+    """A bullet for one example in a topic page: a link to its page plus its one-liner."""
+    line = f"- :doc:`{u['title']} <{u['name']}>`"
+    if u["summary"]:
+        line += f" — {first_sentence(u['summary'])}"
+    if u["needs_ext"]:
+        line += " *(needs scamp_extensions)*"
+    return line
+
+
+HEAD_CHARS = {1: "=", 2: "-", 3: "~", 4: '"'}
+
+
+def render_group(d, units, out, level):
+    """Append a grouping dir's ordered body to ``out``: example bullets, and a heading +
+    recursion for each sub-section."""
+    for kind, node in ordered_items(d):
+        if kind == "example":
+            u = units.get(node)
+            if u is None:
+                print(f"  WARNING: docs_order example not found: {node}")
+                continue
+            out.append(_topic_entry(u))
+        else:                                    # a sub-section
+            out += ["", node.name, HEAD_CHARS[level] * len(node.name), ""]
+            render_group(node, units, out, level + 1)
+    out.append("")
+
+
+def write_topic_page(topic_dir, units):
+    """A topic page: inline section headings, each listing its examples as links. The
+    examples' own pages hold the code and media."""
+    title = topic_dir.name
+    out = [title, "=" * len(title), ""]
+    render_group(topic_dir, units, out, 2)
+    (OUT_DIR / f"{slugify(title)}.rst").write_text("\n".join(out).rstrip("\n") + "\n")
+
+
+def topics_line(unit, locations):
+    """The '*Topics:*' crossref: each place this example appears, linking to its topic page."""
+    crumbs = []
+    for topic, section in locations.get(unit["key"], []):
+        text = f"{topic} › {section}" if section else topic
+        crumbs.append(f":doc:`{text} <{slugify(topic)}>`")
+    return "*Topics:* " + ", ".join(crumbs) if crumbs else None
+
+
+def write_example_page(unit, locations):
+    """One page per example: description, source, media, download. Tutorial pages live in
+    the Tutorial toctree; the rest are :orphan: (reached from the topic pages), so the
+    sidebar stays flat. An example that needs scamp_extensions says so up top."""
     title = unit["title"]
-    # Only a tagless page has no by-tag home; mark it :orphan: so Sphinx doesn't warn.
-    orphan = not unit["tags"]
+    orphan = not unit["is_tutorial"]
     out = ([":orphan:", ""] if orphan else []) + [
         title, "=" * len(title), "", github_line(unit), "", write_download(unit), ""]
+    if unit["needs_ext"]:
+        out += ["**Requires the** ``scamp_extensions`` **package** "
+                "(``pip install scamp_extensions``)**.**", ""]
     if unit["summary"]:
         out += [unit["summary"], ""]
-    if unit["tags"]:
-        out += ["*Tags:* " + ", ".join(unit["tags"]), ""]
+    topics = topics_line(unit, locations)
+    if topics:
+        out += [topics, ""]
     out += body_lines(unit)
     (OUT_DIR / f"{unit['name']}.rst").write_text("\n".join(out) + "\n")
 
 
-def domain_order_key(d):
-    return (DOMAIN_ORDER.index(d) if d in DOMAIN_ORDER else len(DOMAIN_ORDER), d)
+def tutorial_units(units):
+    """The tutorial example units in teaching order (their numeric filename prefix sorts)."""
+    return sorted((u for u in units.values() if u["is_tutorial"]), key=lambda u: u["name"])
 
 
-def tag_tree(units):
-    """domain -> {facet_or_None: [units]}, from the tags on each unit. A standalone tag
-    (no '/') sits under facet None. Tutorial and non-tutorial examples alike are grouped."""
-    tree = {}
-    for u in units:
-        for tag in u["tags"]:
-            domain, facet = split_tag(tag)
-            tree.setdefault(domain, {}).setdefault(facet, []).append(u)
-    return tree
-
-
-def write_tag_pages(units):
-    """Write a page per facet (listing its examples) plus a landing page per multi-facet
-    domain (a toctree of its facets), so the sidebar nests domain -> facet. Returns the
-    ordered top-level slugs for the gallery's hidden toctree."""
-    tree = tag_tree(units)
-    top = []
-    for domain in sorted(tree, key=domain_order_key):
-        facets = tree[domain]
-        if set(facets) == {None}:                      # a standalone tag: domain == tag
-            slug = "tag_" + slugify(domain)
-            _write_tag_page(domain, domain, slug, facets[None])
-            top.append(slug)
-            continue
-        facet_slugs = []
-        for facet in sorted((f for f in facets if f), key=str.lower):
-            slug = "tag_" + slugify(f"{domain}/{facet}")
-            _write_tag_page(facet, f"{domain}/{facet}", slug, facets[facet])
-            facet_slugs.append(slug)
-        dslug = "domain_" + slugify(domain)
-        _write_domain_page(domain, dslug, facet_slugs)
-        top.append(dslug)
-    return top
-
-
-def _write_tag_page(title, full_tag, slug, members):
-    """A leaf page: the examples carrying one tag. Titled by facet so the sidebar reads
-    cleanly under its domain; the body names the full domain/facet tag."""
-    out = [title, "=" * len(title), "", f"Examples tagged **{full_tag}**.", "",
-           ".. toctree::", "   :maxdepth: 1", ""]
-    out += [f"   {u['name']}" for u in members]
-    (OUT_DIR / f"{slug}.rst").write_text("\n".join(out) + "\n")
-
-
-def _write_domain_page(domain, slug, facet_slugs):
-    """A grouping page: a toctree of a domain's facet pages (nothing is tagged bare)."""
-    out = [domain, "=" * len(domain), "", f"Examples grouped under **{domain}**, by facet.",
-           "", ".. toctree::", "   :maxdepth: 1", ""]
-    out += [f"   {s}" for s in facet_slugs]
-    (OUT_DIR / f"{slug}.rst").write_text("\n".join(out) + "\n")
-
-
-def _li(u):
-    return f'<li><a href="{u["name"]}.html">{u["display"]}</a></li>'
-
-
-def write_index(units, top_slugs):
-    tutorial = [u for u in units if u["folder"] == "Tutorial"]
-    tree = tag_tree(units)
-
-    out = [
-        "Examples",
-        "========",
-        "",
-        "A gallery of the example scripts that ship with SCAMP. The **tutorial** examples below",
-        "are a progressively-ordered teaching set; the **by-tag** groups underneath collect every",
-        "example (tutorial and beyond) by feature. Each links to a page showing its description and",
-        "full source.",
-        "",
-        "Tutorial",
-        "--------",
-        "",
-        "Work through these in order for a guided tour of the framework.",
-        "",
-    ]
+def write_tutorial_page(units):
+    """The Tutorial section page: an ordered, numbered list of the tutorial examples, plus a
+    toctree that holds their pages -- so the sidebar shows a single 'Tutorial' node that
+    expands into the examples, rather than listing every one flat."""
+    out = ["Tutorial", "========", "",
+           "Work through these in order for a guided tour of the framework.", ""]
+    tutorial = tutorial_units(units)
     for u in tutorial:
         line = f"#. :doc:`{u['title']} <{u['name']}>`"
         if u["summary"]:
-            line += f" — {u['summary']}"
+            line += f" — {first_sentence(u['summary'])}"
         out.append(line)
-    out += ["", "By tag", "------", "",
-            "Click a domain to expand its facets, then a facet for the examples.", ""]
-    out += [".. raw:: html", "",
-            "   <style>",
-            "   details.example-tag, details.example-domain { margin: 0.2em 0; }",
-            "   details.example-domain > summary { cursor: pointer; font-weight: bold; }",
-            "   details.example-tag > summary { cursor: pointer; }",
-            "   details.example-domain > div { margin-left: 1.2em; }",
-            "   details.example-tag ul { margin: 0.3em 0 0.6em 1.2em; }",
-            "   </style>", ""]
+    out += ["", ".. toctree::", "   :hidden:", ""]
+    out += [f"   {u['name']}" for u in tutorial]
+    out.append("")
+    (OUT_DIR / "tutorial.rst").write_text("\n".join(out) + "\n")
 
-    # One collapsible per domain; multi-facet domains nest a collapsible per facet inside.
-    for domain in sorted(tree, key=domain_order_key):
-        facets = tree[domain]
-        html = []
-        if set(facets) == {None}:                      # standalone tag
-            members = facets[None]
-            html.append(f'<details class="example-tag"><summary>{domain} ({len(members)})</summary><ul>')
-            html += [_li(u) for u in members]
-            html.append("</ul></details>")
-        else:
-            distinct = {id(u) for members in facets.values() for u in members}
-            html.append(f'<details class="example-domain"><summary>{domain} ({len(distinct)})</summary><div>')
-            for facet in sorted((f for f in facets if f), key=str.lower):
-                members = facets[facet]
-                html.append(f'<details class="example-tag"><summary>{facet} ({len(members)})</summary><ul>')
-                html += [_li(u) for u in members]
-                html.append("</ul></details>")
-            html.append("</div></details>")
-        out += [".. raw:: html", ""] + [f"   {ln}" for ln in html] + [""]
 
-    # Hidden toctree of the top-level pages (domain landing pages and standalone tags);
-    # each domain page nests its facet pages, so the sidebar mirrors the domain/facet tree.
-    out += [".. toctree::", "   :hidden:", ""]
-    out += [f"   {slug}" for slug in top_slugs]
+def write_index(units, topics):
+    """The Examples landing page: a link into the Tutorial section, then a By-topic list of
+    the topic pages and their sections. A single hidden toctree puts the Tutorial page and
+    the topic pages in the sidebar as sibling section nodes."""
+    out = [
+        "Examples", "========", "",
+        "A gallery of the example scripts that ship with SCAMP. The **tutorial** examples",
+        "are a progressively-ordered teaching set; the **by-topic** pages collect every",
+        "example (tutorial and beyond) by subject.",
+        "",
+        ".. rubric:: Tutorial", "",
+        ":doc:`Work through the tutorial <tutorial>` in order for a guided tour of the "
+        "framework.", "",
+        ".. rubric:: By topic", "",
+        "Each topic is one page, grouping its examples under headings.", "",
+    ]
+    for td in topics:
+        secs = [node.name for kind, node in ordered_items(td) if kind == "group"]
+        blurb = " · ".join(secs)
+        line = f"- :doc:`{td.name} <{slugify(td.name)}>`"
+        out.append(line + (f" — {blurb}" if blurb else ""))
+
+    out += ["", ".. toctree::", "   :hidden:", "", "   tutorial"]
+    out += [f"   {slugify(td.name)}" for td in topics]
     out.append("")
     (OUT_DIR / "index.rst").write_text("\n".join(out) + "\n")
 
@@ -602,12 +565,20 @@ def main():
         shutil.rmtree(OUT_DIR)
     OUT_DIR.mkdir()
     units = collect()
-    for unit in units:
-        write_example_page(unit)
-    top_slugs = write_tag_pages(units)
-    write_index(units, top_slugs)
-    print(f"docs/examples/: {len(units)} example pages "
-          f"({sum(1 for u in units if u['folder'] == 'Tutorial')} tutorial)")
+    topics = topic_dirs(EXAMPLES_DIR)
+    locations = example_locations()
+    for td in topics:
+        write_topic_page(td, units)
+    for unit in units.values():
+        write_example_page(unit, locations)
+    write_tutorial_page(units)
+    write_index(units, topics)
+    # A non-tutorial example in no topic still builds, but nothing links to it -- flag it.
+    for key, u in units.items():
+        if not u["is_tutorial"] and key not in locations:
+            print(f"  NOTE: not in any topic (orphan page): {u['display']}")
+    print(f"docs/examples/: {len(units)} example pages, {len(topics)} topics "
+          f"({sum(1 for u in units.values() if u['is_tutorial'])} tutorial)")
 
 
 if __name__ == "__main__":

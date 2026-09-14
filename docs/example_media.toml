@@ -13,7 +13,7 @@
 #           order, the default is: videos, then each script's scores, audio, code box.
 # The title, description, and tags always stay at the top of the page.
 
-["Assorted/save_and_load_performance"]
+["Playback/Other/save_and_load_performance"]
 order = [
     "save_performance.py",
     "save_performance.mp3",
@@ -21,13 +21,13 @@ order = [
     "load_and_play_performance.mp3",
 ]
 
-["Assorted/midi_keyboard_mapper.py"]
+["Interactivity & visualization/MIDI input/midi_keyboard_mapper.py"]
 video = "https://youtu.be/ViO8l6WWdPo"
 
-["ScampExtensions/key_plane_example.py"]
+["Interactivity & visualization/Keyboard input/key_plane_example.py"]
 video = "https://youtu.be/XLG8ooIxS2A"
 
-["ScampExtensions/indispensibility_example.py"]
+["Composition & form/Algorithmic approaches/indispensibility_example.py"]
 video = "https://youtu.be/436LmCJ5BmY"
 
 ["Tutorial/26_keyboard_input.py"]
@@ -36,11 +36,20 @@ video = "https://youtu.be/UtSBJ9rk5yw"
 ["Tutorial/27_mouse_input.py"]
 video = "https://youtu.be/FINAf7UJ5mU"
 
-["Assorted/conway.py"]
+["Composition & form/Algorithmic approaches/conway.py"]
 video = "https://youtu.be/aPeQs0qtUnI"
 
-["Compositions/evanstein_barlicity.py"]
+["Composition & form/Larger-scale form/evanstein_barlicity.py"]
 video = "https://youtu.be/qfzm87piCmo"
 
-["Compositions/evanstein_lunar_trajectories.py"]
+["Composition & form/Larger-scale form/evanstein_lunar_trajectories.py"]
 video = "https://www.youtube.com/watch?v=RmIetxLhGu4"
+
+["Notation & engraving/From live input/keyboard_input_with_notation.py"]
+video = "https://youtu.be/Wb6ZSWIvci8"
+
+["Interactivity & visualization/Responding to a GUI/qt_interactive.py"]
+video = "https://youtu.be/DPHPA2dllAQ"
+
+["Composition & form/Larger-scale form/leaf_loops.py"]
+https://youtu.be/o2jQEwaLIEQ

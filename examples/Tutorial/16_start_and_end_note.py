@@ -4,8 +4,6 @@ SCAMP Example: Start and End Note
 Plays notes by calling start_note (or start_chord) and then manipulating them afterward, instead of defining the course
 of the note from the beginning with "play_note". The "start_note" and "start_chord" functions return handles that can
 be used to change the pitch, volume or other parameters of the note after they have started, as well as end the note.
-
-Tags: playback/handles
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

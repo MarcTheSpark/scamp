@@ -1,0 +1,5 @@
+SCAMP Example: OSC Instrument Playback
+
+Uses a new_osc_part to send messages to a running SuperCollider script at OSCListenerPython.scd.
+To test out, run all the code blocks in OSCListenerPython.scd, make sure that the port below matches the
+result of NetAddr.langPort, and then run this script.

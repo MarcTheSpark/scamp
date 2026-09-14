@@ -1,0 +1,4 @@
+Tutorial/19_playback_implementations.py
+Tutorial/24_osc_to_supercollider
+osc_playback
+multipreset_example.py

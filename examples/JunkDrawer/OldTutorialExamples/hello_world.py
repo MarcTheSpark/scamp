@@ -2,8 +2,6 @@
 SCAMP Example: Hello World (older version)
 
 A C major scale, transcribed and shown as notation.
-
-Tags: play_note, basics, notation
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

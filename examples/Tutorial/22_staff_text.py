@@ -3,8 +3,6 @@ SCAMP Example: Staff Text
 
 Demonstrates various ways of adding text annotations to notes that are played. Text is one of the various
 notational details that can be passed to the fourth, optional "properties" argument of play_note.
-
-Tags: notation/properties
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #

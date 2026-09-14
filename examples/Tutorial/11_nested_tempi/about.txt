@@ -1,0 +1,9 @@
+SCAMP Example: Nested Tempi
+
+Music running with nested tempi: a trombone plays a cyclic quarter-note pattern on the session's
+accelerating pulse, while a trumpet, forked onto a child clock, plays a similar eighth-note pattern.
+After a few beats, while the overall session is still accelerating, the trumpet clock starts decelerating
+to half speed. The music is then notated two ways: nested_tempi.py transcribes from the session's point
+of view so that the trombone plays straight quarter notes, while the trumpet shows a written-out
+deceleration from eighth to quarter notes; nested_tempi_child_clock.py records from the trumpet clock's
+point of view, yielding plain eighth notes in the trumpet and more complex rhythmic notation in the trombone.

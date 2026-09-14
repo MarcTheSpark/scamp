@@ -44,8 +44,8 @@ EXAMPLES_DIR = REPO_ROOT / "examples"
 MEDIA_DIR = REPO_ROOT / "docs" / "_static" / "media"
 OVERRIDES_PATH = Path(__file__).with_name("render_overrides.toml")
 
-# Example folders to render, in order. JunkDrawer is left out.
-CATEGORIES = ["Tutorial", "Assorted", "ScampExtensions", "Compositions"]
+# Top-level folders left out of rendering (scratch scripts).
+EXCLUDE_TOPLEVEL = {"JunkDrawer"}
 
 # A script mentioning any of these can't be batch-recorded: it grabs the local
 # keyboard/mouse (would lock up the machine for the whole timeout), waits on live
@@ -110,10 +110,16 @@ def _render_xml_svg(xml, title=None):
             if given_title:
                 open(out[:-4] + ".title", "w").write(given_title)
 
+_in_show = [False]                               # Score.show -> export_music_xml re-enters the
+                                                 # pymusicxml hook below; guard so we render once.
 def _capture_score(self, *a, **k):
     try:
         xml = tempfile.mktemp(suffix=".musicxml")
-        self.export_music_xml(xml)
+        _in_show[0] = True
+        try:
+            self.export_music_xml(xml)
+        finally:
+            _in_show[0] = False
         _render_xml_svg(xml, getattr(self, "title", None))
     except Exception as e:
         sys.stderr.write("score capture failed: %r\n" % e)
@@ -123,13 +129,16 @@ if _Score is not None:
     _Score.show = _capture_score if score_base else (lambda self, *a, **k: None)
     _Score.show_xml = _Score.show
 # Some examples (key_sig.py) export a score straight through pymusicxml, bypassing
-# Score.show; capture that written file the same way so they still render an SVG.
+# Score.show; capture that written file the same way so they still render an SVG. When
+# Score.show is what triggered the export, it renders the SVG itself -- skip here.
 if score_base:
     try:
         import pymusicxml
         _orig_pmx_export = pymusicxml.Score.export_to_file
         def _capture_pmx_export(self, file_path, *a, **k):
             _orig_pmx_export(self, file_path, *a, **k)
+            if _in_show[0]:
+                return
             try:
                 _render_xml_svg(file_path, getattr(self, "title", None))
             except Exception as e:
@@ -166,10 +175,37 @@ if _Envelope is not None and score_base:
     _Envelope.show_plot = _capture_plot
 elif _Envelope is not None:
     _Envelope.show_plot = lambda self, *a, **k: None  # score capture off -> suppress popups
-if "abjad" in open(example).read():          # don't pop a PDF viewer / hang on lilypond
+if "abjad" in open(example).read():          # capture abjad.show, else it pops a PDF viewer
     try:
         import abjad
-        abjad.show = lambda *a, **k: None
+        def _capture_abjad_show(illustrable, *a, **k):
+            # Abjad examples build their own LilyPondFile and call abjad.show; this is their
+            # only capture hook. Render it to cropped SVG via lilypond, named like the
+            # verovio-captured scores (-2, -p2 ...) so the docs pick it up as one score.
+            if not score_base:
+                return
+            import glob, shutil as _sh, subprocess
+            d = tempfile.mkdtemp()
+            ly = os.path.join(d, "score.ly")
+            open(ly, "w").write(abjad.lilypond(illustrable))
+            try:
+                subprocess.run(["lilypond", "-dcrop", "-dbackend=svg",
+                                "-dno-point-and-click", "-o", os.path.join(d, "out"), ly],
+                               cwd=d, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                               check=True)
+            except Exception as e:
+                sys.stderr.write("abjad score capture failed: %r\n" % e)
+                return
+            pages = (sorted(glob.glob(os.path.join(d, "out*.cropped.svg")))
+                     or sorted(glob.glob(os.path.join(d, "out*.svg"))))
+            if not pages:
+                return
+            _score_count[0] += 1
+            score_suffix = "" if _score_count[0] == 1 else "-%d" % _score_count[0]
+            for i, page in enumerate(pages, start=1):
+                page_suffix = "" if i == 1 else "-p%d" % i
+                _sh.copyfile(page, score_base + score_suffix + page_suffix + ".svg")
+        abjad.show = _capture_abjad_show if score_base else (lambda *a, **k: None)
     except Exception:
         pass
 runpy.run_path(example, run_name="__main__")
@@ -198,13 +234,22 @@ def wav_duration(path):
 
 
 def examples_to_render(name_filter):
-    for category in CATEGORIES:
-        for path in sorted((EXAMPLES_DIR / category).rglob("*.py")):
-            if "__pycache__" in path.parts:
-                continue
-            if name_filter and name_filter not in path.relative_to(EXAMPLES_DIR).as_posix():
-                continue
-            yield path
+    for path in sorted(EXAMPLES_DIR.rglob("*.py")):
+        rel = path.relative_to(EXAMPLES_DIR)
+        if "__pycache__" in path.parts or rel.parts[0] in EXCLUDE_TOPLEVEL:
+            continue
+        if path.parent == EXAMPLES_DIR:          # tooling scripts (regenerate_index.py), not examples
+            continue
+        if name_filter and name_filter not in rel.as_posix():
+            continue
+        yield path
+
+
+def own_media(parent, stem, ext):
+    """Media files belonging to exactly this example: the stem followed by '.' or '-', so a
+    longer-named sibling isn't swept in ('voices' must not match 'voices_with_octave_lines')."""
+    return sorted(p for p in parent.glob(stem + "*" + ext)
+                  if p.name[len(stem):len(stem) + 1] in (".", "-"))
 
 
 def render(path, timeout, fade, scale, plot_scale, skip_audio=False, skip_score=False):
@@ -228,10 +273,9 @@ def render(path, timeout, fade, scale, plot_scale, skip_audio=False, skip_score=
     score_base = "" if skip_score else str(mp3.with_suffix(""))  # empty -> capture no score
     want_score = not skip_score and "to_score(" in src
     mp3.parent.mkdir(parents=True, exist_ok=True)
-    if not skip_score:
-        for pat in (mp3.stem + "*.svg", mp3.stem + "*.title"):  # drop scores from a previous run
-            for stale in mp3.parent.glob(pat):
-                stale.unlink()
+    if not skip_score:                       # drop this example's scores from a previous run
+        for stale in own_media(mp3.parent, mp3.stem, ".svg") + own_media(mp3.parent, mp3.stem, ".title"):
+            stale.unlink()
 
     env = {**os.environ, "MPLBACKEND": "Agg"}  # keep matplotlib from opening windows
     # Run in a throwaway copy of the example's folder, so examples that export files
@@ -264,11 +308,14 @@ def render(path, timeout, fade, scale, plot_scale, skip_audio=False, skip_score=
         """Score SVGs from this run (Envelope plots, tagged with a .plot infix, excluded)."""
         if skip_score:
             return []
-        plots = set(mp3.parent.glob(mp3.stem + ".plot*.svg"))
-        return sorted(p for p in mp3.parent.glob(mp3.stem + "*.svg") if p not in plots)
+        return [p for p in own_media(mp3.parent, mp3.stem, ".svg")
+                if not p.name[len(mp3.stem):].startswith(".plot")]
 
     def captured_plots():
-        return [] if skip_score else sorted(mp3.parent.glob(mp3.stem + ".plot*.svg"))
+        if skip_score:
+            return []
+        return [p for p in own_media(mp3.parent, mp3.stem, ".svg")
+                if p.name[len(mp3.stem):].startswith(".plot")]
 
     try:
         cut = audio = fast_score = False

@@ -3,8 +3,6 @@ SCAMP Example: Notation vs. Performance
 
 A silent part records clean notation while the audible part plays the same music with wonky
 timing; both transcriptions are exported.
-
-Tags: silent part, transcription, midi export
 """
 
 from scamp import *

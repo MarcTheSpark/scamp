@@ -4,8 +4,6 @@ SCAMP Example: Random Walk Fragments
 Forks overlapping random-walk melodies into a single instrument, then renders the same performance
 at several max_voices_per_staff settings to compare how the fragments get distributed across voices
 and staves.
-
-Tags: fork, random walk, quantization, max_voices_per_staff
 """
 
 from scamp import *

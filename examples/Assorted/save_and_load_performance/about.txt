@@ -1,6 +1,0 @@
-SCAMP Example: Save and Load a Performance
-
-Contains two scripts: One that plays some music and records a portion of that music to a JSON file, and a second that
-reads the JSON file and plays the recorded performance repeatedly while accelerating.
-
-Tags: save and load, time/tempo
