@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with `engraving_settings.max_voices_per_staff = 1`.
 - **A warning when a named or numbered voice contains overlapping notes**, which can't be kept in a single
   notated voice and so get split off into extra voices.
+- **`wait_for_clock_to_finish` is now importable from `scamp`**, blocking until a specific forked clock finishes.
 
 ### Changed
 
