@@ -1,8 +1,8 @@
 """
-SCAMP Example: Record on Clock
+SCAMP Example: Play Chord
 
-Same as previous example, except that the performance is recorded from the point of view of the
-trumpet part, resulting in the same sound notated in reference to a different changing tempo curve.
+Demonstrates ScampInstrument.play_chord by playing a famous progression, and then
+playing it a few more times randomly up and down the keyboard.
 """
 
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
@@ -22,52 +22,35 @@ trumpet part, resulting in the same sound notated in reference to a different ch
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
 from scamp import *
+import random
+
+# fixed random seed for reproducibility
+random.seed(42)
+
 s = Session()
 s.fast_forward_in_beats(float("inf"))
+s.tempo = 72
 
-trumpet = s.new_part("trumpet")
-trombone = s.new_part("trombone")
+piano = s.new_part("piano")
 
+s.start_transcribing()
 
-# When a function is forked, it is run on
-# a child clock of the process forking it.
-# This child clock can be passed as the
-# first argument and then manipulated.
-def trumpet_part():
-    # play eighth notes for three beats
-    while s.beat < 3:
-        trumpet.play_note(67, 1, 0.5)
+# a famous chord progression
+piano.play_chord([53, 59, 63, 68], 0.8, 2)
+piano.play_chord([52, 56, 62, 71], 0.6, 1)
 
-    # tell the clock for this child process
-    # to slow down to 1/2 speed over six
-    # seconds in the parent process
-    # align_to a downbeat (MetricPhaseTarget(0))
-    # ensures that we land perfectly on a beat
-    current_clock().set_rate_target(0.5, Moment.after_time(6), align_to=MetricPhaseTarget(0))
+# and then the same progression bouncing up and down the piano, accelerating
+set_tempo_target(144, Moment.after_beats(6))
+for _ in range(8):
+    t = random.randint(-24, 24)
+    piano.play_chord([53 + t, 59 + t, 63 + t, 68 + t], 0.8, 0.5)
+    piano.play_chord([52 + t, 56 + t, 62 + t, 71 + t], 0.6, 0.5, "staccato")
 
-    # keep playing eighth notes until 19
-    # beats pass in the parent session
-    while s.beat < 19:
-        trumpet.play_note(67, 1, 0.5)
-
-
-# Have the session as a whole speed up to
-# 100 BPM over the first nineteen beats
-s.set_tempo_target(100, Moment.after_beats(19))
-# fork returns the Clock associated
-# with the newly forked process
-trumpet_clock = s.fork(trumpet_part)
-s.start_transcribing(clock=trumpet_clock)
-# Play quarter notes for 19 beats
-while s.beat < 19:
-    trombone.play_note(60, 1, 1)
-
-# Stop recording and show the result
 performance = s.stop_transcribing()
 
 
 def test_results():
     return (
         performance,
-        performance.to_score(time_signature="3/4")
+        performance.to_score()
     )

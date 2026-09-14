@@ -1,11 +1,9 @@
 """
-SCAMP Example: Multi Tempo
+SCAMP Example: Nested Tempi (Recorded on Child Clock)
 
-The trombone part plays quarter notes at the overall tempo of the session, which gradually accelerates from
-the default starting tempo of 60 BPM to 100 BPM. Meanwhile, the trumpet part plays eighth notes and runs in a
-child process that initially runs at the same speed as its parent (it inherits the parent's acceleration), but
-then slows down to half speed within the accelerating parent process.
+Recorded from the forked child clock.
 """
+
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 #  This file is part of SCAMP (Suite for Computer-Assisted Music in Python)                      #
 #  Copyright © 2020 Marc Evanstein <marc@marcevanstein.com>.                                     #
@@ -23,37 +21,44 @@ then slows down to half speed within the accelerating parent process.
 #  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++  #
 
 from scamp import *
+import itertools
+
 s = Session()
 s.fast_forward_in_beats(float("inf"))
 
-trumpet = s.new_part("trumpet")
-trombone = s.new_part("trombone")
+trumpet = s.new_part("trumpet", default_spelling_policy="c phrygian")
+trombone = s.new_part("trombone", default_spelling_policy="c phrygian", clef_preference="bass")
+
+trumpet_note_pattern = itertools.cycle([67, 72, 67, 68])
+trombone_note_pattern = itertools.cycle([60, 55, 48, 49, 48])
 
 
-# When a function is forked, it is run on a child clock of the process forking it.
-# This child clock can be passed as the first argument and then manipulated.
+# A forked function runs on its own child clock, nested under the session that forked it.
 def trumpet_part():
-    # play eighth notes for three beats
+    # play the trumpet figure in eighth notes until the session reaches beat 3
     while s.beat < 3:
-        trumpet.play_note(67, 1, 0.5)
+        trumpet.play_note(next(trumpet_note_pattern), 1, 0.5)
 
-    # tell the clock for this child process to slow down to 1/2 speed over six seconds in the parent process
-    # align_to a downbeat (MetricPhaseTarget(0)) ensures that we land perfectly on a beat
-    current_clock().set_rate_target(0.5, Moment.after_time(6), align_to=MetricPhaseTarget(0))
+    # slow this child clock to half its current rate over the next 7 beats of the parent
+    # note that this doesn't necessarily mean that we will land on the beat in this child clock
+    # `align_to=MetricPhaseTarget(0)` is what ensures that that happens.
+    set_rate_target(0.5, Moment.after_time(7), align_to=MetricPhaseTarget(0))
 
-    # keep playing eighth notes until 19 beats pass in the parent session
-    while s.beat < 19:
-        trumpet.play_note(67, 1, 0.5)
+    # keep playing eighth notes until the session reaches beat 16
+    while s.beat < 16:
+        trumpet.play_note(next(trumpet_note_pattern), 1, 0.5)
 
 
-# Have the session as a whole speed up to 100 BPM over the first nineteen beats
-s.set_tempo_target(100, Moment.after_beats(19))
-# Fork the trumpet part as a child process. It will be influenced both by its own tempo and that of the session
-s.fork(trumpet_part)
-s.start_transcribing()
-# Play quarter notes for 19 beats
-while s.beat < 19:
-    trombone.play_note(60, 1, 1)
+# speed the whole session up to 100 BPM over its first 14 beats
+s.set_tempo_target(100, Moment.after_beats(14))
+# fork returns the child clock it created, which we hand to the transcriber below
+trumpet_clock = s.fork(trumpet_part)
+# transcribe from the trumpet clock's timeline, so the same music is notated against its tempo curve
+s.start_transcribing(clock=trumpet_clock)
+
+# play the trombone figure in quarter notes until the session reaches beat 16
+while s.beat < 16:
+    trombone.play_note(next(trombone_note_pattern), 1, 1)
 
 # Stop recording and show the result
 performance = s.stop_transcribing()
