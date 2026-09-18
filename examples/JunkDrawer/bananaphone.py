@@ -63,14 +63,12 @@ def sine_glisses():
                          1.0, 1.0)
 
 
-s.fork(violins)
-s.fork(banjass)
-s.fork(sine_glisses)
+fork(violins)
+fork(banjass)
+fork(sine_glisses)
 s.start_transcribing()
-s.wait(20)
-violin.end_all_notes()
-violin2.end_all_notes()
-bass_banjo.end_all_notes()
+wait(20)
+s.kill()
 performance = s.stop_transcribing()
 engraving_settings.ignore_empty_parts = False
 score = performance.to_score(time_signature="2/4")
