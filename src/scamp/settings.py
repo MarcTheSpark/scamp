@@ -297,6 +297,10 @@ class PlaybackSettings(_ScampSettings):
     :ivar resize_parameter_envelopes: one of "never", "lists", and "always". This determines whether or not parameter
         envelopes are resized to the length of the note. The default value of "lists" does this resizing only when the
         envelope was created indirectly by passing a list to the parameter.
+    :ivar animation_tick_interval: how often, in seconds, active parameter animations (glissandi, volume swells, other
+        animated playback parameters) are sampled and applied to playback. A single tick per clock family drives all
+        concurrent animations, so this is the one knob trading smoothness against overhead. Note that it does not
+        affect notation, which is reconstructed from the exact envelopes regardless.
     """
 
     named_soundfonts: dict = field(default_factory=lambda: {"general_midi": "Merlin.sf2"})
@@ -345,6 +349,7 @@ class PlaybackSettings(_ScampSettings):
     # decide which underlying libfluidsynth to dlopen.
     use_bundled_pyfluidsynth: bool = True
     resize_parameter_envelopes: str = "lists"
+    animation_tick_interval: float = 0.02
     recording_file_path: str | None = None
     recording_time_range: list = field(default_factory=lambda: [0, "inf"])
 

@@ -32,6 +32,7 @@ from .note_properties import NoteProperties
 from .playback_implementations import PlaybackImplementation, SoundfontPlaybackImplementation, \
     MIDIStreamPlaybackImplementation,  OSCPlaybackImplementation
 from .settings import engraving_settings, playback_settings
+from ._animation import get_animation_driver
 from clockblocks import wait, current_clock, Clock, ClockKilledError, DeadClockError, TimeStamp, Moment
 from clockblocks.utilities import meaningfully_less_than, meaningfully_greater_than
 from expenvelope import EnvelopeSegment
@@ -355,7 +356,6 @@ class ScampInstrument(SavesToJSON):
     """
 
     _note_id_generator = itertools.count()
-    _change_param_call_counter = itertools.count()
 
     def __init__(self, name: str = None, ensemble: Ensemble = None,
                  default_spelling_policy: SpellingPolicy | str | tuple = None,
@@ -780,45 +780,36 @@ class ScampInstrument(SavesToJSON):
             if "fixed" in note_info["flags"] and param_name in ("pitch", "volume"):
                 raise Exception("Cannot change pitch or volume of a note with 'fixed' set to True.")
 
-            # which function do we use to actually carry out the change of parameter? Pitch and volume are special.
-            if "silent" in note_info["flags"]:
-                # if it's silent, then we don't actually call any of the implementation, so pass a dummy function
-                def parameter_change_function(value): note_info["parameter_values"][param_name] = value
-                temporal_resolution = None
-            elif param_name == "pitch":
-                def parameter_change_function(value):
-                    for playback_implementation in self.playback_implementations:
-                        playback_implementation.change_note_pitch(note_id, value)
-                    note_info["parameter_values"][param_name] = value
-                temporal_resolution = "pitch-based"
+            # A sampled value is recorded and, unless the note is silent, pushed to playback. Pitch and
+            # volume have dedicated playback methods; any other parameter goes through change_note_parameter.
+            silent = "silent" in note_info["flags"]
+            if param_name == "pitch":
+                def apply_to_playback_implementation(impl, value): impl.change_note_pitch(note_id, value)
             elif param_name == "volume":
-                def parameter_change_function(value):
-                    for playback_implementation in self.playback_implementations:
-                        playback_implementation.change_note_volume(note_id, value)
-                    note_info["parameter_values"][param_name] = value
-                temporal_resolution = "volume-based"
+                def apply_to_playback_implementation(impl, value): impl.change_note_volume(note_id, value)
             else:
-                def parameter_change_function(value):
+                def apply_to_playback_implementation(impl, value):
+                    impl.change_note_parameter(note_id, param_name, value)
+
+            def parameter_change_function(value):
+                if not silent:
                     for playback_implementation in self.playback_implementations:
-                        playback_implementation.change_note_parameter(note_id, param_name, value)
-                    note_info["parameter_values"][param_name] = value
-                temporal_resolution = 0.01
+                        apply_to_playback_implementation(playback_implementation, value)
+                note_info["parameter_values"][param_name] = value
 
             assert param_name in note_info["parameter_values"], \
                 "Cannot change parameter {}, as it was undefined at note start.".format(param_name)
 
-            if param_name in note_info["parameter_change_segments"]:
-                segments_list = note_info["parameter_change_segments"][param_name]
-            else:
-                segments_list = note_info["parameter_change_segments"][param_name] = []
+            # reuse existing segments list if we've animated this parameter before, otherwise mint one
+            segments_list = note_info["parameter_change_segments"].setdefault(param_name, [])
 
             # if there was a previous segment changing this same parameter, and it's not done yet, we should abort it
             if len(segments_list) > 0:
                 segments_list[-1].abort_if_running()
 
-            # this helps to keep track of which call to change_note_parameter happened first, since when
-            # do_animation_sequence gets forked, order can become indeterminate (see comment there)
-            call_priority = next(ScampInstrument._change_param_call_counter)
+            # All of a clock family's animations are sampled together by a single demand-driven tick, so
+            # concurrent animations coincide instead of each waking the scheduler on its own schedule.
+            driver = get_animation_driver(clock)
 
             if hasattr(target_value_or_values, "__len__"):
                 # assume linear segments unless otherwise specified
@@ -830,53 +821,31 @@ class ScampInstrument(SavesToJSON):
                        len(transition_curve_shape_or_shapes), \
                     "List of target values must be accompanied by a equal length list of transition lengths and shapes."
 
-                def do_animation_sequence():
-                    for target, length, shape in zip(target_value_or_values, transition_length_or_lengths,
-                                                     transition_curve_shape_or_shapes):
-                        with note_info["segments_list_lock"]:
-                            if len(segments_list) > 0 and segments_list[-1].running:
-                                # if two segments are started at the exact same (clock) time, then we want to abort the
-                                # one that was called first. Often that will happen in the call to segments_list[-1].
-                                # abort_if_running() above. However, it may be that they both make it through that check
-                                # before either is added to the segments list. This checks in on that case, and aborts
-                                # whichever segment came from the earlier call to change_note_parameter
-                                if call_priority > segments_list[-1].call_priority:
-                                    # this call to change_note_parameter happened after, abort the other one
-                                    segments_list[-1].abort_if_running()
-                                else:
-                                    # this call to change_note_parameter happened before, abort
-                                    return
+                # Build the chained segments up front (each starts where the previous lands), then start
+                # them one after another: each segment's on_finish starts the next segment, so aborting
+                # the running one (e.g. when the note ends) leaves the rest of the sequence unstarted.
+                segments = []
+                segment_start_value = note_info["parameter_values"][param_name]
+                for target, length, shape in zip(target_value_or_values, transition_length_or_lengths,
+                                                 transition_curve_shape_or_shapes):
+                    segments.append(_ParameterChangeSegment(
+                        parameter_change_function, segment_start_value, target, length, shape, clock, driver))
+                    segment_start_value = target
 
-                            this_segment = _ParameterChangeSegment(
-                                parameter_change_function, note_info["parameter_values"][param_name], target,
-                                length, shape, clock, call_priority, temporal_resolution=temporal_resolution)
+                def start_segment(i):
+                    with note_info["segments_list_lock"]:
+                        segments_list.append(segments[i])
+                    on_finish = (lambda: start_segment(i + 1)) if i + 1 < len(segments) else None
+                    segments[i].begin(silent=silent, on_finish=on_finish)
 
-                            segments_list.append(this_segment)
-                        # note that these segments are not forked individually: they are chained together and called
-                        # directly on a function (do_animation_sequence) that is forked. This means that when we abort
-                        # one of them, we kill the clock that do_animation_sequence is running on, thereby aborting all
-                        # remaining segments as well. This is exactly what we want: if we call change_note_parameter
-                        # while a previous change_note_parameter is running, we want to abort all segments of the
-                        # one that's running
-                        try:
-                            this_segment.run(silent="silent" in note_info["flags"])
-                        except Exception as e:
-                            raise e
-
-                animation_clock = clock.fork(do_animation_sequence,
-                                             name="PARAM_ANIMATION_SEQUENCE({})".format(param_name))
-                animation_clock.description = f"a change of {param_name!r} on {self.name!r}"
+                start_segment(0)
             else:
                 parameter_change_segment = _ParameterChangeSegment(
                     parameter_change_function, note_info["parameter_values"][param_name], target_value_or_values,
-                    transition_length_or_lengths, transition_curve_shape_or_shapes, clock, call_priority,
-                    temporal_resolution=temporal_resolution)
+                    transition_length_or_lengths, transition_curve_shape_or_shapes, clock, driver)
                 with note_info["segments_list_lock"]:
                     segments_list.append(parameter_change_segment)
-                animation_clock = clock.fork(parameter_change_segment.run,
-                                             name="PARAM_ANIMATION({})".format(param_name),
-                                             kwargs={"silent": "silent" in note_info["flags"]})
-                animation_clock.description = f"a change of {param_name!r} on {self.name!r}"
+                parameter_change_segment.begin(silent=silent)
 
     def change_note_pitch(self, note_id: int | NoteHandle, target_value_or_values: float | Sequence[float],
                           transition_length_or_lengths: float | Sequence[float] = 0,
@@ -1489,113 +1458,121 @@ class ChordHandle:
 class _ParameterChangeSegment(EnvelopeSegment):
 
     """
-    Convenience class for handling interruptable transitions of parameter values and storing info on them
-    (This is an implementation detail.)
+    An interruptable transition of one note parameter, holding the info needed to both play it back and
+    transcribe it. (This is an implementation detail.)
 
-    :param parameter_change_function: since this is for general parameters, we pass the function to be called
-    to set the parameter. Generally will call _do_change_note_parameter/pitch/volume for a given note_id
+    As an :class:`~expenvelope.envelope_segment.EnvelopeSegment` it is the shape to follow; playback is done
+    by the clock family's :class:`~scamp._animation._AnimationTickDriver`, which samples the segment live on
+    each tick while it is registered (unless flat or silent). The transcriber later reconstructs the
+    notated curve from the ``start_time_stamp``/``end_time_stamp`` recorded here, independent of how
+    coarsely playback sampled it.
+
+    :param parameter_change_function: the function called to apply a sampled value (calls the playback
+        implementations' change_note_pitch/volume/parameter for a given note; a no-op record for silent notes)
     :param start_value: start value of the parameter in the transition
     :param target_value: target value of the parameter in the transition
     :param transition_length: length of the transition in beats on the clock given
     :param transition_curve_shape: curve shape of the transition
-    :param clock: the clock that all of this happens in reference to
-    :param call_priority: this is used to determine which call to change_parameter happened first, since once these
-        things get spawned in threads, the order gets indeterminate.
-    :param temporal_resolution: time resolution of the unsynchronized process. One of: just a number (in seconds); the
-        string "pitch-based", in which case we derive it based on trying to get a smooth pitch change; the string
-        "volume-based", in which case we derive it based on trying to get a smooth volume change.
+    :param clock: the clock whose beats the transition is measured in
+    :param driver: the tick driver for this clock's family, which samples the segment during playback
     """
 
-    def __init__(self, parameter_change_function, start_value, target_value, transition_length, transition_curve_shape,
-                 clock, call_priority, temporal_resolution=0.01):
+    # EnvelopeSegment compares (and so hashes) by value, but each of these is a distinct live animation
+    # with its own lifecycle -- identity is what we want, and it lets the tick driver hold them in a set.
+    __eq__ = object.__eq__
+    __hash__ = object.__hash__
+
+    def __init__(self, parameter_change_function, start_value, target_value, transition_length,
+                 transition_curve_shape, clock, driver):
         # set this up as an envelope
         super().__init__(0, transition_length, start_value, target_value, transition_curve_shape)
         # "do_change_parameter" feels more like an action name
         self.do_change_parameter = parameter_change_function
 
-        self.clock = clock  # the parent clock that this process runs on
-        self._run_clock = None  # the sub-clock created by forking this process
-        self.running = False  # flag used for aborting the unsynchronized process
+        self.clock = clock  # the clock whose beats this transition is measured in
+        self.driver = driver  # the tick driver that samples this segment during playback
+        self.running = False  # True between begin() and finish/abort; also gates a stale _finalize
 
-        # some of the key data that this envelope holds onto are the time stamps at which it starts and finishes
-        # this can be used to construct the appropriate envelope segment on whichever clock we're recording on
+        # the beat on self.clock where the envelope starts, so the driver can sample at (clock.beat - this)
+        self._anim_start_beat = None
+        self._on_finish = None  # callback function on natural finish
+
+        # used to claim a single finish (either from _finalize or abort_if_running),
+        # so the two can race harmlessly
+        self._finish_lock = Lock()
+
+        # the time stamps at which this starts and finishes, from which the transcriber rebuilds the curve
         self.start_time_stamp = None
         self.end_time_stamp = None
-        self.call_priority = call_priority
 
-        self.temporal_resolution = temporal_resolution
-
-    def run(self, silent=False):
+    def begin(self, silent=False, on_finish=None):
         """
-        Runs the segment from start to finish, gradually changing the parameter.
-        This function runs as a synchronized clock process (it should be forked), and it schedules the
-        intermediate parameter changes as leaf actions on its clock (see below).
+        Start the segment: stamp its start, register it for live sampling by the tick driver (unless flat or
+        silent), and schedule a beat-anchored endpoint that lands the exact final value and
+        stamps the end time. Because the endpoint is scheduled as a beat on this clock, it tracks the
+        note's beat-defined lifetime through any tempo changes.
 
-        :param silent: this flag causes none of the animation to actually happen. This is used when we're trying to
-        notate a note but not play it back, as in the case of a note that has been adjusted (where we playback -- but
-        don't notate -- the adjusted version, while we run -- but don't play back -- the unadjusted version.)
+        :param silent: skip the playback sampling (the note is being transcribed but not heard, as with a note
+            that had a playback adjustment applied). The start/end stamps are still recorded for transcription.
+        :param on_finish: called once if the segment finishes naturally, used to start the next segment of a
+            sequence. Not called if the segment is aborted, so aborting the running segment stops the sequence.
         """
+        self._on_finish = on_finish
         self.start_time_stamp = TimeStamp.now(self.clock)
 
-        # if this segment has no duration, no need to do any animation
-        # just set it to the final value and return
+        # a zero-length segment has nothing to animate: land the final value and finish immediately
         if self.duration == 0:
-            self.end_time_stamp = TimeStamp.now(self.clock)
+            self.end_time_stamp = self.start_time_stamp
             self.do_change_parameter(self.end_level)
+            if on_finish is not None:
+                on_finish()
             return
 
-        self.start_time_stamp = TimeStamp.now(self.clock)
-        self.running = True  # used to kill the unsynchronized process when we abort or this synchronized one ends
+        self.running = True
+        # technically stores redundant info from start_time_stamp but since we need it for
+        # every animation frame it's worth caching.
+        self._anim_start_beat = self.start_time_stamp.beat_in_clock(self.clock)
 
-        # we note down the clock we're running this on. If abort is called, this clock gets killed
-        self._run_clock = current_clock()
+        # only sample live if necessary; a silent or flat segment just needs its
+        # endpoint (below) to stamp the end and record the final value.
+        if not silent and self.end_level != self.start_level:
+            self.driver.register(self)
 
-        # if there's no change, or if we're skipping animation, just wait and finish
-        if self.end_level == self.start_level or silent:
-            wait(self.duration)
-            self.end_time_stamp = TimeStamp.now(self.clock)
-            self.do_change_parameter(self.end_level)
-            self.running = False
+        self.clock.schedule_action(self._finalize, Moment.at_beat(self._anim_start_beat + self.duration))
+
+    def _finalize(self):
+        """Scheduled wind down for the natural end of this segment: land the exact final value,
+        stamp the end, and start the next segment if present."""
+        # if already aborted (note ended early, or a newer change_pitch/volume/parameter was called
+        # before this one finished), this finalization is stale; return as a no-op
+        if not self._claim_finish():
             return
-
-        # determine the time increment, perhaps by calculating a good one for the given parameter
-        if self.temporal_resolution == "pitch-based":
-            time_increment = self._get_good_pitch_bend_temporal_resolution()
-        elif self.temporal_resolution == "volume-based":
-            time_increment = self._get_good_volume_temporal_resolution()
-        else:
-            time_increment = self.temporal_resolution
-        # don't animate faster than 4ms though, and don't go slower than half the duration
-        time_increment = min(self.duration / 2, max(0.004, time_increment))
-
-        # Schedule the intermediate value changes as lightweight leaf actions (Clock.schedule_action) rather
-        # than using the heavier machinery of a forked clock. Because these are tagged with the acting clock
-        # (see `Clock._schedule_at`) any future tempo mutation will affect these value changes, and the events
-        # disappear if the clock is killed.
-        # the calculated `time_increment` is measured in second, so we have to use the clock's absolute rate
-        # to convert these to beat targets on the clock.
-        seconds_per_beat = 1 / self.clock.absolute_rate
-        num_steps = max(1, round(self.duration * seconds_per_beat / time_increment))
-        for i in range(1, num_steps):
-            beat_offset = self.duration * i / num_steps
-            self._run_clock.schedule_action(
-                lambda b=beat_offset: self.do_change_parameter(self.value_at(b)),
-                Moment.after_beats(beat_offset)
-            )
-
-        # waits in a synchronized fashion so that it can save an accurate time stamp at the end
-        wait(self.duration)
-
-        # we only get here if it wasn't aborted while running, since that will call kill on the child clock
-        self.running = False
+        # otherwise, wind down: deregister from tick driver, stamp, set final value
+        self.driver.deregister(self)
         self.end_time_stamp = TimeStamp.now(self.clock)
         self.do_change_parameter(self.end_level)
+        # for the natural end path, we run _on_finish (starting the next segment)
+        if self._on_finish is not None:
+            self._on_finish()
+
+    def _claim_finish(self):
+        """
+        Atomically claim the one-time finish of this segment, either from the natural end (_finalize)
+        or from an early abort_if_running(). This keeps them from racing.
+
+        Returns True to the winner, False otherwise.
+        """
+        with self._finish_lock:
+            if not self.running:
+                return False
+            self.running = False
+            return True
 
     def abort_if_running(self):
-        if self.running:
-            # if we were running, we save the time stamp at which we aborted as the end time stamp
+        if self._claim_finish():
+            self.driver.deregister(self)
+            # save the time stamp at which we aborted as the end time stamp
             self.end_time_stamp = TimeStamp.now(self.clock)
-            self._run_clock.kill()  # kill the clock doing the "run" function
             # since the units of this envelope are beats in self.clock, see how far we got in the envelope by
             # subtracting converting the start and end time stamps to those beats and subtracting
             how_far_we_got = self.end_time_stamp.beat_in_clock(self.clock) - \
@@ -1614,34 +1591,11 @@ class _ParameterChangeSegment(EnvelopeSegment):
                 # this was aborted before it even got going. Later, the transcriber will ignore this nothing segment
                 self.end_time = self.start_time
                 self.end_level = self.start_level
-                self.running = False
                 return
             # otherwise we reached the end (within noise), so leave the segment and its exact end_level untouched
 
             self.do_change_parameter(self.end_level)  # set it to where we should be at this point
-        # mark finished; kill() (above) already cancelled the scheduled leaf updates, so this is just for
-        # idempotency (a later abort_if_running no-ops) and the running checks in do_animation_sequence
-        self.running = False
-
-    def _get_good_pitch_bend_temporal_resolution(self):
-        """
-        Returns a reasonable temporal resolution, based on this clock's envelope and rate, assuming it's a pitch curve
-        """
-        max_cents_per_second = self.max_absolute_slope() * 100 * self.clock.absolute_rate
-        # cents / update * updates / sec = cents / sec   =>  updates_freq = cents_per_second / cents_per_update
-        # we'll aim for 4 cents per update, since some say the JND is 5-6 cents
-        update_freq = max_cents_per_second / 4.0
-        return 1 / update_freq
-
-    def _get_good_volume_temporal_resolution(self):
-        """
-        Returns a reasonable temporal resolution, based on this clock's envelope and rate, assuming it's a volume curve
-        """
-        max_volume_per_second = self.max_absolute_slope() * self.clock.absolute_rate
-        # based on the idea that for midi volumes, it's quantized from 0 to 127, so there's not much point in updating
-        # in between those quantization levels. It's a decent enough rule even if not using midi output.
-        update_freq = max_volume_per_second * 127
-        return 1 / update_freq
+        # the segment's still-queued endpoint will find running False and no-op (see _finalize)
 
     def __repr__(self):
         return "_ParameterChangeSegment[{}, {}, {}, {}, {}]".format(

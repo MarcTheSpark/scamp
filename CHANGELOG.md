@@ -24,6 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Parameter animation (glissandi, volume swells, other animated playback parameters) now runs on one shared
+  tick.** Previously each animated parameter drove its own stream of updates, and every such stream woke the
+  scheduler separately — so several animations at once gummed up the GIL and made all timing (including unrelated
+  notes) jitter and drift. They now share a single demand-driven tick per session (default 50 Hz), so concurrent
+  animations no longer compete for the scheduler and everything's timing stays tight. The new
+  `playback_settings.animation_tick_interval` (seconds) is the one knob trading smoothness for overhead; at the
+  default the only audible cost is that very fast, wide MIDI pitch bends are sampled a touch more coarsely.
+  Notation is unaffected — it's still reconstructed from the exact envelopes.
+
 - **`engraving_settings.max_voices_per_part` has been renamed `max_voices_per_staff`**, which describes it more
   accurately (it's the voice limit per staff, above which extra staves are added). The old name still works as a
   deprecated alias, and a value saved under the old name in your settings file migrates automatically on load.
