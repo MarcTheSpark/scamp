@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A warning when a named or numbered voice contains overlapping notes**, which can't be kept in a single
   notated voice and so get split off into extra voices.
 - **`wait_for_clock_to_finish` is now importable from `scamp`**, blocking until a specific forked clock finishes.
+- **A `velocity` argument on `play_note`/`start_note`/`play_chord`/`start_chord`** to fix a note's attack
+  velocity (0–1) independently of its volume. By default (`None`) velocity follows volume, so the note attacks at
+  its start volume with expression at 100% and volume can only be lowered. Giving one decouples them: the note
+  plays at that attack while the volume argument drives expression directly over its full range, leaving room for
+  volume to rise — handy when a synth or VST takes loudness from a CC rather than velocity.
 
 ### Changed
 
@@ -55,6 +60,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   would be *heard* — staccato shortening notes, accents/sfz raising velocity — rather than the bare notated
   values. Realtime playback already did this; MIDI export was the odd one out. Velocities are clamped to the
   valid MIDI range, so an adjustment pushing volume above 1.0 caps at 127 instead of corrupting the file.
+
+- **`start_note`/`start_chord` now fix a note's velocity by default.** A started note plays at exactly the
+  volume you give it (previously it always started at full velocity, using expression to scale down), but in
+  exchange it can't change afterward — trying to gliss or animate it warns and does nothing. Pass `fixed=False` to
+  give it its own channel and allow pitch, volume, and other parameters to change (its volume can
+  then only be lowered; pass an explicit `velocity` to leave it room to rise — see Added). A note with an
+  `Envelope` argument or an explicit `velocity` always animates, so `fixed` is ignored for those. `play_note` is
+  unchanged. The per-part default can be set with the new `start_note_fixed` argument to
+  `new_part`/`new_midi_part`.
+
+- **`start_note`/`start_chord`'s `max_volume` argument is replaced by `velocity`.** `max_volume` set a note's
+  swell ceiling; the clearer `velocity` sets the note-on attack directly (and, when given, decouples it from
+  volume — see Added). If you passed `max_volume=x`, pass `velocity=x`.
+
+- **OSC playback's note-on message now carries velocity.** The `start_note` message is
+  `[note_id, pitch, volume, velocity]` (was `[note_id, pitch, volume]`); receivers that read the first three by
+  position are unaffected.
+
+### Deprecated
+
+- **`note_on_and_off_only` is deprecated** on `new_part`/`new_midi_part` and `add_soundfont_playback`/
+  `add_streaming_midi_playback`. Playing at the given velocity and sharing MIDI channels is now the default for
+  `start_note`. Use `start_note_fixed` (or the per-note `fixed`) instead; passing `note_on_and_off_only=True` still
+  works but warns. (The internal MIDI playback implementations no longer take the argument at all.)
 
 ### Fixed
 

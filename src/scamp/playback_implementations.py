@@ -118,18 +118,11 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
 
     :param num_channels: how many MIDI channels to use for this instrument. Where channel-wide messages (such as
         pitch-bend messages) are involved, it is essential to have several channels at our disposal.
-    :param note_on_and_off_only: This enforces a rule of no dynamic pitch bends, expression (volume) changes, or other
-        cc messages. Valuable when using :code:`start_note` instead of :code:`play_note` in music that doesn't do any
-        dynamic pitch/volume/parameter changes. Without this flag, notes will all be placed on separate MIDI channels,
-        since they could potentially change pitch or volume; with this flags, we know they won't, so they can share
-        the same MIDI channels, only using an extra one due to microtonality.
     :param volume_cc_num: The cc value used for volume changes. Defaults to 11 (expression).
     """
 
-    def __init__(self, num_channels: int = 8, note_on_and_off_only: bool = False,
-                 volume_cc_num: int = 11):
+    def __init__(self, num_channels: int = 8, volume_cc_num: int = 11):
         super().__init__()
-        self.note_on_and_off_only = note_on_and_off_only
         self.num_channels = num_channels
         self.midi_channel_manager = MIDIChannelManager(num_channels)
         self.volume_cc_num = volume_cc_num
@@ -204,9 +197,8 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
         # store it under the note id number in the _note_info_dict
         this_note_info = note_info_dict
 
-        this_note_fixed = "fixed" in this_note_info["flags"] or self.note_on_and_off_only
-        if this_note_fixed:
-            this_note_info["max_volume"] = volume
+        # A fixed note won't change pitch/cc, so it can share a channel; others reserve their own.
+        this_note_fixed = "fixed" in this_note_info["flags"]
 
         # this insures that we always round down when at the 0.5 mark. Otherwise, python sometimes rounds up and
         # sometimes rounds down, which needlessly puts notes on different channels
@@ -232,17 +224,19 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
 
         self.pitch_bend(chan, pitch_bend)
 
-        if not self.note_on_and_off_only:
-            # start it at the max volume that it will ever reach, and use expression to get to the start volume
-            self.volume_cc(chan, volume / this_note_info["max_volume"] if this_note_info["max_volume"] > 0 else 0)
-            for cc_num, cc_value in cc_values.items():
-                self.cc(chan, cc_num, cc_value)
+        # Map volume onto expression by scaling it against the ceiling. Normally the ceiling is the note-on velocity,
+        # so this resets a fixed note's expression to full and starts an unfixed one at the right level; when the
+        # velocity was set independently the ceiling is 1, so volume rides expression directly.
+        ceiling = this_note_info["volume_ceiling"]
+        self.volume_cc(chan, volume / ceiling if ceiling > 0 else 0)
+        for cc_num, cc_value in cc_values.items():
+            self.cc(chan, cc_num, cc_value)
 
-        self.note_on(chan, int_pitch, this_note_info["max_volume"])
+        self.note_on(chan, int_pitch, this_note_info["velocity"])
 
         self._note_info[note_id] = {
             "midi_note": int_pitch,
-            "velocity": this_note_info["max_volume"],
+            "volume_ceiling": ceiling,
             "channel": chan,
             "prematurely_ended": False
         }
@@ -254,24 +248,18 @@ class _MIDIPlaybackImplementation(PlaybackImplementation):
             self.midi_channel_manager.end_note(note_id)
 
     def change_note_pitch(self, note_id, new_pitch):
-        if self.note_on_and_off_only:
-            raise RuntimeError(f"Change of pitch being called on with the `note_on_and_off_only` flag set")
         if note_id in self._note_info:  # make sure the note is active
             this_note_info = self._note_info[note_id]
             if not this_note_info["prematurely_ended"]:
                 self.pitch_bend(this_note_info["channel"], new_pitch - this_note_info["midi_note"])
 
     def change_note_volume(self, note_id, new_volume):
-        if self.note_on_and_off_only:
-            raise RuntimeError(f"Change of pitch being called on with the `note_on_and_off_only` flag set")
         if note_id in self._note_info:  # make sure the note is active
             this_note_info = self._note_info[note_id]
             if not this_note_info["prematurely_ended"]:
-                self.volume_cc(this_note_info["channel"], new_volume / this_note_info["velocity"])
+                self.volume_cc(this_note_info["channel"], new_volume / this_note_info["volume_ceiling"])
 
     def change_note_parameter(self, note_id, parameter_name, new_value):
-        if self.note_on_and_off_only:
-            raise RuntimeError(f"Change of pitch being called on with the `note_on_and_off_only` flag set")
         if note_id in self._note_info:  # make sure the note is active
             this_note_info = self._note_info[note_id]
             if not this_note_info["prematurely_ended"] and parameter_name.isdigit() and 0 <= int(parameter_name) < 128:
@@ -293,19 +281,13 @@ class SoundfontPlaybackImplementation(_MIDIPlaybackImplementation):
         playback_settings.default_audio_driver
     :param max_pitch_bend: max pitch bend allowed on this instrument. Defaults to the one defined in
         playback_settings.default_max_soundfont_pitch_bend.
-    :param note_on_and_off_only: This enforces a rule of no dynamic pitch bends, expression (volume) changes, or other
-        cc messages. Valuable when using :code:`start_note` instead of :code:`play_note` in music that doesn't do any
-        dynamic pitch/volume/parameter changes. Without this flag, notes will all be placed on separate MIDI channels,
-        since they could potentially change pitch or volume; with this flags, we know they won't, so they can share
-        the same MIDI channels, only using an extra one due to microtonality.
     """
 
     soundfont_hosts = {}
 
     def __init__(self, bank_and_preset: tuple[int, int] = (0, 0), soundfont: str = "default", num_channels: int = 8,
-                 audio_driver: str = "default", max_pitch_bend: int = "default", note_on_and_off_only: bool = False,
-                 volume_cc_num: int = 11):
-        super().__init__(num_channels, note_on_and_off_only, volume_cc_num)
+                 audio_driver: str = "default", max_pitch_bend: int = "default", volume_cc_num: int = 11):
+        super().__init__(num_channels, volume_cc_num)
 
         # we hold onto these arguments for the purposes of json serialization
         # note that if the audio_driver said "default", then we save it as "default",
@@ -384,17 +366,11 @@ class MIDIStreamPlaybackImplementation(_MIDIPlaybackImplementation):
     :param midi_output_name: name to use when sending messages
     :param max_pitch_bend: max pitch bend allowed on this instrument. Defaults to the one defined in
         playback_settings.default_max_streaming_midi_pitch_bend.
-    :param note_on_and_off_only: This enforces a rule of no dynamic pitch bends, expression (volume) changes, or other
-        cc messages. Valuable when using :code:`start_note` instead of :code:`play_note` in music that doesn't do any
-        dynamic pitch/volume/parameter changes. Without this flag, notes will all be placed on separate MIDI channels,
-        since they could potentially change pitch or volume; with this flags, we know they won't, so they can share
-        the same MIDI channels, only using an extra one due to microtonality.
     """
 
     def __init__(self, midi_output_device: str = "default", num_channels=8, midi_output_name: str | None = None,
-                 max_pitch_bend: int = "default", note_on_and_off_only: bool = False, start_channel=0,
-                 volume_cc_num: int = 11):
-        super().__init__(num_channels, note_on_and_off_only, volume_cc_num)
+                 max_pitch_bend: int = "default", start_channel=0, volume_cc_num: int = 11):
+        super().__init__(num_channels, volume_cc_num)
 
         # we hold onto these arguments for the purposes of json serialization
         # note that if the midi_output_device or midi_output_name said "default",
@@ -522,8 +498,9 @@ class OSCPlaybackImplementation(PlaybackImplementation):
 
     def start_note(self, note_id: int, pitch: float, volume: float, properties: NoteProperties,
                    note_info_dict: dict) -> None:
+        # velocity rides along with the note-on (it shapes the attack, so it can't be a later message)
         self.client.send_message("/{}/{}".format(self.message_prefix, self.osc_message_addresses["start_note"]),
-                                 [note_id, pitch, volume])
+                                 [note_id, pitch, volume, note_info_dict["velocity"]])
         self._currently_playing.append(note_id)
         for param, value in properties.extra_playback_parameters.items():
             self.change_note_parameter(note_id, param, value.start_level() if hasattr(value, 'start_level') else value)

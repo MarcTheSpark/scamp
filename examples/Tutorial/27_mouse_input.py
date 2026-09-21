@@ -41,7 +41,9 @@ def mouse_down(x, y, button):
     global note_started
     pitch = 50 + 49 * x
     note_started = {
-        "handle": (piano if button == "left" else flute).start_note(pitch, 1 - 0.8 * y),
+        # fixed=False so we can freely animate both pitch and volume (up or down); the explicit velocity=1 leaves
+        # expression headroom for volume to rise above its start value
+        "handle": (piano if button == "left" else flute).start_note(pitch, 1 - 0.8 * y, fixed=False, velocity=1),
         "start_pitch": pitch,
         "start_x": x
     }

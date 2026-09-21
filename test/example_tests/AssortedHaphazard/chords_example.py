@@ -23,8 +23,8 @@ piano = s.new_part("piano")
 
 s.start_transcribing()
 
-# this makes the whole chord diamond noteheads
-handle = piano.start_chord(([60, 56], 64, 69), 0.5, "notehead: diamond")
+# this makes the whole chord diamond noteheads; fixed=False leaves the notes free to gliss their pitch
+handle = piano.start_chord(([60, 56], 64, 69), 0.5, "notehead: diamond", fixed=False)
 
 handle.change_pitch((62, 58, 60), (1/3, 1/3, 1/3), transition_curve_shape_or_shapes=(5, 5, 5))
 

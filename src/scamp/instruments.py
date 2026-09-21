@@ -37,6 +37,7 @@ from clockblocks import wait, current_clock, Clock, ClockKilledError, DeadClockE
 from clockblocks.utilities import meaningfully_less_than, meaningfully_greater_than
 from expenvelope import EnvelopeSegment
 import logging
+import warnings
 from threading import Lock
 from typing import Sequence, TypeAlias
 from numbers import Real
@@ -113,17 +114,19 @@ class Ensemble(SavesToJSON):
         return inst
 
     def new_silent_part(self, name: str = None, default_spelling_policy: SpellingPolicy | str | tuple = None,
-                        clef_preference="from_name") -> ScampInstrument:
+                        clef_preference="from_name", start_note_fixed: bool = True) -> ScampInstrument:
         """
         Creates and returns a new ScampInstrument for this Ensemble with no PlaybackImplementations.
 
         :param name: name of the new part
         :param default_spelling_policy: the :attr:`~ScampInstrument.default_spelling_policy` for the new part
         :param clef_preference: the :attr:`~ScampInstrument.clef_preference` for the new part
+        :param start_note_fixed: the :attr:`~ScampInstrument.start_note_fixed` default for the new part. Only
+            relevant if adding a MIDI playback implementation.
         :return: the newly created ScampInstrument
         """
         return self.add_instrument(ScampInstrument(name, self, default_spelling_policy=default_spelling_policy,
-                                                   clef_preference=clef_preference))
+                                                   clef_preference=clef_preference, start_note_fixed=start_note_fixed))
 
     @staticmethod
     def _resolve_preset_from_name(name, soundfont):
@@ -143,8 +146,9 @@ class Ensemble(SavesToJSON):
 
     def new_part(self, name: str = None, preset="auto", soundfont: str = "default", num_channels: int = 8,
                  audio_driver: str = "default", max_pitch_bend: int = "default",
-                 note_on_and_off_only: bool = False, default_spelling_policy: SpellingPolicy | str | tuple = None,
-                 clef_preference="from_name", volume_cc_num: int = 11) -> ScampInstrument:
+                 start_note_fixed: bool = True, default_spelling_policy: SpellingPolicy | str | tuple = None,
+                 clef_preference="from_name", volume_cc_num: int = 11,
+                 note_on_and_off_only: bool = False) -> ScampInstrument:
         """
         Creates and returns a new ScampInstrument for this Ensemble that uses a SoundfontPlaybackImplementation. Unless
         otherwise specified, the default soundfont for this Ensemble/Session will be used, and we will search for the
@@ -158,16 +162,16 @@ class Ensemble(SavesToJSON):
             microtonal playback, since pitch bends are applied per channel.
         :param audio_driver: which audio driver to use for this instrument (defaults to ensemble default)
         :param max_pitch_bend: max pitch bend to use for this instrument
-        :param note_on_and_off_only: This enforces a rule of no dynamic pitch bends, expression (volume) changes, or
-            other cc messages. Valuable when using :code:`start_note` instead of :code:`play_note` in music that
-            doesn't do any dynamic pitch/volume/parameter changes. Without this flag, notes will all be placed on
-            separate MIDI channels, since they could potentially change pitch or volume; with this flags, we know they
-            won't, so they can share the same MIDI channels, only using an extra one due to microtonality.
+        :param start_note_fixed: default :attr:`~ScampInstrument.start_note_fixed` for notes started with
+            :func:`~ScampInstrument.start_note` on this part.
         :param default_spelling_policy: the :attr:`~ScampInstrument.default_spelling_policy` for the new part
         :param clef_preference: the :attr:`~ScampInstrument.clef_preference` for the new part
         :param volume_cc_num: The cc value used for volume changes. Defaults to 11 (expression).
+        :param note_on_and_off_only: Deprecated; use `start_note_fixed`.
         :return: the newly created ScampInstrument
         """
+        start_note_fixed = _resolve_deprecated_note_on_and_off_only(start_note_fixed, note_on_and_off_only)
+
         # Resolve soundfont and audio driver to ensemble defaults if necessary (these may well be the string
         # "default", in which case it gets resolved to the playback_settings default)
         soundfont = self.default_soundfont if soundfont == "default" else soundfont
@@ -182,19 +186,18 @@ class Ensemble(SavesToJSON):
         name = "Track " + str(len(self._instruments) + 1) if name is None else name
 
         instrument = self.new_silent_part(name, default_spelling_policy=default_spelling_policy,
-                                          clef_preference=clef_preference)
+                                          clef_preference=clef_preference, start_note_fixed=start_note_fixed)
         instrument.add_soundfont_playback(preset=preset, soundfont=soundfont, num_channels=num_channels,
                                           audio_driver=audio_driver, max_pitch_bend=max_pitch_bend,
-                                          note_on_and_off_only=note_on_and_off_only,
                                           volume_cc_num=volume_cc_num)
 
         return instrument
 
     def new_midi_part(self, name: str = None, midi_output_device: int | str = None,
                       num_channels: int = 8, midi_output_name: str = None, max_pitch_bend: int = "default",
-                      note_on_and_off_only: bool = False, default_spelling_policy: SpellingPolicy | str | tuple = None,
+                      start_note_fixed: bool = True, default_spelling_policy: SpellingPolicy | str | tuple = None,
                       clef_preference="from_name", start_channel: int = 0,
-                      volume_cc_num: int = 11) -> ScampInstrument:
+                      volume_cc_num: int = 11, note_on_and_off_only: bool = False) -> ScampInstrument:
         """
         Creates and returns a new ScampInstrument for this Ensemble that uses a MIDIStreamPlaybackImplementation.
         This means that when notes are played by this instrument, midi messages are sent out to the given device.
@@ -206,36 +209,35 @@ class Ensemble(SavesToJSON):
             microtonal playback, since pitch bends are applied per channel.
         :param midi_output_name: name of this part
         :param max_pitch_bend: max pitch bend to use for this instrument
-        :param note_on_and_off_only: This enforces a rule of no dynamic pitch bends, expression (volume) changes, or
-            other cc messages. Valuable when using :code:`start_note` instead of :code:`play_note` in music that
-            doesn't do any dynamic pitch/volume/parameter changes. Without this flag, notes will all be placed on
-            separate MIDI channels, since they could potentially change pitch or volume; with this flags, we know they
-            won't, so they can share the same MIDI channels, only using an extra one due to microtonality.
+        :param start_note_fixed: default :attr:`~ScampInstrument.start_note_fixed` for notes started with
+            :func:`~ScampInstrument.start_note` on this part.
         :param default_spelling_policy: the :attr:`~ScampInstrument.default_spelling_policy` for the new part
         :param clef_preference: the :attr:`~ScampInstrument.clef_preference` for the new part
         :param start_channel: the first channel to use. For instance, if start_channel is 4, and num_channels is 5,
             we will use channels (4, 5, 6, 7, 8). NOTE: channel counting in SCAMP starts from 0, so this may show
             up as channels 5-9 in your MIDI software.
         :param volume_cc_num: The cc value used for volume changes. Defaults to 11 (expression).
+        :param note_on_and_off_only: Deprecated; use `start_note_fixed`.
         :return: the newly created ScampInstrument
         """
+        start_note_fixed = _resolve_deprecated_note_on_and_off_only(start_note_fixed, note_on_and_off_only)
 
         name = "Track " + str(len(self._instruments) + 1) if name is None else name
 
         midi_output_device = name if midi_output_device is None else midi_output_device
 
         instrument = self.new_silent_part(name, default_spelling_policy=default_spelling_policy,
-                                          clef_preference=clef_preference)
+                                          clef_preference=clef_preference, start_note_fixed=start_note_fixed)
         instrument.add_streaming_midi_playback(midi_output_device=midi_output_device, num_channels=num_channels,
                                                midi_output_name=midi_output_name, max_pitch_bend=max_pitch_bend,
-                                               note_on_and_off_only=note_on_and_off_only, start_channel=start_channel,
-                                               volume_cc_num=volume_cc_num)
+                                               start_channel=start_channel, volume_cc_num=volume_cc_num)
 
         return instrument
 
     def new_osc_part(self, name: str = None, port: int = None, ip_address: str = "127.0.0.1",
                      message_prefix: str = None, osc_message_addresses: dict = "default",
-                     default_spelling_policy: SpellingPolicy | str | tuple = None, clef_preference="from_name") -> ScampInstrument:
+                     default_spelling_policy: SpellingPolicy | str | tuple = None, clef_preference="from_name",
+                     start_note_fixed: bool = True) -> ScampInstrument:
         """
         Creates and returns a new ScampInstrument for this Ensemble that uses a OSCPlaybackImplementation. This means
         that when notes are played by this instrument, osc messages are sent out to the specified address
@@ -249,12 +251,14 @@ class Ensemble(SavesToJSON):
             be changed in playback settings.
         :param default_spelling_policy: the :attr:`~ScampInstrument.default_spelling_policy` for the new part
         :param clef_preference: the :attr:`~ScampInstrument.clef_preference` for the new part
+        :param start_note_fixed: default :attr:`~ScampInstrument.start_note_fixed` for notes started with
+            :func:`~ScampInstrument.start_note` on this part.
         :return: the newly created ScampInstrument
         """
         name = "Track " + str(len(self._instruments) + 1) if name is None else name
 
         instrument = self.new_silent_part(name, default_spelling_policy=default_spelling_policy,
-                                          clef_preference=clef_preference)
+                                          clef_preference=clef_preference, start_note_fixed=start_note_fixed)
         instrument.add_osc_playback(port=port, ip_address=ip_address, message_prefix=message_prefix,
                                     osc_message_addresses=osc_message_addresses)
 
@@ -336,6 +340,22 @@ PitchCompatible: TypeAlias = float | Envelope | Sequence[float] | Sequence[Seque
 VolumeCompatible: TypeAlias = float | Envelope | Sequence[float] | Sequence[Sequence[float]]
 DurationCompatible: TypeAlias = float | tuple[float, ...]
 
+def _resolve_deprecated_note_on_and_off_only(start_note_fixed: bool, note_on_and_off_only: bool) -> bool:
+    """Fold the deprecated ``note_on_and_off_only`` constructor flag into ``start_note_fixed``."""
+    if note_on_and_off_only:
+        warnings.warn("'note_on_and_off_only' is deprecated: fully fixed notes are now the default for start_note "
+                      "when no argument is an Envelope. Use 'start_note_fixed' (or start_note's 'fixed') instead.",
+                      DeprecationWarning, stacklevel=3)
+        return True
+    return start_note_fixed
+
+
+_RAISE_VOLUME_WARNING = (
+    "Cannot raise volume above {:.2f}. By default start_note uses the start volume as the note velocity, with "
+    "expression at 100% and only able to fall. Pass an explicit velocity to create headroom; volume then drives "
+    "expression instead."
+)
+
 
 class ScampInstrument(SavesToJSON):
 
@@ -359,7 +379,8 @@ class ScampInstrument(SavesToJSON):
 
     def __init__(self, name: str = None, ensemble: Ensemble = None,
                  default_spelling_policy: SpellingPolicy | str | tuple = None,
-                 clef_preference="from_name", playback_implementations: Sequence[PlaybackImplementation] = None):
+                 clef_preference="from_name", playback_implementations: Sequence[PlaybackImplementation] = None,
+                 start_note_fixed: bool = True):
         super().__init__()
         self.name = "" if name is None else name
         self._clef_preference = None
@@ -369,6 +390,10 @@ class ScampInstrument(SavesToJSON):
 
         self._note_info_by_id = {}
         self.playback_implementations = [] if playback_implementations is None else playback_implementations
+
+        # What a start_note call's fixed="auto" resolves to (unless an Envelope argument or explicit velocity
+        # requires freedom). True means notes are fully fixed by default.
+        self.start_note_fixed = start_note_fixed
 
         # A policy for spelling notes used as the default for this instrument. Overrides any broader defaults.
         # (Has a getter and setter method allowing constructor strings to be passed.)
@@ -405,7 +430,7 @@ class ScampInstrument(SavesToJSON):
 
     def play_note(self, pitch: PitchCompatible, volume: VolumeCompatible, length: DurationCompatible,
                   properties: NotePropertiesCompatible = None, blocking: bool = True, clock: Clock = None,
-                  silent: bool = False, transcribe: bool = True) -> None:
+                  velocity: float = None, silent: bool = False, transcribe: bool = True) -> None:
         """
         Play a note on this instrument, with the given pitch, volume and length.
 
@@ -419,6 +444,9 @@ class ScampInstrument(SavesToJSON):
             about a note. See :ref:`The Note Properties Argument`
         :param blocking: if True, don't return until the note is done playing; if False, return immediately
         :param clock: which clock to use. If None, capture the clock from context.
+        :param velocity: for MIDI-based playback implementations (or other implementations that take velocity), fixes
+            the note-on velocity (0 to 1), turning volume into expression cc. By default (`None`) velocity
+            follows volume.
         :param silent: if True, note is not played back, but is still transcribed when a
             :class:`~scamp.transcriber.Transcriber` is active. (Generally ignored by end user.)
         :param transcribe: if False, note is not transcribed even when a :class:`~scamp.transcriber.Transcriber` is
@@ -463,19 +491,20 @@ class ScampInstrument(SavesToJSON):
             playback_clock = clock.fork(
                 self._do_play_note, name="DO_PLAY_NOTE",
                 args=(adjusted_pitch, adjusted_volume, adjusted_length, properties),
-                kwargs={"transcribe": False, "silent": silent}
+                kwargs={"velocity": velocity, "transcribe": False, "silent": silent}
             )
             playback_clock.description = f"a playback adjustment on {self.name!r}"
 
         # the transcribed, unmodified note, silenced when paired with an adjusted note or when fast-forwarding
         transcribe_silent = did_an_adjustment or clock.is_fast_forwarding() or silent
         if blocking:
-            self._do_play_note(pitch, volume, length, properties, silent=transcribe_silent, transcribe=transcribe)
+            self._do_play_note(pitch, volume, length, properties, velocity=velocity,
+                               silent=transcribe_silent, transcribe=transcribe)
         else:
             transcription_clock = clock.fork(
                 self._do_play_note, name="DO_PLAY_NOTE",
                 args=(pitch, volume, length, properties),
-                kwargs={"silent": transcribe_silent, "transcribe": transcribe}
+                kwargs={"velocity": velocity, "silent": transcribe_silent, "transcribe": transcribe}
             )
             transcription_clock.description = f"a note on {self.name!r}"
 
@@ -534,7 +563,7 @@ class ScampInstrument(SavesToJSON):
                                                 hasattr(value, "parsed_from_list")):
                 value.normalize_to_duration(sum_length)
 
-    def _do_play_note(self, pitch, volume, length, properties, silent=False, transcribe=True):
+    def _do_play_note(self, pitch, volume, length, properties, velocity=None, silent=False, transcribe=True):
         """
         This runs the actual thread that plays the note, and is scheduled when play_note is called.
         If playback adjustments were made, then we schedule the altered version of _do_play_note to play back, but with
@@ -545,28 +574,29 @@ class ScampInstrument(SavesToJSON):
         :param volume: either a number, an Envelope
         :param length: either a number (of beats), or a tuple representing a set of tied segments
         :param properties: a NoteProperties dictionary
+        :param velocity: an explicit note-on velocity, or None to follow volume (see start_note)
         :param silent: if True, don't actually do any of the playback; just go through the motions for transcribing it
         :param transcribe: if False, don't notify Transcribers at the end of the note
         """
         clock = current_clock()
 
-        # if we know ahead of time that neither pitch nor volume changes, we can pass
-        fixed = not isinstance(pitch, Envelope) and not isinstance(volume, Envelope) and \
-                not any(isinstance(param_val, Envelope) for param_val in properties.extra_playback_parameters.values())
+        # We know the whole shape of the note up front: a plain scalar note can be fully fixed, but any Envelope
+        # (or an explicit velocity) requires the note to stay free to animate/use channel-wide cc messages.
+        if velocity is not None or isinstance(volume, Envelope) or isinstance(pitch, Envelope) \
+                or any(isinstance(param_val, Envelope) for param_val in properties.extra_playback_parameters.values()):
+            fixed = False
+        else:
+            fixed = True
 
         # start the note. (Note that this will also start the animation of pitch, volume,
         # and any other parameters if they are envelopes.)
         note_flags = []
-        if fixed:
-            note_flags.append("fixed")
         if silent:
             note_flags.append("silent")
         if not transcribe:
             note_flags.append("no_transcribe")
-        note_handle = self.start_note(
-            pitch, volume, properties, clock=clock, flags=note_flags,
-            max_volume=volume.max_level() if isinstance(volume, Envelope) else volume
-        )
+        note_handle = self.start_note(pitch, volume, properties, clock=clock, fixed=fixed, velocity=velocity,
+                                      flags=note_flags)
 
         try:
             if hasattr(length, "__len__"):
@@ -582,7 +612,7 @@ class ScampInstrument(SavesToJSON):
 
     def play_chord(self, pitches: Sequence[PitchCompatible], volume: VolumeCompatible, length: DurationCompatible,
                    properties: NotePropertiesCompatible = None, blocking: bool = True, clock: Clock = None,
-                   silent: bool = False, transcribe: bool = True) -> None:
+                   velocity: float = None, silent: bool = False, transcribe: bool = True) -> None:
         """
         Play a chord with the given pitches, volume, and length. Essentially, this is a convenience method that
         bundles together several calls to "play_note" and takes a list of pitches rather than a single pitch
@@ -593,6 +623,7 @@ class ScampInstrument(SavesToJSON):
         :param properties: see :ref:`The Note Properties Argument`
         :param blocking: see description for "play_note"
         :param clock: see description for "play_note"
+        :param velocity: see :func:`play_note`
         :param silent: see description for "play_note"
         :param transcribe: see description for "play_note"
         """
@@ -628,10 +659,11 @@ class ScampInstrument(SavesToJSON):
                                                      else properties_copy.spelling_policies[-1]]
             self.play_note(pitch, volume, length, properties=properties_copy,
                            blocking=(i == len(pitches) - 1) if blocking else False,
-                           clock=clock, silent=silent, transcribe=transcribe)
+                           clock=clock, velocity=velocity, silent=silent, transcribe=transcribe)
 
     def start_note(self, pitch: PitchCompatible, volume: VolumeCompatible, properties: NotePropertiesCompatible = None,
-                   clock: Clock = None, max_volume: float = 1, flags: Sequence[str] = None) -> NoteHandle:
+                   clock: Clock = None, fixed: bool | str = "auto", velocity: float = None,
+                   flags: Sequence[str] = None) -> NoteHandle:
         """
         Start a note with the given pitch, volume, and properties
 
@@ -640,14 +672,16 @@ class ScampInstrument(SavesToJSON):
         :param properties: see :ref:`The Note Properties Argument`
         :param clock: the clock on which to run any animation of pitch, volume, etc. If None, captures the clock from
             context.
-        :param max_volume: This is a bit of a pain, but since midi playback requires us to set the velocity at the
-            beginning of the note, and thereafter vary volume using expression, and since expression can only make the
-            note quieter, we need to start the note with velocity equal to the max desired volume (using expression to
-            adjust it down to the actual start volume). The default will be 1, meaning as loud as possible, since unless
-            we know in advance what the note is going to do, we need to be prepared to go up to full volume. Using
-            play_note, we do actually know in advance how loud the note is going to get, so we can set max volume to the
-            peak of the Envelope. Honestly, I wish I could separate this implementation detail from the ScampInstrument
-            class, but I don't see how this would be possible.
+        :param fixed: whether the note is locked at note-on. `True` maps volume directly to velocity and allows the
+            note to share a midi channel with other notes, but forbids any later changes. `False` gives the note its
+            own channel and allows pitch, volume, and other parameters to change. A note with an
+            :class:`~expenvelope.envelope.Envelope` argument or an explicit `velocity` must animate, so it is always
+            unfixed, ignoring this argument. The default `"auto"` falls back to this instrument's
+            :attr:`start_note_fixed`.
+        :param velocity: an explicit note-on velocity (0 to 1), decoupling the attack from volume. By default
+            (`None`) velocity follows the start volume, so expression starts at 100% and volume can only be lowered.
+            Given a value, the note attacks at that velocity while the volume argument drives expression directly,
+            over its full range.
         :param flags: list of strings that act as flags for how the note should be processed. Should probably be
             ignored by a normal user.
         :return: a NoteHandle with which to later manipulate the note
@@ -665,6 +699,36 @@ class ScampInstrument(SavesToJSON):
         start_volume = volume.start_level() if isinstance(volume, Envelope) else volume
         other_param_start_values = properties.get_extra_parameter_start_values()
 
+        # Resolve the fixed request ("auto" -> the instrument default), then force the note free if an Envelope
+        # argument or an explicit velocity requires it to animate.
+        explicitly_fixed = fixed is True
+        if fixed == "auto":
+            fixed = self.start_note_fixed
+        elif fixed is not True and fixed is not False:
+            raise ValueError("Invalid 'fixed' value {!r}; use True, False, or 'auto'.".format(fixed))
+
+        must_animate = velocity is not None or isinstance(volume, Envelope) or isinstance(pitch, Envelope) \
+            or any(isinstance(v, Envelope) for v in properties.extra_playback_parameters.values())
+        if must_animate:
+            if explicitly_fixed:
+                logging.warning("Ignoring fixed=True: a note with an Envelope argument or an explicit velocity "
+                                "must be free to animate.")
+            fixed = False
+
+        # The note-on velocity and the divisor mapping volume onto expression. When velocity follows volume they
+        # are equal (to the start volume, or an envelope's peak), so expression starts at 100% and can only fall.
+        # An explicit velocity instead leaves expression its full range, with volume sent raw.
+        if velocity is None:
+            note_velocity = volume.max_level() if isinstance(volume, Envelope) else start_volume
+            volume_ceiling = note_velocity
+        else:
+            note_velocity = velocity
+            volume_ceiling = 1
+
+        flags = [] if flags is None else list(flags)
+        if fixed and "fixed" not in flags:
+            flags.append("fixed")
+
         with self._note_info_lock:
             # generate a new id for this note, and set up all of its info
             note_id = next(ScampInstrument._note_id_generator)
@@ -679,8 +743,11 @@ class ScampInstrument(SavesToJSON):
                 "segments_list_lock": Lock(),
                 "note_info_lock": self._note_info_lock,
                 "properties": properties,
-                "max_volume": max_volume,
-                "flags": [] if flags is None else flags
+                "velocity": note_velocity,
+                "volume_ceiling": volume_ceiling,
+                "explicit_velocity": velocity,
+                "fixed": fixed,
+                "flags": flags
             }
 
             if clock.is_fast_forwarding() and "silent" not in self._note_info_by_id[note_id]["flags"]:
@@ -712,8 +779,8 @@ class ScampInstrument(SavesToJSON):
         return handle
 
     def start_chord(self, pitches: Sequence[PitchCompatible], volume: VolumeCompatible,
-                    properties: NotePropertiesCompatible = None, clock: Clock = None, max_volume: float = 1,
-                    flags: Sequence[str] = None) -> ChordHandle:
+                    properties: NotePropertiesCompatible = None, clock: Clock = None, fixed: bool | str = "auto",
+                    velocity: float = None, flags: Sequence[str] = None) -> ChordHandle:
         """
         Simple utility for starting chords without starting each note individually.
 
@@ -721,7 +788,8 @@ class ScampInstrument(SavesToJSON):
         :param volume: see :func:`start_note`
         :param properties: see :ref:`The Note Properties Argument`
         :param clock: see start_note
-        :param max_volume: see start_note
+        :param fixed: see start_note
+        :param velocity: see start_note
         :param flags: see start_note
         :return: a ChordHandle, which is used to manipulate the chord thereafter. Pitch change calls on the ChordHandle
             are based on the first note of the chord; all other notes are shifted in parallel
@@ -750,7 +818,7 @@ class ScampInstrument(SavesToJSON):
             if len(properties.noteheads) > 1:
                 properties_copy.noteheads = [properties_copy.noteheads[i]]
             note_handles.append(self.start_note(pitch, volume, properties=properties_copy, clock=clock,
-                                                max_volume=max_volume, flags=flags))
+                                                fixed=fixed, velocity=velocity, flags=flags))
 
         return ChordHandle(note_handles, intervals)
 
@@ -777,8 +845,21 @@ class ScampInstrument(SavesToJSON):
                 clock = note_info["clock"]
             assert isinstance(clock, Clock), "Invalid clock argument."
 
-            if "fixed" in note_info["flags"] and param_name in ("pitch", "volume"):
-                raise Exception("Cannot change pitch or volume of a note with 'fixed' set to True.")
+            if note_info.get("fixed"):
+                logging.warning("Can't change the {} of a fixed note; start it with fixed=False to animate it."
+                                .format(param_name))
+                return
+            if param_name == "volume" and note_info["volume_ceiling"] < 1:
+                # Expression can never exceed the note-on velocity, so volume can't rise above it. A
+                # follows-volume note starts at its ceiling (expression 100%); an explicit velocity leaves room.
+                ceiling = note_info["volume_ceiling"]
+                if hasattr(target_value_or_values, "__len__"):
+                    if any(v > ceiling for v in target_value_or_values):
+                        logging.warning(_RAISE_VOLUME_WARNING.format(ceiling))
+                        target_value_or_values = [min(v, ceiling) for v in target_value_or_values]
+                elif target_value_or_values > ceiling:
+                    logging.warning(_RAISE_VOLUME_WARNING.format(ceiling))
+                    target_value_or_values = ceiling
 
             # A sampled value is recorded and, unless the note is silent, pushed to playback. Pitch and
             # volume have dedicated playback methods; any other parameter goes through change_note_parameter.
@@ -972,14 +1053,12 @@ class ScampInstrument(SavesToJSON):
         :param num_channels: how many channels to allocate for managing pitch bends, etc.
         :param audio_driver: which driver to use
         :param max_pitch_bend: max pitch bend to allow
-        :param note_on_and_off_only: This enforces a rule of no dynamic pitch bends, expression (volume) changes, or
-            other cc messages. Valuable when using :func:`start_note` instead of :func:`play_note` in music that
-            doesn't do any dynamic pitch/volume/parameter changes. Without this flag, notes will all be placed on
-            separate MIDI channels, since they could potentially change pitch or volume; with this flags, we know they
-            won't, so they can share the same MIDI channels, only using an extra one due to microtonality.
+        :param note_on_and_off_only: Deprecated; set the instrument's `start_note_fixed` instead.
         :param volume_cc_num: The cc value used for volume changes. Defaults to 11 (expression).
         :return: self, for chaining purposes
         """
+        self.start_note_fixed = _resolve_deprecated_note_on_and_off_only(self.start_note_fixed, note_on_and_off_only)
+
         soundfont = self.ensemble.default_soundfont \
             if self.ensemble is not None and soundfont == "default" else soundfont
 
@@ -990,7 +1069,6 @@ class ScampInstrument(SavesToJSON):
         self.playback_implementations.append(
             SoundfontPlaybackImplementation(bank_and_preset=preset, soundfont=soundfont, num_channels=num_channels,
                                             audio_driver=audio_driver, max_pitch_bend=max_pitch_bend,
-                                            note_on_and_off_only=note_on_and_off_only,
                                             volume_cc_num=volume_cc_num)
         )
         return self
@@ -1018,22 +1096,19 @@ class ScampInstrument(SavesToJSON):
         :param num_channels: how many channels to allocate for managing pitch bends, etc.
         :param midi_output_name: name given to the output stream
         :param max_pitch_bend: max pitch bend to allow
-        :param note_on_and_off_only: This enforces a rule of no dynamic pitch bends, expression (volume) changes, or
-            other cc messages. Valuable when using :func:`start_note` instead of :func:`play_note` in music that
-            doesn't do any dynamic pitch/volume/parameter changes. Without this flag, notes will all be placed on
-            separate MIDI channels, since they could potentially change pitch or volume; with this flags, we know they
-            won't, so they can share the same MIDI channels, only using an extra one due to microtonality.
+        :param note_on_and_off_only: Deprecated; set the instrument's `start_note_fixed` instead.
         :param start_channel: the first channel to use. For instance, if start_channel is 4, and num_channels is 5,
             we will use channels (4, 5, 6, 7, 8). NOTE: channel counting in SCAMP starts from 0, so this may show
             up as channels 5-9 in your MIDI software.
         :param volume_cc_num: The cc value used for volume changes. Defaults to 11 (expression).
         :return: self, for chaining purposes
         """
+        self.start_note_fixed = _resolve_deprecated_note_on_and_off_only(self.start_note_fixed, note_on_and_off_only)
+
         self.playback_implementations.append(
             MIDIStreamPlaybackImplementation(midi_output_device=midi_output_device, num_channels=num_channels,
                                              midi_output_name=midi_output_name, max_pitch_bend=max_pitch_bend,
-                                             note_on_and_off_only=note_on_and_off_only, start_channel=start_channel,
-                                             volume_cc_num=volume_cc_num)
+                                             start_channel=start_channel, volume_cc_num=volume_cc_num)
         )
         return self
 
@@ -1228,7 +1303,8 @@ class ScampInstrument(SavesToJSON):
             "name": self.name,
             "playback_implementations": self.playback_implementations,
             "default_spelling_policy": self.default_spelling_policy,
-            "clef_preference": self.clef_preference
+            "clef_preference": self.clef_preference,
+            "start_note_fixed": self.start_note_fixed
         }
 
     @classmethod
@@ -1298,7 +1374,7 @@ class NoteHandle:
                      transition_curve_shape_or_shapes: float | Sequence[float] = 0, clock: Clock = None) -> None:
         """
         Change the pitch of this note to a given target value or values, over a given duration and with a given
-        curve shape.
+        curve shape. Only works if the note was started with `fixed=False`.
 
         :param target_value_or_values: either a single target pitch or a list of target pitches.
         :param transition_length_or_lengths: the duration (in beats) that we want it to take to reach the target pitch.
@@ -1319,7 +1395,8 @@ class NoteHandle:
                       transition_curve_shape_or_shapes: float | Sequence[float] = 0, clock: Clock = None) -> None:
         """
         Change the volume of this note to a given target value or values, over a given duration and with a given
-        curve shape.
+        curve shape. Requires `fixed=False`, and can only raise volume above the start value if an explicit
+        `velocity` was given when the note was started.
 
         :param target_value_or_values: either a single target volume or a list of target volumes.
         :param transition_length_or_lengths: the duration (in beats) that we want it to take to reach the target volume.
@@ -1394,7 +1471,7 @@ class ChordHandle:
                      transition_curve_shape_or_shapes: float | Sequence[float] = 0, clock: Clock = None) -> None:
         """
         Change the pitches of this chord such that the first note of the chord goes to the given target value or values,
-        over a given duration and with a given curve shape.
+        over a given duration and with a given curve shape. Only works if the chord was started with `fixed=False`.
 
         :param target_value_or_values: either a single target pitch or a list of target pitches. Note that this is the
             pitch that the first note of the chord gets changed to; all of the other notes in the chord follow suit,
@@ -1420,7 +1497,8 @@ class ChordHandle:
                       transition_curve_shape_or_shapes: float | Sequence[float] = 0, clock: Clock = None) -> None:
         """
         Change the volume for all notes in this chord to a given target value or values, over a given duration and with
-        a given curve shape.
+        a given curve shape. Requires `fixed=False`, and can only raise volume above the start value if an explicit
+        `velocity` was given when the chord was started.
 
         :param target_value_or_values: either a single target volume or a list of target volumes.
         :param transition_length_or_lengths: the duration (in beats) that we want it to take to reach the target volume.

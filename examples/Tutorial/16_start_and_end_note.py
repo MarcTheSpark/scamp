@@ -30,11 +30,12 @@ violin = s.new_part("violin")
 
 s.start_transcribing()
 
-# start a violin note on middle C with volume 1
-note_handle1 = violin.start_note(60, 1.0)
+# start a violin note on middle C with volume 1. By default a started note is fully fixed (it plays at the given
+# velocity and can't change); pass fixed=False so we can gliss its pitch.
+note_handle1 = violin.start_note(60, 1.0, fixed=False)
 wait(1)
 # after 1 second, start a chord on Bb4 / D5 / F#5 with volume 1
-note_handle2 = violin.start_chord([70, 74, 78], 1.0)
+note_handle2 = violin.start_chord([70, 74, 78], 1.0, fixed=False)
 # change the pitch of the first note to F#3, glissing over the course of 2 seconds
 note_handle1.change_pitch(54, 2.0)
 wait(1)
