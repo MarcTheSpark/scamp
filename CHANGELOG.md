@@ -25,7 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   velocity (0–1) independently of its volume. By default (`None`) velocity follows volume, so the note attacks at
   its start volume with expression at 100% and volume can only be lowered. Giving one decouples them: the note
   plays at that attack while the volume argument drives expression directly over its full range, leaving room for
-  volume to rise — handy when a synth or VST takes loudness from a CC rather than velocity.
+  volume to rise — handy when a synth or VST takes loudness from a CC rather than velocity. An explicit velocity is
+  preserved on the transcribed note, so replaying a `Performance` or exporting to MIDI reproduces the attack; it
+  still does not affect notation.
 
 ### Changed
 
@@ -87,6 +89,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Exported MIDI no longer lets a fixed note inherit a previous note's expression on a reused channel.** If a
+  channel had last carried an animated note (a glissando or volume curve), a later fixed note could reuse it and
+  export at the wrong volume; the channel's expression is now reset at the note-on.
+- **Exported MIDI now sends volume changes to the instrument's `volume_cc_num`** (channel volume, e.g. CC7)
+  instead of always expression (CC11), matching realtime playback.
 - **Reading an "auto"-resolved setting no longer persists your other in-session settings changes to disk.**
   The first read of a lazily-resolved setting (e.g. `engraving_settings.lilypond_dir`, or
   `playback_settings.default_audio_driver`) caches the resolved value to the settings JSON — but it was rewriting

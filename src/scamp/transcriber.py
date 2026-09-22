@@ -206,7 +206,7 @@ class Transcriber:
                 # I suppose that each part should transcribe the note
                 instrument_part.new_note(
                     note_start_beat, note_length_sections if note_length_sections is not None else note_length,
-                    pitch, volume, note_info["properties"]
+                    pitch, volume, note_info["properties"], velocity=note_info.get("explicit_velocity")
                 )
 
     @staticmethod

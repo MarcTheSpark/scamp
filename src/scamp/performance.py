@@ -53,6 +53,9 @@ class PerformanceNote(SavesToJSON):
     :param pitch: the pitch of the note (float or Envelope)
     :param volume: the volume of the note (float or Envelope)
     :param properties: dictionary of note properties, or string representing those properties
+    :param velocity: the note-on velocity (0 to 1) if it was explicitly set independently of volume, else None. This is
+        playback-only, so it does not affect notation, but it is preserved so that playback and MIDI export can
+        reproduce the original attack.
     :ivar start_beat: the start beat of the note
     :ivar length: the length of the note in beats (either a float or a tuple of floats representing tied segments)
     :ivar pitch: the pitch of the note (float or Envelope); note that this can also be a tuple of pitches representing
@@ -60,16 +63,19 @@ class PerformanceNote(SavesToJSON):
         chords are merged.
     :ivar volume: the volume of the note (float or Envelope)
     :ivar properties: dictionary of note properties, or string representing those properties
+    :ivar velocity: the note-on velocity (0 to 1) if explicitly set independently of volume, else None
     """
 
     def __init__(self, start_beat: float, length: float | tuple[float, ...], pitch: float | Envelope | Sequence,
-                 volume: float | Envelope, properties: dict):
+                 volume: float | Envelope, properties: dict, velocity: float = None):
         self.start_beat = start_beat
         # if length is a tuple, this indicates that the note is to be split into tied segments
         self.length = length
         # if pitch is a tuple, this indicates a chord
         self.pitch = pitch
         self.volume = volume
+        # an explicit note-on velocity decoupled from volume, or None to let velocity follow volume
+        self.velocity = velocity
         self.properties = properties if isinstance(properties, NoteProperties) \
             else NoteProperties.interpret(properties)
 
@@ -119,9 +125,11 @@ class PerformanceNote(SavesToJSON):
         :param blocking: if True, don't return until the note is done playing; if False, return immediately
         """
         if isinstance(self.pitch, tuple):
-            instrument.play_chord(self.pitch, self.volume, self.length, self.properties, clock=clock, blocking=blocking)
+            instrument.play_chord(self.pitch, self.volume, self.length, self.properties, clock=clock,
+                                  velocity=self.velocity, blocking=blocking)
         else:
-            instrument.play_note(self.pitch, self.volume, self.length, self.properties, clock=clock, blocking=blocking)
+            instrument.play_note(self.pitch, self.volume, self.length, self.properties, clock=clock,
+                                 velocity=self.velocity, blocking=blocking)
 
     _id_generator = itertools.count()
 
@@ -369,13 +377,17 @@ class PerformanceNote(SavesToJSON):
             return self.start_beat == other
 
     def _to_dict(self):
-        return {
+        json_dict = {
             "start_beat": self.start_beat,
             "length": self.length,
             "pitch": self.pitch,
             "volume": self.volume,
             "properties": self.properties
         }
+        # only serialize a velocity that was set independently of volume, so existing data is untouched
+        if self.velocity is not None:
+            json_dict["velocity"] = self.velocity
+        return json_dict
 
     @classmethod
     def _from_dict(cls, json_dict):
@@ -384,8 +396,9 @@ class PerformanceNote(SavesToJSON):
         return PerformanceNote(**json_dict)
 
     def __repr__(self):
-        return "PerformanceNote(start_beat={}, length={}, pitch={}, volume={}, properties={})".format(
-            self.start_beat, self.length, self.pitch, self.volume, self.properties
+        velocity_string = "" if self.velocity is None else ", velocity={}".format(self.velocity)
+        return "PerformanceNote(start_beat={}, length={}, pitch={}, volume={}, properties={}{})".format(
+            self.start_beat, self.length, self.pitch, self.volume, self.properties, velocity_string
         )
 
 
@@ -565,7 +578,8 @@ class PerformancePart(SavesToJSON, _NoteFiltersMixin):
             voice.sort()  # they are defined to sort by start_beat
         return note
 
-    def new_note(self, start_beat: float, length, pitch, volume, properties: dict) -> PerformanceNote:
+    def new_note(self, start_beat: float, length, pitch, volume, properties: dict,
+                 velocity: float = None) -> PerformanceNote:
         """
         Construct and add a new PerformanceNote to this Performance
 
@@ -574,9 +588,10 @@ class PerformancePart(SavesToJSON, _NoteFiltersMixin):
         :param pitch: pitch of the note (float, Envelope, or list to interpret as an envelope)
         :param volume: volume of the note (float or Envelope, or list to interpret as an envelope)
         :param properties: dictionary of note properties, or string representing those properties
+        :param velocity: an explicit note-on velocity (0 to 1) set independently of volume, else None
         :return: the note just added
         """
-        return self.add_note(PerformanceNote(start_beat, length, pitch, volume, properties))
+        return self.add_note(PerformanceNote(start_beat, length, pitch, volume, properties, velocity))
 
     def set_instrument(self, instrument: ScampInstrument) -> None:
         """
@@ -726,6 +741,17 @@ class PerformancePart(SavesToJSON, _NoteFiltersMixin):
         t = 0
         note_id_generator = itertools.count()
         mcm = MIDIChannelManager(max_channels, time_func=lambda: t, ring_time=ring_time)
+        # Channels whose expression is still at the default full value; a fixed note reusing one needs no reset.
+        channels_at_full_expression = set(range(max_channels))
+        # The CC that carries volume, matching what this part's instrument uses for playback (expression by default).
+        # note that this takes the cc num of the first matching playback implementation (has to pick one in the rare
+        # situation where there are two midi playback implementations on the same instrument with different cc choices)
+        volume_cc_num = 11
+        if self.instrument is not None:
+            for playback_implementation in self.instrument.playback_implementations:
+                if hasattr(playback_implementation, "volume_cc_num"):
+                    volume_cc_num = playback_implementation.volume_cc_num
+                    break
 
         if pitch_bend_range != 2:
             for chan in range(16):
@@ -743,7 +769,7 @@ class PerformancePart(SavesToJSON, _NoteFiltersMixin):
 
             chord_members = [note_or_chord] if not hasattr(note_or_chord.pitch, '__len__') \
                 else [PerformanceNote(note_or_chord.start_beat, note_or_chord.length, note_or_chord.pitch[i],
-                                      note_or_chord.volume, note_or_chord.properties)
+                                      note_or_chord.volume, note_or_chord.properties, note_or_chord.velocity)
                       for i in range(len(note_or_chord.pitch))]
 
             for note in chord_members:
@@ -762,9 +788,12 @@ class PerformancePart(SavesToJSON, _NoteFiltersMixin):
                 int_pitch = int(starting_pitch)
                 pitch_bend = "variable" if isinstance(pitch, Envelope) else starting_pitch - int_pitch
 
+                # A velocity set independently of volume means volume rides its own control (see
+                # _MIDIPlaybackImplementation.start_note), so the note needs its own channel.
                 channel = mcm.assign_note_to_channel(
                     note_id, int_pitch, pitch_bend,
-                    "variable" if any(isinstance(x, Envelope) for x in note.properties.get_midi_cc_params().values())
+                    "variable" if note.velocity is not None
+                    or any(isinstance(x, Envelope) for x in note.properties.get_midi_cc_params().values())
                     or isinstance(volume, Envelope)
                     else cc_start_values
                 )
@@ -782,15 +811,35 @@ class PerformancePart(SavesToJSON, _NoteFiltersMixin):
                     midi_file.addPitchWheelEvent(
                         track_num, channel, t, int(max(-8192, min(8192, pitch_bend * 8192 / pitch_bend_range))))
 
+                # Four cases for expression:
+                #    1) Volume envelope + explicit velocity given: volume becomes a raw expression curve.
+                #    2) Volume envelope, no explicit velocity: velocity handles the overall volume level, so we
+                #       normalize volume to its peak, making the peak 100% expression.
+                #    3) Fixed volume + explicit velocity: volume is the raw expression value.
+                #    4) Fixed volume, no explicit velocity: velocity handles volume, expression = 1, and we only
+                #       need a message if it reuses a channel that an earlier note left below full.
+                # Note that cases 1-3 have the potential to leave expression below full value, so the channel is marked
+                # as not having full expression. Case 4 reads that state and resets if necessary.
                 if isinstance(volume, Envelope):
-                    start_volume = volume.max_level()
+                    # cases 1 & 2
+                    expression_ceiling = 1 if note.velocity is not None else volume.max_level()
+                    divisor = expression_ceiling if expression_ceiling > 0 else 1
                     for i in range(int(length_sum / envelope_precision)):
                         midi_file.addControllerEvent(
-                            track_num, channel, t + i * envelope_precision, 11,
-                            int(max(0, min(127, (volume.value_at(i * envelope_precision) / start_volume) * 127)))
+                            track_num, channel, t + i * envelope_precision, volume_cc_num,
+                            int(max(0, min(127, (volume.value_at(i * envelope_precision) / divisor) * 127)))
                         )
-                else:
-                    start_volume = volume
+                    channels_at_full_expression.discard(channel)
+                elif note.velocity is not None:
+                    # case 3
+                    midi_file.addControllerEvent(
+                        track_num, channel, t, volume_cc_num,
+                        int(max(0, min(127, volume * 127)))
+                    )
+                    channels_at_full_expression.discard(channel)
+                elif channel not in channels_at_full_expression:
+                    midi_file.addControllerEvent(track_num, channel, t, volume_cc_num, 127)
+                    channels_at_full_expression.add(channel)
 
                 for cc_num, cc_value in note.properties.get_midi_cc_params().items():
                     if isinstance(cc_value, Envelope):
@@ -805,8 +854,10 @@ class PerformancePart(SavesToJSON, _NoteFiltersMixin):
                             int(max(0, min(127, cc_value * 127)))
                         )
 
+                note_on_velocity = note.velocity if note.velocity is not None else \
+                    (volume.max_level() if isinstance(volume, Envelope) else volume)
                 midi_file.addNote(track_num, channel, int_pitch, t, length_sum,
-                                  int(max(0, min(127, start_volume * 127))))
+                                  int(max(0, min(127, note_on_velocity * 127))))
 
                 def cutoff_note(which=note_id):
                     mcm.end_note(which)
