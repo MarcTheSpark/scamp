@@ -186,7 +186,7 @@ Status: ongoing. The AI tutor lives in `scamp_tutor/` (instructions, fetch-on-de
 doc bundles, example bundles) and is hosted at scamp.marcevanstein.com/aitutor/. It's
 currently **homeless version-control-wise** — folding it into the mega-repo (below)
 is part of that plan. Full context in
-`.claudeConvos/2026-07-15-scamp-tutor-stumbling-blocks.md`.
+`.aiconvos/2026-07-15-scamp-tutor-stumbling-blocks.md`.
 
 The work is maturing the tutor so it stops making SCAMP mistakes and reads well:
 
@@ -210,7 +210,7 @@ The work is maturing the tutor so it stops making SCAMP mistakes and reads well:
 
 Status 2026-07-19: leaning yes, not yet implemented. Full discussion — requirements,
 rejected alternatives (glue-only root repo, true monorepo, manually pinned
-submodules) — in `.claudeConvos/2026-07-19-workspace-root-github-repo.md`.
+submodules) — in `.aiconvos/2026-07-19-workspace-root-github-repo.md`.
 
 The plan: the workspace root becomes a GitHub repo (superproject) with the five
 package repos as submodules, so `git clone --recurse-submodules` hands someone the
@@ -218,7 +218,7 @@ whole interconnected workspace while each package keeps its standalone repo,
 identity, and one-directional independence. The superproject absorbs what's
 currently homeless at the root: the uv-workspace `pyproject.toml` + `uv.lock`,
 `CLAUDE.md`, `release.sh`, `uploadDocs.sh`, `scamp_tutor/` (in no repo at all
-today), and probably `.claudeConvos/`.
+today), and probably `.aiconvos/`.
 
 Key design points:
 
@@ -237,7 +237,7 @@ Key design points:
   scamp.marcevanstein.com).
 
 Open questions: public vs. private (public is needed for tutor fetching, but
-exposes `.claudeConvos/` — skim the notes before any first push, and update
+exposes `.aiconvos/` — skim the notes before any first push, and update
 CLAUDE.md's "local-only" claim); whether `scamp_tutor` should instead fold into
 scamp's docs build (better discoverability, but couples tutor updates to scamp
 releases); auto-bump cadence (daily seems fine).
