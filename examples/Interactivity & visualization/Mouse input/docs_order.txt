@@ -1,2 +1,2 @@
 Tutorial/27_mouse_input.py
-Composition & form/Algorithmic approaches/indispensibility_example.py
+[scamp_extensions] Composition & form/Algorithmic approaches/indispensibility_example.py

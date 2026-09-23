@@ -2,6 +2,6 @@ Tutorial/10_multi_part.py
 Tutorial/03_blocking_false.py
 Tutorial/04_play_chord.py
 chords_example.py
-Pitch/Pitch spelling/voice_leading.py
+[scamp_extensions] Pitch/Pitch spelling/voice_leading.py
 guitar_arpeggios.py
 octave_lines.py

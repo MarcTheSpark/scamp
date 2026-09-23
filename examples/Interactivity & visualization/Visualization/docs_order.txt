@@ -1,3 +1,3 @@
-Composition & form/Algorithmic approaches/conway.py
-Composition & form/Larger-scale form/evanstein_barlicity.py
-Composition & form/Larger-scale form/leaf_loops.py
+[scamp_extensions] Composition & form/Algorithmic approaches/conway.py
+[scamp_extensions] Composition & form/Larger-scale form/evanstein_barlicity.py
+[scamp_extensions] Composition & form/Larger-scale form/leaf_loops.py

@@ -1,3 +1,0 @@
-conway.py
-l_system_example.py
-indispensibility_example.py

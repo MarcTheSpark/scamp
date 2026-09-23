@@ -1,6 +1,2 @@
-leaf_loops.py
 reich_piano_phase.py
-evanstein_barlicity.py
-evolving_form
-time_varying_parameter_example.py
 evanstein_lunar_trajectories.py

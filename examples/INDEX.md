@@ -66,7 +66,7 @@ The curated teaching set -- work through it in order.
 - **OSC to SuperCollider** — `Tutorial/24_osc_to_supercollider`
   <br>Playing back notes by sending OSC messages to the SuperCollider, which receives them and spawns Synths in response. Start SuperCollider and run the code blocks in `receive_from_supercollider.scd`, then run `osc_to_supercollider.py`. Note that the easy way to receive note events from SCAMP in SuperCollider specifically is with the ScampUtils quark, as demonstrated by `receive_from_supercollider_scamputils.scd`. — *API:* `Envelope`, `Session`, `ar`, `new_osc_part`, `num_notes_playing`, `play_note`, `start_transcribing`, `to_score`, `wait` — *also under:* Playback › Playback implementations
 - **Live MIDI input and output** — `Tutorial/25_MIDI_in_out.py`
-  <br>Demonstration of receiving and sending live midi input to and from a midi keyboard. Every note received by the keyboard is immediately sent back to the keyboard a perfect fifth higher. — *API:* `Session`, `end`, `new_midi_part`, `print_available_midi_output_devices`, `register_midi_listener`, `start_note`, `wait_forever` — *also under:* Interactivity & visualization › MIDI input
+  <br>Demonstration of receiving and sending live midi input to and from a midi keyboard. Every note received by the keyboard is echoed back to the midi device half a second later at 75% volume. — *API:* `Moment`, `Session`, `end`, `end_note`, `fork`, `new_midi_part`, `print_available_midi_output_devices`, `register_midi_listener`, `start_note`, `wait_forever` — *also under:* Interactivity & visualization › MIDI input
 - **Computer Keyboard Input** — `Tutorial/26_keyboard_input.py`
   <br>(WARNING: consumes key events and makes the keyboard otherwise unresponsive. To avoid this, you can remove the suppress=True flag under register_keyboard_listener) Demonstration of receiving computer keyboard events and using them to play notes based on the key number. Any key whose number code lies within a reasonable range triggers the playback of a note of that MIDI pitch. — *API:* `Session`, `end`, `new_part`, `register_keyboard_listener`, `start_note`, `wait_forever` — *also under:* Interactivity & visualization › Keyboard input
 - **Mouse Input** — `Tutorial/27_mouse_input.py`
@@ -86,7 +86,6 @@ The curated teaching set -- work through it in order.
 - Play Chord — *(home: `Tutorial/04_play_chord.py`)*
 - **Chords and Noteheads** — `Time & clocks/Forking & simultaneity/chords_example.py`
   <br>Chords with per-note noteheads, and a start_chord handle whose pitches change over time. Under the hood, `play_chord` plays all but one of its notes with `blocking=False` and the last one blocking, so the notes sound together. — *API:* `Session`, `change_pitch`, `end`, `new_part`, `play_chord`, `start_chord`, `start_transcribing`, `to_score`, `wait` — *also under:* Playback › Note handles
-- Voice Leading / spelling policy — *(home: `Pitch/Pitch spelling/voice_leading.py`)*
 - **Guitar Arpeggios** — `Time & clocks/Forking & simultaneity/guitar_arpeggios.py`
   <br>Fingerpicking-style guitar arpeggios built from overlapping held notes. — *API:* `Session`, `new_part`, `play_note`, `wait`
 - **Octave Lines** — `Time & clocks/Forking & simultaneity/octave_lines.py`
@@ -96,7 +95,6 @@ The curated teaching set -- work through it in order.
 
 - Tempo Change — *(home: `Tutorial/02_tempo_change.py`)*
 - Piano Phase — *(home: `Composition & form/Larger-scale form/reich_piano_phase.py`)*
-- Evolving Form — *(home: `Composition & form/Larger-scale form/evolving_form`)*
 
 ### Advanced
 
@@ -109,15 +107,11 @@ The curated teaching set -- work through it in order.
 
 ### Scales & microtonality
 
-- **Scales** — `Pitch/Scales & microtonality/scale_example`
-  <br>Demo of the scamp_extensions Scale object, a highly flexible representation of a scale that can be indexed into infinitely in both directions from a root note. Scales can be microtonal (and even loaded from a scala file), and are constructed from intervals that can be expressed as either a frequency ratio, a distance in cents, or a combination of the two. Scales can also be transposed and modally rotated. — *API:* `Session`, `new_part`, `play_chord`, `play_note`
 - Microtonal Playback and Notation — *(home: `Tutorial/18_microtonal.py`)*
 
 ### Pitch spelling
 
 - Pitch Spelling — *(home: `Tutorial/21_pitch_spelling.py`)*
-- **Voice Leading / spelling policy** — `Pitch/Pitch spelling/voice_leading.py`
-  <br>Rule-based four-part voice leading over a scale, spelled in E major via the `default_spelling_policy` argument. — *API:* `Session`, `Voice`, `new_part`, `play_chord`, `play_note`, `start_transcribing`, `to_score` — *also under:* Time & clocks › Forking & simultaneity
 
 ### Glissando
 
@@ -135,13 +129,11 @@ The curated teaching set -- work through it in order.
 ### As note parameters
 
 - Glissando from Envelope — *(home: `Tutorial/14_gliss_from_envelope.py`)*
-- Volume Envelope — *(home: `Tutorial/17_volume_envelope.py`)*
 - Envelope Shorthand — *(home: `Tutorial/15_envelope_shorthand.py`)*
+- Volume Envelope — *(home: `Tutorial/17_volume_envelope.py`)*
 
 ### As compositional parameters
 
-- Evolving Form — *(home: `Composition & form/Larger-scale form/evolving_form`)*
-- TimeVaryingParameter — *(home: `Composition & form/Larger-scale form/time_varying_parameter_example.py`)*
 
 ## Notation & engraving
 
@@ -184,8 +176,8 @@ The curated teaching set -- work through it in order.
 
 ### From live input
 
-- **Computer Keyboard Input** — `Notation & engraving/From live input/keyboard_input_with_notation.py`
-  <br>(WARNING: consumes key events and makes the keyboard otherwise unresponsive. To avoid this, you can remove the suppress=True flag under register_keyboard_listener) Demonstration of receiving computer keyboard events and using them to play notes based on the key number. Any key whose number code lies within a reasonable range triggers the playback of a note of that MIDI pitch. Escape — *API:* `Session`, `end`, `fork`, `kill`, `new_part`, `play_note`, `register_keyboard_listener`, `start_note`, `start_transcribing`, `to_score`, `wait_forever` — *also under:* Interactivity & visualization › Keyboard input
+- **Notating Computer Keyboard Input** — `Notation & engraving/From live input/keyboard_input_with_notation.py`
+  <br>(WARNING: consumes key events and makes the keyboard otherwise unresponsive. To avoid this, you can remove the suppress=True flag under register_keyboard_listener) Same as Computer Keyboard Input, except that a metronome is playing back while the user plays notes with the keyboard, and the result is rendered as music notation. — *API:* `Session`, `end`, `fork`, `kill`, `new_part`, `play_note`, `register_keyboard_listener`, `start_note`, `start_transcribing`, `to_score`, `wait_forever` — *also under:* Interactivity & visualization › Keyboard input
 - **Run as Server and Render Scores** — `Notation & engraving/From live input/run_as_server_render_scores.py`
   <br>Runs the session as a server, repeatedly recording short fragments and popping up a score for each. — *API:* `Score`, `Session`, `fork`, `new_part`, `play_note`, `run_as_server`, `start_transcribing`, `to_score`
 
@@ -198,8 +190,6 @@ The curated teaching set -- work through it in order.
 - OSC to SuperCollider — *(home: `Tutorial/24_osc_to_supercollider`)*
 - **OSC Instrument Playback** — `Playback/Playback implementations/osc_playback`
   <br>Uses a new_osc_part to send messages to a running SuperCollider script at OSCListenerPython.scd. To test out, run all the code blocks in OSCListenerPython.scd, make sure that the port below matches the result of NetAddr.langPort, and then run this script. — *API:* `Session`, `fork`, `new_osc_part`, `play_note`, `wait`, `wait_forever`
-- **MultiPresetInstrument** — `Playback/Playback implementations/multipreset_example.py`
-  <br>Demo of the MultiPresetInstrument, a convenience meta-instrument for subsuming several different playing techniques and their associated notations under a single instrument interface. — *API:* `ScampInstrument`, `Session`, `change_pitch`, `end`, `play_note`, `start_note`, `start_transcribing`, `to_score`, `wait`
 
 ### Note handles
 
@@ -230,14 +220,11 @@ The curated teaching set -- work through it in order.
 ### Keyboard input
 
 - Computer Keyboard Input — *(home: `Tutorial/26_keyboard_input.py`)*
-- Computer Keyboard Input — *(home: `Notation & engraving/From live input/keyboard_input_with_notation.py`)*
-- **Key Plane** — `Interactivity & visualization/Keyboard input/key_plane_example.py`
-  <br>Maps the computer keyboard onto a 2D grid of pitches with scamp_extensions' KeyPlane; each key press starts a flute note whose pitch and volume come from its row and column. — *API:* `Session`, `end`, `new_part`, `start_note`
+- Notating Computer Keyboard Input — *(home: `Notation & engraving/From live input/keyboard_input_with_notation.py`)*
 
 ### Mouse input
 
 - Mouse Input — *(home: `Tutorial/27_mouse_input.py`)*
-- Indispensability — *(home: `Composition & form/Algorithmic approaches/indispensibility_example.py`)*
 
 ### MIDI input
 
@@ -252,34 +239,14 @@ The curated teaching set -- work through it in order.
 
 ### Visualization
 
-- Conway's Game of Life (pygame version) — *(home: `Composition & form/Algorithmic approaches/conway.py`)*
-- Barlicity — *(home: `Composition & form/Larger-scale form/evanstein_barlicity.py`)*
-- Leaf Loops — *(home: `Composition & form/Larger-scale form/leaf_loops.py`)*
 
 ## Composition & form
 
 
-### Algorithmic approaches
-
-- **Conway's Game of Life (pygame version)** — `Composition & form/Algorithmic approaches/conway.py`
-  <br>Conway's Game of Life sonified, with a pygame window used for visualization instead of matplotlib. Original by Raphael Radna; visualization ported to pygame. — *API:* `Clock`, `Session`, `end`, `new_part`, `start_note` — *also under:* Interactivity & visualization › Visualization
-- **L-System** — `Composition & form/Algorithmic approaches/l_system_example.py`
-  <br>Example usage of the from :class:`~scamp_extensions.process.l_system.LSystem` class, which allows you to set a vocabulary of symbols, set their rewrite rules and meanings, and evolve and play the resulting L-System. — *API:* `Session`, `fork`, `new_part`, `play_note`, `wait`, `wait_for_children_to_finish`
-- **Indispensability** — `Composition & form/Algorithmic approaches/indispensibility_example.py`
-  <br>Mouse position controls a rhythmic texture based on Barlow's beat indispensability (barlicity extension). — *API:* `Session`, `change_pitch`, `end`, `new_part`, `play_note`, `register_mouse_listener`, `start_note`, `wait` — *also under:* Interactivity & visualization › Mouse input
-
 ### Larger-scale form
 
-- **Leaf Loops** — `Composition & form/Larger-scale form/leaf_loops.py`
-  <br>Generative process behind Marc Evanstein's "Leaf Loops" for violin and viola. The shapes, note attack points, and worm shape for several different leaves are found in the LeafPoints directory. — *API:* `Clock`, `Session`, `end_all_notes`, `get_time`, `new_midi_part`, `new_part`, `play_note`, `run_as_server`, `start_note` — *also under:* Interactivity & visualization › Visualization
 - **Piano Phase** — `Composition & form/Larger-scale form/reich_piano_phase.py`
   <br>Steve Reich's Piano Phase: the same figure forked at 100 vs. 98 BPM, transcribed on one clock. — *API:* `QuantizationScheme`, `Session`, `fork`, `new_part`, `play_note`, `start_transcribing`, `to_score`, `wait` — *also under:* Time & clocks › Setting & changing tempo, Notation & engraving › Quantization
-- **Barlicity** — `Composition & form/Larger-scale form/evanstein_barlicity.py`
-  <br>A large interactive piece built on harmonicity and indispensability (barlicity extension), with multidimensional-scaling visualization in Qt. This was the initial script for the piece, which ultimately became the notated work for piano and electronics that you can view here: https://www.youtube.com/watch?v=xMpET9KKOrw — *API:* `Envelope`, `Session`, `fork`, `get_beat`, `get_time`, `kill`, `new_part`, `play_chord`, `play_note`, `run_as_server`, `send_midi_cc`, `start_transcribing`, `...` — *also under:* Interactivity & visualization › Visualization
-- **Evolving Form** — `Composition & form/Larger-scale form/evolving_form`
-  <br>A piece for cello, pianoteq (MIDI), and SuperCollider (OSC), shaped by envelope-driven formal parameters. See definitions.py and formal_parameters.py. — *API:* `Envelope`, `Moment`, `Session`, `fork`, `from_levels`, `kill`, `new_midi_part`, `new_osc_part`, `new_part`, `play_chord`, `play_note`, `set_rate_target`, `...` — *also under:* Time & clocks › Setting & changing tempo, Envelopes › As compositional parameters
-- **TimeVaryingParameter** — `Composition & form/Larger-scale form/time_varying_parameter_example.py`
-  <br>A script using the context-sensitive :class:`~expenvelope.envelope.Envelope` wrapper :class:`TimeVaryingParameter`, which reads into the underlying envelope at the current clock's beat or time when called. — *API:* `Envelope`, `Session`, `current_clock`, `fork`, `from_levels`, `new_part`, `play_note`, `wait_for_children_to_finish` — *also under:* Envelopes › As compositional parameters
 - **Lunar Trajectories** — `Composition & form/Larger-scale form/evanstein_lunar_trajectories.py`
   <br>Interactive piano script for the first movement of "Lunar Trajectories". The `notes` list below is a list of all the notes played by the middle arpeggio part in the first movement of the Moonlight Sonata, in order. If a pitch is in that list, then when it is depressed, the piano reacts by playing whichever pitches follow that pitch the first time it occurs in the list. If a pitch is not in the list, then instead we look for the same pitch class but in a different octave, and follow it up by the notes that follow that pitch (transposed back up or down by however many octaves). Every pitch class appears in the first movement, so we don't have the issue of searching for a pitch class that doesn't occur. — *API:* `Session`, `current_clock`, `fork`, `new_midi_part`, `play_note`, `print_available_midi_input_devices`, `print_available_midi_output_devices`, `register_midi_listener`, `send_midi_cc`, `wait`, `wait_forever`
 
@@ -287,16 +254,6 @@ The curated teaching set -- work through it in order.
 
 SuperCollider scripts, Max patches, and saved data used by the examples above:
 
-- `Composition & form/Larger-scale form/LeafPoints/dwarfBirch.json`
-- `Composition & form/Larger-scale form/LeafPoints/dwarfBirchAttackPoints.json`
-- `Composition & form/Larger-scale form/LeafPoints/dwarfBirchWorm.json`
-- `Composition & form/Larger-scale form/LeafPoints/ivy.json`
-- `Composition & form/Larger-scale form/LeafPoints/ivyAttackPoints.json`
-- `Composition & form/Larger-scale form/LeafPoints/ivyWorm.json`
-- `Composition & form/Larger-scale form/LeafPoints/larkSpur.json`
-- `Composition & form/Larger-scale form/LeafPoints/larkSpurAttackPoints.json`
-- `Composition & form/Larger-scale form/LeafPoints/larkSpurWorm.json`
-- `Composition & form/Larger-scale form/evolving_form/Crackler.scd`
 - `Playback/MIDI CC & arbitrary parameters/scamp_to_max_monophonic/MonoMain.maxpat`
 - `Playback/MIDI CC & arbitrary parameters/scamp_to_max_monophonic/MonoSynth.maxpat`
 - `Playback/MIDI CC & arbitrary parameters/scamp_to_max_monophonic/scampreceive.maxpat`
