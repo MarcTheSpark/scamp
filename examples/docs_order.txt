@@ -1,7 +1,0 @@
-Time & clocks
-Pitch
-Envelopes
-Notation & engraving
-Playback
-Interactivity & visualization
-Composition & form

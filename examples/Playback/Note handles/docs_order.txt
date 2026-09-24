@@ -1,2 +1,0 @@
-Tutorial/16_start_and_end_note.py
-Time & clocks/Forking & simultaneity/chords_example.py

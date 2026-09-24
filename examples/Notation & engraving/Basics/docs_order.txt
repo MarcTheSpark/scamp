@@ -1,3 +1,0 @@
-Tutorial/06_notation.py
-Tutorial/07_time_signature.py
-record_and_export_midi.py

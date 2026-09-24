@@ -1,2 +1,0 @@
-Tutorial/20_note_properties.py
-Tutorial/23_special_notations.py

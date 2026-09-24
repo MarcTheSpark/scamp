@@ -1,4 +1,0 @@
-Tutorial/08_random_quantized.py
-Tutorial/09_simplified_quantization.py
-quantization.py
-Composition & form/Larger-scale form/reich_piano_phase.py

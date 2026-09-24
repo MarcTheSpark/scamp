@@ -1,2 +1,0 @@
-Tutorial/27_mouse_input.py
-[scamp_extensions] Composition & form/Algorithmic approaches/indispensibility_example.py

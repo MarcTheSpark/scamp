@@ -1,2 +1,0 @@
-[scamp_extensions] Composition & form/Larger-scale form/evolving_form
-[scamp_extensions] Composition & form/Larger-scale form/time_varying_parameter_example.py

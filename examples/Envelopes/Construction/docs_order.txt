@@ -1,2 +1,0 @@
-Tutorial/12_envelopes_basic.py
-Tutorial/13_envelopes_advanced.py

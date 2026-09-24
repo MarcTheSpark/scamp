@@ -1,3 +1,0 @@
-Tutorial/02_tempo_change.py
-Composition & form/Larger-scale form/reich_piano_phase.py
-[scamp_extensions] Composition & form/Larger-scale form/evolving_form

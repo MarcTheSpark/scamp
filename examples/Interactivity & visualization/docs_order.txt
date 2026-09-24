@@ -1,5 +1,0 @@
-Keyboard input
-Mouse input
-MIDI input
-Responding to a GUI
-Visualization

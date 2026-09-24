@@ -1,2 +1,0 @@
-key_sig.py
-double_score.py

@@ -1,5 +1,0 @@
-Playback implementations
-Note handles
-Playback adjustments
-MIDI CC & arbitrary parameters
-Other
