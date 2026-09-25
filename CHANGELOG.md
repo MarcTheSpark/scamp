@@ -1,9 +1,5 @@
 # Changelog
 
-> These changelogs are AI-written and human-reviewed, because no one (least of all my wife
-> and kids) wants me wasting my precious time meticulously documenting this shit, useful
-> though it may be.
-
 All notable user-facing changes to SCAMP are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
@@ -11,48 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-25
+
 ### Added
 
-- **Octave-line note property** (`"8va"`, `"8vb"`, `"15ma"`, `"15mb"`, `"22ma"`, `"22mb"`). Mark notes with it and
-  adjacent marked notes are automatically joined into a single octave-shift bracket, with the notated octave handled
-  for you — a real `<octave-shift>` (dashed line and terminal hook) in MusicXML and an `\ottava` in LilyPond. Octave
-  lines are staff-wide, as in standard notation; for independent lines per voice, put the voices on separate staves
-  with `engraving_settings.max_voices_per_staff = 1`.
+- **Octave-line note property** (`"8va"`, `"8vb"`, `"15ma"`, `"15mb"`, `"22ma"`, `"22mb"`). Passed per-note via the
+  properties argument, and then aggregated automatically into octave-shift brackets (a real `<octave-shift>` element
+  in MusicXML and an `\ottava` in LilyPond). Octave lines in standard notation are staff-wide, so for independent
+  lines per voice, put the voices on separate staves with `engraving_settings.max_voices_per_staff = 1`.
 - **A warning when a named or numbered voice contains overlapping notes**, which can't be kept in a single
   notated voice and so get split off into extra voices.
 - **`wait_for_clock_to_finish` is now importable from `scamp`**, blocking until a specific forked clock finishes.
 - **A `velocity` argument on `play_note`/`start_note`/`play_chord`/`start_chord`** to fix a note's attack
   velocity (0–1) independently of its volume. By default (`None`) velocity follows volume, so the note attacks at
-  its start volume with expression at 100% and volume can only be lowered. Giving one decouples them: the note
-  plays at that attack while the volume argument drives expression directly over its full range, leaving room for
-  volume to rise — handy when a synth or VST takes loudness from a CC rather than velocity. An explicit velocity is
-  preserved on the transcribed note, so replaying a `Performance` or exporting to MIDI reproduces the attack; it
-  still does not affect notation.
+  its start volume with expression at 100% and volume can only be lowered. (Or in the case of a volume envelope, it
+  attacks at the peak of the envelope.) Giving an explicit velocity via this argument decouples them: the note attacks
+  with the explicit velocity while the volume argument drives expression directly over its full range. This is useful
+  for a `start_note` call where you want to leave headroom, and also for a synth or VST where velocity and expression
+  are decoupled. An explicit velocity is preserved on the transcribed note, so replaying a `Performance` or exporting
+  to MIDI reproduces the attack; it still does not affect notation.
 
 ### Changed
 
 - **Parameter animation (glissandi, volume swells, other animated playback parameters) now runs on one shared
   tick.** Previously each animated parameter drove its own stream of updates, and every such stream woke the
-  scheduler separately — so several animations at once gummed up the GIL and made all timing (including unrelated
-  notes) jitter and drift. They now share a single demand-driven tick per session (default 50 Hz), so concurrent
-  animations no longer compete for the scheduler and everything's timing stays tight. The new
-  `playback_settings.animation_tick_interval` (seconds) is the one knob trading smoothness for overhead; at the
-  default the only audible cost is that very fast, wide MIDI pitch bends are sampled a touch more coarsely.
-  Notation is unaffected — it's still reconstructed from the exact envelopes.
-
+  scheduler separately. With several animations at once this gummed up the GIL and made all timing (including
+  unrelated notes) jitter and drift. All animations now share a single demand-driven tick per session (defaulting
+  to 50 Hz, settable via `playback_settings.animation_tick_interval`), so concurrent animations no longer compete
+  for the scheduler and timing stays tight. The only audible cost of the new system is that very fast, wide MIDI
+  pitch bends are sampled a touch more coarsely by default. Notation is unaffected — it's still reconstructed from
+  the exact envelopes.
 - **`engraving_settings.max_voices_per_part` has been renamed `max_voices_per_staff`**, which describes it more
   accurately (it's the voice limit per staff, above which extra staves are added). The old name still works as a
   deprecated alias, and a value saved under the old name in your settings file migrates automatically on load.
   Values outside 1–4 are now rejected with a warning, falling back to the default of 4.
-
-- **Overlapping / multi-voice parts are laid out more stably.** Staff and rendered-voice assignments are now
-  decided up front from the whole quantized part: a line stays on one staff and voice instead of hopping
-  between them, moving only at a real break (a measure of silence), and voices sharing a staff are ordered by
-  pitch (higher = upper voice). Within a staff, voices are additionally reordered measure by measure so higher
-  pitches take the upper (stem-up) voices, keeping stems from crossing; this happens only where no note ties
-  across the barline, so ties are never broken. Set `engraving_settings.pitch_order_voices_within_measure = False`
-  to keep each named voice in a fixed rendered-voice number instead.
-
+- **Overlapping / multi-voice parts are laid out more stably.** Which staff a line lands on is now decided up
+  front from the whole quantized part, so a line no longer hops between staves mid-phrase — it moves only at a
+  real break (a measure of silence). Within a staff, the movable voices are then ordered by pitch measure by
+  measure (higher pitch = upper, stem-up voice) so stems don't cross; a voice stays put where moving it would
+  break a tie across the barline, and numbered voices never move. Set
+  `engraving_settings.pitch_order_voices_within_measure = False` to keep each named voice in a fixed
+  rendered-voice number instead.
 - **Tempo guide marks are now off by default.** The parenthetical interpolated tempos shown between explicit
   tempo targets during an accel./rit. are no longer drawn; set `engraving_settings.tempo.include_guide_marks = True`
   to bring them back.
@@ -60,22 +55,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to the tempo it arrives at, rather than showing the bare "accel."/"rit." word on its own.
 - **`Performance.export_to_midi_file()` now applies playback adjustments**, so the exported MIDI reflects what
   would be *heard* — staccato shortening notes, accents/sfz raising velocity — rather than the bare notated
-  values. Realtime playback already did this; MIDI export was the odd one out. Velocities are clamped to the
+  values. This brings MIDI export in line with realtime playback. Velocities are clamped to the
   valid MIDI range, so an adjustment pushing volume above 1.0 caps at 127 instead of corrupting the file.
-
 - **`start_note`/`start_chord` now fix a note's velocity by default.** A started note plays at exactly the
   volume you give it (previously it always started at full velocity, using expression to scale down), but in
   exchange it can't change afterward — trying to gliss or animate it warns and does nothing. Pass `fixed=False` to
-  give it its own channel and allow pitch, volume, and other parameters to change (its volume can
-  then only be lowered; pass an explicit `velocity` to leave it room to rise — see Added). A note with an
+  give it its own channel and allow pitch, volume, and other parameters to change (its volume can still only be
+  lowered unless you pass an explicit `velocity` to leave it room to rise — see Added). A note with an
   `Envelope` argument or an explicit `velocity` always animates, so `fixed` is ignored for those. `play_note` is
-  unchanged. The per-part default can be set with the new `start_note_fixed` argument to
-  `new_part`/`new_midi_part`.
-
-- **`start_note`/`start_chord`'s `max_volume` argument is replaced by `velocity`.** `max_volume` set a note's
-  swell ceiling; the clearer `velocity` sets the note-on attack directly (and, when given, decouples it from
-  volume — see Added). If you passed `max_volume=x`, pass `velocity=x`.
-
+  unchanged. The per-part default can be set with the new `start_note_fixed` argument to `new_part`/`new_midi_part`.
+- **`start_note`/`start_chord`'s `max_volume` argument is replaced by `velocity`.** `max_volume` previously set
+  a note's swell ceiling; the clearer `velocity` sets the note-on attack directly (and can decouple it from
+  volume — see Added). If you passed `max_volume=x`, pass `velocity=x` instead.
 - **OSC playback's note-on message now carries velocity.** The `start_note` message is
   `[note_id, pitch, volume, velocity]` (was `[note_id, pitch, volume]`); receivers that read the first three by
   position are unaffected.
@@ -92,8 +83,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Exported MIDI no longer lets a fixed note inherit a previous note's expression on a reused channel.** If a
   channel had last carried an animated note (a glissando or volume curve), a later fixed note could reuse it and
   export at the wrong volume; the channel's expression is now reset at the note-on.
-- **Exported MIDI now sends volume changes to the instrument's `volume_cc_num`** (channel volume, e.g. CC7)
-  instead of always expression (CC11), matching realtime playback.
+- **Exported MIDI now sends volume changes to the instrument's `volume_cc_num`** (can be channel volume, e.g. CC7)
+  instead of always the default expression (CC11), matching realtime playback.
 - **Reading an "auto"-resolved setting no longer persists your other in-session settings changes to disk.**
   The first read of a lazily-resolved setting (e.g. `engraving_settings.lilypond_dir`, or
   `playback_settings.default_audio_driver`) caches the resolved value to the settings JSON — but it was rewriting
@@ -117,12 +108,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   string instead of a `SpellingPolicy`, breaking spelling at transcription time; strings and alteration tuples
   are now interpreted the same way the `Ensemble`-level default already was.
 - **Reloading a saved `Performance` that carried a non-trivial recorded tempo curve no longer plays back at
-  the wrong tempo (or appears to hang).** The `TempoEnvelope` JSON round-trip was inverting the curve; relies
-  on a matching fix in clockblocks. Note that saved-performance JSON now stores tempo-curve levels as tempo
-  (bpm) rather than beat length — files written by older versions should be re-saved to migrate.
+  the wrong tempo (or appears to hang).** Relies on a matching fix in clockblocks: the `TempoEnvelope` JSON
+  round-trip was inverting the curve. Note that saved-performance JSON now stores tempo-curve levels as tempo
+  (bpm) rather than beat length, which is also more human-readable. Files written by older versions should be
+  re-saved to migrate.
 - **A blocking `play_note()` or `wait()` inside a keyboard/MIDI/OSC callback no longer hangs the session.**
-  Instead, it raises `SchedulerHeldError` (re-exported from clockblocks), pointing you to fork the timed
-  action so the callback returns immediately.
+  Relies on a matching fix in clockblocks: such a call now raises clockblocks' `SchedulerHeldError`, pointing
+  you to fork the timed action so the callback returns immediately.
 - **A recorded tempo curve now reaches the moment you call `stop_transcribing`**, even when the recorded
   clock is mid-wait or you stop from a different clock. Previously the extracted tempo envelope could end
   early — at the beat the recorded clock last woke at — dropping the final stretch of tempo; recorded notes
